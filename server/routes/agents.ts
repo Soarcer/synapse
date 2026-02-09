@@ -48,8 +48,12 @@ export function createAgentsRouter(
       console.log(`[Agents] Spawned agent ${agentId}`);
       res.status(201).json({ ok: true, agentId });
     } catch (err: any) {
-      console.error('[Agents] Error spawning agent:', err);
-      res.status(500).json({ error: err.message });
+      if (err.message === 'Max concurrent agents reached') {
+        res.status(429).json({ error: err.message });
+      } else {
+        console.error('[Agents] Spawn error:', err);
+        res.status(500).json({ error: err.message || 'Spawn failed' });
+      }
     }
   });
 

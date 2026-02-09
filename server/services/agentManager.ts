@@ -8,6 +8,9 @@ import type {
   ActiveAgentInfo,
 } from '../../src/types/agent.js';
 
+const MAX_CONCURRENT_AGENTS = 10;
+const AGENT_TIMEOUT_MS = 300_000; // 5 minutes
+
 interface RunningAgent {
   agentId: string;
   sessionId: string;
@@ -16,6 +19,7 @@ interface RunningAgent {
   startTime: number;
   abortController: AbortController;
   cleanupTimer?: ReturnType<typeof setTimeout>;
+  timeoutTimer?: ReturnType<typeof setTimeout>;
 }
 
 export class AgentManager {
@@ -25,6 +29,11 @@ export class AgentManager {
     request: SpawnAgentRequest,
     broadcaster: Broadcaster,
   ): Promise<string> {
+    const runningCount = Array.from(this.agents.values()).filter((a) => a.status === 'running').length;
+    if (runningCount >= MAX_CONCURRENT_AGENTS) {
+      throw new Error('Max concurrent agents reached');
+    }
+
     const agentId = `agent-${nanoid(12)}`;
     const sessionId = request.sessionId || `sdk-${nanoid(8)}`;
     const startTime = Date.now();
@@ -39,6 +48,8 @@ export class AgentManager {
       abortController,
     };
     this.agents.set(agentId, agent);
+
+    agent.timeoutTimer = setTimeout(() => this.stop(agentId), AGENT_TIMEOUT_MS);
 
     // Broadcast agent_start
     const startEvent: AgentEvent = {
@@ -116,6 +127,7 @@ export class AgentManager {
             : undefined;
 
           agent.status = 'success';
+          if (agent.timeoutTimer) clearTimeout(agent.timeoutTimer);
           const stopEvent: AgentEvent = {
             id: nanoid(),
             type: 'agent_stop',
@@ -135,6 +147,7 @@ export class AgentManager {
       if (agent.abortController.signal.aborted) return;
 
       agent.status = 'error';
+      if (agent.timeoutTimer) clearTimeout(agent.timeoutTimer);
       const errorEvent: AgentEvent = {
         id: nanoid(),
         type: 'agent_stop',
@@ -222,6 +235,7 @@ export class AgentManager {
     const agent = this.agents.get(agentId);
     if (!agent) return false;
 
+    if (agent.timeoutTimer) clearTimeout(agent.timeoutTimer);
     agent.abortController.abort();
     agent.status = 'stopped';
     return true;
@@ -233,8 +247,7 @@ export class AgentManager {
     broadcaster: Broadcaster,
   ): Promise<boolean> {
     const agent = this.agents.get(agentId);
-    if (!agent || (agent.status !== 'success' && agent.status !== 'running')) return false;
-    if (agent.status === 'running') return false; // Already running, reject concurrent sends
+    if (!agent || agent.status !== 'success') return false;
 
     // Clear cleanup timer if agent is being resumed
     if (agent.cleanupTimer) {
@@ -288,10 +301,11 @@ export class AgentManager {
     }));
   }
 
-  /** Stop all running agents and clear cleanup timers */
+  /** Stop all running agents and clear cleanup/timeout timers */
   stopAll(): void {
     for (const agent of this.agents.values()) {
       if (agent.cleanupTimer) clearTimeout(agent.cleanupTimer);
+      if (agent.timeoutTimer) clearTimeout(agent.timeoutTimer);
       if (agent.status === 'running') {
         agent.abortController.abort();
         agent.status = 'stopped';
@@ -303,6 +317,10 @@ export class AgentManager {
   private scheduleCleanup(agentId: string): void {
     const agent = this.agents.get(agentId);
     if (!agent) return;
+    if (agent.timeoutTimer) {
+      clearTimeout(agent.timeoutTimer);
+      agent.timeoutTimer = undefined;
+    }
     agent.cleanupTimer = setTimeout(() => {
       this.agents.delete(agentId);
     }, 5 * 60 * 1000); // 5 minutes

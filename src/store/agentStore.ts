@@ -10,6 +10,8 @@ import type {
 import type { TranscriptSummary } from '../types/transcript';
 import { wsClient } from './wsClient';
 import { toast } from '../components/Toast';
+import { PALETTES } from '../utils/format';
+import { apiUrl } from '../utils/api';
 
 // ── Constants ────────────────────────────────────────────────
 
@@ -519,8 +521,14 @@ function processEvent(event: AgentEvent, draft: StateDraft, showHookEvents: bool
 
 // ── Shared fetch-and-reload ──────────────────────────────────
 
+let reloadAbort: AbortController | null = null;
+
 function reloadAllEvents(): void {
-  fetch('/api/events?limit=2000')
+  reloadAbort?.abort();
+  reloadAbort = new AbortController();
+  const signal = reloadAbort.signal;
+
+  fetch(apiUrl('/api/events?limit=2000'), { signal })
     .then((r) => r.json())
     .then((data) => {
       const events = Array.isArray(data) ? data : data?.events;
@@ -528,7 +536,29 @@ function reloadAllEvents(): void {
         useAgentStore.getState().loadEvents(events);
       }
     })
-    .catch(() => {});
+    .catch((err) => {
+      if (err?.name === 'AbortError') return;
+    });
+}
+
+// ── Derived map helpers ──────────────────────────────────────
+
+function buildDerivedMaps(agents: Map<string, AgentNodeData>) {
+  const agentsBySession = new Map<string, AgentNodeData[]>();
+  const childAgents = new Map<string, AgentNodeData[]>();
+  for (const a of agents.values()) {
+    // Group by sessionId
+    const sessionList = agentsBySession.get(a.sessionId);
+    if (sessionList) sessionList.push(a);
+    else agentsBySession.set(a.sessionId, [a]);
+    // Group by parentAgentId
+    if (a.parentAgentId) {
+      const childList = childAgents.get(a.parentAgentId);
+      if (childList) childList.push(a);
+      else childAgents.set(a.parentAgentId, [a]);
+    }
+  }
+  return { agentsBySession, childAgents };
 }
 
 // ── Store interface ──────────────────────────────────────────
@@ -536,6 +566,8 @@ function reloadAllEvents(): void {
 interface AgentStore {
   sessions: Map<string, SessionData>;
   agents: Map<string, AgentNodeData>;
+  agentsBySession: Map<string, AgentNodeData[]>;
+  childAgents: Map<string, AgentNodeData[]>;
   toolCalls: Map<string, ToolCallSummary[]>;
   prompts: Map<string, UserPromptData[]>;
   activeAgents: Map<string, string[]>;
@@ -556,13 +588,17 @@ interface AgentStore {
   lockViewport: boolean;
   autoClosePrompts: boolean;
   graphSearchQuery: string;
+  collapsedNodes: Set<string>;
   transcripts: Map<string, TranscriptSummary>;
+  isLoading: boolean;
+  loadError: string | null;
 
   // Lens Panel state
   activeLensTab: string;
   lensPanelWidth: number;
   lensSearchQuery: string;
   profileMetric: 'tokens' | 'duration' | 'count';
+  paletteIndex: number;
   selectSource: 'graph' | 'lens' | null;
 
   // Actions
@@ -578,13 +614,18 @@ interface AgentStore {
   setLockViewport: (lock: boolean) => void;
   setAutoClosePrompts: (v: boolean) => void;
   setGraphSearchQuery: (query: string) => void;
+  toggleCollapsed: (nodeId: string) => void;
+  expandNode: (nodeId: string) => void;
   setHighlightedNodeIds: (ids: Set<string> | null) => void;
   setMultiHighlight: (ids: Set<string> | null) => void;
   setActiveLensTab: (tab: string) => void;
   setLensPanelWidth: (width: number) => void;
   setLensSearchQuery: (query: string) => void;
   setProfileMetric: (metric: 'tokens' | 'duration' | 'count') => void;
+  cyclePalette: () => void;
   setTranscript: (sessionId: string, data: TranscriptSummary) => void;
+  setLoading: (loading: boolean) => void;
+  setLoadError: (error: string | null) => void;
   removeNode: (nodeId: string) => void;
   removeSession: (sessionId: string) => void;
   clearEvents: () => void;
@@ -596,6 +637,8 @@ interface AgentStore {
 export const useAgentStore = create<AgentStore>((set, get) => ({
   sessions: new Map(),
   agents: new Map(),
+  agentsBySession: new Map(),
+  childAgents: new Map(),
   toolCalls: new Map(),
   prompts: new Map(),
   activeAgents: new Map(),
@@ -616,13 +659,17 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   lockViewport: true,
   autoClosePrompts: false,
   graphSearchQuery: '',
+  collapsedNodes: new Set<string>(),
   transcripts: new Map(),
+  isLoading: true,
+  loadError: null,
 
   // Lens Panel state
   activeLensTab: 'tree',
   lensPanelWidth: 320,
   lensSearchQuery: '',
   profileMetric: 'tokens',
+  paletteIndex: 0,
   selectSource: null,
 
   // ── addEvent ─────────────────────────────────────────────
@@ -649,7 +696,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       const nodes = state.nodes.map((n) =>
         n.id === nid.agent(agentId) ? { ...n, data: { agent: updated } } : n,
       );
-      set({ agents, nodes, events });
+      set({ agents, nodes, events, ...buildDerivedMaps(agents) });
       return;
     }
 
@@ -669,7 +716,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
     const draft = draftFromState(state);
     processEvent(event, draft, state.showHookEvents);
-    set({ ...draft, events });
+    set({ ...draft, events, ...buildDerivedMaps(draft.agents) });
   },
 
   // ── Simple setters ───────────────────────────────────────
@@ -684,8 +731,26 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
   setLayoutMode: (layoutMode) => set({ layoutMode }),
 
+  setLoading: (loading) => set({ isLoading: loading }),
+  setLoadError: (error) => set({ loadError: error }),
+
   setAutoClosePrompts: (autoClosePrompts) => set({ autoClosePrompts }),
   setGraphSearchQuery: (graphSearchQuery) => set({ graphSearchQuery }),
+
+  toggleCollapsed: (nodeId) => {
+    const s = new Set(get().collapsedNodes);
+    if (s.has(nodeId)) s.delete(nodeId);
+    else s.add(nodeId);
+    set({ collapsedNodes: s });
+  },
+
+  expandNode: (nodeId) => {
+    const s = get().collapsedNodes;
+    if (!s.has(nodeId)) return;
+    const next = new Set(s);
+    next.delete(nodeId);
+    set({ collapsedNodes: next });
+  },
   setHighlightedNodeIds: (highlightedNodeIds) => set({ highlightedNodeIds }),
   setMultiHighlight: (multiHighlightIds) => set({ multiHighlightIds }),
 
@@ -693,6 +758,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   setLensPanelWidth: (lensPanelWidth) => set({ lensPanelWidth }),
   setLensSearchQuery: (lensSearchQuery) => set({ lensSearchQuery }),
   setProfileMetric: (profileMetric) => set({ profileMetric }),
+  cyclePalette: () => set((s) => ({ paletteIndex: (s.paletteIndex + 1) % PALETTES.length })),
 
   setTranscript: (sessionId, data) => {
     const transcripts = new Map(get().transcripts);
@@ -750,7 +816,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
         const sid = rid.slice('session-'.length);
         sessions.delete(sid);
         prompts.delete(sid);
-        fetch(`/api/events/session/${sid}`, { method: 'DELETE' }).catch(() => {});
+        fetch(apiUrl(`/api/events/session/${sid}`), { method: 'DELETE' }).catch(() => {});
       } else if (rid.startsWith('agent-')) {
         const aid = rid.slice('agent-'.length);
         agents.delete(aid);
@@ -798,6 +864,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     set({
       sessions,
       agents,
+      ...buildDerivedMaps(agents),
       toolCalls,
       prompts,
       events,
@@ -820,6 +887,8 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     set({
       sessions: new Map(),
       agents: new Map(),
+      agentsBySession: new Map(),
+      childAgents: new Map(),
       toolCalls: new Map(),
       prompts: new Map(),
       activeAgents: new Map(),
@@ -830,6 +899,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       selectedNodeId: null,
       highlightedNodeIds: null,
       multiHighlightIds: null,
+      collapsedNodes: new Set(),
     }),
 
   loadEvents: (events) => {
@@ -842,10 +912,12 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     // Events stored newest-first for timeline display
     set({
       ...draft,
+      ...buildDerivedMaps(draft.agents),
       events: sorted.reverse().slice(0, 1000),
       selectedNodeId: null,
       highlightedNodeIds: null,
       multiHighlightIds: null,
+      collapsedNodes: new Set(),
     });
   },
 }));

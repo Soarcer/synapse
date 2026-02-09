@@ -1,16 +1,20 @@
 import { memo, useMemo } from 'react';
-import { Handle, type NodeProps } from '@xyflow/react';
+import { type NodeProps } from '@xyflow/react';
 import type { SessionData } from '../../../types/agent';
 import { useHandlePositions } from '../../../hooks/useHandlePositions';
 import { useAgentStore } from '../../../store/agentStore';
 import { formatTokens, formatRelativeTime } from '../../../utils/format';
+import type { AgentNodeData } from '../../../types/agent';
+import { CollapsibleSourceHandle } from '../CollapsibleSourceHandle';
+
+const EMPTY_AGENTS: AgentNodeData[] = [];
 
 function SessionNodeComponent({ data }: NodeProps) {
   const session = (data as { session: SessionData }).session;
   const shortId = session.sessionId.slice(0, 8);
   const isEnded = session.status === 'ended';
   const { source, sourceStyle } = useHandlePositions();
-  const agents = useAgentStore((s) => s.agents);
+  const sessionAgents = useAgentStore((s) => s.agentsBySession.get(session.sessionId)) ?? EMPTY_AGENTS;
   const allPrompts = useAgentStore((s) => s.prompts);
   const selectedNodeId = useAgentStore((s) => s.selectedNodeId);
   const highlightedNodeIds = useAgentStore((s) => s.highlightedNodeIds);
@@ -24,12 +28,10 @@ function SessionNodeComponent({ data }: NodeProps) {
     let input = 0;
     let output = 0;
     let tc = 0;
-    for (const a of agents.values()) {
-      if (a.sessionId === session.sessionId) {
-        input += a.tokenUsage.input;
-        output += a.tokenUsage.output;
-        tc += a.toolCalls.length;
-      }
+    for (const a of sessionAgents) {
+      input += a.tokenUsage.input;
+      output += a.tokenUsage.output;
+      tc += a.toolCalls.length;
     }
     // Fallback to transcript data when agent tokens are 0
     if (input === 0 && output === 0) {
@@ -41,7 +43,7 @@ function SessionNodeComponent({ data }: NodeProps) {
       }
     }
     return { inputTokens: input, outputTokens: output, toolCount: tc };
-  }, [agents, session.sessionId, transcripts]);
+  }, [sessionAgents, session.sessionId, transcripts]);
 
   // Sparkline: cumulative input tokens per turn
   const sparkData = useMemo(() => {
@@ -57,9 +59,8 @@ function SessionNodeComponent({ data }: NodeProps) {
       const prompt = sorted[i];
       const next = sorted[i + 1];
       let turnInput = 0;
-      for (const a of agents.values()) {
+      for (const a of sessionAgents) {
         if (
-          a.sessionId === session.sessionId &&
           a.startTime >= prompt.timestamp &&
           (!next || a.startTime < next.timestamp)
         ) {
@@ -98,7 +99,7 @@ function SessionNodeComponent({ data }: NodeProps) {
 
     if (txCum === 0) return null;
     return txPoints;
-  }, [allPrompts, agents, session.sessionId, transcripts]);
+  }, [allPrompts, sessionAgents, session.sessionId, transcripts]);
 
   return (
     <div
@@ -158,7 +159,7 @@ function SessionNodeComponent({ data }: NodeProps) {
         </div>
       </div>
 
-      <Handle type="source" position={source} style={sourceStyle} className="!bg-blue-400 !w-3 !h-3 !border-2 !border-blue-900" />
+      <CollapsibleSourceHandle nodeId={nodeId} position={source} style={sourceStyle} baseClassName="!bg-blue-400 !w-3 !h-3 !border-2 !border-blue-900" />
     </div>
   );
 }

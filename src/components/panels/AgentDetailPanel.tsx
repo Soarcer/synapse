@@ -1,7 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAgentStore } from '../../store/agentStore';
+import { ConfirmDialog } from '../ConfirmDialog';
 import type { ToolCallSummary } from '../../types/agent';
 import { formatTime, formatDuration } from '../../utils/format';
+import { apiUrl } from '../../utils/api';
+import { toast } from '../Toast';
 
 export function AgentDetailPanel() {
   const selectedNodeId = useAgentStore((s) => s.selectedNodeId);
@@ -14,6 +17,8 @@ export function AgentDetailPanel() {
   const removeNode = useAgentStore((s) => s.removeNode);
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState<{ nodeId: string; label: string } | null>(null);
+  const [confirmStop, setConfirmStop] = useState<string | null>(null);
   const textRef = useRef<HTMLPreElement>(null);
 
   // Determine what's selected
@@ -44,29 +49,55 @@ export function AgentDetailPanel() {
     if (!agentId || !message.trim()) return;
     setSending(true);
     try {
-      await fetch(`/api/agents/${agentId}/message`, {
+      const res = await fetch(apiUrl(`/api/agents/${agentId}/message`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: message.trim() }),
       });
+      if (!res.ok) throw new Error(`${res.status}`);
       setMessage('');
     } catch {
-      // ignore
+      toast('Failed to send message', 'error');
     } finally {
       setSending(false);
     }
   }, [agentId, message]);
 
-  const handleStopAgent = useCallback(async () => {
-    if (!agentId) return;
+  const handleStopAgent = useCallback(async (id?: string) => {
+    const targetId = id ?? agentId;
+    if (!targetId) return;
     try {
-      await fetch(`/api/agents/${agentId}`, { method: 'DELETE' });
+      const res = await fetch(apiUrl(`/api/agents/${targetId}`), { method: 'DELETE' });
+      if (!res.ok) throw new Error(`${res.status}`);
     } catch {
-      // ignore
+      toast('Failed to stop agent', 'error');
     }
   }, [agentId]);
 
-  if (!selectedNodeId || selectedNodeId === '__spawn__') return null;
+  if (!selectedNodeId || selectedNodeId === '__spawn__') {
+    return null;
+  }
+
+  const dialogs = (
+    <>
+      <ConfirmDialog
+        open={confirmRemove !== null}
+        title="Remove Node"
+        message="Remove this node and all its children?"
+        confirmLabel="Remove"
+        onConfirm={() => { if (confirmRemove) removeNode(confirmRemove.nodeId); setConfirmRemove(null); }}
+        onCancel={() => setConfirmRemove(null)}
+      />
+      <ConfirmDialog
+        open={confirmStop !== null}
+        title="Stop Agent"
+        message="Stop this running agent?"
+        confirmLabel="Stop"
+        onConfirm={() => { if (confirmStop) handleStopAgent(confirmStop); setConfirmStop(null); }}
+        onCancel={() => setConfirmStop(null)}
+      />
+    </>
+  );
 
   // ── Session detail view ────────────────────────────────────
   if (session) {
@@ -80,101 +111,108 @@ export function AgentDetailPanel() {
       : formatDuration(Date.now() - session.startTime);
 
     return (
-      <PanelShell title="Session" onClose={() => selectNode(null)}>
-        <div className="p-4 space-y-3 text-sm flex-1 overflow-auto">
-          <Detail label="Session ID" value={session.sessionId} mono />
-          <Detail
-            label="Status"
-            value={session.placeholder ? 'running (placeholder)' : session.status}
-            badge={session.status === 'running' ? 'green' : 'gray'}
-          />
-          {session.model && <Detail label="Model" value={session.model} />}
-          {session.source && <Detail label="Source" value={session.source} badge="blue" />}
-          {session.cwd && <Detail label="Working Dir" value={session.cwd} mono />}
-          <Detail label="Duration" value={duration} />
-          <Detail label="Started" value={formatTime(session.startTime)} />
-          {session.endTime && <Detail label="Ended" value={formatTime(session.endTime)} />}
+      <>
+        <PanelShell title="Session" onClose={() => selectNode(null)}>
+          <div className="p-4 space-y-3 text-sm flex-1 overflow-auto">
+            <Detail label="Session ID" value={session.sessionId} mono />
+            <div className="flex justify-between items-start">
+              <Detail
+                label="Status"
+                value={session.placeholder ? 'running (placeholder)' : session.status}
+                badge={session.status === 'running' ? 'green' : 'gray'}
+              />
+              <Detail label="Duration" value={duration} />
+            </div>
+            {session.model && <Detail label="Model" value={session.model} />}
+            {session.source && <Detail label="Source" value={session.source} badge="blue" />}
+            {session.cwd && <Detail label="Working Dir" value={session.cwd} mono />}
+            <div className="flex justify-between">
+              <Detail label="Started" value={formatTime(session.startTime)} />
+              {session.endTime && <Detail label="Ended" value={formatTime(session.endTime)} />}
+            </div>
 
-          <Divider />
+            <Divider />
 
-          <div className="flex gap-4">
-            <Stat label="Prompts" value={sessionPrompts.length} />
-            <Stat label="Agents" value={session.agentCount} />
-            <Stat label="Events" value={sessionEvents.length} />
-          </div>
+            <div className="flex gap-4">
+              <Stat label="Prompts" value={sessionPrompts.length} />
+              <Stat label="Agents" value={session.agentCount} />
+              <Stat label="Events" value={sessionEvents.length} />
+            </div>
 
-          {/* Token rollup across all agents */}
-          {(() => {
-            const totals = sessionAgents.reduce(
-              (acc, a) => ({
-                input: acc.input + a.tokenUsage.input,
-                output: acc.output + a.tokenUsage.output,
-              }),
-              { input: 0, output: 0 },
-            );
-            return (totals.input > 0 || totals.output > 0) ? (
+            {/* Token rollup across all agents */}
+            {(() => {
+              const totals = sessionAgents.reduce(
+                (acc, a) => ({
+                  input: acc.input + a.tokenUsage.input,
+                  output: acc.output + a.tokenUsage.output,
+                }),
+                { input: 0, output: 0 },
+              );
+              return (totals.input > 0 || totals.output > 0) ? (
+                <div>
+                  <span className="text-gray-500 text-xs block mb-1">Tokens (all agents)</span>
+                  <div className="flex gap-4">
+                    <Stat label="Input" value={totals.input} format />
+                    <Stat label="Output" value={totals.output} format />
+                    <Stat label="Total" value={totals.input + totals.output} format />
+                  </div>
+                </div>
+              ) : null;
+            })()}
+
+            {/* Prompt list */}
+            {sessionPrompts.length > 0 && (
               <div>
-                <span className="text-gray-500 text-xs block mb-1">Tokens (all agents)</span>
-                <div className="flex gap-4">
-                  <Stat label="Input" value={totals.input} format />
-                  <Stat label="Output" value={totals.output} format />
-                  <Stat label="Total" value={totals.input + totals.output} format />
+                <span className="text-gray-500 text-xs block mb-1.5">
+                  Prompts ({sessionPrompts.length})
+                </span>
+                <div className="space-y-1 max-h-48 overflow-auto">
+                  {sessionPrompts.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => selectNode(`prompt-${p.id}`)}
+                      className="w-full text-left bg-amber-900/20 hover:bg-amber-900/40 border border-amber-800/30 rounded px-2 py-1.5 text-xs text-gray-300 truncate transition-colors"
+                    >
+                      {p.text.slice(0, 60) || '(empty)'}
+                    </button>
+                  ))}
                 </div>
               </div>
-            ) : null;
-          })()}
+            )}
 
-          {/* Prompt list */}
-          {sessionPrompts.length > 0 && (
-            <div>
-              <span className="text-gray-500 text-xs block mb-1.5">
-                Prompts ({sessionPrompts.length})
-              </span>
-              <div className="space-y-1 max-h-48 overflow-auto">
-                {sessionPrompts.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => selectNode(`prompt-${p.id}`)}
-                    className="w-full text-left bg-amber-900/20 hover:bg-amber-900/40 border border-amber-800/30 rounded px-2 py-1.5 text-xs text-gray-300 truncate transition-colors"
-                  >
-                    {p.text.slice(0, 60) || '(empty)'}
-                  </button>
-                ))}
+            {/* Agent list */}
+            {sessionAgents.length > 0 && (
+              <div>
+                <span className="text-gray-500 text-xs block mb-1.5">
+                  Agents ({sessionAgents.length})
+                </span>
+                <div className="space-y-1 max-h-48 overflow-auto">
+                  {sessionAgents.map((a) => (
+                    <button
+                      key={a.agentId}
+                      onClick={() => selectNode(`agent-${a.agentId}`)}
+                      className="w-full text-left flex items-center justify-between bg-gray-900/50 hover:bg-gray-800/50 rounded px-2 py-1.5 text-xs transition-colors"
+                    >
+                      <span className="text-gray-300">{a.agentType}</span>
+                      <StatusBadge status={a.status} />
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Agent list */}
-          {sessionAgents.length > 0 && (
-            <div>
-              <span className="text-gray-500 text-xs block mb-1.5">
-                Agents ({sessionAgents.length})
-              </span>
-              <div className="space-y-1 max-h-48 overflow-auto">
-                {sessionAgents.map((a) => (
-                  <button
-                    key={a.agentId}
-                    onClick={() => selectNode(`agent-${a.agentId}`)}
-                    className="w-full text-left flex items-center justify-between bg-gray-900/50 hover:bg-gray-800/50 rounded px-2 py-1.5 text-xs transition-colors"
-                  >
-                    <span className="text-gray-300">{a.agentType}</span>
-                    <StatusBadge status={a.status} />
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+            <Divider />
 
-          <Divider />
-
-          <button
-            onClick={() => removeNode(`session-${session.sessionId}`)}
-            className="w-full px-3 py-1.5 bg-red-900/30 hover:bg-red-800/40 border border-red-700/40 rounded text-xs text-red-300 transition-colors"
-          >
-            Remove Session
-          </button>
-        </div>
-      </PanelShell>
+            <button
+              onClick={() => setConfirmRemove({ nodeId: `session-${session.sessionId}`, label: 'session' })}
+              className="w-full px-3 py-1.5 bg-red-900/30 hover:bg-red-800/40 border border-red-700/40 rounded text-xs text-red-300 transition-colors"
+            >
+              Remove Session
+            </button>
+          </div>
+        </PanelShell>
+        {dialogs}
+      </>
     );
   }
 
@@ -207,45 +245,48 @@ export function AgentDetailPanel() {
     );
 
     return (
-      <PanelShell title="User Prompt" onClose={() => selectNode(null)}>
-        <div className="p-4 space-y-3 text-sm flex-1 overflow-auto">
-          <Detail label="Time" value={formatTime(foundPrompt.timestamp)} />
-          <Detail label="Session" value={foundPrompt.sessionId.slice(0, 12)} mono />
+      <>
+        <PanelShell title="User Prompt" onClose={() => selectNode(null)}>
+          <div className="p-4 space-y-3 text-sm flex-1 overflow-auto">
+            <Detail label="Time" value={formatTime(foundPrompt.timestamp)} />
+            <Detail label="Session" value={foundPrompt.sessionId.slice(0, 12)} mono />
 
-          {/* Token rollup for agents under this prompt */}
-          {(promptTokens.input > 0 || promptTokens.output > 0) && (
-            <>
-              <Divider />
-              <div>
-                <span className="text-gray-500 text-xs block mb-1">Tokens ({promptAgents.length} agent{promptAgents.length !== 1 ? 's' : ''})</span>
-                <div className="flex gap-4">
-                  <Stat label="Input" value={promptTokens.input} format />
-                  <Stat label="Output" value={promptTokens.output} format />
-                  <Stat label="Total" value={promptTokens.input + promptTokens.output} format />
+            {/* Token rollup for agents under this prompt */}
+            {(promptTokens.input > 0 || promptTokens.output > 0) && (
+              <>
+                <Divider />
+                <div>
+                  <span className="text-gray-500 text-xs block mb-1">Tokens ({promptAgents.length} agent{promptAgents.length !== 1 ? 's' : ''})</span>
+                  <div className="flex gap-4">
+                    <Stat label="Input" value={promptTokens.input} format />
+                    <Stat label="Output" value={promptTokens.output} format />
+                    <Stat label="Total" value={promptTokens.input + promptTokens.output} format />
+                  </div>
                 </div>
-              </div>
-            </>
-          )}
+              </>
+            )}
 
-          <Divider />
+            <Divider />
 
-          <div>
-            <span className="text-gray-500 text-xs block mb-1.5">Prompt text</span>
-            <pre className="text-xs bg-gray-900 rounded p-3 text-gray-200 overflow-auto max-h-80 font-mono whitespace-pre-wrap leading-relaxed">
-              {foundPrompt.text || '(empty)'}
-            </pre>
+            <div>
+              <span className="text-gray-500 text-xs block mb-1.5">Prompt text</span>
+              <pre className="text-xs bg-gray-900 rounded p-3 text-gray-200 overflow-auto max-h-80 font-mono whitespace-pre-wrap leading-relaxed">
+                {foundPrompt.text || '(empty)'}
+              </pre>
+            </div>
+
+            <Divider />
+
+            <button
+              onClick={() => setConfirmRemove({ nodeId: `prompt-${promptId}`, label: 'prompt' })}
+              className="w-full px-3 py-1.5 bg-red-900/30 hover:bg-red-800/40 border border-red-700/40 rounded text-xs text-red-300 transition-colors"
+            >
+              Remove Prompt
+            </button>
           </div>
-
-          <Divider />
-
-          <button
-            onClick={() => removeNode(`prompt-${promptId}`)}
-            className="w-full px-3 py-1.5 bg-red-900/30 hover:bg-red-800/40 border border-red-700/40 rounded text-xs text-red-300 transition-colors"
-          >
-            Remove Prompt
-          </button>
-        </div>
-      </PanelShell>
+        </PanelShell>
+        {dialogs}
+      </>
     );
   }
 
@@ -284,53 +325,66 @@ export function AgentDetailPanel() {
         : null;
 
     return (
-      <PanelShell title={foundTc.toolName} onClose={() => selectNode(null)}>
-        <div className="p-4 space-y-3 text-sm flex-1 overflow-auto">
-          <Detail
-            label="Status"
-            value={foundTc.status}
-            badge={foundTc.status === 'success' ? 'green' : foundTc.status === 'error' ? 'red' : 'purple'}
-          />
-          <Detail label="Tool Use ID" value={foundTc.toolUseId.slice(0, 16)} mono />
-          {parentAgentId && (
+      <>
+        <PanelShell
+          title={foundTc.toolName}
+          titleRight={<StatusBadge status={foundTc.status} />}
+          onClose={() => selectNode(null)}
+        >
+          <div className="p-4 space-y-3 text-sm flex-1 overflow-auto">
+            <div className="flex justify-between items-start">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500 text-xs">Tool Use ID</span>
+                  {parentAgentId && (
+                    <button
+                      onClick={() => selectNode(`agent-${parentAgentId}`)}
+                      className="text-[10px] text-blue-400 hover:text-blue-300 underline"
+                    >
+                      Parent: {parentAgentId.slice(0, 12)}
+                    </button>
+                  )}
+                </div>
+                <p className="text-gray-300 break-all font-mono text-xs">{foundTc.toolUseId.slice(0, 16)}</p>
+              </div>
+              {duration && <Detail label="Duration" value={duration} />}
+            </div>
+            {(foundTc.startTime || foundTc.endTime) && (
+              <div className="flex justify-between">
+                {foundTc.startTime && <Detail label="Started" value={formatTime(foundTc.startTime)} />}
+                {foundTc.endTime && <Detail label="Ended" value={formatTime(foundTc.endTime)} />}
+              </div>
+            )}
+
+            {foundTc.toolInput && (
+              <div>
+                <span className="text-gray-500 text-xs block mb-1">Input</span>
+                <pre className="text-xs bg-gray-900 rounded p-2 text-gray-300 overflow-auto max-h-52 font-mono whitespace-pre-wrap">
+                  {JSON.stringify(foundTc.toolInput, null, 2)}
+                </pre>
+              </div>
+            )}
+            {foundTc.toolResponse && (
+              <div>
+                <span className="text-gray-500 text-xs block mb-1">Response</span>
+                <pre className="text-xs bg-gray-900 rounded p-2 text-gray-300 overflow-auto max-h-52 font-mono whitespace-pre-wrap">
+                  {JSON.stringify(foundTc.toolResponse, null, 2)}
+                </pre>
+              </div>
+            )}
+
+            <Divider />
+
             <button
-              onClick={() => selectNode(`agent-${parentAgentId}`)}
-              className="text-xs text-blue-400 hover:text-blue-300 underline"
+              onClick={() => setConfirmRemove({ nodeId: `tool-${toolNodeId}`, label: 'tool call' })}
+              className="w-full px-3 py-1.5 bg-red-900/30 hover:bg-red-800/40 border border-red-700/40 rounded text-xs text-red-300 transition-colors"
             >
-              Parent: {parentAgentId.slice(0, 12)}
+              Remove Tool
             </button>
-          )}
-          {duration && <Detail label="Duration" value={duration} />}
-          {foundTc.startTime && <Detail label="Started" value={formatTime(foundTc.startTime)} />}
-          {foundTc.endTime && <Detail label="Ended" value={formatTime(foundTc.endTime)} />}
-
-          {foundTc.toolInput && (
-            <div>
-              <span className="text-gray-500 text-xs block mb-1">Input</span>
-              <pre className="text-xs bg-gray-900 rounded p-2 text-gray-300 overflow-auto max-h-52 font-mono whitespace-pre-wrap">
-                {JSON.stringify(foundTc.toolInput, null, 2)}
-              </pre>
-            </div>
-          )}
-          {foundTc.toolResponse && (
-            <div>
-              <span className="text-gray-500 text-xs block mb-1">Response</span>
-              <pre className="text-xs bg-gray-900 rounded p-2 text-gray-300 overflow-auto max-h-52 font-mono whitespace-pre-wrap">
-                {JSON.stringify(foundTc.toolResponse, null, 2)}
-              </pre>
-            </div>
-          )}
-
-          <Divider />
-
-          <button
-            onClick={() => removeNode(`tool-${toolNodeId}`)}
-            className="w-full px-3 py-1.5 bg-red-900/30 hover:bg-red-800/40 border border-red-700/40 rounded text-xs text-red-300 transition-colors"
-          >
-            Remove Tool
-          </button>
-        </div>
-      </PanelShell>
+          </div>
+        </PanelShell>
+        {dialogs}
+      </>
     );
   }
 
@@ -346,19 +400,23 @@ export function AgentDetailPanel() {
       {/* Scrollable content */}
       <div className="flex-1 overflow-auto">
         <div className="p-4 space-y-3 text-sm">
-          <Detail
-            label="Status"
-            value={agent.status}
-            badge={agent.status === 'running' ? 'green' : agent.status === 'error' ? 'red' : 'gray'}
-          />
+          <div className="flex justify-between items-start">
+            <Detail
+              label="Status"
+              value={agent.status}
+              badge={agent.status === 'running' ? 'green' : agent.status === 'error' ? 'red' : 'gray'}
+            />
+            <Detail label="Duration" value={agentDuration} />
+          </div>
           <Detail label="Agent ID" value={agent.agentId} mono />
           <Detail label="Session" value={agent.sessionId.slice(0, 12)} mono />
           {agent.parentAgentId && (
             <Detail label="Parent Agent" value={agent.parentAgentId.slice(0, 12)} mono />
           )}
-          <Detail label="Duration" value={agentDuration} />
-          <Detail label="Started" value={formatTime(agent.startTime)} />
-          {agent.endTime && <Detail label="Ended" value={formatTime(agent.endTime)} />}
+          <div className="flex justify-between">
+            <Detail label="Started" value={formatTime(agent.startTime)} />
+            {agent.endTime && <Detail label="Ended" value={formatTime(agent.endTime)} />}
+          </div>
 
           <Divider />
 
@@ -467,7 +525,7 @@ export function AgentDetailPanel() {
               </button>
             </div>
             <button
-              onClick={handleStopAgent}
+              onClick={() => setConfirmStop(agent.agentId)}
               className="w-full px-3 py-1.5 bg-red-900/50 hover:bg-red-800/50 border border-red-700/50 rounded text-xs text-red-300 transition-colors"
             >
               Stop Agent
@@ -475,12 +533,14 @@ export function AgentDetailPanel() {
           </>
         )}
         <button
-          onClick={() => removeNode(`agent-${agent.agentId}`)}
+          onClick={() => setConfirmRemove({ nodeId: `agent-${agent.agentId}`, label: 'agent' })}
           className="w-full px-3 py-1.5 bg-red-900/30 hover:bg-red-800/40 border border-red-700/40 rounded text-xs text-red-300 transition-colors"
         >
           Remove Agent
         </button>
       </div>
+
+      {dialogs}
     </PanelShell>
   );
 }
@@ -489,10 +549,12 @@ export function AgentDetailPanel() {
 
 function PanelShell({
   title,
+  titleRight,
   onClose,
   children,
 }: {
   title: string;
+  titleRight?: React.ReactNode;
   onClose: () => void;
   children: React.ReactNode;
 }) {
@@ -500,12 +562,15 @@ function PanelShell({
     <div className="w-80 bg-[#161b22] border-l border-gray-800 flex flex-col overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
         <h3 className="text-sm font-semibold text-gray-200">{title}</h3>
-        <button
-          onClick={onClose}
-          className="text-gray-500 hover:text-gray-300 text-lg leading-none"
-        >
-          &times;
-        </button>
+        <div className="flex items-center gap-2">
+          {titleRight}
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-300 text-lg leading-none"
+          >
+            &times;
+          </button>
+        </div>
       </div>
       {children}
     </div>

@@ -3,6 +3,7 @@ import { Handle, type NodeProps } from '@xyflow/react';
 import type { ToolCallSummary } from '../../../types/agent';
 import { useHandlePositions } from '../../../hooks/useHandlePositions';
 import { useAgentStore } from '../../../store/agentStore';
+import { CollapsibleSourceHandle } from '../CollapsibleSourceHandle';
 
 const statusColors: Record<string, string> = {
   running: 'bg-purple-700/80 border-purple-500/50',
@@ -45,7 +46,7 @@ function ToolCallNodeComponent({ data }: NodeProps) {
       {duration && <span className="text-gray-400 text-[10px] ml-auto">{duration}</span>}
 
       {hasChildren && (
-        <Handle type="source" position={source} style={sourceStyle} className="!bg-purple-300 !w-2 !h-2 !border !border-gray-800" />
+        <CollapsibleSourceHandle nodeId={nodeId} position={source} style={sourceStyle} baseClassName="!bg-purple-300 !w-2 !h-2 !border !border-gray-800" />
       )}
     </div>
   );

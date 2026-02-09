@@ -1,6 +1,7 @@
-import express from 'express';
+import express, { type Request, type Response, type NextFunction } from 'express';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
+import rateLimit from 'express-rate-limit';
 import { Broadcaster } from './services/broadcaster.js';
 import { AgentManager } from './services/agentManager.js';
 import { createEventsRouter } from './routes/events.js';
@@ -45,6 +46,12 @@ app.use((_req, res, next) => {
   next();
 });
 
+// Rate limiting
+const hookLimiter = rateLimit({ windowMs: 60_000, max: 200, message: { error: 'Too many requests' } });
+const spawnLimiter = rateLimit({ windowMs: 60_000, max: 30, message: { error: 'Too many spawn requests' } });
+app.use('/api/events', hookLimiter);
+app.use('/api/agents/spawn', spawnLimiter);
+
 // Routes
 app.use('/api/events', createEventsRouter(broadcaster));
 app.use('/api/agents', createAgentsRouter(agentManager, broadcaster));
@@ -54,6 +61,12 @@ app.use('/api/snapshot', createSnapshotRouter());
 // Health check
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, clients: broadcaster.clientCount });
+});
+
+// Global error handler (must be after all route registrations)
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  console.error('[Server] Unhandled error:', err.stack);
+  res.status(500).json({ error: 'Internal server error' });
 });
 
 // --- HTTP + WebSocket Server ---
@@ -118,3 +131,11 @@ function shutdown() {
 
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
+
+process.on('uncaughtException', (err) => {
+  console.error('[Server] Uncaught exception:', err);
+  shutdown();
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[Server] Unhandled rejection:', reason);
+});

@@ -4,6 +4,10 @@ import type { UserPromptData } from '../../../types/agent';
 import { useHandlePositions } from '../../../hooks/useHandlePositions';
 import { useAgentStore } from '../../../store/agentStore';
 import { formatTokens } from '../../../utils/format';
+import type { AgentNodeData } from '../../../types/agent';
+import { CollapsibleSourceHandle } from '../CollapsibleSourceHandle';
+
+const EMPTY_AGENTS: AgentNodeData[] = [];
 
 function UserPromptNodeComponent({ data }: NodeProps) {
   const prompt = (data as { prompt: UserPromptData }).prompt;
@@ -12,7 +16,7 @@ function UserPromptNodeComponent({ data }: NodeProps) {
     : prompt.text;
   const time = new Date(prompt.timestamp).toLocaleTimeString();
   const { source, target, sourceStyle } = useHandlePositions();
-  const agents = useAgentStore((s) => s.agents);
+  const sessionAgents = useAgentStore((s) => s.agentsBySession.get(prompt.sessionId)) ?? EMPTY_AGENTS;
   const prompts = useAgentStore((s) => s.prompts);
   const selectedNodeId = useAgentStore((s) => s.selectedNodeId);
   const highlightedNodeIds = useAgentStore((s) => s.highlightedNodeIds);
@@ -30,9 +34,8 @@ function UserPromptNodeComponent({ data }: NodeProps) {
     let out = 0;
     let ac = 0;
     let tc = 0;
-    for (const a of agents.values()) {
+    for (const a of sessionAgents) {
       if (
-        a.sessionId === prompt.sessionId &&
         a.startTime >= prompt.timestamp &&
         (!next || a.startTime < next.timestamp)
       ) {
@@ -59,7 +62,7 @@ function UserPromptNodeComponent({ data }: NodeProps) {
       }
     }
     return { inputTokens: inp, outputTokens: out, agentCount: ac, toolCount: tc };
-  }, [agents, prompts, prompt, transcripts]);
+  }, [sessionAgents, prompts, prompt, transcripts]);
 
   return (
     <div className={`relative rounded-lg px-3 py-2 min-w-[200px] max-w-[260px] shadow-md border border-amber-600/40 bg-gradient-to-br from-amber-900/60 to-yellow-900/40 ${isSelected ? 'node-selected' : isHighlighted ? 'node-highlighted' : ''}`}>
@@ -105,7 +108,7 @@ function UserPromptNodeComponent({ data }: NodeProps) {
         </div>
       )}
 
-      <Handle type="source" position={source} style={sourceStyle} className="!bg-amber-400 !w-2.5 !h-2.5 !border-2 !border-gray-900" />
+      <CollapsibleSourceHandle nodeId={nodeId} position={source} style={sourceStyle} baseClassName="!bg-amber-400 !w-2.5 !h-2.5 !border-2 !border-gray-900" />
     </div>
   );
 }

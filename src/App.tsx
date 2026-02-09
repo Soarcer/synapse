@@ -7,8 +7,10 @@ import { ToolLogPanel } from './components/panels/ToolLogPanel';
 import { SpawnAgentDialog } from './components/panels/SpawnAgentDialog';
 import { TimelinePanel } from './components/panels/TimelinePanel';
 import { ToastContainer } from './components/Toast';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { useAgentStore } from './store/agentStore';
 import { wsClient } from './store/wsClient';
+import { apiUrl } from './utils/api';
 
 function isInputFocused() {
   const tag = document.activeElement?.tagName;
@@ -25,17 +27,23 @@ export default function App() {
   useEffect(() => {
     wsClient.connect();
 
-    // Load existing events from API
-    fetch('/api/events?limit=2000')
+    const { setLoading, setLoadError } = useAgentStore.getState();
+    setLoading(true);
+    setLoadError(null);
+
+    fetch(apiUrl('/api/events?limit=2000'))
       .then((r) => r.json())
       .then((data) => {
         const events = Array.isArray(data) ? data : data?.events;
         if (Array.isArray(events)) {
           loadEvents(events);
         }
+        setLoading(false);
       })
-      .catch(() => {
-        // Server may not be running yet
+      .catch((err) => {
+        console.warn('[App] Server not running:', err.message);
+        setLoadError(err.message || 'Failed to connect to server');
+        setLoading(false);
       });
 
     return () => {
@@ -131,17 +139,23 @@ export default function App() {
 
   return (
     <div className="h-screen w-screen flex flex-col bg-[#0d1117] text-gray-200 overflow-hidden">
-      <Header />
+      <ErrorBoundary name="Header">
+        <Header />
+      </ErrorBoundary>
 
       <div className="flex flex-1 overflow-hidden">
-        <LensAdapter />
+        <ErrorBoundary name="LensAdapter">
+          <LensAdapter />
+        </ErrorBoundary>
 
         {/* Main content */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Graph + Detail panel */}
           <div className="flex-1 flex overflow-hidden">
             <div className="flex-1 relative">
-              <AgentGraph />
+              <ErrorBoundary name="AgentGraph">
+                <AgentGraph />
+              </ErrorBoundary>
 
               {/* Paused indicator */}
               {paused && (
@@ -161,19 +175,25 @@ export default function App() {
             </div>
 
             {selectedNodeId && selectedNodeId !== '__spawn__' && (
-              <AgentDetailPanel />
+              <ErrorBoundary name="AgentDetailPanel">
+                <AgentDetailPanel />
+              </ErrorBoundary>
             )}
           </div>
 
           {/* Tool log drawer */}
           {showToolLog && (
             <div className="h-64 border-t border-gray-800 bg-[#161b22] flex-shrink-0">
-              <ToolLogPanel />
+              <ErrorBoundary name="ToolLogPanel">
+                <ToolLogPanel />
+              </ErrorBoundary>
             </div>
           )}
 
           {/* Timeline */}
-          <TimelinePanel />
+          <ErrorBoundary name="TimelinePanel">
+            <TimelinePanel />
+          </ErrorBoundary>
         </div>
       </div>
 

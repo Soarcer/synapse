@@ -1,7 +1,9 @@
-import { useMemo, useRef, useCallback } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import { useAgentStore } from '../../store/agentStore';
 import { toast } from '../Toast';
+import { ConfirmDialog } from '../ConfirmDialog';
 import type { TranscriptSummary } from '../../types/transcript';
+import { apiUrl } from '../../utils/api';
 
 export function Header() {
   const connectionStatus = useAgentStore((s) => s.connectionStatus);
@@ -23,6 +25,7 @@ export function Header() {
   const setAutoClosePrompts = useAgentStore((s) => s.setAutoClosePrompts);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const sessionList = useMemo(() => [...sessions.values()], [sessions]);
 
@@ -43,8 +46,8 @@ export function Header() {
     try {
       const sessionId = filter.sessionId;
       const url = sessionId
-        ? `/api/snapshot/export?sessionId=${encodeURIComponent(sessionId)}`
-        : '/api/snapshot/export';
+        ? apiUrl(`/api/snapshot/export?sessionId=${encodeURIComponent(sessionId)}`)
+        : apiUrl('/api/snapshot/export');
       const resp = await fetch(url);
       if (!resp.ok) throw new Error(`Export failed: ${resp.status}`);
       const blob = await resp.blob();
@@ -66,7 +69,7 @@ export function Header() {
       const snapshot = JSON.parse(text);
 
       // Send to server for DB persistence
-      const resp = await fetch('/api/snapshot/import', {
+      const resp = await fetch(apiUrl('/api/snapshot/import'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: text,
@@ -249,11 +252,20 @@ export function Header() {
 
       {/* Clear */}
       <button
-        onClick={clearEvents}
+        onClick={() => setShowClearConfirm(true)}
         className="px-3 py-1 text-xs text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700 rounded transition-colors"
       >
         Clear
       </button>
+
+      <ConfirmDialog
+        open={showClearConfirm}
+        title="Clear All Events"
+        message="Clear all events? This cannot be undone."
+        confirmLabel="Clear All"
+        onConfirm={() => { clearEvents(); setShowClearConfirm(false); }}
+        onCancel={() => setShowClearConfirm(false)}
+      />
     </header>
   );
 }
