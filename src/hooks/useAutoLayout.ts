@@ -17,6 +17,7 @@ const NODE_DEFAULTS: Record<string, { width: number; height: number }> = {
 
 const GAP_X = 50; // horizontal gap between parent right edge and child left edge
 const GAP_Y = 14; // vertical gap between sibling nodes
+const GAP_Y_TOOL = 10; // tighter gap between tool call nodes
 const ROOT_GAP = 40; // extra vertical gap between independent root trees
 const MARGIN = 30; // canvas margin
 
@@ -54,6 +55,21 @@ function computeGraphLayout(
 
   const roots = graphNodes.filter((n) => !parentOf.has(n.id));
 
+  // Gap before a sibling — tighter for tool nodes
+  function gapBefore(nodeId: string): number {
+    return nodeById.get(nodeId)?.type === 'toolCall' ? GAP_Y_TOOL : GAP_Y;
+  }
+
+  // Total height of a list of children including inter-sibling gaps
+  function childrenHeight(kids: string[]): number {
+    if (kids.length === 0) return 0;
+    let total = subtreeHeight(kids[0]);
+    for (let i = 1; i < kids.length; i++) {
+      total += gapBefore(kids[i]) + subtreeHeight(kids[i]);
+    }
+    return total;
+  }
+
   // Phase 1: bottom-up — compute subtree heights
   const stCache = new Map<string, number>();
 
@@ -72,11 +88,7 @@ function computeGraphLayout(
       return myH;
     }
 
-    const kidsTotal =
-      kids.reduce((sum, kid) => sum + subtreeHeight(kid), 0) +
-      (kids.length - 1) * GAP_Y;
-
-    const h = Math.max(myH, kidsTotal);
+    const h = Math.max(myH, childrenHeight(kids));
     stCache.set(nodeId, h);
     return h;
   }
@@ -101,18 +113,15 @@ function computeGraphLayout(
 
     if (kids.length === 0) return;
 
-    // Total height of children block
-    const kidsTotal =
-      kids.reduce((sum, kid) => sum + subtreeHeight(kid), 0) +
-      (kids.length - 1) * GAP_Y;
-
     // Center children block within subtree band
+    const kidsTotal = childrenHeight(kids);
     const childX = x + dims.width + GAP_X;
     let childY = yStart + (stH - kidsTotal) / 2;
 
-    for (const kid of kids) {
-      layout(kid, childX, childY);
-      childY += subtreeHeight(kid) + GAP_Y;
+    for (let i = 0; i < kids.length; i++) {
+      if (i > 0) childY += gapBefore(kids[i]);
+      layout(kids[i], childX, childY);
+      childY += subtreeHeight(kids[i]);
     }
   }
 
