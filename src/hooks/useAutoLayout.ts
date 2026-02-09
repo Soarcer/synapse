@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
-import dagre from 'dagre';
 import type { Node, Edge } from '@xyflow/react';
+
+// ── Fallback dimensions (used before DOM measurement) ────────
 
 const NODE_DEFAULTS: Record<string, { width: number; height: number }> = {
   session: { width: 220, height: 80 },
@@ -10,134 +11,123 @@ const NODE_DEFAULTS: Record<string, { width: number; height: number }> = {
   spawnAgent: { width: 50, height: 50 },
 };
 
-// ── Graph layout (dagre LR) ─────────────────────────────────
+// ── Spacing constants ────────────────────────────────────────
+// Tuned for readability: gap ≈ 0.25× node width horizontally,
+// tight siblings vertically so parent-child grouping is clear.
+
+const GAP_X = 50; // horizontal gap between parent right edge and child left edge
+const GAP_Y = 14; // vertical gap between sibling nodes
+const ROOT_GAP = 40; // extra vertical gap between independent root trees
+const MARGIN = 30; // canvas margin
+
+// ── Helpers ──────────────────────────────────────────────────
+
+function nodeDims(node: Node): { width: number; height: number } {
+  const m = node.measured;
+  if (m?.width && m?.height) return { width: m.width, height: m.height };
+  return NODE_DEFAULTS[node.type ?? ''] ?? { width: 180, height: 80 };
+}
+
+// ── Custom tree layout (LR) ─────────────────────────────────
+// Purpose-built for agent hierarchies. Each parent is vertically
+// centered relative to its children. No rank detection, no edge
+// routing inflation, no compaction passes — positions are exact.
 
 function computeGraphLayout(
   graphNodes: Node[],
   edges: Edge[],
 ): Map<string, { x: number; y: number }> {
-  const g = new dagre.graphlib.Graph();
-  g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({
-    rankdir: 'LR',
-    ranksep: 50,
-    nodesep: 12,
-    marginx: 30,
-    marginy: 30,
-    ranker: 'network-simplex',
-  });
+  // Build tree structure
+  const childrenOf = new Map<string, string[]>();
+  const parentOf = new Map<string, string>();
+  const nodeById = new Map<string, Node>();
 
-  for (const node of graphNodes) {
-    const m = node.measured;
-    const dims = m?.width && m?.height
-      ? { width: m.width, height: m.height }
-      : NODE_DEFAULTS[node.type ?? ''] ?? { width: 180, height: 80 };
-    g.setNode(node.id, { width: dims.width, height: dims.height });
-  }
+  for (const n of graphNodes) nodeById.set(n.id, n);
 
   for (const edge of edges) {
-    if (g.hasNode(edge.source) && g.hasNode(edge.target)) {
-      g.setEdge(edge.source, edge.target);
-    }
+    if (!nodeById.has(edge.source) || !nodeById.has(edge.target)) continue;
+    parentOf.set(edge.target, edge.source);
+    const kids = childrenOf.get(edge.source) ?? [];
+    kids.push(edge.target);
+    childrenOf.set(edge.source, kids);
   }
 
-  dagre.layout(g);
+  const roots = graphNodes.filter((n) => !parentOf.has(n.id));
 
+  // Phase 1: bottom-up — compute subtree heights
+  const stCache = new Map<string, number>();
+
+  function subtreeHeight(nodeId: string): number {
+    const cached = stCache.get(nodeId);
+    if (cached !== undefined) return cached;
+
+    const node = nodeById.get(nodeId);
+    if (!node) return 0;
+
+    const myH = nodeDims(node).height;
+    const kids = childrenOf.get(nodeId);
+
+    if (!kids || kids.length === 0) {
+      stCache.set(nodeId, myH);
+      return myH;
+    }
+
+    const kidsTotal =
+      kids.reduce((sum, kid) => sum + subtreeHeight(kid), 0) +
+      (kids.length - 1) * GAP_Y;
+
+    const h = Math.max(myH, kidsTotal);
+    stCache.set(nodeId, h);
+    return h;
+  }
+
+  // Phase 2: top-down — assign positions
+  // Each node is vertically centered within its subtree allocation.
+  // Children are placed to the right, stacked vertically and centered
+  // as a group within the same allocation.
   const positions = new Map<string, { x: number; y: number }>();
+
+  function layout(nodeId: string, x: number, yStart: number): void {
+    const node = nodeById.get(nodeId);
+    if (!node) return;
+
+    const dims = nodeDims(node);
+    const stH = subtreeHeight(nodeId);
+    const kids = childrenOf.get(nodeId) ?? [];
+
+    // Center this node vertically within its subtree band
+    const myY = yStart + (stH - dims.height) / 2;
+    positions.set(nodeId, { x, y: myY });
+
+    if (kids.length === 0) return;
+
+    // Total height of children block
+    const kidsTotal =
+      kids.reduce((sum, kid) => sum + subtreeHeight(kid), 0) +
+      (kids.length - 1) * GAP_Y;
+
+    // Center children block within subtree band
+    const childX = x + dims.width + GAP_X;
+    let childY = yStart + (stH - kidsTotal) / 2;
+
+    for (const kid of kids) {
+      layout(kid, childX, childY);
+      childY += subtreeHeight(kid) + GAP_Y;
+    }
+  }
+
+  // Layout each root tree
+  let y = MARGIN;
+  for (const root of roots) {
+    layout(root.id, MARGIN, y);
+    y += subtreeHeight(root.id) + ROOT_GAP;
+  }
+
+  // Orphan nodes (no edges at all)
   for (const node of graphNodes) {
-    const dn = g.node(node.id);
-    if (dn) {
-      positions.set(node.id, {
-        x: dn.x - dn.width / 2,
-        y: dn.y - dn.height / 2,
-      });
-    }
-  }
-
-  // Compact vertical gaps within each rank/column to tighten sibling spacing
-  const MIN_VERTICAL_GAP = 10;
-  const groups = new Map<number, Array<{ id: string; y: number; height: number }>>();
-
-  for (const node of graphNodes) {
-    const dn = g.node(node.id);
-    const rank = typeof dn?.rank === 'number' ? dn.rank : Math.round((dn?.x ?? 0) / 50);
-    const list = groups.get(rank) ?? [];
-    list.push({
-      id: node.id,
-      y: positions.get(node.id)?.y ?? 0,
-      height: dn?.height ?? (NODE_DEFAULTS[node.type ?? ''] ?? { height: 80 }).height,
-    });
-    groups.set(rank, list);
-  }
-
-  for (const [, items] of groups) {
-    items.sort((a, b) => a.y - b.y);
-    let cursor = items.length > 0 ? items[0].y : 0;
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (i === 0) {
-        cursor = item.y;
-      } else {
-        cursor = Math.min(item.y, cursor + items[i - 1].height + MIN_VERTICAL_GAP);
-      }
-      const pos = positions.get(item.id);
-      if (pos) positions.set(item.id, { ...pos, y: cursor });
-    }
-  }
-
-  // ── Cross-rank horizontal compaction ──────────────────────────
-  // Pull child nodes closer to their parents when dagre over-allocates space.
-  const MIN_HORIZONTAL_GAP = 30;
-
-  const parentMap = new Map<string, string>();
-  const childrenMap = new Map<string, string[]>();
-  for (const edge of edges) {
-    if (g.hasNode(edge.source) && g.hasNode(edge.target)) {
-      parentMap.set(edge.target, edge.source);
-      const kids = childrenMap.get(edge.source) ?? [];
-      kids.push(edge.target);
-      childrenMap.set(edge.source, kids);
-    }
-  }
-
-  const nodeTypeById = new Map<string, string>();
-  for (const node of graphNodes) nodeTypeById.set(node.id, node.type ?? '');
-
-  function shiftSubtree(nodeId: string, deltaX: number) {
-    const pos = positions.get(nodeId);
-    if (pos) positions.set(nodeId, { ...pos, x: pos.x + deltaX });
-    for (const childId of childrenMap.get(nodeId) ?? []) {
-      shiftSubtree(childId, deltaX);
-    }
-  }
-
-  // BFS from roots — compact each node toward its parent
-  const roots = graphNodes.filter((n) => !parentMap.has(n.id));
-  const queue = roots.map((n) => n.id);
-  const visited = new Set<string>();
-
-  while (queue.length > 0) {
-    const nodeId = queue.shift()!;
-    if (visited.has(nodeId)) continue;
-    visited.add(nodeId);
-
-    const pid = parentMap.get(nodeId);
-    if (pid) {
-      const parentPos = positions.get(pid);
-      const nodePos = positions.get(nodeId);
-      if (parentPos && nodePos) {
-        const pdn = g.node(pid);
-        const parentWidth = pdn?.width ?? (NODE_DEFAULTS[nodeTypeById.get(pid) ?? ''] ?? { width: 180 }).width;
-        const minX = parentPos.x + parentWidth + MIN_HORIZONTAL_GAP;
-        const excess = nodePos.x - minX;
-        if (excess > 40) {
-          shiftSubtree(nodeId, -excess);
-        }
-      }
-    }
-
-    for (const childId of childrenMap.get(nodeId) ?? []) {
-      queue.push(childId);
+    if (!positions.has(node.id)) {
+      positions.set(node.id, { x: MARGIN, y });
+      y += nodeDims(node).height + GAP_Y;
     }
   }
 
@@ -153,7 +143,6 @@ function computeListLayout(
   graphNodes: Node[],
   edges: Edge[],
 ): Map<string, { x: number; y: number }> {
-  // Build adjacency: parent → children (preserving insertion order)
   const childrenOf = new Map<string, string[]>();
   const hasParent = new Set<string>();
   const nodeById = new Map<string, Node>();
@@ -168,7 +157,6 @@ function computeListLayout(
     hasParent.add(edge.target);
   }
 
-  // Roots = nodes with no parent
   const roots = graphNodes.filter((n) => !hasParent.has(n.id));
 
   const positions = new Map<string, { x: number; y: number }>();
@@ -177,7 +165,7 @@ function computeListLayout(
   function dfs(nodeId: string, depth: number) {
     const node = nodeById.get(nodeId);
     if (!node) return;
-    const dims = NODE_DEFAULTS[node.type ?? ''] ?? { width: 180, height: 80 };
+    const dims = nodeDims(node);
     positions.set(nodeId, { x: 40 + depth * LIST_INDENT, y });
     y += dims.height + LIST_ROW_GAP;
 
@@ -191,12 +179,11 @@ function computeListLayout(
     dfs(root.id, 0);
   }
 
-  // Any orphan nodes not in the tree
+  // Orphan nodes
   for (const node of graphNodes) {
     if (!positions.has(node.id)) {
-      const dims = NODE_DEFAULTS[node.type ?? ''] ?? { width: 180, height: 80 };
       positions.set(node.id, { x: 40, y });
-      y += dims.height + LIST_ROW_GAP;
+      y += nodeDims(node).height + LIST_ROW_GAP;
     }
   }
 
@@ -213,7 +200,7 @@ export function useAutoLayout(
   const positionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
   const prevKeyRef = useRef('');
 
-  // Recompute when node set or layout mode changes (fingerprint includes IDs)
+  // Fingerprint: recompute when structure or measurements change
   let idHash = 0;
   for (const n of nodes) {
     for (let i = 0; i < n.id.length; i++) {
@@ -235,7 +222,7 @@ export function useAutoLayout(
     });
   }
 
-  // Separate spawn node
+  // Separate spawn node — positioned after layout
   const graphNodes = nodes.filter((n) => n.id !== '__spawn__');
   const spawnNode = nodes.find((n) => n.id === '__spawn__');
 
@@ -246,12 +233,14 @@ export function useAutoLayout(
       ? computeListLayout(graphNodes, edges)
       : computeGraphLayout(graphNodes, edges);
 
-  // Position spawn node
+  // Position spawn node at bottom-right of graph
   if (spawnNode) {
     let maxX = 0;
     let maxY = 0;
-    for (const [, pos] of positions) {
-      maxX = Math.max(maxX, pos.x + 200);
+    for (const [id, pos] of positions) {
+      const node = graphNodes.find((n) => n.id === id);
+      const w = node ? nodeDims(node).width : 200;
+      maxX = Math.max(maxX, pos.x + w);
       maxY = Math.max(maxY, pos.y);
     }
     if (layoutMode === 'list') {
