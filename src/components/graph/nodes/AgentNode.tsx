@@ -3,7 +3,10 @@ import { Handle, type NodeProps } from '@xyflow/react';
 import type { AgentNodeData } from '../../../types/agent';
 import { useHandlePositions } from '../../../hooks/useHandlePositions';
 import { useAgentStore } from '../../../store/agentStore';
-import { formatTokens, formatElapsed, statusIcon, statusBorderColor } from '../../../utils/format';
+import { formatTokens, formatElapsed, formatTime, statusIcon, statusBorderColor } from '../../../utils/format';
+import { CollapsibleSourceHandle } from '../CollapsibleSourceHandle';
+
+const EMPTY_AGENTS: AgentNodeData[] = [];
 
 function AgentNodeComponent({ data }: NodeProps) {
   const agent = (data as { agent: AgentNodeData }).agent;
@@ -12,7 +15,7 @@ function AgentNodeComponent({ data }: NodeProps) {
     ? agent.streamingText.slice(-50).replace(/\n/g, ' ')
     : null;
   const { source, target, sourceStyle } = useHandlePositions();
-  const agents = useAgentStore((s) => s.agents);
+  const children = useAgentStore((s) => s.childAgents.get(agent.agentId)) ?? EMPTY_AGENTS;
   const selectedNodeId = useAgentStore((s) => s.selectedNodeId);
   const highlightedNodeIds = useAgentStore((s) => s.highlightedNodeIds);
   const nodeId = `agent-${agent.agentId}`;
@@ -25,14 +28,12 @@ function AgentNodeComponent({ data }: NodeProps) {
   const { inputTokens, outputTokens } = useMemo(() => {
     let input = agent.tokenUsage.input;
     let output = agent.tokenUsage.output;
-    for (const a of agents.values()) {
-      if (a.parentAgentId === agent.agentId) {
-        input += a.tokenUsage.input;
-        output += a.tokenUsage.output;
-      }
+    for (const a of children) {
+      input += a.tokenUsage.input;
+      output += a.tokenUsage.output;
     }
     return { inputTokens: input, outputTokens: output };
-  }, [agents, agent.agentId, agent.tokenUsage]);
+  }, [children, agent.tokenUsage]);
 
   return (
     <div
@@ -49,11 +50,19 @@ function AgentNodeComponent({ data }: NodeProps) {
         <span className="text-green-400/60 text-[10px] font-semibold uppercase tracking-wider">Agent</span>
         {/* Header */}
         <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-semibold text-gray-100 truncate">
-            {agent.agentType}
-          </span>
+          <div className="flex flex-col min-w-0">
+            <span className="text-sm font-semibold text-gray-100 truncate">
+              {agent.agentType}
+            </span>
+            <div className="text-[10px] text-gray-500 leading-tight">
+              <span>{formatElapsed(agent.startTime, agent.endTime)}</span>
+              {agent.endTime && (
+                <span className="ml-1.5 text-gray-600">ended {formatTime(agent.endTime)}</span>
+              )}
+            </div>
+          </div>
           <span
-            className={`text-xs font-bold ${
+            className={`text-xs font-bold shrink-0 ${
               agent.status === 'running'
                 ? 'text-green-400'
                 : agent.status === 'error'
@@ -66,8 +75,7 @@ function AgentNodeComponent({ data }: NodeProps) {
         </div>
 
         {/* Info row */}
-        <div className="flex items-center justify-between mt-1.5 text-xs text-gray-400">
-          <span>{formatElapsed(agent.startTime, agent.endTime)}</span>
+        <div className="flex items-center justify-end mt-1.5 text-xs text-gray-400">
           <div className="flex items-center gap-1.5">
             {(inputTokens > 0 || outputTokens > 0) && (
               <span className="text-[10px] font-mono">
@@ -103,7 +111,7 @@ function AgentNodeComponent({ data }: NodeProps) {
         </div>
       )}
 
-      <Handle type="source" position={source} style={sourceStyle} className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-800" />
+      <CollapsibleSourceHandle nodeId={nodeId} position={source} style={sourceStyle} baseClassName="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-800" />
     </div>
   );
 }
