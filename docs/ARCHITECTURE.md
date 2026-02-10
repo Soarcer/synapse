@@ -1,4 +1,4 @@
-# AgentViz Architecture
+# Synapse Architecture
 
 ## System Overview
 
@@ -38,7 +38,7 @@
 ## File Structure
 
 ```
-AgentViz/
+Synapse/
 ├── package.json
 ├── tsconfig.json
 ├── tsconfig.server.json          # Separate config for server (Node target)

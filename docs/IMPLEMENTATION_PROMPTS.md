@@ -1,8 +1,8 @@
-# Implementation Prompts for AgentViz
+# Implementation Prompts for Synapse
 
 Use these prompts in separate Claude Code sessions. Run them in order.
 Each prompt is self-contained — paste it as-is into a new session opened at
-`c:\Workspace\Coding\Prototypes\AgentViz`.
+`c:\Workspace\Coding\Prototypes\Synapse`.
 
 ---
 
@@ -11,7 +11,7 @@ Each prompt is self-contained — paste it as-is into a new session opened at
 ```
 Read CLAUDE.md and docs/ARCHITECTURE.md thoroughly first.
 
-Implement the complete project scaffold and backend server for AgentViz.
+Implement the complete project scaffold and backend server for Synapse.
 
 ### Step 1: Project Setup
 Create these config files:
@@ -21,7 +21,7 @@ Create these config files:
 - vite.config.ts with React plugin, server proxy /api and /ws to port 4000
 - tailwind.config.ts
 - index.html with root div
-- .gitignore (node_modules, dist, server/agentviz.db, .env)
+- .gitignore (node_modules, dist, server/synapse.db, .env)
 - .env.example with ANTHROPIC_API_KEY=your-key-here
 
 Run npm install after creating package.json.
@@ -110,7 +110,7 @@ Create .claude/settings.json with the complete hook configuration from ARCHITECT
 - Test GET /api/agents returns empty array
 - Stop the server
 
-Do NOT create any frontend React components yet — only index.html with a root div and an empty src/main.tsx that renders "AgentViz loading...". The frontend will be built in Session 2.
+Do NOT create any frontend React components yet — only index.html with a root div and an empty src/main.tsx that renders "Synapse loading...". The frontend will be built in Session 2.
 ```
 
 ---
@@ -122,7 +122,7 @@ Read CLAUDE.md and docs/ARCHITECTURE.md thoroughly first.
 Read src/types/agent.ts to understand the shared types.
 Read server/index.ts to understand the WebSocket and API contract.
 
-Implement the complete React frontend for AgentViz.
+Implement the complete React frontend for Synapse.
 
 ### Step 1: WebSocket Client
 Create src/store/wsClient.ts:
@@ -255,7 +255,7 @@ Create src/components/panels/TimelinePanel.tsx:
 
 ### Step 7: Layout
 Create src/components/layout/Header.tsx:
-- "AgentViz" title
+- "Synapse" title
 - Connection status dot (green/red/yellow)
 - Session selector dropdown (from store.sessions)
 - Dark mode toggle

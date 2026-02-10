@@ -1,10 +1,38 @@
 import Database from 'better-sqlite3';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const envDbPath = process.env.SYNAPSE_DB_PATH || process.env.AGENTVIZ_DB_PATH;
-const DB_PATH = envDbPath ? path.resolve(envDbPath) : path.join(__dirname, 'agentviz.db');
+
+// Env var resolution with deprecation warning
+const envDbPath = (() => {
+  if (process.env.SYNAPSE_DB_PATH) return process.env.SYNAPSE_DB_PATH;
+  if (process.env.AGENTVIZ_DB_PATH) {
+    console.warn('[DB] AGENTVIZ_DB_PATH is deprecated, use SYNAPSE_DB_PATH instead');
+    return process.env.AGENTVIZ_DB_PATH;
+  }
+  return undefined;
+})();
+
+const DB_PATH = envDbPath ? path.resolve(envDbPath) : path.join(__dirname, 'synapse.db');
+
+// Auto-migrate agentviz.db → synapse.db if needed
+if (!envDbPath) {
+  const oldDb = path.join(__dirname, 'agentviz.db');
+  const newDb = path.join(__dirname, 'synapse.db');
+  if (!fs.existsSync(newDb) && fs.existsSync(oldDb)) {
+    console.log('[DB] Migrating agentviz.db → synapse.db');
+    fs.renameSync(oldDb, newDb);
+    for (const suffix of ['-wal', '-shm']) {
+      const oldFile = oldDb + suffix;
+      if (fs.existsSync(oldFile)) {
+        fs.renameSync(oldFile, newDb + suffix);
+      }
+    }
+    console.log('[DB] Migration complete');
+  }
+}
 
 const db = new Database(DB_PATH);
 
@@ -32,6 +60,7 @@ db.exec(`
     token_input INTEGER,
     token_output INTEGER,
     duration_ms INTEGER,
+    vendor TEXT,
     raw_payload TEXT NOT NULL,
     created_at INTEGER NOT NULL
   );
@@ -42,6 +71,14 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_events_time ON events(created_at);
 `);
 
+// Migration: add vendor column to existing databases
+try {
+  db.exec('ALTER TABLE events ADD COLUMN vendor TEXT');
+} catch { /* column already exists */ }
+
+// Vendor index must be created after the migration to avoid errors on old DBs
+db.exec('CREATE INDEX IF NOT EXISTS idx_events_vendor ON events(vendor)');
+
 // ─── Prepared Statements ────────────────────────────────────────────
 
 const insertStmt = db.prepare(`
@@ -50,13 +87,13 @@ const insertStmt = db.prepare(`
     agent_id, agent_type, parent_agent_id,
     tool_name, tool_use_id, tool_input, tool_response,
     status, error, token_input, token_output, duration_ms,
-    raw_payload, created_at
+    vendor, raw_payload, created_at
   ) VALUES (
     @event_id, @session_id, @hook_event_name, @event_type,
     @agent_id, @agent_type, @parent_agent_id,
     @tool_name, @tool_use_id, @tool_input, @tool_response,
     @status, @error, @token_input, @token_output, @duration_ms,
-    @raw_payload, @created_at
+    @vendor, @raw_payload, @created_at
   )
 `);
 
@@ -96,6 +133,7 @@ export interface EventRow {
   token_input: number | null;
   token_output: number | null;
   duration_ms: number | null;
+  vendor: string | null;
   raw_payload: string;
   created_at: number;
 }
@@ -117,6 +155,7 @@ export function insertEvent(params: {
   token_input?: number | null;
   token_output?: number | null;
   duration_ms?: number | null;
+  vendor?: string | null;
   raw_payload: string;
   created_at: number;
 }): void {
@@ -137,6 +176,7 @@ export function insertEvent(params: {
     token_input: params.token_input ?? null,
     token_output: params.token_output ?? null,
     duration_ms: params.duration_ms ?? null,
+    vendor: params.vendor ?? null,
     raw_payload: params.raw_payload,
     created_at: params.created_at,
   });

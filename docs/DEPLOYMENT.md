@@ -44,7 +44,7 @@ Keep only:
   - Source: server/index.ts
 - **SYNAPSE_URL** (hook target): default `http://localhost:4000/api/events`
   - Source: hooks/send_event.cjs
-  - Legacy: `AGENTVIZ_URL` still works as fallback
+
 - **Vite dev server port**: `5173` (default, overridable)
   - Source: vite.config.ts
 - **Vite dev proxy** (defaults, overridable):
@@ -57,7 +57,7 @@ Keep only:
   - Source: server/index.ts
 - **SQLite DB path**: `server/synapse.db` (overridable)
   - Source: server/db.ts
-  - Env: `SYNAPSE_DB_PATH` (legacy: `AGENTVIZ_DB_PATH`)
+  - Env: `SYNAPSE_DB_PATH`
 
 ### Multi-instance (now supported via env)
 If you plan to run multiple instances on one machine, set these:

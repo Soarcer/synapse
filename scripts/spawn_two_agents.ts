@@ -53,7 +53,7 @@ async function main() {
     console.log(`✅ Spawned Agent 2: Code Searcher (${agent2Id})\n`);
 
     console.log('✨ Both agents spawned successfully!');
-    console.log('📊 Check the AgentViz UI to see them in action.');
+    console.log('📊 Check the Synapse UI to see them in action.');
     console.log(`\nAgent IDs:\n  - Agent 1: ${agent1Id}\n  - Agent 2: ${agent2Id}`);
 
   } catch (error) {

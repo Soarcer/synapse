@@ -12,7 +12,7 @@ const API_URL = process.env.API_URL ?? 'http://localhost:4000/api/events';
 const ts = Date.now().toString(36);
 const SESSION_ID = `sim-${ts}`;
 const AGENT_ID = `agent-explore-${ts}`;
-const CWD = 'c:\\Workspace\\Coding\\Prototypes\\AgentViz';
+const CWD = process.cwd();
 
 interface HookPayload {
   hook_event_name: string;
@@ -42,7 +42,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 async function main() {
-  console.log(`\n\x1b[1mAgentViz Session Simulator\x1b[0m`);
+  console.log(`\n\x1b[1mSynapse Session Simulator\x1b[0m`);
   console.log(`  Session: ${SESSION_ID}`);
   console.log(`  Server:  ${API_URL}\n`);
 
@@ -89,7 +89,7 @@ async function main() {
     tool_name: 'Read',
     tool_use_id: mainReadId,
     tool_input: { file_path: 'package.json' },
-    tool_response: { content: '{"name":"agentviz","version":"0.1.0"}' },
+    tool_response: { content: '{"name":"synapse-viz","version":"0.1.0"}' },
   }, 'PostToolUse (Read — main agent)');
   await sleep(300);
 

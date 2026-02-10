@@ -1,6 +1,6 @@
-# Synapse — Unified Roadmap (v2.1)
+# Synapse — Unified Roadmap (v2.2)
 
-> Unified plan merging AgentViz incremental improvements with Synapse platform architecture.
+> Unified plan for Synapse platform architecture.
 > See `docs/SYNAPSE_PLAN.md` for the full Synapse reference architecture.
 > See `docs/IMPLEMENTATION_PROMPT.md` for the parallel-agent execution prompt.
 
@@ -10,14 +10,35 @@
 
 | Phase | Name | Status | Notes |
 |-------|------|--------|-------|
-| 1 | Hardening | ✅ **95% DONE** | 2 tiny cleanup items remain |
-| 2 | Developer Experience | 🔶 **35% DONE** | Deps installed + bash scripts done, config files + tests needed |
+| 1 | Hardening | ✅ **95% DONE** | 2 tiny cleanup items remain (`nul` file, `dagre` dep) |
+| 2 | Developer Experience | 🔶 **35% DONE** | Deps installed + bash scripts; config files + tests needed |
 | 3 | Monorepo Extraction | ⬜ Not started | |
-| 4 | Performance + UX | 🔶 **15% DONE** | JSON export + partial empty states exist |
+| 4 | Performance + UX | 🔶 **25% DONE** | Transcript/snapshot routes + JSON export + empty states + search |
 | 5 | Canvas2D Widget | ⬜ Not started | |
-| 6 | VSCode Extension | ⬜ Not started | |
-| 7 | Auto-Resume + Cost | ⬜ Not started | |
-| 8 | ClawBrain | ⬜ Not started | Separate session |
+| 6 | VSCode Extension | 🔶 **35% DONE** | Extension skeleton: StatusBar, WebView Panel, 5 commands |
+| 7 | Auto-Resume + Cost | 🔶 **10% DONE** | Snapshot export/import exists; no auto-load/save or cost tables |
+| 8 | ClawBrain | 🔶 **65% DONE** | 3-layer plugin + backend integration; missing adapter + /brain |
+| — | Packaging & CLI | ✅ **90% DONE** | All 5 packaging options implemented |
+
+---
+
+## Packaging & CLI — ✅ 90% COMPLETE
+
+All 5 packaging options from the original plan are implemented:
+
+| Option | Status | Files |
+|--------|--------|-------|
+| 1. Folder copy | ✅ | `scripts/make-package.ps1` + `.sh` (supports `--prebuilt`) |
+| 2. Global install | ✅ | `scripts/install-global.ps1` + `.sh` → `~/.synapse` |
+| 3. Single-process server | ✅ | `server/index.ts` serves `dist/` via `express.static` + SPA fallback |
+| 4. npm CLI | ✅ | `bin/synapse.mjs` — `synapse start`, `synapse hook`, `synapse unhook` |
+| 5. VSCode extension build | ✅ | `scripts/build-extension.ps1` + `.sh` → `.vsix` |
+
+Additional scripts: `scripts/setup-hooks.sh/ps1`, `scripts/synapse.sh/ps1` (wrapper with background mode + status), `scripts/build-openclaw.sh/ps1`.
+
+Package name: `synapse-viz` with `bin/synapse.mjs` entry point, `.npmignore`, `.env.example`.
+
+Documentation: `docs/INSTALL.md` (433-line installation guide covering npm CLI, single-process, VSCode extension, OpenClaw plugin).
 
 ---
 
@@ -56,9 +77,9 @@ Phase 3  ──┬── Scaffold ──┬── Types+Utils ──┬── St
 Phase 4a ──┬── Backend-Perf ──┬── Lens-Perf ──┬── Virtualization
 Phase 4b ──── UX Features
 Phase 5  ──┬── Engine ──┬── Renderer+Views ──┬── Integration
-Phase 6  ──┬── Native providers ──┬── WebView Sidebar ──┬── WebView Panel
-Phase 7  ──── Sequential (DB schema changes)
-Phase 8  ──── Separate session (ClawBrain)
+Phase 6  ──┬── TreeView+Metrics ──┬── WebView Sidebar      (Panel + StatusBar done)
+Phase 7  ──── Sequential (DB schema changes, auto-load/save)
+Phase 8  ──── Finish: ProviderAdapter + /brain command      (plugin core done)
 ```
 
 **Max 3 concurrent agents per batch.**
@@ -131,7 +152,7 @@ Synapse/  (this repo, renamed)
 │   │   └── server/           # db.ts, broadcaster.ts, projectStore.ts
 │   └── widget/               # @synapse-viz/widget (Phase 5)
 ├── apps/
-│   ├── dashboard/            # Synapse Dashboard (refactored AgentViz)
+│   ├── dashboard/            # Synapse Dashboard (refactored from prototype)
 │   │   ├── src/adapters/     # claudeHookAdapter, claudeSdkAdapter
 │   │   ├── src/components/   # SpawnAgentDialog, AgentTemplates (Claude-specific)
 │   │   ├── src/main.tsx
@@ -154,7 +175,7 @@ Then sequential: Wire `apps/dashboard/` to import from `@synapse-viz/core` with 
 
 ---
 
-## Phase 4: Performance + UX (within monorepo)
+## Phase 4: Performance + UX — 🔶 25% DONE
 
 > Two batches (3 + 1).
 
@@ -162,13 +183,17 @@ Then sequential: Wire `apps/dashboard/` to import from `@synapse-viz/core` with 
 - ✅ JSON snapshot export/import (keyboard shortcuts E/I in Header)
 - ✅ Partial empty states (graph hint banner, "No tool events yet", "No token data available")
 - ✅ Graph search with `/` shortcut + `graphSearchQuery` in store
+- ✅ Transcript reading service (`server/services/transcriptReader.ts` — JSONL parsing, cost calc, token aggregation)
+- ✅ Transcript routes (`server/routes/transcript.ts` — GET per-session + list all)
+- ✅ Snapshot routes (`server/routes/snapshot.ts` — export + import with duplicate detection)
+- ✅ Sessions endpoint (`GET /api/events/sessions` via `listSessions()` GROUP BY)
 
 **Batch A (3 agents):**
 
-| Stream | Tasks | Package |
-|--------|-------|---------|
-| **Backend-Perf** | Composite indexes, async transcript I/O, sessions summary table | `packages/core/server/` |
-| **Lens-Perf** | Lazy lens computation, transcript fetch batching | `packages/core/components/lens/` |
+| Stream | Remaining Tasks | Package |
+|--------|----------------|---------|
+| **Backend-Perf** | Composite indexes, **async** transcript I/O (still `readFileSync`), materialized sessions summary table | `packages/core/server/` |
+| **Lens-Perf** | Lazy lens computation (tab-guard useMemos), transcript fetch batching | `packages/core/components/lens/` |
 | **Virtualization** | react-virtuoso for TreeView, ToolLogPanel | `packages/core/components/` |
 
 **Batch B (1 agent, after Batch A):**
@@ -195,26 +220,47 @@ Then sequential: Wire `apps/dashboard/` to import from `@synapse-viz/core` with 
 
 ---
 
-## Phase 6: VSCode Extension (hybrid approach)
+## Phase 6: VSCode Extension — 🔶 35% DONE
 
-> 3 parallel streams.
+> Extension skeleton exists at `extension/`. Hybrid approach with iframe panel.
 
-| Stream | Tasks | Files |
-|--------|-------|-------|
-| **Native providers** | StatusBar item, TreeView (session→agent→tool hierarchy) | `statusBar.ts`, `treeView.ts` |
-| **WebView Sidebar** | Canvas2D widget in Activity Bar sidebar panel, auto-connect to backend WS | `sidebarProvider.ts`, `sidebar.tsx` |
-| **WebView Panel** | Full React dashboard in editor tab, command `Synapse: Open Dashboard` | `panelProvider.ts`, `panel.tsx` |
+**Already done:**
 
-Shared: `wsClient.ts` (Node.js WebSocket connecting to localhost:4000/ws)
+| Item | Status | Location |
+|------|--------|----------|
+| Extension entry point | ✅ | `extension/src/extension.ts` — activation, commands, lifecycle |
+| StatusBar (basic) | ✅ | Shows `$(pulse) Synapse` running/stopped; click opens dashboard |
+| WebView Panel | ✅ | `extension/src/webviewPanel.ts` — iframe to localhost:4000, retry logic |
+| ServerManager | ✅ | `extension/src/serverManager.ts` — spawns backend subprocess, health check polling |
+| HookManager | ✅ | `extension/src/hookManager.ts` — configures 20 hook events in workspace settings |
+| Commands | ✅ | `openDashboard`, `startServer`, `stopServer`, `configureHooks`, `removeHooks` |
+| Extension manifest | ✅ | `extension/package.json` — activation events, settings, commands |
+| Build config | ✅ | `extension/esbuild.mjs` + `scripts/build-extension.ps1/sh` |
 
-**Verify:** Extension loads; sidebar shows widget; panel shows full dashboard; status bar updates.
+**Remaining:**
+
+| Item | Status | Notes |
+|------|--------|-------|
+| StatusBar **metrics** (agent count + tokens) | ❌ | Currently only shows running/stopped status |
+| TreeView (session→agent→tool hierarchy) | ❌ | No `treeView.ts` — no native Explorer integration |
+| WebView Sidebar (Canvas2D widget) | ❌ | No `sidebarProvider.ts` — depends on Phase 5 widget |
+| Extension-side wsClient | ❌ | No direct WS — relies on iframe browser WS |
+| Commands: `switchLens`, `reconnect` | ❌ | Not registered |
+| Bundled resources | ❌ | `extension/resources/` is empty — server not packaged into extension yet |
+
+**Verify:** Extension loads; sidebar shows widget; panel shows full dashboard; status bar shows live metrics.
 
 ---
 
-## Phase 7: Auto-Resume + Cost System
+## Phase 7: Auto-Resume + Cost System — 🔶 10% DONE
 
 > Sequential (shared DB schema).
 
+**Already done:**
+- ✅ Snapshot export/import (`server/routes/snapshot.ts` — manual E/I keyboard shortcuts)
+- ✅ Cost calculation in `transcriptReader.ts` (pricing tables for Claude, GPT, Gemini models)
+
+**Remaining:**
 - `.synapse/sessions.json` auto-load on startup, auto-save on shutdown
 - `--project <dir>` CLI flag
 - Cost tables: `cost_records`, `budgets`, `alerts`
@@ -226,15 +272,32 @@ Shared: `wsClient.ts` (Node.js WebSocket connecting to localhost:4000/ws)
 
 ---
 
-## Phase 8: ClawBrain (separate session)
+## Phase 8: ClawBrain — 🔶 65% DONE
 
-> Full OpenClaw integration. Separate project, separate Claude Code session.
+> OpenClaw plugin at `openclaw-plugin/`. 3-layer data capture architecture.
 
-- Plugin registration (4 reliable + 4 hopeful hooks)
-- Multi-layer data capture (hooks → gateway WS → OTLP → file parsing)
-- `openclawAdapter` with dynamic type/tool registry
-- ClawBrain dashboard (Synapse Core + OpenClaw adapter)
-- `/brain` command + cost tracking
+**Already done:**
+
+| Item | Status | Location |
+|------|--------|----------|
+| Plugin entry + registration | ✅ | `openclaw-plugin/src/plugin.ts` — slot: "tool", TypeBox config schema |
+| Layer 1: JSONL transcript watcher | ✅ | `layers/jsonlBridge.ts` — fs.watch + polling, tail-reads new lines |
+| Layer 2: Agent tools (3 tools) | ✅ | `layers/agentTools.ts` — `synapse_query`, `synapse_metrics`, `synapse_dashboard` |
+| Layer 3: Provider wrapper (PoC) | ⚠️ | `layers/providerWrapper.ts` — monitoring logic ready, no OpenClaw interface yet |
+| Event normalization | ✅ | `normalizers/openclawJsonl.ts` — multi-vendor (Claude, GPT, Gemini, Groq, OpenRouter) |
+| Cost tracking | ✅ | Pricing tables for 8 models, cost estimates in events + metrics |
+| Simulation script | ✅ | `scripts/simulate_openclaw.ts` — 3 multi-vendor sessions |
+| Build pipeline | ✅ | `openclaw-plugin/esbuild.mjs` + `scripts/build-openclaw.ps1/sh` |
+| Backend integration | ✅ | `vendor` column in events table, `storePreNormalized()` in eventStore, event source routing in events.ts |
+
+**Remaining:**
+
+| Item | Status | Notes |
+|------|--------|-------|
+| `openclawAdapter` (ProviderAdapter) | ❌ | No adapter implementing the `ProviderAdapter` interface |
+| `/brain` command | ❌ | No CLI command parser; only agent tools available |
+| ClawBrain dashboard | ❌ | Relies on upstream Synapse server; no dedicated UI |
+| Layer 3 integration | ❌ | Waiting on OpenClaw provider plugin interface confirmation |
 
 **Verify:** ClawBrain plugin in OpenClaw → live agent graph + cost tracking.
 
@@ -246,7 +309,7 @@ Shared: `wsClient.ts` (Node.js WebSocket connecting to localhost:4000/ws)
 - LensAdapter computes all 7 views eagerly (only active tab needed)
 - TreeView/ToolLogPanel render all items (no virtualization)
 - No composite DB indexes for common queries
-- `listSessions()` does GROUP BY on full events table
+- `listSessions()` does GROUP BY on full events table (no materialized summary)
 - `readFileSync` in transcriptReader blocks the event loop
 - Individual transcript fetches per session (no batching)
 
@@ -265,6 +328,7 @@ Shared: `wsClient.ts` (Node.js WebSocket connecting to localhost:4000/ws)
 - No CI/CD — no GitHub Actions
 - No Docker — no containerization
 - ~~No Linux/Mac scripts~~ → `start-server.sh`, `start-client.sh` created
+- ~~No packaging/CLI~~ → All 5 packaging options implemented
 
 ---
 
@@ -272,3 +336,5 @@ Shared: `wsClient.ts` (Node.js WebSocket connecting to localhost:4000/ws)
 
 - `nul` — Windows redirect artifact, delete
 - `dagre` — remove from package.json (replaced by custom layout in useAutoLayout.ts)
+- `c:temp/`, `c:tempread_responses.txt` — orphaned temp artifacts, delete
+- `hook_debug.log` — already gitignored but ~3MB on disk, consider deleting

@@ -1,6 +1,6 @@
 # Synapse Implementation Prompt (Parallel Agents, 8 Phases)
 
-> Copy-paste this into a fresh Claude Code session in the AgentViz project directory.
+> Copy-paste this into a fresh Claude Code session in the Synapse project directory.
 > The orchestrator session dispatches specialized agents in parallel per phase.
 > Read `docs/ROADMAP.md` for the high-level plan and `docs/SYNAPSE_PLAN.md` for the full architecture reference.
 
@@ -11,7 +11,7 @@
 ```
 Read CLAUDE.md, docs/ROADMAP.md, and docs/SYNAPSE_PLAN.md first.
 
-You are the ORCHESTRATOR. You will implement 8 phases of improvements to transform AgentViz into Synapse. Within each phase, you MUST dispatch specialized agents IN PARALLEL using the Task tool, one per work stream. Each stream has exclusive file ownership — no two agents touch the same file.
+You are the ORCHESTRATOR. You will implement 8 phases of improvements to build out the Synapse platform. Within each phase, you MUST dispatch specialized agents IN PARALLEL using the Task tool, one per work stream. Each stream has exclusive file ownership — no two agents touch the same file.
 
 IMPORTANT: Never run more than 3 agents concurrently. Phases with 4+ streams are split into batches (3 + 1). Wait for each batch to complete before starting the next.
 
@@ -31,7 +31,7 @@ Install all needed dependencies BEFORE dispatching agents for a phase (agents ca
 ---
 
 # ═══════════════════════════════════════════════════
-# PHASE 1: HARDENING — ✅ COMPLETE (skip to Phase 2)
+# PHASE 1: HARDENING — ✅ 95% DONE (skip to Phase 2)
 # ═══════════════════════════════════════════════════
 
 All Phase 1 items are already implemented:
@@ -166,7 +166,7 @@ insert_final_newline = true
 # PHASE 3: MONOREPO EXTRACTION
 # ═══════════════════════════════════════════════════
 
-> This phase converts the single-project AgentViz into a pnpm workspace monorepo,
+> This phase converts the single-project Synapse app into a pnpm workspace monorepo,
 > extracting provider-agnostic code into `@synapse-viz/core` and keeping Claude-specific
 > code in `apps/dashboard/`.
 
@@ -335,18 +335,31 @@ Tasks:
 1. Wire `apps/dashboard/src/main.tsx` to import from `@synapse-viz/core`
 2. Create `apps/dashboard/src/adapters/claudeAdapter.ts` with Claude Code agent types + tools
 3. Move Claude-specific components: `SpawnAgentDialog.tsx`, `AgentTemplates.tsx` → `apps/dashboard/src/components/`
-4. Move server code: `server/` → `apps/dashboard/server/` (keep DB, routes, agentManager, eventStore)
-5. Move hook script: `hooks/send_event.cjs` → `apps/dashboard/hooks/`
-6. Update root `package.json` with pnpm workspace scripts
-7. Run `pnpm install`
-8. Run `pnpm run build` to verify compilation
-9. Run `npx tsx apps/dashboard/scripts/simulate_session.ts` to verify functionality
-10. Commit: `refactor: extract @synapse-viz/core, convert to pnpm monorepo`
+4. Extract core server: `server/db.ts`, `server/services/broadcaster.ts` → `packages/core/src/server/`
+5. Move app server: remaining `server/` (routes, agentManager, eventStore, transcriptReader) → `apps/dashboard/server/`
+6. Move hook script: `hooks/send_event.cjs` → `apps/dashboard/hooks/`
+7. Move extension: `extension/` → `apps/vscode/` (existing skeleton — see Phase 6)
+8. Move plugin: `openclaw-plugin/` → `apps/clawbrain/` (existing plugin — see Phase 8)
+9. Move packaging: `bin/`, `scripts/` → appropriate locations under monorepo root
+10. Update root `package.json` with pnpm workspace scripts
+11. Run `pnpm install`
+12. Run `pnpm run build` to verify compilation
+13. Run `npx tsx apps/dashboard/scripts/simulate_session.ts` to verify functionality
+14. Commit: `refactor: extract @synapse-viz/core, convert to pnpm monorepo`
 
 
 # ═══════════════════════════════════════════════════
-# PHASE 4: PERFORMANCE + UX
+# PHASE 4: PERFORMANCE + UX — 🔶 PARTIALLY DONE
 # ═══════════════════════════════════════════════════
+
+## Already implemented (DO NOT recreate):
+- ✅ JSON snapshot export/import (E/I keyboard shortcuts, `server/routes/snapshot.ts`)
+- ✅ Partial empty states (graph hint banner, "No tool events yet", "No token data available")
+- ✅ Graph search with `/` shortcut + `graphSearchQuery` in store
+- ✅ Transcript reading service (`server/services/transcriptReader.ts` — JSONL parsing, cost calc, token aggregation)
+- ✅ Transcript routes (`server/routes/transcript.ts` — GET per-session + list all)
+- ✅ Snapshot routes (`server/routes/snapshot.ts` — export + import with duplicate detection)
+- ✅ Sessions endpoint (`GET /api/events/sessions` via `listSessions()` GROUP BY)
 
 ## Pre-step: Install dependencies
 ```bash
@@ -358,6 +371,8 @@ cd apps/dashboard && pnpm add react-virtuoso && cd ../..
 ### Agent 7: "Backend Performance"
 **Files owned (ONLY touch these):** `packages/core/src/server/db.ts`, `apps/dashboard/server/services/transcriptReader.ts`, `apps/dashboard/server/routes/transcript.ts`, `apps/dashboard/server/routes/snapshot.ts`
 
+NOTE: `transcriptReader.ts`, `transcript.ts`, and `snapshot.ts` already exist with full functionality (JSONL parsing, cost calculation, export/import). `listSessions()` already exists in `db.ts` using GROUP BY. The `events` table already has a `vendor` column with `idx_events_vendor` index. This agent ONLY adds performance optimizations — read the existing files first.
+
 **4.1 Composite DB Indexes** — In `db.ts`, add inside the `db.exec` block:
 ```sql
 CREATE INDEX IF NOT EXISTS idx_events_session_time ON events(session_id, created_at);
@@ -365,7 +380,7 @@ CREATE INDEX IF NOT EXISTS idx_events_agent_type ON events(agent_id, event_type)
 CREATE INDEX IF NOT EXISTS idx_events_type_time ON events(event_type, created_at);
 ```
 
-**4.2 Async Transcript Reading** — In `transcriptReader.ts`:
+**4.2 Async Transcript Reading** — In existing `transcriptReader.ts`:
 - Replace `fs.readFileSync` with `await fs.promises.readFile`
 - Make `readTranscript()` and `parseTranscript()` async
 - Update `transcript.ts` and `snapshot.ts` route handlers to use `await`
@@ -373,7 +388,7 @@ CREATE INDEX IF NOT EXISTS idx_events_type_time ON events(event_type, created_at
 **4.3 Sessions Summary Table** — In `db.ts`:
 - Add `sessions` table with `session_id TEXT PRIMARY KEY, first_event_at, last_event_at, event_count`
 - Add upsert prepared statement called inside `insertEvent()`
-- Update `listSessions()` to query `sessions` table directly (no more GROUP BY)
+- Update existing `listSessions()` to query `sessions` table directly (replace GROUP BY)
 
 ---
 
@@ -606,83 +621,61 @@ Create `packages/widget/src/index.ts` barrel export: Scene, Renderer, Layout, al
 
 
 # ═══════════════════════════════════════════════════
-# PHASE 6: VSCODE EXTENSION
+# PHASE 6: VSCODE EXTENSION — 🔶 PARTIALLY DONE
 # ═══════════════════════════════════════════════════
 
-> Build `apps/vscode/` — Synapse for VSCode.
+> Extension skeleton already exists at `apps/vscode/` (moved from `extension/` in Phase 3).
 > See `docs/SYNAPSE_PLAN.md` "VSCode Extension" section.
 
-## Pre-step: Scaffold extension
-```bash
-mkdir -p apps/vscode/extension apps/vscode/webview
-```
+## Already implemented (DO NOT recreate):
+- ✅ `extension.ts` — entry point with activation, 5 commands (openDashboard, startServer, stopServer, configureHooks, removeHooks), StatusBar basic status
+- ✅ `serverManager.ts` — spawns backend subprocess via `npx tsx server/index.ts`, health check polling, process lifecycle
+- ✅ `hookManager.ts` — configures 20 hook events in workspace `.claude/settings.local.json`
+- ✅ `webviewPanel.ts` — WebView panel with iframe to localhost:4000, retry logic, singleton pattern
+- ✅ `package.json` — extension manifest with activation events, settings (port, autoStart), commands
+- ✅ `esbuild.mjs` — build configuration
+- ✅ Build script: `scripts/build-extension.ps1/sh` → `.vsix`
 
-Create `apps/vscode/package.json` (VSCode extension manifest):
-```json
-{
-  "name": "synapse-vscode",
-  "displayName": "Synapse",
-  "description": "Real-time agent visualization for Claude Code and other AI agents",
-  "version": "0.1.0",
-  "engines": { "vscode": "^1.85.0" },
-  "categories": ["Visualization"],
-  "activationEvents": ["onStartupFinished"],
-  "main": "./dist/extension.js",
-  "contributes": {
-    "viewsContainers": {
-      "activitybar": [{
-        "id": "synapse",
-        "title": "Synapse",
-        "icon": "media/icon.svg"
-      }]
-    },
-    "views": {
-      "synapse": [{
-        "type": "webview",
-        "id": "synapse.sidebar",
-        "name": "Agent Graph"
-      }]
-    },
-    "commands": [
-      { "command": "synapse.openPanel", "title": "Synapse: Open Full Dashboard" },
-      { "command": "synapse.switchLens", "title": "Synapse: Switch Lens View" },
-      { "command": "synapse.reconnect", "title": "Synapse: Reconnect to Server" }
-    ]
-  }
-}
-```
+## Pre-step: Update extension manifest
+Add TreeView and sidebar contributions to existing `apps/vscode/package.json` — add `viewsContainers`, `views` (sidebar), and new commands (`switchLens`, `reconnect`).
 
-## Dispatch 3 agents in parallel:
+## Dispatch 2 agents in parallel:
 
-### Agent 14: "Native Providers"
-**Files owned (ONLY touch these):** `apps/vscode/extension/statusBar.ts` (new), `apps/vscode/extension/treeView.ts` (new)
+### Agent 14: "TreeView + StatusBar Metrics + wsClient"
+**Files owned (ONLY touch these):** `apps/vscode/src/treeView.ts` (new), `apps/vscode/src/wsClient.ts` (new), `apps/vscode/src/extension.ts` (MODIFY existing)
 
-**6.1 StatusBar** — `statusBar.ts`:
-- Create StatusBarItem aligned left, priority 100
+**6.1 WebSocket Client** — `wsClient.ts`:
+- Node.js WebSocket (not browser WS) connecting to localhost:4000/ws
+- Auto-reconnect with exponential backoff
+- Event distribution to all registered listeners (TreeView, StatusBar, Sidebar)
+
+**6.2 StatusBar Metrics** — In existing `extension.ts`:
+- Upgrade StatusBar from basic running/stopped to live metrics
 - Format: `$(pulse) 3 agents · 12.4k tokens · $0.08`
-- Update on WebSocket events
-- Click → run `synapse.openPanel` command
+- Subscribe to wsClient events for real-time updates
 - Show `$(debug-disconnect)` icon when disconnected
 
-**6.2 TreeView** — `treeView.ts`:
+**6.3 TreeView** — `treeView.ts`:
 - TreeDataProvider with 3 levels: Session → Agent → Tool Calls
 - Each node shows: name, status icon, token count
 - Click → select in sidebar widget
 - Context menu: "Stop Agent", "View Details"
-- Auto-refresh on WebSocket events
+- Auto-refresh on wsClient events
+
+**6.4 Register new commands** in `extension.ts`: `switchLens`, `reconnect`
 
 ---
 
 ### Agent 15: "WebView Sidebar"
-**Files owned (ONLY touch these):** `apps/vscode/extension/sidebarProvider.ts` (new), `apps/vscode/webview/sidebar.tsx` (new)
+**Files owned (ONLY touch these):** `apps/vscode/src/sidebarProvider.ts` (new), `apps/vscode/webview/sidebar.tsx` (new)
 
-**6.3 Sidebar Provider** — `sidebarProvider.ts`:
+**6.5 Sidebar Provider** — `sidebarProvider.ts`:
 - Implements `WebviewViewProvider`
 - Loads Canvas2D widget from `@synapse-viz/widget`
 - Passes data via postMessage
 - Handles selection messages from widget → update TreeView + StatusBar
 
-**6.4 Sidebar WebView** — `sidebar.tsx`:
+**6.6 Sidebar WebView** — `sidebar.tsx`:
 - Renders `<SynapseWidget>` from `@synapse-viz/widget/react`
 - Auto-connects to backend WS (localhost:4000/ws)
 - Lens view switcher (compact tabs at top)
@@ -690,43 +683,25 @@ Create `apps/vscode/package.json` (VSCode extension manifest):
 
 ---
 
-### Agent 16: "WebView Panel"
-**Files owned (ONLY touch these):** `apps/vscode/extension/panelProvider.ts` (new), `apps/vscode/webview/panel.tsx` (new), `apps/vscode/extension/extension.ts` (new), `apps/vscode/extension/wsClient.ts` (new)
-
-**6.5 Panel Provider** — `panelProvider.ts`:
-- Creates WebviewPanel in editor area
-- Loads full React dashboard from `apps/dashboard/` build
-- Retains when hidden (configurable)
-
-**6.6 Panel WebView** — `panel.tsx`:
-- Full Synapse Dashboard rendered in WebviewPanel
-- Uses `acquireVsCodeApi()` for communication with extension host
-
-**6.7 Extension Entry** — `extension.ts`:
-- Register sidebar provider, panel command, status bar
-- Create shared `wsClient.ts` (Node.js WebSocket) for extension host
-- Auto-detect if Synapse server is running (try connect to :4000)
-- Distribute events to sidebar, panel, tree view, status bar
-
-**6.8 WebSocket Client** — `wsClient.ts`:
-- Node.js WebSocket (not browser WS) connecting to localhost:4000/ws
-- Auto-reconnect with exponential backoff
-- Event distribution to all registered listeners
-
----
-
-## After all 3 agents complete:
-1. Build extension: `cd apps/vscode && pnpm run build`
-2. Install extension locally: `code --install-extension synapse-vscode-0.1.0.vsix`
-3. Verify: sidebar shows widget, status bar updates, panel opens with full dashboard
-4. Commit: `feat(vscode): Synapse extension with sidebar widget, full panel, status bar, tree view`
+## After both agents complete:
+1. Bundle server resources into `apps/vscode/resources/synapse-server/` (currently empty)
+2. Build extension: `cd apps/vscode && pnpm run build`
+3. Install extension locally: `code --install-extension synapse-vscode-0.1.0.vsix`
+4. Verify: sidebar shows widget, status bar shows live metrics, panel opens full dashboard, tree view works
+5. Commit: `feat(vscode): TreeView, sidebar widget, live status bar metrics, wsClient`
 
 
 # ═══════════════════════════════════════════════════
-# PHASE 7: AUTO-RESUME + COST SYSTEM (Sequential)
+# PHASE 7: AUTO-RESUME + COST SYSTEM (Sequential) — 🔶 PARTIALLY DONE
 # ═══════════════════════════════════════════════════
 
 > All tasks modify DB schema — must be sequential.
+
+## Already implemented (DO NOT recreate):
+- ✅ Snapshot export/import (`server/routes/snapshot.ts` — manual via E/I keyboard shortcuts)
+- ✅ Cost calculation in `transcriptReader.ts` (pricing tables for Claude, GPT, Gemini models)
+
+## Remaining tasks:
 
 **7.1 ProjectStore Service** — Create `packages/core/src/server/projectStore.ts`:
 - Uses existing `SnapshotFile` format from snapshot route
@@ -805,19 +780,29 @@ CREATE TABLE IF NOT EXISTS alerts (
 
 
 # ═══════════════════════════════════════════════════
-# PHASE 8: CLAWBRAIN (Separate Session)
+# PHASE 8: CLAWBRAIN (Separate Session) — 🔶 65% DONE
 # ═══════════════════════════════════════════════════
 
 > This phase should be done in a SEPARATE Claude Code session.
 > See `docs/SYNAPSE_PLAN.md` "Data Capture: ClawBrain Multi-Layer Strategy" section.
+> Plugin exists at `apps/clawbrain/` (moved from `openclaw-plugin/` in Phase 3).
 
-Build `apps/clawbrain/` with:
-1. OpenClaw plugin registration (4 reliable + 4 hopeful hooks)
-2. Multi-layer data capture (hooks → gateway WS → OTLP → file parsing)
-3. `openclawAdapter` implementing ProviderAdapter
-4. ClawBrain dashboard using @synapse-viz/core + openclawAdapter
-5. `/brain` command integration
-6. Cost tracking with gateway WebSocket data
+## Already implemented (DO NOT recreate):
+- ✅ Plugin entry + registration (`plugin.ts` — slot: "tool", TypeBox config schema, server spawning)
+- ✅ Layer 1: JSONL transcript watcher (`layers/jsonlBridge.ts` — fs.watch + polling, tail-reads, normalizes)
+- ✅ Layer 2: Agent tools (`layers/agentTools.ts` — `synapse_query`, `synapse_metrics`, `synapse_dashboard`)
+- ✅ Layer 3: Provider wrapper PoC (`layers/providerWrapper.ts` — monitoring logic, not yet integrated)
+- ✅ Event normalization (`normalizers/openclawJsonl.ts` — multi-vendor: Claude, GPT, Gemini, Groq, OpenRouter)
+- ✅ Cost tracking (pricing tables for 8 models, cost estimates in events + metrics)
+- ✅ Simulation script (`scripts/simulate_openclaw.ts` — 3 multi-vendor sessions)
+- ✅ Build pipeline (`esbuild.mjs` + `scripts/build-openclaw.ps1/sh`)
+- ✅ Backend integration (`vendor` column in events table, `storePreNormalized()` in eventStore, event source routing)
+
+## Remaining tasks:
+1. `openclawAdapter` implementing ProviderAdapter interface (from `@synapse-viz/core`)
+2. `/brain` command — CLI command parser for OpenClaw
+3. ClawBrain dashboard — dedicated UI using @synapse-viz/core + openclawAdapter
+4. Layer 3 integration — wire to OpenClaw's provider plugin interface (when confirmed)
 
 
 # ═══════════════════════════════════════════════════
@@ -843,7 +828,10 @@ Run these after all phases are complete:
 - [ ] `apps/dashboard/` imports from `@synapse-viz/core` — no direct `src/` imports
 - [ ] Simulation script renders correctly via monorepo dashboard
 
-### Phase 4: Performance + UX
+### Phase 4: Performance + UX (partially done)
+- [x] JSON snapshot export/import works (E/I shortcuts)
+- [x] Graph search works (/ shortcut)
+- [x] Transcript reading + cost calculation works
 - [ ] Switch lens tabs rapidly → no computation delay
 - [ ] Generate 5000+ events → TreeView scrolls smoothly
 - [ ] Select node → URL hash updates → copy URL → new tab → same node selected
@@ -856,21 +844,25 @@ Run these after all phases are complete:
 - [ ] Click node → selection event fires
 - [ ] 50+ nodes at 60fps (no dropped frames)
 
-### Phase 6: VSCode Extension
-- [ ] Extension activates on startup
+### Phase 6: VSCode Extension (partially done)
+- [x] Extension activates on startup
+- [x] "Synapse: Open Dashboard" command opens full panel (iframe)
 - [ ] Sidebar shows live agent graph from Canvas2D widget
-- [ ] Status bar shows agent count + token count
-- [ ] "Synapse: Open Dashboard" command opens full panel
+- [ ] Status bar shows agent count + token count (currently only shows running/stopped)
 - [ ] Tree view shows session → agent → tool hierarchy
 
-### Phase 7: Auto-Resume + Cost
+### Phase 7: Auto-Resume + Cost (partially done)
+- [x] Snapshot export/import works (manual via E/I shortcuts)
+- [x] Cost calculation works in transcript reader
 - [ ] Start server → simulate → stop → `.synapse/sessions.json` exists
 - [ ] Delete DB → restart → events reload from JSON
-- [ ] Restart again → no duplicates
 - [ ] Set budget $1.00 → exceed → alert appears in dashboard
 
-### Phase 8: ClawBrain
-- [ ] Install plugin in OpenClaw → hooks fire → dashboard shows agent graph
+### Phase 8: ClawBrain (mostly done)
+- [x] Plugin registers with OpenClaw, spawns Synapse server
+- [x] JSONL watcher detects and normalizes multi-vendor transcripts
+- [x] Agent tools (synapse_query, synapse_metrics, synapse_dashboard) work
+- [x] Cost tracking shows per-model breakdown
 - [ ] `/brain` command opens dashboard
-- [ ] Cost tracking shows per-model breakdown
+- [ ] ProviderAdapter integration with @synapse-viz/core
 ```

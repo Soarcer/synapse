@@ -10,7 +10,14 @@
 const fs = require('fs');
 const path = require('path');
 
-const SERVER_URL = process.env.SYNAPSE_URL || process.env.AGENTVIZ_URL || 'http://localhost:4000/api/events';
+const SERVER_URL = (() => {
+  if (process.env.SYNAPSE_URL) return process.env.SYNAPSE_URL;
+  if (process.env.AGENTVIZ_URL) {
+    process.stderr.write('[hook] AGENTVIZ_URL is deprecated, use SYNAPSE_URL instead\n');
+    return process.env.AGENTVIZ_URL;
+  }
+  return 'http://localhost:4000/api/events';
+})();
 const DEBUG_LOG = path.join(__dirname, '..', 'hook_debug.log');
 
 function debugLog(msg) {

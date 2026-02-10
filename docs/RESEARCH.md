@@ -1,4 +1,4 @@
-# AgentViz Research — Claude 4.6, Hooks, Agent SDK, Observability
+# Synapse Research — Claude 4.6, Hooks, Agent SDK, Observability
 
 ## Claude Opus 4.6 (Released Feb 5, 2026)
 

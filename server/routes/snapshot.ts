@@ -79,7 +79,7 @@ export function createSnapshotRouter(): Router {
       res.setHeader('Content-Type', 'application/json');
       res.setHeader(
         'Content-Disposition',
-        `attachment; filename="agentviz-snapshot-${new Date().toISOString().replace(/[:.]/g, '-')}.json"`,
+        `attachment; filename="synapse-snapshot-${new Date().toISOString().replace(/[:.]/g, '-')}.json"`,
       );
       res.json(snapshot);
     } catch (err: any) {

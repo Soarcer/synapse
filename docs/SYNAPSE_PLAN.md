@@ -2,10 +2,10 @@
 
 ## Context
 
-**Problem**: AI coding agents (Claude Code, OpenClaw, and others) are black boxes. Users can't see what agents are doing in real-time, how tokens are being spent, or how sub-agents orchestrate. OpenClaw (145k+ GitHub stars) has an open feature request (#6467) for real-time agent visualization. ClawWatch exists for cost monitoring but lacks workflow-level debugging. AgentViz already solves this for Claude Code — the goal is to generalize it into **Synapse**: a universal agent visualization platform.
+**Problem**: AI coding agents (Claude Code, OpenClaw, and others) are black boxes. Users can't see what agents are doing in real-time, how tokens are being spent, or how sub-agents orchestrate. OpenClaw (145k+ GitHub stars) has an open feature request (#6467) for real-time agent visualization. ClawWatch exists for cost monitoring but lacks workflow-level debugging. The prototype already solves this for Claude Code — the goal is to generalize it into **Synapse**: a universal agent visualization platform.
 
 **Outcome**: A provider-agnostic agent visualization platform delivered as:
-1. **Synapse Dashboard** — standalone web app (full-featured, replaces current AgentViz)
+1. **Synapse Dashboard** — standalone web app (full-featured, replaces prototype)
 2. **Synapse for VSCode** — embedded WebView extension (sidebar widget + editor panel)
 3. **ClawBrain** — OpenClaw plugin (Synapse-powered hooks + dashboard + cost tracking)
 
@@ -13,9 +13,9 @@ All three share a common visualization library (`@synapse-viz/core`) and a high-
 
 ---
 
-## Comparison: Synapse vs ClawWatch vs AgentViz (current)
+## Comparison: Synapse vs ClawWatch vs Prototype (v0.1)
 
-| Capability | AgentViz (current) | ClawWatch | Synapse (planned) |
+| Capability | Prototype (v0.1) | ClawWatch | Synapse (planned) |
 |---|---|---|---|
 | Real-time node graph | Yes (React Flow) | Topology only ("X-Ray") | Yes (React Flow + Canvas2D widget) |
 | Tool-level tracing | Yes (per-tool timing, I/O) | No (agent-level only) | Yes |
@@ -38,7 +38,7 @@ All three share a common visualization library (`@synapse-viz/core`) and a high-
 ### Monorepo Structure
 
 ```
-Synapse/ (monorepo root — renamed from AgentViz)
+Synapse/ (monorepo root)
 ├── packages/
 │   ├── core/                    # @synapse-viz/core — shared visualization library (Synapse Core)
 │   │   ├── types/
@@ -75,7 +75,7 @@ Synapse/ (monorepo root — renamed from AgentViz)
 │       └── index.html           # Self-contained embeddable page
 │
 ├── apps/
-│   ├── dashboard/               # Synapse Dashboard (standalone web app, refactored from AgentViz)
+│   ├── dashboard/               # Synapse Dashboard (standalone web app, refactored from prototype)
 │   │   ├── src/
 │   │   │   ├── adapters/        # ClaudeHookAdapter, ClaudeSdkAdapter
 │   │   │   ├── components/      # Claude-specific: SpawnDialog, etc.
@@ -114,7 +114,7 @@ Synapse/ (monorepo root — renamed from AgentViz)
 ## Dynamic Agent Type Registry
 
 ### Problem
-Current AgentViz hardcodes 4 Claude Code agent types: `Explore`, `Plan`, `Bash`, `general-purpose`. This doesn't scale to OpenClaw (which has `main`, `subagent`, `cron`, custom skill agents) or other providers.
+The current prototype hardcodes 4 Claude Code agent types: `Explore`, `Plan`, `Bash`, `general-purpose`. This doesn't scale to OpenClaw (which has `main`, `subagent`, `cron`, custom skill agents) or other providers.
 
 ### Solution: Provider-Configurable Type Registry
 
@@ -424,7 +424,7 @@ VSCode extension connects to the same Express backend (port 4000) via WebSocket.
 
 ---
 
-## Files to Extract from Current AgentViz → `packages/core` (Synapse Core)
+## Files to Extract from Prototype → `packages/core` (Synapse Core)
 
 | Current Location | Destination | Changes |
 |---|---|---|
@@ -485,7 +485,7 @@ VSCode extension connects to the same Express backend (port 4000) via WebSocket.
 ### Phase 2: Refactor + ClawBrain (Steps 4-6) — parallel tracks
 
 **Step 4: Refactor into Synapse Dashboard** (Track A)
-- Rename AgentViz → Synapse Dashboard, wire `apps/dashboard/` to import from `@synapse-viz/core`
+- Wire Synapse Dashboard, wire `apps/dashboard/` to import from `@synapse-viz/core`
 - Create `claudeAdapter` with all Claude Code agent types + tools
 - Verify existing functionality: simulation script, all 7 lenses, detail panels
 - Verification: `npx tsx scripts/simulate_session.ts` → graph renders correctly
@@ -571,11 +571,11 @@ Create folder `c:\Workspace\Coding\Prototypes\Synapse`, open it in VSCode, then 
 
 ```
 I'm building **Synapse** — a universal agent visualization platform. The full plan is at:
-c:\Workspace\Coding\Prototypes\AgentViz\docs\SYNAPSE_PLAN.md
+c:\Workspace\Coding\Prototypes\Synapse\docs\SYNAPSE_PLAN.md
 
 Read that plan file first. It contains the complete architecture, monorepo structure, implementation roadmap, and all decisions.
 
-**Reference codebase**: The existing AgentViz app at `c:\Workspace\Coding\Prototypes\AgentViz` is the working prototype. Extract and generalize its code into the Synapse monorepo according to the plan's extraction table.
+**Reference codebase**: The existing prototype is the working codebase. Extract and generalize its code into the Synapse monorepo according to the plan's extraction table.
 
 **Summary of what Synapse is:**
 - Provider-agnostic agent visualization platform (React Flow node graph, 7 lens views, timeline, token analytics, cost tracking)
@@ -591,8 +591,8 @@ Read that plan file first. It contains the complete architecture, monorepo struc
 
 **Start with Phase 1 from the plan:**
 1. Initialize pnpm monorepo structure
-2. Extract core types + utilities + dynamic type registry from AgentViz
+2. Extract core types + utilities + dynamic type registry from prototype
 3. Extract store engine + React Flow components
 
-Build incrementally — get `packages/core` compiling first, then wire `apps/dashboard` to consume it and verify AgentViz functionality still works with the simulation script.
+Build incrementally — get `packages/core` compiling first, then wire `apps/dashboard` to consume it and verify functionality still works with the simulation script.
 ```
