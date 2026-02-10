@@ -1121,7 +1121,7 @@ function TodoWriteRenderer({ input, status, toolUseId }: ToolRendererProps) {
               className={`
                 flex items-start gap-2.5 rounded-lg px-3 py-2 border transition-colors
                 ${isNewlyCompleted
-                  ? 'bg-green-950/30 border-green-600/40 shadow-[0_0_8px_rgba(34,197,94,0.15)]'
+                  ? 'bg-green-950/30 border-green-600/40 shadow-md shadow-green-500/10'
                   : isNewlyStarted
                     ? 'bg-purple-950/30 border-purple-600/40'
                     : isNew
