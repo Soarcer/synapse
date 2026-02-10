@@ -118,6 +118,34 @@ function GraphSearchBox({ matchCount }: { matchCount: number | null }) {
   );
 }
 
+// ── Edge cost legend ─────────────────────────────────────────
+
+function EdgeCostLegend() {
+  return (
+    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-3 px-3 py-1.5 bg-gray-900/90 border border-gray-700/60 rounded-lg backdrop-blur-sm text-[10px] text-gray-400">
+      <span className="text-gray-500">Edge cost:</span>
+      <div className="flex items-center gap-1.5">
+        <span style={{ color: 'hsl(220, 70%, 50%)' }}>low</span>
+        <div
+          className="w-16 h-1.5 rounded-full"
+          style={{
+            background: 'linear-gradient(to right, hsl(220, 70%, 50%), hsl(110, 70%, 50%), hsl(40, 70%, 50%), hsl(0, 70%, 50%))',
+          }}
+        />
+        <span style={{ color: 'hsl(0, 70%, 50%)' }}>high</span>
+      </div>
+      <span className="text-gray-600">|</span>
+      <div className="flex items-center gap-1">
+        <div className="w-4 h-px" style={{ background: 'hsl(220, 70%, 50%)' }} />
+        <span>thin</span>
+        <span className="text-gray-600 mx-0.5">{'\u2192'}</span>
+        <div className="w-4 h-[3px]" style={{ background: 'hsl(0, 70%, 50%)' }} />
+        <span>thick</span>
+      </div>
+    </div>
+  );
+}
+
 // ── Main graph component ─────────────────────────────────────
 
 function AgentGraphInner() {
@@ -153,7 +181,7 @@ function AgentGraphInner() {
 
   // ── Visibility filtering: search mode OR tool-collapse mode ──
 
-  const { visibleNodes, visibleEdges, searchMatchCount } = useMemo(() => {
+  const { visibleNodes, visibleEdges, searchMatchCount, stackedEdgeTargets } = useMemo(() => {
     const query = graphSearchQuery.toLowerCase().trim();
 
     if (query) {
@@ -174,6 +202,7 @@ function AgentGraphInner() {
         visibleNodes: rawNodes.filter((n) => keepIds.has(n.id)),
         visibleEdges: rawEdges.filter((e) => keepIds.has(e.source) && keepIds.has(e.target)),
         searchMatchCount: matchIds.size,
+        stackedEdgeTargets: new Set<string>(),
       };
     }
 
@@ -193,11 +222,35 @@ function AgentGraphInner() {
     }
 
     const hiddenIds = new Set<string>();
+    const MAX_STACKED_PREVIEW = 5;
+    const leafToolsByParent = new Map<string, string[]>();
+
     if (!showAllTools) {
+      // Group leaf tools by their parent
       for (const [toolId, parentId] of toolParent) {
         if (structuralToolIds.has(toolId)) continue;
+        const list = leafToolsByParent.get(parentId) ?? [];
+        list.push(toolId);
+        leafToolsByParent.set(parentId, list);
+      }
+
+      for (const [parentId, tools] of leafToolsByParent) {
+        if (parentId === expandedParentId) continue; // expanded → show all
+        // Stacked preview: show first N, hide rest
+        for (let i = MAX_STACKED_PREVIEW; i < tools.length; i++) {
+          hiddenIds.add(tools[i]);
+        }
+      }
+    }
+
+    // Edges to hide for stacked tools (keep only edge to first tool in stack)
+    const stackedEdgeTargets = new Set<string>();
+    if (!showAllTools) {
+      for (const [parentId, tools] of leafToolsByParent) {
         if (parentId === expandedParentId) continue;
-        hiddenIds.add(toolId);
+        for (let i = 1; i < Math.min(tools.length, MAX_STACKED_PREVIEW); i++) {
+          stackedEdgeTargets.add(tools[i]);
+        }
       }
     }
 
@@ -267,10 +320,11 @@ function AgentGraphInner() {
         (e) => !hiddenIds.has(e.source) && !hiddenIds.has(e.target),
       ),
       searchMatchCount: null as number | null,
+      stackedEdgeTargets,
     };
   }, [rawNodes, rawEdges, expandedParentId, graphSearchQuery, autoClosePrompts, showAllTools, selectedNodeId, collapsedNodes]);
 
-  const layoutNodes = useAutoLayout(visibleNodes, visibleEdges, layoutMode);
+  const layoutNodes = useAutoLayout(visibleNodes, visibleEdges, layoutMode, expandedParentId);
 
   // Compute highlighted node IDs: selected + direct children + all ancestors up the hierarchy
   const connectedIds = useMemo(() => {
@@ -359,7 +413,10 @@ function AgentGraphInner() {
 
   // In list mode, use smoothstep edges; dim non-connected edges when selected; apply cost gradient
   const styledEdges = useMemo(() => {
-    let result = visibleEdges;
+    // Hide edges to non-first stacked tool nodes (keep them in visibleEdges for layout)
+    let result = stackedEdgeTargets.size > 0
+      ? visibleEdges.filter((e) => !stackedEdgeTargets.has(e.target))
+      : visibleEdges;
     if (layoutMode === 'list') {
       result = result.map((e) => ({
         ...e,
@@ -397,7 +454,7 @@ function AgentGraphInner() {
       }));
     }
     return result;
-  }, [visibleEdges, layoutMode, mergedHighlightIds, edgeCostMap]);
+  }, [visibleEdges, layoutMode, mergedHighlightIds, edgeCostMap, stackedEdgeTargets]);
 
   // Fit view when new nodes are added (unless viewport is locked)
   useEffect(() => {
@@ -684,6 +741,7 @@ function AgentGraphInner() {
         onPaneClick={onPaneClick}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        defaultEdgeOptions={{ zIndex: 0 }}
         nodesDraggable={false}
         edgesFocusable={false}
         fitView
@@ -696,8 +754,12 @@ function AgentGraphInner() {
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#1e293b" />
         <MiniMap
           position="bottom-right"
+          pannable
+          zoomable
           style={{ background: '#0d1117', border: '1px solid #1e293b' }}
           maskColor="rgba(13, 17, 23, 0.7)"
+          maskStrokeColor="rgba(96, 165, 250, 0.5)"
+          maskStrokeWidth={2}
           nodeColor={(node) => {
             switch (node.type) {
               case 'session':
@@ -718,6 +780,7 @@ function AgentGraphInner() {
           style={{ background: '#161b22', border: '1px solid #30363d', borderRadius: '8px' }}
         />
       </ReactFlow>
+      <EdgeCostLegend />
     </>
   );
 }

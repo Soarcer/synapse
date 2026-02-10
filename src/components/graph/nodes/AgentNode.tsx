@@ -47,19 +47,22 @@ function AgentNodeComponent({ data }: NodeProps) {
       <Handle type="target" position={target} className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-800" />
 
       <div className="px-3 py-2">
-        <span className="text-green-400/60 text-[10px] font-semibold uppercase tracking-wider">Agent</span>
+        <div className="flex items-center justify-between">
+          <span className="text-green-400/60 text-[10px] font-semibold uppercase tracking-wider">Agent</span>
+          <span className="text-[10px] text-gray-400">
+            {formatTime(agent.startTime)}
+            {agent.endTime && <span className="text-gray-600"> → {formatTime(agent.endTime)}</span>}
+          </span>
+        </div>
         {/* Header */}
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2 mt-0.5">
           <div className="flex flex-col min-w-0">
             <span className="text-sm font-semibold text-gray-100 truncate">
               {agent.agentType}
             </span>
-            <div className="text-[10px] text-gray-500 leading-tight">
-              <span>{formatElapsed(agent.startTime, agent.endTime)}</span>
-              {agent.endTime && (
-                <span className="ml-1.5 text-gray-600">ended {formatTime(agent.endTime)}</span>
-              )}
-            </div>
+            <span className="text-[10px] text-gray-500 leading-tight">
+              {formatElapsed(agent.startTime, agent.endTime)}
+            </span>
           </div>
           <span
             className={`text-xs font-bold shrink-0 ${

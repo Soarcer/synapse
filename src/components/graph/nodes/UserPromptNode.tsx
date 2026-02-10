@@ -3,7 +3,7 @@ import { Handle, type NodeProps } from '@xyflow/react';
 import type { UserPromptData } from '../../../types/agent';
 import { useHandlePositions } from '../../../hooks/useHandlePositions';
 import { useAgentStore } from '../../../store/agentStore';
-import { formatTokens } from '../../../utils/format';
+import { formatTokens, formatTime } from '../../../utils/format';
 import type { AgentNodeData } from '../../../types/agent';
 import { CollapsibleSourceHandle } from '../CollapsibleSourceHandle';
 
@@ -14,7 +14,6 @@ function UserPromptNodeComponent({ data }: NodeProps) {
   const preview = prompt.text.length > 80
     ? prompt.text.slice(0, 80) + '...'
     : prompt.text;
-  const time = new Date(prompt.timestamp).toLocaleTimeString();
   const { source, target, sourceStyle } = useHandlePositions();
   const sessionAgents = useAgentStore((s) => s.agentsBySession.get(prompt.sessionId)) ?? EMPTY_AGENTS;
   const prompts = useAgentStore((s) => s.prompts);
@@ -68,9 +67,9 @@ function UserPromptNodeComponent({ data }: NodeProps) {
     <div className={`relative rounded-lg px-3 py-2 min-w-[200px] max-w-[260px] shadow-md border border-amber-600/40 bg-gradient-to-br from-amber-900/60 to-yellow-900/40 ${isSelected ? 'node-selected' : isHighlighted ? 'node-highlighted' : ''}`}>
       <Handle type="target" position={target} className="!bg-amber-400 !w-2.5 !h-2.5 !border-2 !border-gray-900" />
 
-      <div className="flex items-center gap-2 mb-1">
+      <div className="flex items-center justify-between mb-1">
         <span className="text-amber-300 text-xs font-semibold">Prompt</span>
-        <span className="text-gray-500 text-[10px] ml-auto">{time}</span>
+        <span className="text-[10px] text-gray-400">{formatTime(prompt.timestamp)}</span>
       </div>
       <p className="text-xs text-gray-300 leading-relaxed line-clamp-3">
         {preview || '(empty)'}

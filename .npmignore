@@ -1,0 +1,35 @@
+# Source (frontend is baked into dist/)
+src/
+index.html
+vite.config.ts
+tsconfig.json
+
+# Dev tooling
+.claude/
+.vscode/
+.env
+.env.example
+.nvmrc
+*.ps1
+*.sh
+
+# Build artifacts
+_package/
+distribution/
+node_modules/
+
+# Documentation
+docs/
+CLAUDE.md
+
+# Scripts
+scripts/
+
+# Database
+server/*.db
+server/*.db-wal
+server/*.db-shm
+
+# Misc
+hook_debug.log
+*.log

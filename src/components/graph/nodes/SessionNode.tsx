@@ -3,7 +3,7 @@ import { type NodeProps } from '@xyflow/react';
 import type { SessionData } from '../../../types/agent';
 import { useHandlePositions } from '../../../hooks/useHandlePositions';
 import { useAgentStore } from '../../../store/agentStore';
-import { formatTokens, formatRelativeTime } from '../../../utils/format';
+import { formatTokens, formatRelativeTime, formatTime } from '../../../utils/format';
 import type { AgentNodeData } from '../../../types/agent';
 import { CollapsibleSourceHandle } from '../CollapsibleSourceHandle';
 
@@ -109,13 +109,15 @@ function SessionNodeComponent({ data }: NodeProps) {
         ${isSelected ? 'node-selected' : isHighlighted ? 'node-highlighted' : ''}
       `}
     >
-      <span className="text-blue-300/60 text-[10px] font-semibold uppercase tracking-wider">Session</span>
+      <div className="flex items-center justify-between">
+        <span className="text-blue-300/60 text-[10px] font-semibold uppercase tracking-wider">Session</span>
+        <span className="text-[10px] text-gray-400">{formatTime(session.startTime)} <span className="text-gray-600">{formatRelativeTime(session.startTime)}</span></span>
+      </div>
       <div className="flex items-center gap-2 mt-0.5">
         <div
           className={`w-2.5 h-2.5 rounded-full ${isEnded ? 'bg-gray-500' : 'bg-blue-400 animate-pulse'}`}
         />
         <span className="text-sm font-semibold text-gray-100 font-mono">{shortId}</span>
-        <span className="text-xs text-gray-400 ml-auto">{formatRelativeTime(session.startTime)}</span>
       </div>
 
       {/* Stats footer */}

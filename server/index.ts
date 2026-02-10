@@ -2,6 +2,9 @@ import express, { type Request, type Response, type NextFunction } from 'express
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import rateLimit from 'express-rate-limit';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import { Broadcaster } from './services/broadcaster.js';
 import { AgentManager } from './services/agentManager.js';
 import { createEventsRouter } from './routes/events.js';
@@ -63,6 +66,21 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true, clients: broadcaster.clientCount });
 });
 
+// --- Serve built frontend (if dist/ exists) ---
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const distPath = path.resolve(__dirname, '..', 'dist');
+
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+  // SPA fallback: non-API routes serve index.html
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path === '/ws') return next();
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+  console.log(`[Server] Serving frontend from ${distPath}`);
+}
+
 // Global error handler (must be after all route registrations)
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error('[Server] Unhandled error:', err.stack);
@@ -94,7 +112,7 @@ wss.on('connection', (ws: WebSocket) => {
 
 server.listen(PORT, () => {
   console.log('');
-  console.log('  AgentViz Server');
+  console.log('  Synapse Server');
   console.log(`  HTTP:  http://localhost:${PORT}`);
   console.log(`  WS:    ws://localhost:${PORT}/ws`);
   console.log('');

@@ -5,6 +5,7 @@ import type { ToolCallSummary } from '../../types/agent';
 import { formatTime, formatDuration } from '../../utils/format';
 import { apiUrl } from '../../utils/api';
 import { toast } from '../Toast';
+import { ToolRenderer, ToolSummaryLine } from './ToolDetailRenderers';
 
 export function AgentDetailPanel() {
   const selectedNodeId = useAgentStore((s) => s.selectedNodeId);
@@ -324,6 +325,8 @@ export function AgentDetailPanel() {
         ? `${((foundTc.endTime - foundTc.startTime) / 1000).toFixed(2)}s`
         : null;
 
+    const parentAgent = parentAgentId ? agents.get(parentAgentId) : null;
+
     return (
       <>
         <PanelShell
@@ -332,6 +335,10 @@ export function AgentDetailPanel() {
           onClose={() => selectNode(null)}
         >
           <div className="p-4 space-y-3 text-sm flex-1 overflow-auto">
+            {/* Summary line */}
+            <ToolSummaryLine tc={foundTc} />
+
+            {/* Metadata row */}
             <div className="flex justify-between items-start">
               <div>
                 <div className="flex items-center gap-2">
@@ -341,7 +348,7 @@ export function AgentDetailPanel() {
                       onClick={() => selectNode(`agent-${parentAgentId}`)}
                       className="text-[10px] text-blue-400 hover:text-blue-300 underline"
                     >
-                      Parent: {parentAgentId.slice(0, 12)}
+                      Parent: {parentAgent?.agentType ?? parentAgentId.slice(0, 12)}
                     </button>
                   )}
                 </div>
@@ -356,22 +363,16 @@ export function AgentDetailPanel() {
               </div>
             )}
 
-            {foundTc.toolInput && (
-              <div>
-                <span className="text-gray-500 text-xs block mb-1">Input</span>
-                <pre className="text-xs bg-gray-900 rounded p-2 text-gray-300 overflow-auto max-h-52 font-mono whitespace-pre-wrap">
-                  {JSON.stringify(foundTc.toolInput, null, 2)}
-                </pre>
-              </div>
-            )}
-            {foundTc.toolResponse && (
-              <div>
-                <span className="text-gray-500 text-xs block mb-1">Response</span>
-                <pre className="text-xs bg-gray-900 rounded p-2 text-gray-300 overflow-auto max-h-52 font-mono whitespace-pre-wrap">
-                  {JSON.stringify(foundTc.toolResponse, null, 2)}
-                </pre>
-              </div>
-            )}
+            <Divider />
+
+            {/* Rich tool-specific renderer */}
+            <ToolRenderer
+              input={foundTc.toolInput}
+              response={foundTc.toolResponse}
+              status={foundTc.status}
+              toolName={foundTc.toolName}
+              toolUseId={foundTc.toolUseId}
+            />
 
             <Divider />
 

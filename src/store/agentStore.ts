@@ -22,7 +22,7 @@ const PROMPT_H = 130;
 const AGENT_W = 200;
 const AGENT_H = 110;
 const TOOL_W = 150;
-const TOOL_H = 44;
+const TOOL_H = 32;
 
 const SPAWN_NODE: Node = {
   id: '__spawn__',

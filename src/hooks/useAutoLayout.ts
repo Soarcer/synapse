@@ -7,19 +7,25 @@ const NODE_DEFAULTS: Record<string, { width: number; height: number }> = {
   session: { width: 220, height: 80 },
   userPrompt: { width: 240, height: 130 },
   agent: { width: 200, height: 110 },
-  toolCall: { width: 150, height: 44 },
+  toolCall: { width: 150, height: 32 },
   spawnAgent: { width: 50, height: 50 },
 };
 
 // ── Spacing constants ────────────────────────────────────────
-// Tuned for readability: gap ≈ 0.25× node width horizontally,
-// tight siblings vertically so parent-child grouping is clear.
 
 const GAP_X = 50; // horizontal gap between parent right edge and child left edge
 const GAP_Y = 14; // vertical gap between sibling nodes
-const GAP_Y_TOOL = 10; // tighter gap between tool call nodes
+const GAP_Y_TOOL = 6; // tighter gap between tool call nodes
 const ROOT_GAP = 40; // extra vertical gap between independent root trees
 const MARGIN = 30; // canvas margin
+
+// ── Tool layout constants ────────────────────────────────────
+
+const STACK_OFFSET_Y = 14; // vertical offset between stacked cards
+const MAX_STACKED_PREVIEW = 5; // max visible tools in stacked mode (must match AgentGraph.tsx)
+const MAX_GRID_ROWS = 10; // max tools per column before adding another column
+const GRID_GAP_X = 20; // horizontal gap between grid columns
+const GRID_GAP_Y = 6; // vertical gap between grid rows
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -30,14 +36,16 @@ function nodeDims(node: Node): { width: number; height: number } {
 }
 
 // ── Custom tree layout (LR) ─────────────────────────────────
-// Purpose-built for agent hierarchies. Each parent is vertically
-// centered relative to its children. No rank detection, no edge
-// routing inflation, no compaction passes — positions are exact.
+// Purpose-built for agent hierarchies with hybrid tool layouts:
+// - Non-tool children: standard vertical stacking with centering
+// - Leaf tools (stacked): overlapping cards for compact preview
+// - Leaf tools (expanded): 2-column grid for scannable access
 
 function computeGraphLayout(
   graphNodes: Node[],
   edges: Edge[],
-): Map<string, { x: number; y: number }> {
+  expandedParentId: string | null,
+): { positions: Map<string, { x: number; y: number }>; zIndexMap: Map<string, number> } {
   // Build tree structure
   const childrenOf = new Map<string, string[]>();
   const parentOf = new Map<string, string>();
@@ -55,17 +63,53 @@ function computeGraphLayout(
 
   const roots = graphNodes.filter((n) => !parentOf.has(n.id));
 
-  // Gap before a sibling — tighter for tool nodes
+  // Classify children: leaf tools vs everything else
+  function classifyChildren(parentId: string): { tools: string[]; others: string[] } {
+    const kids = childrenOf.get(parentId) ?? [];
+    const tools: string[] = [];
+    const others: string[] = [];
+    for (const kid of kids) {
+      const node = nodeById.get(kid);
+      const kidChildren = childrenOf.get(kid);
+      // Leaf tool = toolCall node with no children of its own
+      if (node?.type === 'toolCall' && (!kidChildren || kidChildren.length === 0)) {
+        tools.push(kid);
+      } else {
+        others.push(kid);
+      }
+    }
+    return { tools, others };
+  }
+
+  // Height of tool children based on layout mode
+  function toolsHeight(tools: string[], parentId: string): number {
+    if (tools.length === 0) return 0;
+    const toolH = NODE_DEFAULTS.toolCall.height;
+
+    if (parentId === expandedParentId) {
+      // Grid: max MAX_GRID_ROWS per column, each new column cascades lower
+      const rows = Math.min(tools.length, MAX_GRID_ROWS);
+      const cols = Math.ceil(tools.length / MAX_GRID_ROWS);
+      const cascade = (cols - 1) * (toolH / 2); // cumulative offset of last column
+      return rows * toolH + (rows - 1) * GRID_GAP_Y + cascade;
+    } else {
+      // Stacked: overlapping cards
+      const visible = Math.min(tools.length, MAX_STACKED_PREVIEW);
+      return (visible - 1) * STACK_OFFSET_Y + toolH;
+    }
+  }
+
+  // Gap before a non-tool sibling
   function gapBefore(nodeId: string): number {
     return nodeById.get(nodeId)?.type === 'toolCall' ? GAP_Y_TOOL : GAP_Y;
   }
 
-  // Total height of a list of children including inter-sibling gaps
-  function childrenHeight(kids: string[]): number {
-    if (kids.length === 0) return 0;
-    let total = subtreeHeight(kids[0]);
-    for (let i = 1; i < kids.length; i++) {
-      total += gapBefore(kids[i]) + subtreeHeight(kids[i]);
+  // Height of non-tool children including inter-sibling gaps
+  function othersHeight(others: string[]): number {
+    if (others.length === 0) return 0;
+    let total = subtreeHeight(others[0]);
+    for (let i = 1; i < others.length; i++) {
+      total += gapBefore(others[i]) + subtreeHeight(others[i]);
     }
     return total;
   }
@@ -81,23 +125,30 @@ function computeGraphLayout(
     if (!node) return 0;
 
     const myH = nodeDims(node).height;
-    const kids = childrenOf.get(nodeId);
+    const { tools, others } = classifyChildren(nodeId);
 
-    if (!kids || kids.length === 0) {
+    if (tools.length === 0 && others.length === 0) {
       stCache.set(nodeId, myH);
       return myH;
     }
 
-    const h = Math.max(myH, childrenHeight(kids));
+    const oH = othersHeight(others);
+    const tH = toolsHeight(tools, nodeId);
+
+    // Combined children height
+    let totalChildrenH = oH;
+    if (tH > 0) {
+      totalChildrenH = oH > 0 ? oH + GAP_Y + tH : tH;
+    }
+
+    const h = Math.max(myH, totalChildrenH);
     stCache.set(nodeId, h);
     return h;
   }
 
   // Phase 2: top-down — assign positions
-  // Each node is vertically centered within its subtree allocation.
-  // Children are placed to the right, stacked vertically and centered
-  // as a group within the same allocation.
   const positions = new Map<string, { x: number; y: number }>();
+  const zIndexMap = new Map<string, number>();
 
   function layout(nodeId: string, x: number, yStart: number): void {
     const node = nodeById.get(nodeId);
@@ -105,23 +156,68 @@ function computeGraphLayout(
 
     const dims = nodeDims(node);
     const stH = subtreeHeight(nodeId);
-    const kids = childrenOf.get(nodeId) ?? [];
+    const { tools, others } = classifyChildren(nodeId);
 
     // Center this node vertically within its subtree band
     const myY = yStart + (stH - dims.height) / 2;
     positions.set(nodeId, { x, y: myY });
 
-    if (kids.length === 0) return;
+    if (tools.length === 0 && others.length === 0) return;
 
-    // Center children block within subtree band
-    const kidsTotal = childrenHeight(kids);
+    // Compute combined children height for centering
+    const oH = othersHeight(others);
+    const tH = toolsHeight(tools, nodeId);
+    let totalChildrenH = oH;
+    if (tH > 0) {
+      totalChildrenH = oH > 0 ? oH + GAP_Y + tH : tH;
+    }
+
     const childX = x + dims.width + GAP_X;
-    let childY = yStart + (stH - kidsTotal) / 2;
+    let childY = yStart + (stH - totalChildrenH) / 2;
 
-    for (let i = 0; i < kids.length; i++) {
-      if (i > 0) childY += gapBefore(kids[i]);
-      layout(kids[i], childX, childY);
-      childY += subtreeHeight(kids[i]);
+    // Position non-tool children normally
+    for (let i = 0; i < others.length; i++) {
+      if (i > 0) childY += gapBefore(others[i]);
+      layout(others[i], childX, childY);
+      childY += subtreeHeight(others[i]);
+    }
+
+    // Gap between others and tools
+    if (others.length > 0 && tools.length > 0) {
+      childY += GAP_Y;
+    }
+
+    // Position tools (stacked or grid)
+    if (tools.length > 0) {
+      const isExpanded = nodeId === expandedParentId;
+      const toolStartY = childY;
+
+      if (isExpanded) {
+        // Dynamic columns — max MAX_GRID_ROWS per column, each column cascades lower
+        const toolW = NODE_DEFAULTS.toolCall.width;
+        const colWidth = toolW + GRID_GAP_X;
+        const toolH = NODE_DEFAULTS.toolCall.height;
+        const cascadeY = toolH / 2; // each column shifts down progressively
+
+        for (let i = 0; i < tools.length; i++) {
+          const col = Math.floor(i / MAX_GRID_ROWS);
+          const row = i % MAX_GRID_ROWS;
+          positions.set(tools[i], {
+            x: childX + col * colWidth,
+            y: toolStartY + row * (toolH + GRID_GAP_Y) + col * cascadeY,
+          });
+        }
+      } else {
+        // Stacked card layout (overlapping)
+        for (let i = 0; i < tools.length; i++) {
+          positions.set(tools[i], {
+            x: childX,
+            y: toolStartY + i * STACK_OFFSET_Y,
+          });
+          // z-index: later cards on top
+          zIndexMap.set(tools[i], i + 1);
+        }
+      }
     }
   }
 
@@ -140,7 +236,7 @@ function computeGraphLayout(
     }
   }
 
-  return positions;
+  return { positions, zIndexMap };
 }
 
 // ── List layout (indented outline) ──────────────────────────
@@ -205,8 +301,10 @@ export function useAutoLayout(
   nodes: Node[],
   edges: Edge[],
   layoutMode: 'graph' | 'list' = 'graph',
+  expandedParentId: string | null = null,
 ): Node[] {
   const positionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+  const zIndexRef = useRef<Map<string, number>>(new Map());
   const prevKeyRef = useRef('');
 
   // Fingerprint: recompute when structure or measurements change
@@ -217,7 +315,7 @@ export function useAutoLayout(
     }
   }
   const hasMeasured = nodes.some((n) => n.measured?.width);
-  const key = `${layoutMode}:${nodes.length}:${edges.length}:${idHash}:${hasMeasured}`;
+  const key = `${layoutMode}:${nodes.length}:${edges.length}:${idHash}:${hasMeasured}:${expandedParentId}`;
   const needsLayout = key !== prevKeyRef.current;
 
   useEffect(() => {
@@ -227,7 +325,9 @@ export function useAutoLayout(
   if (!needsLayout && positionsRef.current.size > 0) {
     return nodes.map((node) => {
       const pos = positionsRef.current.get(node.id);
-      return pos ? { ...node, position: pos } : node;
+      if (!pos) return node;
+      const zIndex = zIndexRef.current.get(node.id) ?? 1;
+      return { ...node, position: pos, zIndex };
     });
   }
 
@@ -237,10 +337,16 @@ export function useAutoLayout(
 
   if (graphNodes.length === 0) return nodes;
 
-  const positions =
-    layoutMode === 'list'
-      ? computeListLayout(graphNodes, edges)
-      : computeGraphLayout(graphNodes, edges);
+  let positions: Map<string, { x: number; y: number }>;
+  let zIndexMap = new Map<string, number>();
+
+  if (layoutMode === 'list') {
+    positions = computeListLayout(graphNodes, edges);
+  } else {
+    const result = computeGraphLayout(graphNodes, edges, expandedParentId);
+    positions = result.positions;
+    zIndexMap = result.zIndexMap;
+  }
 
   // Position spawn node at bottom-right of graph
   if (spawnNode) {
@@ -260,9 +366,12 @@ export function useAutoLayout(
   }
 
   positionsRef.current = positions;
+  zIndexRef.current = zIndexMap;
 
   return nodes.map((node) => {
     const pos = positions.get(node.id);
-    return pos ? { ...node, position: pos } : node;
+    if (!pos) return node;
+    const zIndex = zIndexMap.get(node.id) ?? 1; // all nodes above edges (z:0)
+    return { ...node, position: pos, zIndex };
   });
 }

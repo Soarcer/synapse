@@ -3,6 +3,7 @@ import { Handle, type NodeProps } from '@xyflow/react';
 import type { ToolCallSummary } from '../../../types/agent';
 import { useHandlePositions } from '../../../hooks/useHandlePositions';
 import { useAgentStore } from '../../../store/agentStore';
+import { formatTime } from '../../../utils/format';
 import { CollapsibleSourceHandle } from '../CollapsibleSourceHandle';
 
 const statusColors: Record<string, string> = {
@@ -32,18 +33,23 @@ function ToolCallNodeComponent({ data }: NodeProps) {
   return (
     <div
       className={`
-        rounded-full px-3 py-1.5 border text-xs font-medium shadow-sm
-        flex items-center gap-1.5 min-w-[120px]
+        rounded-lg px-3 py-1.5 border text-xs font-medium shadow-sm min-w-[120px]
         ${statusColors[tc.status]}
         ${isSelected ? 'node-selected' : isHighlighted ? 'node-highlighted' : ''}
       `}
     >
       <Handle type="target" position={target} className="!bg-purple-300 !w-2 !h-2 !border !border-gray-800" />
 
-      <span className="text-purple-300/50 text-[9px] font-semibold uppercase tracking-wider">Tool</span>
-      <span className="text-gray-200 truncate">{tc.toolName}</span>
-      <span className="text-gray-400 text-[10px]">{statusIcon[tc.status]}</span>
-      {duration && <span className="text-gray-400 text-[10px] ml-auto">{duration}</span>}
+      <div className="flex items-center justify-between">
+        <span className="text-purple-300/50 text-[8px] font-semibold uppercase tracking-wider">Tool</span>
+        <span className="text-gray-500 text-[7px]">
+          {formatTime(tc.startTime)}{duration && <span className="ml-1">{duration}</span>}
+        </span>
+      </div>
+      <div className="flex items-center gap-1.5 mt-0.5">
+        <span className="text-white truncate">{tc.toolName}</span>
+        <span className="text-gray-400 text-[10px]">{statusIcon[tc.status]}</span>
+      </div>
 
       {hasChildren && (
         <CollapsibleSourceHandle nodeId={nodeId} position={source} style={sourceStyle} baseClassName="!bg-purple-300 !w-2 !h-2 !border !border-gray-800" />

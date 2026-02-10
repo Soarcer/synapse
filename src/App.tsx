@@ -127,7 +127,7 @@ export default function App() {
       }
 
       // 1-9 — switch Lens Panel tabs
-      const tabKeys = ['tree', 'profile', 'heatmap', 'treemap', 'sankey', 'compaction', 'cost'];
+      const tabKeys = ['tree', 'heatmap', 'treemap', 'sankey', 'compaction', 'cost'];
       const tabIdx = parseInt(e.key, 10) - 1;
       if (tabIdx >= 0 && tabIdx < tabKeys.length) {
         useAgentStore.getState().setActiveLensTab(tabKeys[tabIdx]);

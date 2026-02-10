@@ -3,7 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const envDbPath = process.env.AGENTVIZ_DB_PATH;
+const envDbPath = process.env.SYNAPSE_DB_PATH || process.env.AGENTVIZ_DB_PATH;
 const DB_PATH = envDbPath ? path.resolve(envDbPath) : path.join(__dirname, 'agentviz.db');
 
 const db = new Database(DB_PATH);

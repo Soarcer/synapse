@@ -1,0 +1,40 @@
+{
+  "name": "agentviz",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:client": "vite",
+    "dev:server": "tsx watch server/index.ts",
+    "build": "tsc && vite build",
+    "package": "powershell -ExecutionPolicy Bypass -File scripts/make-package.ps1"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "latest",
+    "@xyflow/react": "^12.6.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zustand": "^5.0.0",
+    "express": "^5.1.0",
+    "ws": "^8.18.0",
+    "better-sqlite3": "^11.8.0",
+    "nanoid": "^5.1.0",
+    "dagre": "^0.8.5"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vite": "^6.3.0",
+    "@vitejs/plugin-react": "^4.4.0",
+    "tailwindcss": "^4.1.0",
+    "@tailwindcss/vite": "^4.1.0",
+    "tsx": "^4.19.0",
+    "concurrently": "^9.1.0",
+    "@types/express": "^5.0.0",
+    "@types/ws": "^8.18.0",
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/dagre": "^0.7.52",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0"
+  }
+}

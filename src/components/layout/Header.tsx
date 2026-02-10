@@ -53,7 +53,7 @@ export function Header() {
       const blob = await resp.blob();
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `agentviz-snapshot-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+      a.download = `synapse-snapshot-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
       a.click();
       URL.revokeObjectURL(a.href);
       toast('Snapshot exported', 'info');
@@ -110,7 +110,7 @@ export function Header() {
     <header className="flex items-center gap-4 px-4 h-12 bg-[#161b22] border-b border-gray-800 flex-shrink-0">
       {/* Title */}
       <div className="flex items-center gap-2">
-        <span className="text-base font-bold text-gray-100 tracking-tight">AgentViz</span>
+        <span className="text-base font-bold text-gray-100 tracking-tight">Synapse</span>
         <span className="text-xs text-gray-600">v0.1</span>
       </div>
 

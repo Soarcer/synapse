@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "Bash(\"c:/Workspace/Coding/Prototypes/AgentViz/src/types/agent.ts\" << 'ENDOFFILE'\n// ─── Core Event Types ───────────────────────────────────────────────\n\nexport type AgentEventType =\n  | 'session_start' | 'session_end'\n  | 'agent_start' | 'agent_stop'\n  | 'tool_start' | 'tool_end' | 'tool_error'\n  | 'text_delta'\n  | 'result';\n\nexport interface AgentEvent {\n  id: string;                    // nanoid\n  type: AgentEventType;\n  sessionId: string;\n  agentId?: string;\n  agentType?: string;            // \"Explore\", \"Plan\", \"Bash\", custom names\n  parentAgentId?: string;        // For subagent → parent tracking\n  toolName?: string;\n  toolInput?: Record<string, unknown>;\n  toolResponse?: Record<string, unknown>;\n  toolUseId?: string;\n  text?: string;                 // Streaming text content\n  status?: 'running' | 'success' | 'error' | 'stopped';\n  error?: string;\n  tokenUsage?: { input: number; output: number };\n  duration?: number;             // milliseconds\n  timestamp: number;             // Unix ms\n}\n\n// ─── React Flow Node Data ───────────────────────────────────────────\n\nexport interface AgentNodeData {\n  agentId: string;\n  agentType: string;\n  sessionId: string;\n  status: 'running' | 'success' | 'error' | 'stopped';\n  prompt?: string;\n  toolCalls: ToolCallSummary[];\n  tokenUsage: { input: number; output: number };\n  startTime: number;\n  endTime?: number;\n  streamingText?: string;        // Live text being generated\n}\n\nexport interface ToolCallSummary {\n  toolUseId: string;\n  toolName: string;\n  status: 'running' | 'success' | 'error';\n  startTime: number;\n  endTime?: number;\n  inputPreview?: string;         // First 100 chars of input\n}\n\n// ─── API Request/Response Types ─────────────────────────────────────\n\nexport interface SpawnAgentRequest {\n  prompt: string;\n  model?: 'opus' | 'sonnet' | 'haiku';\n  tools?: string[];              // [\"Read\", \"Edit\", \"Bash\", ...]\n  permissionMode?: 'acceptEdits' | 'bypassPermissions' | 'default';\n  systemPrompt?: string;\n  mcpServers?: Record<string, McpServerConfig>;\n  cwd?: string;                  // Working directory for the agent\n}\n\nexport interface McpServerConfig {\n  command: string;\n  args: string[];\n  env?: Record<string, string>;\n}\n\n// ─── WebSocket Message Types ────────────────────────────────────────\n\nexport type WsServerMessage =\n  | { type: 'event'; data: AgentEvent }\n  | { type: 'connected'; data: { activeAgents: ActiveAgentInfo[] } }\n  | { type: 'agent_text'; data: { agentId: string; text: string; isPartial: boolean } };\n\nexport type WsClientMessage =\n  | { type: 'subscribe'; sessionId: string }\n  | { type: 'unsubscribe'; sessionId: string };\n\nexport interface ActiveAgentInfo {\n  agentId: string;\n  agentType: string;\n  sessionId: string;\n  status: 'running' | 'success' | 'error' | 'stopped';\n  startTime: number;\n}\nENDOFFILE)",
+      "Bash(node:*)",
+      "Read(//tmp/claude/c--Workspace-Coding-Prototypes-AgentViz/tasks/**)",
+      "WebFetch(domain:medium.com)",
+      "Bash(cd:*)",
+      "Bash(npm run dev:server:*)",
+      "Bash(if [ -f \"c:/Workspace/Coding/Prototypes/AgentViz/hook_debug.log\" ])",
+      "Bash(then cat \"c:/Workspace/Coding/Prototypes/AgentViz/hook_debug.log\")",
+      "Bash(else echo \"No debug log yet — hooks haven''t fired\")",
+      "Bash(fi)",
+      "Bash(else echo \"No debug log yet\")",
+      "Bash(else echo \"NO LOG FILE\")",
+      "mcp__ide__getDiagnostics",
+      "Bash(ping:*)",
+      "Bash(npx eslint:*)",
+      "Bash(sqlite3:*)",
+      "WebSearch",
+      "WebFetch(domain:reactflow.dev)",
+      "WebFetch(domain:observablehq.com)",
+      "WebFetch(domain:temporal.io)",
+      "WebFetch(domain:www.analyticsvidhya.com)",
+      "WebFetch(domain:grafana.com)",
+      "WebFetch(domain:sparkco.ai)",
+      "WebFetch(domain:dohost.us)",
+      "Bash(git status:*)",
+      "Bash(test:*)",
+      "Bash(npm --version:*)"
+    ],
+    "additionalDirectories": [
+      "C:\\Workspace\\Coding\\Prototypes\\AgentViz\\server"
+    ]
+  }
+}
