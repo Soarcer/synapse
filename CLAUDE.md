@@ -14,30 +14,26 @@ The frontend uses React Flow for an interactive node graph. The backend uses Exp
 - **Frontend**: React 19, @xyflow/react v12, Zustand 5, Tailwind CSS 4, Vite 6
 - **Backend**: Node.js, Express 5, ws 8, better-sqlite3, tsx
 - **Agent SDK**: @anthropic-ai/claude-agent-sdk (TypeScript)
+- **Monorepo**: pnpm workspaces, @synapse-ai npm scope
 - **Language**: TypeScript throughout
 
-## Project Structure
+## Project Structure (pnpm monorepo)
 
 ```
 Synapse/
-├── server/           # Express + WebSocket backend
-│   ├── index.ts      # Server entry point (port 4000)
-│   ├── db.ts         # SQLite schema & queries
-│   ├── routes/       # REST API routes
-│   └── services/     # AgentManager, EventStore, Broadcaster
-├── src/              # React frontend
-│   ├── main.tsx      # Entry point
-│   ├── App.tsx       # Layout shell
-│   ├── store/        # Zustand stores + WebSocket client
-│   ├── components/   # React components
-│   │   ├── graph/    # React Flow canvas + custom nodes/edges
-│   │   ├── panels/   # Detail panels, dialogs, timeline
-│   │   └── layout/   # Header, Sidebar
-│   ├── hooks/        # React hooks (useAgentStream, useAutoLayout)
-│   └── types/        # TypeScript type definitions
-├── hooks/            # Claude Code hook scripts (send_event.cjs)
-├── docs/             # Architecture docs, research, implementation guides
-└── .claude/          # Hook configuration
+├── pnpm-workspace.yaml
+├── tsconfig.base.json
+├── packages/
+│   ├── core/           # @synapse-ai/core — types, Zod schemas, format utils
+│   ├── server/         # @synapse-ai/server — Express + SQLite + WebSocket
+│   └── openclaw/       # @synapse-ai/openclaw — OpenClaw monitoring plugin
+├── apps/
+│   ├── dashboard/      # React frontend (not published)
+│   └── vscode/         # @synapse-ai/vscode — VS Code extension
+├── hooks/              # Claude Code hook scripts (send_event.cjs)
+├── scripts/            # Build and simulation scripts
+├── docs/               # Architecture docs
+└── .claude/            # Hook configuration
 ```
 
 ## Quick Start
@@ -68,8 +64,9 @@ Stop either server with **Ctrl+C** in its terminal.
 
 - `.\start-server.ps1` — start backend (port 4000)
 - `.\start-client.ps1` — start frontend (port 5173)
-- `npm run dev` — start both concurrently (may be unreliable on Windows)
-- `npm run build` — production build
+- `pnpm dev` — start both concurrently
+- `pnpm -r build` — build all packages
+- `pnpm test` — run all tests
 - `npx tsx scripts/simulate_session.ts` — simulate a full session with 8 events
 
 ## Keyboard Shortcuts
@@ -92,9 +89,15 @@ See `docs/PACKAGE.md` for the per-project package checklist.
 
 ## Conventions
 
-- All shared types live in `src/types/agent.ts` and are imported by both frontend and backend
+- All shared types live in `@synapse-ai/core` (packages/core/) — imported by all other packages
+- Use `@synapse-ai/core` for cross-package imports, never relative paths between packages
 - Hook scripts are plain Node.js (no dependencies) — they read stdin JSON and POST to localhost:4000
-- WebSocket messages use the `AgentEvent` type defined in `src/types/agent.ts`
-- React Flow nodes use custom components in `src/components/graph/nodes/`
+- WebSocket messages use the `AgentEvent` type from `@synapse-ai/core`
+- React Flow nodes use custom components in `apps/dashboard/src/components/graph/nodes/`
 - Backend API routes are prefixed with `/api/`
-- The SQLite database file is stored at `server/synapse.db` (gitignored)
+- The SQLite database file is stored at `packages/server/synapse.db` (gitignored)
+- Zod for runtime validation at system boundaries (API inputs, WS messages)
+- No `any` types — use `unknown` and narrow with type guards
+- `pino` for server logging (not console.log)
+- Express 5 `req.params.id` returns `string | string[]` — cast to `string`
+- Zustand gotcha: `?? []` inside selectors causes infinite re-renders. Use module-level `const EMPTY: T[] = []`
