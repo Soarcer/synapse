@@ -35,6 +35,7 @@ export function normalizeHookPayload(raw: Record<string, unknown>): AgentEvent {
     sessionId: (raw.session_id as string) || 'unknown',
     timestamp: now,
     eventSource: 'hook',
+    vendor: 'anthropic',
   };
 
   // ── Common metadata (present on all hook events) ──
@@ -125,6 +126,7 @@ export function storeAndBroadcast(
     token_input: event.tokenUsage?.input,
     token_output: event.tokenUsage?.output,
     duration_ms: event.duration,
+    vendor: event.vendor,
     raw_payload: JSON.stringify(raw),
     created_at: event.timestamp,
   });
@@ -163,7 +165,12 @@ export function rowToAgentEvent(row: EventRow): AgentEvent {
   if (row.duration_ms != null) event.duration = row.duration_ms;
 
   // Infer event source from hook_event_name
-  event.eventSource = HOOK_EVENT_NAMES.has(row.hook_event_name) ? 'hook' : 'sdk';
+  if (row.hook_event_name === 'openclaw') {
+    event.eventSource = 'openclaw';
+  } else {
+    event.eventSource = HOOK_EVENT_NAMES.has(row.hook_event_name) ? 'hook' : 'sdk';
+  }
+  if (row.vendor) event.vendor = row.vendor;
 
   // Restore rich metadata from raw_payload
   try {
@@ -181,6 +188,37 @@ export function rowToAgentEvent(row: EventRow): AgentEvent {
   } catch { /* ignore parse errors */ }
 
   return event;
+}
+
+// ─── Store Pre-Normalized Event (for OpenClaw plugin) ───────────────
+
+export function storePreNormalized(
+  event: AgentEvent,
+  broadcaster: Broadcaster,
+): void {
+  insertEvent({
+    event_id: event.id,
+    session_id: event.sessionId,
+    hook_event_name: event.eventSource ?? 'openclaw',
+    event_type: event.type,
+    agent_id: event.agentId,
+    agent_type: event.agentType,
+    parent_agent_id: event.parentAgentId,
+    tool_name: event.toolName,
+    tool_use_id: event.toolUseId,
+    tool_input: event.toolInput ? JSON.stringify(event.toolInput) : null,
+    tool_response: event.toolResponse ? JSON.stringify(event.toolResponse) : null,
+    status: event.status,
+    error: event.error,
+    token_input: event.tokenUsage?.input,
+    token_output: event.tokenUsage?.output,
+    duration_ms: event.duration,
+    vendor: event.vendor,
+    raw_payload: JSON.stringify(event),
+    created_at: event.timestamp,
+  });
+
+  broadcaster.broadcast(event);
 }
 
 // ─── Query Events (returns AgentEvent[]) ────────────────────────────

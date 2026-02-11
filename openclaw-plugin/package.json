@@ -1,0 +1,34 @@
+{
+  "name": "@synapse/openclaw-plugin",
+  "version": "0.1.0",
+  "description": "Real-time AI agent monitoring dashboard for OpenClaw",
+  "type": "module",
+  "main": "dist/plugin.js",
+  "openclaw": {
+    "extensions": [
+      {
+        "id": "synapse-monitor",
+        "entry": "./dist/plugin.js"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "simulate": "tsx scripts/simulate_openclaw.ts"
+  },
+  "peerDependencies": {
+    "openclaw": "*"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.0",
+    "express": "^5.1.0",
+    "nanoid": "^5.1.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@sinclair/typebox": "^0.34.0",
+    "esbuild": "^0.24.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

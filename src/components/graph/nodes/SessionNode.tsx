@@ -3,7 +3,7 @@ import { type NodeProps } from '@xyflow/react';
 import type { SessionData } from '../../../types/agent';
 import { useHandlePositions } from '../../../hooks/useHandlePositions';
 import { useAgentStore } from '../../../store/agentStore';
-import { formatTokens, formatRelativeTime, formatTime } from '../../../utils/format';
+import { formatTokens, formatRelativeTime, formatTime, getVendorColor } from '../../../utils/format';
 import type { AgentNodeData } from '../../../types/agent';
 import { CollapsibleSourceHandle } from '../CollapsibleSourceHandle';
 
@@ -110,7 +110,17 @@ function SessionNodeComponent({ data }: NodeProps) {
       `}
     >
       <div className="flex items-center justify-between">
-        <span className="text-blue-300/60 text-[10px] font-semibold uppercase tracking-wider">Session</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-blue-300/60 text-[10px] font-semibold uppercase tracking-wider">Session</span>
+          {session.vendor && (
+            <span
+              className="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase leading-none"
+              style={{ backgroundColor: getVendorColor(session.vendor) + '25', color: getVendorColor(session.vendor) }}
+            >
+              {session.vendor}
+            </span>
+          )}
+        </div>
         <span className="text-[10px] text-gray-400">{formatTime(session.startTime)} <span className="text-gray-600">{formatRelativeTime(session.startTime)}</span></span>
       </div>
       <div className="flex items-center gap-2 mt-0.5">

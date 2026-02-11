@@ -158,6 +158,34 @@ export function getKindColor(kind: string, label?: string, paletteIndex = 0): st
   return palette.kind[kind] ?? '#6b7280';
 }
 
+// ── Vendor colors (multi-model support) ─────────────────────
+
+export const VENDOR_COLORS: Record<string, string> = {
+  anthropic:  '#e8956a',     // warm orange
+  openai:     '#74aa9c',     // teal green
+  google:     '#4285f4',     // blue
+  groq:       '#f55036',     // red
+  openrouter: '#9333ea',     // purple
+  custom:     '#6b7280',     // gray
+  claude:     '#e8956a',     // alias for anthropic
+};
+
+export function getVendorColor(vendor?: string): string {
+  if (!vendor) return VENDOR_COLORS.claude;
+  return VENDOR_COLORS[vendor.toLowerCase()] ?? VENDOR_COLORS.custom;
+}
+
+export function inferVendor(model?: string): string {
+  if (!model) return 'claude';
+  const m = model.toLowerCase();
+  if (m.includes('claude') || m.startsWith('anthropic/')) return 'anthropic';
+  if (m.includes('gpt') || m.startsWith('openai/')) return 'openai';
+  if (m.includes('gemini') || m.startsWith('google/')) return 'google';
+  if (m.startsWith('groq/')) return 'groq';
+  if (m.startsWith('openrouter/')) return 'openrouter';
+  return 'custom';
+}
+
 export const statusBorderColor: Record<string, string> = {
   running: 'border-l-green-400',
   success: 'border-l-gray-500',

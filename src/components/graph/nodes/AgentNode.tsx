@@ -3,7 +3,7 @@ import { Handle, type NodeProps } from '@xyflow/react';
 import type { AgentNodeData } from '../../../types/agent';
 import { useHandlePositions } from '../../../hooks/useHandlePositions';
 import { useAgentStore } from '../../../store/agentStore';
-import { formatTokens, formatElapsed, formatTime, statusIcon, statusBorderColor } from '../../../utils/format';
+import { formatTokens, formatElapsed, formatTime, statusIcon, statusBorderColor, getVendorColor } from '../../../utils/format';
 import { CollapsibleSourceHandle } from '../CollapsibleSourceHandle';
 
 const EMPTY_AGENTS: AgentNodeData[] = [];
@@ -35,6 +35,11 @@ function AgentNodeComponent({ data }: NodeProps) {
     return { inputTokens: input, outputTokens: output };
   }, [children, agent.tokenUsage]);
 
+  // Vendor color overrides the status border-left color when present
+  const vendorBorderStyle = agent.vendor
+    ? { borderLeftColor: getVendorColor(agent.vendor) }
+    : undefined;
+
   return (
     <div
       className={`
@@ -43,6 +48,7 @@ function AgentNodeComponent({ data }: NodeProps) {
         ${isRunning ? 'ring-1 ring-green-400/30' : ''}
         ${isSelected ? 'node-selected' : isHighlighted ? 'node-highlighted' : ''}
       `}
+      style={vendorBorderStyle}
     >
       <Handle type="target" position={target} className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-800" />
 

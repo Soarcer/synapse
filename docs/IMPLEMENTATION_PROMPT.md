@@ -1,868 +1,232 @@
-# Synapse Implementation Prompt (Parallel Agents, 8 Phases)
+# Synapse v3 Implementation Prompt for AI Coding Assistant
 
 > Copy-paste this into a fresh Claude Code session in the Synapse project directory.
-> The orchestrator session dispatches specialized agents in parallel per phase.
-> Read `docs/ROADMAP.md` for the high-level plan and `docs/SYNAPSE_PLAN.md` for the full architecture reference.
+> Reference: `docs/IMPLEMENTATION_PLAN_V3.md` for full architecture, rationale, and file mappings.
 
 ---
 
-## Prompt
+## System Context
 
-```
-Read CLAUDE.md, docs/ROADMAP.md, and docs/SYNAPSE_PLAN.md first.
+You are implementing a phased migration of the **Synapse** project from a single-package prototype to an OSS-ready pnpm monorepo under the `@synapse-ai` npm scope. Synapse is an interactive agent orchestration dashboard that monitors Claude Code sessions and Claude Agent SDK agents in real-time.
 
-You are the ORCHESTRATOR. You will implement 8 phases of improvements to build out the Synapse platform. Within each phase, you MUST dispatch specialized agents IN PARALLEL using the Task tool, one per work stream. Each stream has exclusive file ownership — no two agents touch the same file.
+**Working directory**: `c:\Workspace\Coding\Prototypes\Synapse`
+**Branch**: Create `feat/monorepo-v3` from `main`
 
-IMPORTANT: Never run more than 3 agents concurrently. Phases with 4+ streams are split into batches (3 + 1). Wait for each batch to complete before starting the next.
+**Read these documents first** (in order):
+1. `CLAUDE.md` — Project conventions and structure
+2. `docs/IMPLEMENTATION_PLAN_V3.md` — Full plan with all phases, findings, file mappings
+3. `docs/ARCHITECTURE.md` — Current system design
+4. `docs/ROADMAP.md` — Original roadmap (superseded by V3 plan but useful for context)
 
-After all agents in a phase complete, you (the orchestrator) perform a merge/verify step: review changes, resolve any package.json conflicts, run `npm run build` to verify compilation, then commit.
+---
 
-Install all needed dependencies BEFORE dispatching agents for a phase (agents can't install packages).
+## Key Conventions (apply to ALL code)
 
-## Key conventions (pass to every agent)
-- Type names use PascalCase with `Ws` prefix: `WsServerMessage`, `WsClientMessage`
-- Backend routes return plain arrays: `res.json(agents)`, `res.json(events)`
-- Tailwind v4 uses `@tailwindcss/vite` plugin (no tailwind.config)
-- Hook scripts use `.cjs` extension (package.json has `"type": "module"`)
-- Zustand gotcha: `?? []` inside selectors causes infinite re-renders. Use module-level `const EMPTY: T[] = []` and `?? EMPTY` outside selectors
+- TypeScript strict mode everywhere
+- Zod for runtime validation at system boundaries (API inputs, WS messages, file reads)
+- No `any` types — use `unknown` and narrow with type guards
+- Immutable state updates in Zustand (never mutate, always new objects)
+- `pino` for server logging (not console.log)
+- Error handling: catch with `unknown`, never leak stack traces to clients
+- Write tests BEFORE or alongside implementation, not after
+- Use `@synapse-ai/core` for shared types — never relative cross-package imports
 - Express 5 `req.params.id` returns `string | string[]` — cast to `string`
+- Zustand gotcha: `?? []` inside selectors causes infinite re-renders. Use module-level `const EMPTY: T[] = []`
 - Agent SDK `abortController` goes inside `options`, not at top level of `query()` arg
+- Hook scripts use `.cjs` extension (package.json has `"type": "module"`)
+- npm scope is `@synapse-ai` (org claimed on npmjs.com)
 
 ---
 
-# ═══════════════════════════════════════════════════
-# PHASE 1: HARDENING — ✅ 95% DONE (skip to Phase 2)
-# ═══════════════════════════════════════════════════
+## Execution Order
 
-All Phase 1 items are already implemented:
-- ✅ Express error handler (global middleware + uncaughtException + unhandledRejection)
-- ✅ Rate limiting (express-rate-limit on /api/events 200/min, /api/agents/spawn 30/min)
-- ✅ Agent limits + timeout (MAX_CONCURRENT_AGENTS=10, AGENT_TIMEOUT_MS=300000)
-- ✅ sendMessage guard simplified
-- ✅ Spawn 429 error in routes/agents.ts
-- ✅ Error boundaries (ErrorBoundary.tsx wrapping 6 components in App.tsx)
-- ✅ Loading/error states (isLoading/loadError in store, spinner + error banner)
-- ✅ Confirmation dialogs (ConfirmDialog.tsx in Header + AgentDetailPanel)
-- ✅ waterfallSpans dead code removed from LensAdapter
-- ✅ CSS cleanup done (no icicle/waterfall classes)
-- ✅ _test.txt deleted, hook_debug.log in .gitignore
+Execute phases sequentially. Each phase has a verification gate. Use the todo list to track progress.
 
-**2 tiny cleanup items remain (handle in Phase 2 merge step):**
-- Delete the file `nul` from project root (Windows redirect artifact)
-- Remove `dagre` from package.json dependencies (replaced by custom layout, unused)
+### Phase 0: Cleanup (30 minutes)
 
-No agents needed. Proceed directly to Phase 2.
+1. Delete files: `nul` (root), `c:tempread_responses.txt` (root, if exists)
+2. Edit `package.json`: remove `dagre` dep, pin `@anthropic-ai/claude-agent-sdk` to specific version
+3. Edit `.gitignore`: add `nul`, `c:temp*`, `server/agentviz.db*`
+4. Fix all 13 `catch (err: any)` → `catch (err: unknown)` with narrowing pattern:
+   ```ts
+   catch (err: unknown) {
+     const message = err instanceof Error ? err.message : 'Unknown error';
+   }
+   ```
+   Locations: `server/routes/agents.ts` (2), `server/routes/events.ts` (5), `server/routes/snapshot.ts` (2), `server/routes/transcript.ts` (2), `server/services/agentManager.ts` (1), `src/components/layout/Header.tsx` (2)
+5. Commit: `chore: cleanup artifacts, fix error typing, pin dependencies`
 
-
-# ═══════════════════════════════════════════════════
-# PHASE 2: DEVELOPER EXPERIENCE
-# ═══════════════════════════════════════════════════
-
-## Pre-step: Dependencies already installed — NO install needed
-All dev dependencies are already in package.json: vitest, @testing-library/react, @testing-library/jest-dom, jsdom, eslint, @eslint/js, typescript-eslint, eslint-plugin-react-hooks, prettier, eslint-config-prettier, husky, lint-staged.
-
-`.nvmrc` already exists (22). Skip creating it.
-
-## Dispatch 3 agents in parallel:
-
-### Agent 1: "Testing Setup"
-**Files owned (ONLY touch these):** `vitest.config.ts` (new), `src/__tests__/` (new dir), `server/__tests__/` (new dir)
-
-Create `vitest.config.ts`:
-```typescript
-import { defineConfig } from 'vitest/config';
-import react from '@vitejs/plugin-react';
-export default defineConfig({
-  plugins: [react()],
-  test: {
-    globals: true,
-    environment: 'jsdom',
-    setupFiles: ['./src/__tests__/setup.ts'],
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'server/**/*.test.ts'],
-  },
-});
-```
-
-Create `src/__tests__/setup.ts`: `import '@testing-library/jest-dom';`
-
-Write test files:
-1. `server/__tests__/eventStore.test.ts` — test `normalizeHookEvent()` for each hook type in HOOK_EVENT_MAP, test JSON parse protection for corrupted tool_input. Read `server/services/eventStore.ts` to understand the function signatures.
-2. `src/__tests__/agentStore.test.ts` — test `addEvent` creates nodes/edges, `removeNode` cascades children, `buildDerivedMaps` populates `agentsBySession` and `childAgents` maps. Read `src/store/agentStore.ts` for the store interface.
-3. `src/__tests__/format.test.ts` — test `formatTokens`, `formatDuration`, `formatCost` with zero, normal, and large values. Read `src/utils/format.ts` for the function signatures.
+**Gate**: `npm install` succeeds, git status clean.
 
 ---
 
-### Agent 2: "Linting Setup"
-**Files owned (ONLY touch these):** `eslint.config.js` (new), `.prettierrc` (new), `.husky/` (new dir)
+### Phase 1: Monorepo Scaffold (dispatch 3 parallel agents)
 
-Create `eslint.config.js` (ESLint 9+ flat config):
-```javascript
-import js from '@eslint/js';
-import tseslint from 'typescript-eslint';
-import reactHooks from 'eslint-plugin-react-hooks';
-export default tseslint.config(
-  js.configs.recommended,
-  ...tseslint.configs.recommended,
-  {
-    plugins: { 'react-hooks': reactHooks },
-    rules: {
-      'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'warn',
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
-      '@typescript-eslint/no-explicit-any': 'warn',
-    },
-  },
-  { ignores: ['dist/', 'node_modules/', '_package/', 'distribution/'] },
-);
+**Target structure**:
+```
+synapse/
+├── pnpm-workspace.yaml
+├── tsconfig.base.json
+├── packages/
+│   ├── core/        @synapse-ai/core (types, validation, utils)
+│   ├── server/      @synapse-ai/server (Express + SQLite + WS)
+│   └── openclaw/    @synapse-ai/openclaw (OpenClaw plugin)
+├── apps/
+│   ├── dashboard/   React frontend (not published)
+│   └── vscode/      @synapse-ai/vscode extension
+├── hooks/           Claude Code hook scripts
+├── scripts/         Build scripts
+└── tests/e2e/       Playwright tests
 ```
 
-Create `.prettierrc`:
-```json
-{ "singleQuote": true, "trailingComma": "all", "printWidth": 100, "semi": true }
-```
+**Agent A**: "Workspace Scaffold" — Create pnpm-workspace.yaml, tsconfig.base.json, all package.json files, all tsconfig.json files. NO code moves yet.
 
-Create `.husky/pre-commit`:
-```bash
-npx lint-staged
-```
+**Agent B**: "Code Migration" — Move files to new locations per the mapping in `docs/IMPLEMENTATION_PLAN_V3.md`. Update all relative imports to use `@synapse-ai/core`.
+
+**Agent C**: "Build Config" — Update vite.config.ts (move to apps/dashboard/), update all build scripts in scripts/, create root workspace scripts, update .github/workflows if exists.
+
+**After agents**: Run `pnpm install && pnpm -r build && pnpm dev` to verify.
+
+**Gate**: Full build succeeds, dev server starts on :5173 + :4000.
 
 ---
 
-### Agent 3: "Project Config"
-**Files owned (ONLY touch these):** `.editorconfig` (new)
+### Phase 2: Testing Infrastructure (dispatch 3 parallel agents)
 
-Note: `.nvmrc` already exists (22). `start-server.sh` and `start-client.sh` already exist. Skip all three.
+**Agent A**: "Test Setup + Core Tests" — Create vitest.config.ts (root + per-package), write ~18 tests for @synapse-ai/core (validation schemas, format utils, type guards).
 
-Create `.editorconfig`:
-```
-root = true
-[*]
-indent_style = space
-indent_size = 2
-end_of_line = lf
-charset = utf-8
-trim_trailing_whitespace = true
-insert_final_newline = true
-```
+**Agent B**: "Server Tests" — Write ~30 tests for @synapse-ai/server (eventStore, agentManager, routes/events, routes/agents, broadcaster, routes/snapshot).
+
+**Agent C**: "Dashboard Tests + Lint" — Write ~25 tests for apps/dashboard (agentStore, wsClient, useAutoLayout, ErrorBoundary). Create eslint.config.js, .prettierrc, .editorconfig, husky + lint-staged.
+
+**After agents**: Set up Playwright (`tests/e2e/`), write ~10 E2E tests. Create `.github/workflows/ci.yml`.
+
+**Gate**: `pnpm test` all pass, `pnpm lint` passes, CI would be green.
 
 ---
 
-## After all 3 agents complete:
-1. **Phase 1 leftovers:** Delete the file `nul` from project root. Remove `dagre` from package.json dependencies.
-2. Merge `package.json` — add all scripts from all streams:
-   - `"test": "vitest run"`, `"test:watch": "vitest"`
-   - `"lint": "eslint ."`, `"format": "prettier --write \"src/**/*.{ts,tsx}\" \"server/**/*.ts\""`
-   - `"prepare": "husky"`
-   - `"lint-staged": { "*.{ts,tsx}": ["eslint --fix", "prettier --write"] }`
-3. Pin `@anthropic-ai/claude-agent-sdk` version (check `node_modules/@anthropic-ai/claude-agent-sdk/package.json`)
-4. Run `npx husky init` if `.husky/pre-commit` needs it
-5. Run `npm run format` to normalize codebase
-6. Run `npm test` to verify tests pass
-7. Run `npm run build` to verify compilation
-8. Commit: `feat(dx): vitest, eslint, prettier, husky, project configs, cleanup`
+### Phase 3: Backend Hardening (dispatch 2 parallel agents)
 
+**Agent A**: "Validation + Auth + Logging"
+- Add Zod validation middleware to ALL route handlers (use schemas from @synapse-ai/core)
+- Add optional API key auth middleware (`SYNAPSE_API_KEY` env var)
+- Replace all console.log/error with pino structured logger
+- Fix error responses to not leak stack traces
+- Make all hardcoded values configurable via env vars
 
-# ═══════════════════════════════════════════════════
-# PHASE 3: MONOREPO EXTRACTION
-# ═══════════════════════════════════════════════════
+**Agent B**: "WebSocket + AgentManager + DB"
+- WebSocket: add backpressure (check bufferedAmount), ping/pong heartbeat (30s), max clients
+- AgentManager: fix cleanup timer race in stopAll(), add sendMessage mutex, try-finally lifecycle, set vendor='anthropic' on SDK events, use transactions for multi-event ops
+- DB: add composite indexes, SQLite pragmas (synchronous=NORMAL, cache_size=-64000), fix N+1 in snapshot export
+- Fix CORS, fix shutdown handler
 
-> This phase converts the single-project Synapse app into a pnpm workspace monorepo,
-> extracting provider-agnostic code into `@synapse-viz/core` and keeping Claude-specific
-> code in `apps/dashboard/`.
-
-## Pre-step: Install pnpm and initialize workspace
-```bash
-npm install -g pnpm
-```
-
-## Dispatch 3 agents in parallel:
-
-### Agent 4: "Monorepo Scaffold"
-**Files owned (ONLY touch these):** `pnpm-workspace.yaml` (new), `tsconfig.base.json` (new), `packages/core/package.json` (new), `packages/core/tsconfig.json` (new), `apps/dashboard/package.json` (new), `apps/dashboard/tsconfig.json` (new), `apps/dashboard/vite.config.ts` (new)
-
-Tasks:
-
-**3.1 Create monorepo scaffold:**
-
-Create `pnpm-workspace.yaml`:
-```yaml
-packages:
-  - 'packages/*'
-  - 'apps/*'
-```
-
-Create `tsconfig.base.json`:
-```json
-{
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "jsx": "react-jsx",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "outDir": "dist",
-    "rootDir": "src"
-  }
-}
-```
-
-Create `packages/core/package.json`:
-```json
-{
-  "name": "@synapse-viz/core",
-  "version": "0.1.0",
-  "type": "module",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
-  "exports": {
-    ".": "./src/index.ts",
-    "./types": "./src/types/index.ts",
-    "./store": "./src/store/index.ts",
-    "./components": "./src/components/index.ts",
-    "./hooks": "./src/hooks/index.ts",
-    "./utils": "./src/utils/index.ts",
-    "./server": "./src/server/index.ts"
-  },
-  "peerDependencies": {
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "@xyflow/react": "^12.0.0",
-    "zustand": "^5.0.0"
-  }
-}
-```
-
-Create `packages/core/tsconfig.json` extending base.
-
-Create `apps/dashboard/package.json` with dependency on `"@synapse-viz/core": "workspace:*"`.
-
-Create `apps/dashboard/tsconfig.json` extending base.
-
-Move existing `vite.config.ts` → `apps/dashboard/vite.config.ts` (update paths).
+**Gate**: POST invalid event → 400 with Zod details. Health check shows DB size. Graceful shutdown clean.
 
 ---
 
-### Agent 5: "Types + Utils Extraction"
-**Files owned (ONLY touch these):** `packages/core/src/types/` (new dir), `packages/core/src/utils/` (new dir)
+### Phase 4: Frontend Hardening (dispatch 2 parallel agents, parallel with Phase 3)
 
-Tasks:
+**Agent A**: "Memory + Performance"
+- Fix Toast memory leak (cleanup listeners on unmount)
+- Fix WS reconnect loop (max 20 retries, connection timeout)
+- Fix store race condition (atomic pause check in addEvent)
+- Extract stable Zustand selectors to top-level constants
+- Add useShallow for collection subscriptions
+- Add React.lazy() code splitting for 6 lens views
+- Debounce viewport ops (200ms)
 
-**3.2 Extract types:**
-- Copy `src/types/agent.ts` → `packages/core/src/types/agent.ts`
-- Generalize: make `eventSource` a `string` instead of union, add optional `providerMetadata?: Record<string, unknown>`
-- Create `packages/core/src/types/provider.ts` with the `ProviderAdapter` interface:
+**Agent B**: "Components + Accessibility"
+- Split AgentGraph.tsx (794 lines → ~200 + 3 hooks: useGraphVisibility, useEdgeStyling, useGraphNavigation)
+- Split AgentDetailPanel.tsx (653 lines → 4 components: AgentInfo, AgentTools, ToolDetail, MessageInput)
+- Split agentStore.ts (962 lines → 3 files: store, eventProcessor, selectors)
+- Add ARIA labels, focus traps, keyboard shortcut filtering
+- Add ErrorBoundary around each lens view
 
-```typescript
-export interface AgentTypeEntry {
-  name: string;
-  color: string;
-  icon?: string;
-  category?: string;
-}
-
-export interface ToolEntry {
-  name: string;
-  icon: string;
-  category?: string;
-}
-
-export interface ColorPalette {
-  name: string;
-  colors: string[];
-}
-
-export interface ProviderAdapter {
-  id: string;
-  displayName: string;
-  agentTypes: AgentTypeEntry[];
-  tools: ToolEntry[];
-  normalizeEvent(raw: Record<string, unknown>): AgentEvent;
-  resolveToolAgent?(event: AgentEvent, activeAgents: Map<string, string[]>, toolAgentMap: Map<string, string>): string | null;
-  isSubagentTool?(toolName: string): boolean;
-  palettes: ColorPalette[];
-  pricing?: Record<string, { inputPer1k: number; outputPer1k: number }>;
-}
-```
-
-- Create `packages/core/src/types/lens.ts` — extract lens-related types
-- Create `packages/core/src/types/index.ts` barrel export
-
-**3.3 Extract utils:**
-- Copy `src/utils/format.ts` → `packages/core/src/utils/format.ts`
-- Create `packages/core/src/utils/theme.ts` — dynamic palette based on `ProviderAdapter.agentTypes[]` instead of hardcoded `TYPE_COLORS`
-- Create `packages/core/src/utils/index.ts` barrel export
+**Gate**: No console errors on load. Lens views load lazily. All dashboard tests pass.
 
 ---
 
-### Agent 6: "Store + Components Extraction"
-**Files owned (ONLY touch these):** `packages/core/src/store/` (new dir), `packages/core/src/components/` (new dir), `packages/core/src/hooks/` (new dir)
+### Phase 5: VSCode Extension (dispatch 2 parallel agents)
 
-Tasks:
+**Agent A**: "Server Bundle + TreeView + StatusBar"
+- Bundle server + dashboard dist into extension resources
+- Fix ServerManager: reject on timeout, shell:false, 10s graceful shutdown
+- Add TreeView: Session → Agent → Tool hierarchy in Explorer
+- Upgrade StatusBar: live agent count + tokens via WS
+- Add WS client for extension-side real-time updates
 
-**3.4 Extract store:**
-- Copy `src/store/agentStore.ts` → `packages/core/src/store/graphStore.ts`
-- Refactor to accept `ProviderAdapter` via factory: `export function createGraphStore(adapter: ProviderAdapter)`
-- Move Claude-specific inference logic (e.g., tool→agent mapping heuristics) out — the adapter's `resolveToolAgent()` handles this now
-- Keep `buildDerivedMaps`, all mutation methods, derived Maps
+**Agent B**: "Sidebar + Build Pipeline"
+- WebView sidebar with compact dashboard view
+- New commands: switchLens, reconnect
+- Fix build scripts: error checking, npm ci, include src/types
+- VSIX size validation
 
-**3.5 Extract components:**
-- Copy all generic components to `packages/core/src/components/`:
-  - `graph/AgentGraph.tsx` → `graph/GraphCanvas.tsx` (decouple from store, accept props)
-  - `graph/nodes/*` → as-is (decouple from direct store access, accept data props)
-  - `graph/edges/*` → as-is
-  - `lens/*` → as-is (already generic via LensNode)
-  - `panels/AgentDetailPanel.tsx` → `panels/DetailPanel.tsx` (accept `AgentActions` callbacks)
-  - `panels/TimelinePanel.tsx` → as-is
-  - `panels/ToolLogPanel.tsx` → as-is
-  - `Toast.tsx` → as-is
-  - `ErrorBoundary.tsx` → as-is (from Phase 1)
-  - `ConfirmDialog.tsx` → as-is (from Phase 1)
-
-**3.6 Extract hooks:**
-- Copy `src/hooks/useAutoLayout.ts` → `packages/core/src/hooks/useAutoLayout.ts`
-- Copy `src/hooks/useHandlePositions.ts` → if it exists
+**Gate**: `code --install-extension *.vsix` works. TreeView shows hierarchy. StatusBar shows live metrics.
 
 ---
 
-## After all 3 agents complete (sequential wiring):
-1. Wire `apps/dashboard/src/main.tsx` to import from `@synapse-viz/core`
-2. Create `apps/dashboard/src/adapters/claudeAdapter.ts` with Claude Code agent types + tools
-3. Move Claude-specific components: `SpawnAgentDialog.tsx`, `AgentTemplates.tsx` → `apps/dashboard/src/components/`
-4. Extract core server: `server/db.ts`, `server/services/broadcaster.ts` → `packages/core/src/server/`
-5. Move app server: remaining `server/` (routes, agentManager, eventStore, transcriptReader) → `apps/dashboard/server/`
-6. Move hook script: `hooks/send_event.cjs` → `apps/dashboard/hooks/`
-7. Move extension: `extension/` → `apps/vscode/` (existing skeleton — see Phase 6)
-8. Move plugin: `openclaw-plugin/` → `apps/clawbrain/` (existing plugin — see Phase 8)
-9. Move packaging: `bin/`, `scripts/` → appropriate locations under monorepo root
-10. Update root `package.json` with pnpm workspace scripts
-11. Run `pnpm install`
-12. Run `pnpm run build` to verify compilation
-13. Run `npx tsx apps/dashboard/scripts/simulate_session.ts` to verify functionality
-14. Commit: `refactor: extract @synapse-viz/core, convert to pnpm monorepo`
+### Phase 6: OpenClaw Plugin Alignment (dispatch 2 parallel agents)
 
+**Agent A**: "SDK Alignment + /brain Command"
+- Refactor to use `openclaw/plugin-sdk`: api.registerService(), api.registerTool(), api.registerCommand()
+- Create proper openclaw.plugin.json manifest
+- Implement /brain command: status, sessions, costs, dashboard subcommands
 
-# ═══════════════════════════════════════════════════
-# PHASE 4: PERFORMANCE + UX — 🔶 PARTIALLY DONE
-# ═══════════════════════════════════════════════════
+**Agent B**: "Bridge + Wrapper Fixes"
+- Fix JSONL bridge: LRU cache for fileOffsets, batch posting, encoding validation, file size check
+- Fix provider wrapper: external pricing config, proper model matching, request-scoped IDs
+- Fix normalizer: bounded sessionStates Map, improved hash function
 
-## Already implemented (DO NOT recreate):
-- ✅ JSON snapshot export/import (E/I keyboard shortcuts, `server/routes/snapshot.ts`)
-- ✅ Partial empty states (graph hint banner, "No tool events yet", "No token data available")
-- ✅ Graph search with `/` shortcut + `graphSearchQuery` in store
-- ✅ Transcript reading service (`server/services/transcriptReader.ts` — JSONL parsing, cost calc, token aggregation)
-- ✅ Transcript routes (`server/routes/transcript.ts` — GET per-session + list all)
-- ✅ Snapshot routes (`server/routes/snapshot.ts` — export + import with duplicate detection)
-- ✅ Sessions endpoint (`GET /api/events/sessions` via `listSessions()` GROUP BY)
-
-## Pre-step: Install dependencies
-```bash
-cd apps/dashboard && pnpm add react-virtuoso && cd ../..
-```
-
-## Batch A: Dispatch 3 agents in parallel:
-
-### Agent 7: "Backend Performance"
-**Files owned (ONLY touch these):** `packages/core/src/server/db.ts`, `apps/dashboard/server/services/transcriptReader.ts`, `apps/dashboard/server/routes/transcript.ts`, `apps/dashboard/server/routes/snapshot.ts`
-
-NOTE: `transcriptReader.ts`, `transcript.ts`, and `snapshot.ts` already exist with full functionality (JSONL parsing, cost calculation, export/import). `listSessions()` already exists in `db.ts` using GROUP BY. The `events` table already has a `vendor` column with `idx_events_vendor` index. This agent ONLY adds performance optimizations — read the existing files first.
-
-**4.1 Composite DB Indexes** — In `db.ts`, add inside the `db.exec` block:
-```sql
-CREATE INDEX IF NOT EXISTS idx_events_session_time ON events(session_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_events_agent_type ON events(agent_id, event_type);
-CREATE INDEX IF NOT EXISTS idx_events_type_time ON events(event_type, created_at);
-```
-
-**4.2 Async Transcript Reading** — In existing `transcriptReader.ts`:
-- Replace `fs.readFileSync` with `await fs.promises.readFile`
-- Make `readTranscript()` and `parseTranscript()` async
-- Update `transcript.ts` and `snapshot.ts` route handlers to use `await`
-
-**4.3 Sessions Summary Table** — In `db.ts`:
-- Add `sessions` table with `session_id TEXT PRIMARY KEY, first_event_at, last_event_at, event_count`
-- Add upsert prepared statement called inside `insertEvent()`
-- Update existing `listSessions()` to query `sessions` table directly (replace GROUP BY)
+**Gate**: Plugin loads in OpenClaw. /brain status returns data. Events appear in dashboard.
 
 ---
 
-### Agent 8: "Lens Performance"
-**Files owned (ONLY touch these):** `packages/core/src/components/lens/LensAdapter.tsx`
+### Phase 7: Performance + UX (dispatch 2 parallel agents)
 
-**4.4 Lazy Lens Computation**:
-- Add module-level `const EMPTY: never[] = []`
-- Keep `treeRoots` always computed (shared base)
-- Guard each other useMemo with `activeLensTab`:
-  ```typescript
-  const profileRoots = useMemo(
-    () => activeLensTab === 'profile' ? buildProfileBlocks(treeRoots, profileMetric, paletteIndex) : EMPTY,
-    [activeLensTab, treeRoots, profileMetric, paletteIndex],
-  );
-  ```
-- Same for: `heatmapData`, `sankeyData`, `compactEvents`, `costPerTurn`
-- Note: `compactEvents` is also used by `costPerTurn`. If cost tab is active, compute both.
+**Agent A**: "Backend Perf + Virtualization"
+- Materialized sessions table, async transcript I/O, batch query optimization
+- react-virtuoso for TreeView and ToolLogPanel
 
-**4.5 Transcript Fetch Batching**:
-- Add module-level `const fetchedSessions = new Set<string>()`
-- Collect all unfetched session IDs, fire `Promise.all()` instead of individual fetches
-- Add `transcriptLoading` state, show loading indicator in lens header
+**Agent B**: "UX Features"
+- Deep linking (URL hash ↔ selected node/session/lens)
+- Command palette (Ctrl+K with fuzzy search)
+- CSV export, SVG/PNG graph export
+- Full empty states with spawn button
+
+**Gate**: 1000+ nodes scroll smoothly. Deep links work. Command palette finds all actions.
 
 ---
 
-### Agent 9: "Virtualization"
-**Files owned (ONLY touch these):** `packages/core/src/components/lens/tree/TreeView.tsx`, `packages/core/src/components/panels/ToolLogPanel.tsx`
+### Phase 8: Auto-Resume + Cost (sequential, not parallel)
 
-**4.6 Virtualization** — Replace `.map()` loops with `<Virtuoso>` from react-virtuoso:
+1. ProjectStore service: load/save .synapse/sessions.json
+2. Auto-load on startup, auto-save on shutdown
+3. --project CLI flag for project-scoped DB
+4. Cost tables (cost_records, budgets, alerts)
+5. Budget API (CRUD + threshold checks)
+6. Alert engine (dashboard toast + webhook)
 
-**TreeView**: Replace flat list rendering with:
-```tsx
-<Virtuoso
-  data={flatList}
-  style={{ height: '100%' }}
-  itemContent={(idx, node) => <TreeRow ... />}
-/>
-```
-- Preserve `data-node-id` attributes for auto-scroll
-- Update keyboard navigation to use Virtuoso's `scrollToIndex` ref API
-
-**ToolLogPanel**: Same pattern. Virtuoso handles variable-height expandable rows automatically.
+**Gate**: Stop → restart → sessions restored. Budget exceeded → alert appears.
 
 ---
 
-## After Batch A (3 agents) complete:
-1. Run `pnpm run build` to verify compilation
+### Phase 9: Release Engineering (sequential)
 
-## Batch B: Dispatch 1 agent:
-
-### Agent 10: "UX Features"
-**Files owned (ONLY touch these):** `apps/dashboard/src/App.tsx`, `apps/dashboard/src/store/agentStore.ts`, `apps/dashboard/src/components/CommandPalette.tsx` (new), `apps/dashboard/server/db.ts`, `apps/dashboard/server/routes/events.ts`, `apps/dashboard/src/components/graph/AgentGraph.tsx`, `apps/dashboard/src/components/panels/TimelinePanel.tsx`, `apps/dashboard/src/components/panels/SpawnAgentDialog.tsx`, `apps/dashboard/src/components/panels/AgentTemplates.tsx` (new)
-
-**4.7 Deep Linking**:
-- In `App.tsx`: parse `window.location.hash` → `#session=X&node=Y&lens=tree`
-- On mount: apply hash state to store
-- Subscribe to store changes → update hash (debounced 300ms)
-- Listen for `hashchange` for browser back/forward
-
-**4.8 Command Palette** — `CommandPalette.tsx`:
-- Trigger: Ctrl+K / Cmd+K
-- Dark overlay + centered modal, search input, scrollable action list
-- Actions: toggle tool log [T], toggle layout [L], toggle hooks [H], switch lens tabs [1-7], spawn agent [N], pause/resume [Space], export snapshot, clear events
-- Fuzzy match, arrow keys navigate, Enter executes, Escape closes
-
-**4.9 Full-Text Search (backend)**:
-- In `db.ts`: `searchEvents()` using LIKE on tool_name, tool_input, tool_response, error
-- In `events.ts`: `GET /api/events/search?q=...&limit=50`
-
-**4.10 CSV Export** (JSON export already exists via E shortcut in Header):
-- Cost view: CSV download button (turn, model, tokens, cost)
-
-**4.11 Empty States** (partial empty states already exist — graph hint banner, "No tool events yet", "No token data available"):
-- AgentGraph: when `nodes.length === 0 && !isLoading`, show centered "No active sessions" with spawn button (upgrade from current hint banner)
-- TimelinePanel: gray bar with "Timeline appears when agents are active"
-
-**4.12 Agent Templates** — `AgentTemplates.tsx`:
-- Type: `{ name, prompt, model, tools, systemPrompt? }`
-- localStorage-backed CRUD
-- In SpawnAgentDialog: "Templates" dropdown, "Save as Template" button
-- 3 built-in: "Code Review", "Explore Codebase", "Write Tests"
+1. GitHub Actions release workflow (tag-triggered npm publish)
+2. Extension publish to VS Marketplace
+3. Changesets for version management
+4. Per-package README.md
+5. CONTRIBUTING.md + LICENSE (MIT)
 
 ---
 
-## After Batch B complete:
-1. Run `pnpm run build`
-2. Run `pnpm test`
-3. Commit: `feat: performance (lazy lens, virtualization, indexes) + UX (deep linking, command palette, search, export, templates)`
-
-
-# ═══════════════════════════════════════════════════
-# PHASE 5: CANVAS2D WIDGET ENGINE
-# ═══════════════════════════════════════════════════
-
-> Build `packages/widget/` — a lightweight Canvas2D rendering engine for agent graphs.
-> No React dependency in the engine itself. React wrapper provided separately.
-> See `docs/SYNAPSE_PLAN.md` "Canvas2D Widget Engine" section for full spec.
-
-## Pre-step: Create package scaffold
-```bash
-mkdir -p packages/widget/engine packages/widget/views
-```
-
-Create `packages/widget/package.json`:
-```json
-{
-  "name": "@synapse-viz/widget",
-  "version": "0.1.0",
-  "type": "module",
-  "main": "src/index.ts",
-  "exports": {
-    ".": "./src/index.ts",
-    "./react": "./src/Widget.tsx"
-  }
-}
-```
-
-## Dispatch 3 agents in parallel:
-
-### Agent 11: "Widget Engine"
-**Files owned (ONLY touch these):** `packages/widget/engine/Scene.ts` (new), `packages/widget/engine/Layout.ts` (new)
-
-**5.1 Scene Graph** — `Scene.ts`:
-```typescript
-class Scene {
-  nodes: SceneNode[];           // Positioned rectangles with data
-  edges: SceneEdge[];           // Lines between nodes
-  camera: { x: number; y: number; zoom: number };
-  dirty: Set<SceneNode>;        // Only redraw changed nodes
-
-  hitTest(x: number, y: number): SceneNode | null;
-  panBy(dx: number, dy: number): void;
-  zoomTo(level: number, cx: number, cy: number): void;
-  addNode(node: SceneNode): void;
-  removeNode(id: string): void;
-  updateNode(id: string, data: Partial<SceneNode>): void;
-}
-```
-
-- `SceneNode`: `{ id, x, y, width, height, label, color, badges?, status?, children? }`
-- `SceneEdge`: `{ from, to, color?, animated? }`
-- Hit testing: point-in-rect with camera transform
-- Dirty rect tracking: only mark nodes that changed as needing redraw
-
-**5.2 Tree Layout** — `Layout.ts`:
-- Top-down tree layout algorithm (like dagre but simpler, ~100 lines)
-- Inputs: nodes with parent relationships
-- Outputs: x, y positions for each node
-- Configurable: `nodeWidth`, `nodeHeight`, `horizontalGap`, `verticalGap`
-
----
-
-### Agent 12: "Widget Renderer + Views"
-**Files owned (ONLY touch these):** `packages/widget/engine/Renderer.ts` (new), `packages/widget/views/GraphView.ts` (new), `packages/widget/views/TreeView.ts` (new), `packages/widget/views/HeatmapView.ts` (new), `packages/widget/views/TreemapView.ts` (new), `packages/widget/views/CompactionView.ts` (new), `packages/widget/views/CostView.ts` (new)
-
-**5.3 Renderer** — `Renderer.ts`:
-```typescript
-class Renderer {
-  private canvas: HTMLCanvasElement;
-  private ctx: CanvasRenderingContext2D;
-  private scene: Scene;
-  private textCache: Map<string, TextMetrics>;
-
-  drawNode(node: SceneNode): void;    // Rounded rect + label + badges
-  drawEdge(edge: SceneEdge): void;    // Bezier curve with arrow
-  drawHeatCell(x, y, w, h, intensity): void;
-  drawTreemapRect(x, y, w, h, label, color, depth): void;
-  drawBar(x, y, w, h, color): void;
-  clear(): void;
-  render(): void;                      // Full draw loop
-}
-```
-
-**5.4 View Renderers** — One per lens (~80-200 lines each):
-- `GraphView.ts`: Tree layout → draw node rects + bezier edges + badges
-- `TreeView.ts`: Indented list with expand/collapse triangles
-- `HeatmapView.ts`: Grid of colored cells, axis labels, intensity legend
-- `TreemapView.ts`: Squarify algorithm → nested colored rects
-- `CompactionView.ts`: Horizontal stacked bars + line chart overlay
-- `CostView.ts`: Vertical waterfall bars + context area fill
-
-Each view: `class XxxView { constructor(renderer: Renderer); update(data: LensData): void; render(): void; }`
-
----
-
-### Agent 13: "Widget Integration"
-**Files owned (ONLY touch these):** `packages/widget/src/Widget.tsx` (new), `packages/widget/src/embed.ts` (new), `packages/widget/index.html` (new), `packages/widget/src/index.ts` (new)
-
-**5.5 React Wrapper** — `Widget.tsx`:
-```tsx
-export function SynapseWidget({ data, view, onSelect, width, height }: WidgetProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  // Create scene + renderer on mount
-  // Update scene when data changes
-  // Handle mouse events → hit test → onSelect
-  // Handle wheel → zoom, drag → pan
-  return <canvas ref={canvasRef} width={width} height={height} />;
-}
-```
-
-**5.6 iframe/postMessage Bridge** — `embed.ts`:
-```typescript
-// Receives data via postMessage, renders widget in iframe
-window.addEventListener('message', (e) => {
-  if (e.data.type === 'synapse:update') { scene.update(e.data.payload); }
-  if (e.data.type === 'synapse:view') { setActiveView(e.data.view); }
-});
-// Sends selection events back to parent
-function onSelect(nodeId: string) {
-  window.parent.postMessage({ type: 'synapse:select', nodeId }, '*');
-}
-```
-
-**5.7 Test Page** — `index.html`:
-- Self-contained HTML page that loads the widget
-- Generates mock data (5 sessions, 20 agents, 50 tool calls)
-- Buttons to switch between all 6 views
-- Displays selected node info
-
-Create `packages/widget/src/index.ts` barrel export: Scene, Renderer, Layout, all views, SynapseWidget.
-
----
-
-## After all 3 agents complete:
-1. Run `pnpm run build`
-2. Open `packages/widget/index.html` in browser
-3. Verify all 6 views render, pan/zoom works, selection highlights
-4. Commit: `feat(widget): Canvas2D engine with 6 views, React wrapper, iframe bridge`
-
-
-# ═══════════════════════════════════════════════════
-# PHASE 6: VSCODE EXTENSION — 🔶 PARTIALLY DONE
-# ═══════════════════════════════════════════════════
-
-> Extension skeleton already exists at `apps/vscode/` (moved from `extension/` in Phase 3).
-> See `docs/SYNAPSE_PLAN.md` "VSCode Extension" section.
-
-## Already implemented (DO NOT recreate):
-- ✅ `extension.ts` — entry point with activation, 5 commands (openDashboard, startServer, stopServer, configureHooks, removeHooks), StatusBar basic status
-- ✅ `serverManager.ts` — spawns backend subprocess via `npx tsx server/index.ts`, health check polling, process lifecycle
-- ✅ `hookManager.ts` — configures 20 hook events in workspace `.claude/settings.local.json`
-- ✅ `webviewPanel.ts` — WebView panel with iframe to localhost:4000, retry logic, singleton pattern
-- ✅ `package.json` — extension manifest with activation events, settings (port, autoStart), commands
-- ✅ `esbuild.mjs` — build configuration
-- ✅ Build script: `scripts/build-extension.ps1/sh` → `.vsix`
-
-## Pre-step: Update extension manifest
-Add TreeView and sidebar contributions to existing `apps/vscode/package.json` — add `viewsContainers`, `views` (sidebar), and new commands (`switchLens`, `reconnect`).
-
-## Dispatch 2 agents in parallel:
-
-### Agent 14: "TreeView + StatusBar Metrics + wsClient"
-**Files owned (ONLY touch these):** `apps/vscode/src/treeView.ts` (new), `apps/vscode/src/wsClient.ts` (new), `apps/vscode/src/extension.ts` (MODIFY existing)
-
-**6.1 WebSocket Client** — `wsClient.ts`:
-- Node.js WebSocket (not browser WS) connecting to localhost:4000/ws
-- Auto-reconnect with exponential backoff
-- Event distribution to all registered listeners (TreeView, StatusBar, Sidebar)
-
-**6.2 StatusBar Metrics** — In existing `extension.ts`:
-- Upgrade StatusBar from basic running/stopped to live metrics
-- Format: `$(pulse) 3 agents · 12.4k tokens · $0.08`
-- Subscribe to wsClient events for real-time updates
-- Show `$(debug-disconnect)` icon when disconnected
-
-**6.3 TreeView** — `treeView.ts`:
-- TreeDataProvider with 3 levels: Session → Agent → Tool Calls
-- Each node shows: name, status icon, token count
-- Click → select in sidebar widget
-- Context menu: "Stop Agent", "View Details"
-- Auto-refresh on wsClient events
-
-**6.4 Register new commands** in `extension.ts`: `switchLens`, `reconnect`
-
----
-
-### Agent 15: "WebView Sidebar"
-**Files owned (ONLY touch these):** `apps/vscode/src/sidebarProvider.ts` (new), `apps/vscode/webview/sidebar.tsx` (new)
-
-**6.5 Sidebar Provider** — `sidebarProvider.ts`:
-- Implements `WebviewViewProvider`
-- Loads Canvas2D widget from `@synapse-viz/widget`
-- Passes data via postMessage
-- Handles selection messages from widget → update TreeView + StatusBar
-
-**6.6 Sidebar WebView** — `sidebar.tsx`:
-- Renders `<SynapseWidget>` from `@synapse-viz/widget/react`
-- Auto-connects to backend WS (localhost:4000/ws)
-- Lens view switcher (compact tabs at top)
-- Shows connection status overlay
-
----
-
-## After both agents complete:
-1. Bundle server resources into `apps/vscode/resources/synapse-server/` (currently empty)
-2. Build extension: `cd apps/vscode && pnpm run build`
-3. Install extension locally: `code --install-extension synapse-vscode-0.1.0.vsix`
-4. Verify: sidebar shows widget, status bar shows live metrics, panel opens full dashboard, tree view works
-5. Commit: `feat(vscode): TreeView, sidebar widget, live status bar metrics, wsClient`
-
-
-# ═══════════════════════════════════════════════════
-# PHASE 7: AUTO-RESUME + COST SYSTEM (Sequential) — 🔶 PARTIALLY DONE
-# ═══════════════════════════════════════════════════
-
-> All tasks modify DB schema — must be sequential.
-
-## Already implemented (DO NOT recreate):
-- ✅ Snapshot export/import (`server/routes/snapshot.ts` — manual via E/I keyboard shortcuts)
-- ✅ Cost calculation in `transcriptReader.ts` (pricing tables for Claude, GPT, Gemini models)
-
-## Remaining tasks:
-
-**7.1 ProjectStore Service** — Create `packages/core/src/server/projectStore.ts`:
-- Uses existing `SnapshotFile` format from snapshot route
-- `load()`: reads `.synapse/sessions.json`, imports events (UNIQUE constraint deduplicates)
-- `save()`: exports all events to `.synapse/sessions.json`
-- Constructor takes `projectDir: string`
-
-**7.2 Auto-load on Startup** — In `apps/dashboard/server/index.ts`:
-```typescript
-const PROJECT_DIR = process.argv.includes('--project')
-  ? path.resolve(process.argv[process.argv.indexOf('--project') + 1])
-  : process.cwd();
-const projectStore = new ProjectStore(PROJECT_DIR);
-// After DB init: projectStore.load()
-```
-
-**7.3 Auto-save on Shutdown** — In shutdown handler, BEFORE db.close():
-```typescript
-projectStore.save()
-```
-
-**7.4 `.synapse/` in .gitignore**
-
-**7.5 Cost Tables** — In `packages/core/src/server/db.ts`:
-```sql
-CREATE TABLE IF NOT EXISTS cost_records (
-  id INTEGER PRIMARY KEY,
-  session_id TEXT NOT NULL,
-  agent_id TEXT,
-  model TEXT,
-  input_tokens INTEGER DEFAULT 0,
-  output_tokens INTEGER DEFAULT 0,
-  cache_read_tokens INTEGER DEFAULT 0,
-  estimated_cost REAL DEFAULT 0,
-  timestamp INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS budgets (
-  id INTEGER PRIMARY KEY,
-  scope TEXT NOT NULL,          -- 'global' | 'session' | 'agent'
-  scope_id TEXT,
-  period TEXT NOT NULL,         -- 'hourly' | 'daily' | 'weekly' | 'monthly'
-  limit_usd REAL NOT NULL,
-  hard_stop INTEGER DEFAULT 0,
-  created_at INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS alerts (
-  id INTEGER PRIMARY KEY,
-  rule_type TEXT NOT NULL,      -- 'budget' | 'error_spike' | 'offline' | 'token_spike'
-  severity TEXT NOT NULL,       -- 'info' | 'warning' | 'critical'
-  message TEXT NOT NULL,
-  acknowledged INTEGER DEFAULT 0,
-  timestamp INTEGER NOT NULL
-);
-```
-
-**7.6 Budget Management API** — In `apps/dashboard/server/routes/`:
-- `GET /api/budgets` — list all budgets
-- `POST /api/budgets` — create budget
-- `DELETE /api/budgets/:id` — delete budget
-- `GET /api/costs?sessionId=X&period=hourly` — aggregated cost data
-- `GET /api/alerts?acknowledged=false` — pending alerts
-
-**7.7 Alert Engine** — In `packages/core/src/server/alertEngine.ts`:
-- On each cost record insert: check budget thresholds
-- If exceeded: create alert record + broadcast via WebSocket
-- Webhook delivery: configurable endpoints (Discord, Slack, custom HTTP)
-- Provider pricing from adapter's `pricing` table
-
-## After Phase 7:
-1. Test: start → simulate → stop → verify `.synapse/sessions.json` exists
-2. Test: delete DB → restart → events reload from JSON
-3. Test: set budget → exceed → alert appears
-4. Commit: `feat: auto-resume (.synapse/sessions.json), cost tracking, budget alerts`
-
-
-# ═══════════════════════════════════════════════════
-# PHASE 8: CLAWBRAIN (Separate Session) — 🔶 65% DONE
-# ═══════════════════════════════════════════════════
-
-> This phase should be done in a SEPARATE Claude Code session.
-> See `docs/SYNAPSE_PLAN.md` "Data Capture: ClawBrain Multi-Layer Strategy" section.
-> Plugin exists at `apps/clawbrain/` (moved from `openclaw-plugin/` in Phase 3).
-
-## Already implemented (DO NOT recreate):
-- ✅ Plugin entry + registration (`plugin.ts` — slot: "tool", TypeBox config schema, server spawning)
-- ✅ Layer 1: JSONL transcript watcher (`layers/jsonlBridge.ts` — fs.watch + polling, tail-reads, normalizes)
-- ✅ Layer 2: Agent tools (`layers/agentTools.ts` — `synapse_query`, `synapse_metrics`, `synapse_dashboard`)
-- ✅ Layer 3: Provider wrapper PoC (`layers/providerWrapper.ts` — monitoring logic, not yet integrated)
-- ✅ Event normalization (`normalizers/openclawJsonl.ts` — multi-vendor: Claude, GPT, Gemini, Groq, OpenRouter)
-- ✅ Cost tracking (pricing tables for 8 models, cost estimates in events + metrics)
-- ✅ Simulation script (`scripts/simulate_openclaw.ts` — 3 multi-vendor sessions)
-- ✅ Build pipeline (`esbuild.mjs` + `scripts/build-openclaw.ps1/sh`)
-- ✅ Backend integration (`vendor` column in events table, `storePreNormalized()` in eventStore, event source routing)
-
-## Remaining tasks:
-1. `openclawAdapter` implementing ProviderAdapter interface (from `@synapse-viz/core`)
-2. `/brain` command — CLI command parser for OpenClaw
-3. ClawBrain dashboard — dedicated UI using @synapse-viz/core + openclawAdapter
-4. Layer 3 integration — wire to OpenClaw's provider plugin interface (when confirmed)
-
-
-# ═══════════════════════════════════════════════════
-# VERIFICATION CHECKLIST
-# ═══════════════════════════════════════════════════
-
-Run these after all phases are complete:
-
-### Phase 1: Hardening — ✅ COMPLETE
-- [x] Error boundary catches crashes without killing app
-- [x] Kill backend → frontend shows loading error with retry
-- [x] Click "Clear All" → confirmation dialog appears, cancel works
-- [x] Rapid POST to /api/events → 429 after 200 requests
-
-### Phase 2: Developer Experience
-- [ ] `npm test` — all tests pass
-- [ ] `npm run lint` — no errors
-- [ ] `npm run build` — compiles clean
-- [ ] Git commit → husky runs lint-staged
-
-### Phase 3: Monorepo
-- [ ] `pnpm run build` from root → all packages compile
-- [ ] `apps/dashboard/` imports from `@synapse-viz/core` — no direct `src/` imports
-- [ ] Simulation script renders correctly via monorepo dashboard
-
-### Phase 4: Performance + UX (partially done)
-- [x] JSON snapshot export/import works (E/I shortcuts)
-- [x] Graph search works (/ shortcut)
-- [x] Transcript reading + cost calculation works
-- [ ] Switch lens tabs rapidly → no computation delay
-- [ ] Generate 5000+ events → TreeView scrolls smoothly
-- [ ] Select node → URL hash updates → copy URL → new tab → same node selected
-- [ ] Ctrl+K → command palette → type "spawn" → Enter → dialog opens
-- [ ] Export CSV from cost view → valid spreadsheet data
-
-### Phase 5: Widget
-- [ ] Open `packages/widget/index.html` → all 6 views render
-- [ ] Pan/zoom works in all views
-- [ ] Click node → selection event fires
-- [ ] 50+ nodes at 60fps (no dropped frames)
-
-### Phase 6: VSCode Extension (partially done)
-- [x] Extension activates on startup
-- [x] "Synapse: Open Dashboard" command opens full panel (iframe)
-- [ ] Sidebar shows live agent graph from Canvas2D widget
-- [ ] Status bar shows agent count + token count (currently only shows running/stopped)
-- [ ] Tree view shows session → agent → tool hierarchy
-
-### Phase 7: Auto-Resume + Cost (partially done)
-- [x] Snapshot export/import works (manual via E/I shortcuts)
-- [x] Cost calculation works in transcript reader
-- [ ] Start server → simulate → stop → `.synapse/sessions.json` exists
-- [ ] Delete DB → restart → events reload from JSON
-- [ ] Set budget $1.00 → exceed → alert appears in dashboard
-
-### Phase 8: ClawBrain (mostly done)
-- [x] Plugin registers with OpenClaw, spawns Synapse server
-- [x] JSONL watcher detects and normalizes multi-vendor transcripts
-- [x] Agent tools (synapse_query, synapse_metrics, synapse_dashboard) work
-- [x] Cost tracking shows per-model breakdown
-- [ ] `/brain` command opens dashboard
-- [ ] ProviderAdapter integration with @synapse-viz/core
-```
+## Do NOT
+
+- Use `any` type anywhere
+- Use `console.log` in server code (use pino)
+- Mutate Zustand state directly
+- Create circular dependencies between packages
+- Skip test gates between phases
+- Add dependencies without justification
+- Refactor code outside the current phase scope
+- Create documentation files unless explicitly in the phase tasks

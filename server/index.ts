@@ -63,7 +63,11 @@ app.use('/api/snapshot', createSnapshotRouter());
 
 // Health check
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, clients: broadcaster.clientCount });
+  res.json({
+    ok: true,
+    clients: broadcaster.clientCount,
+    mode: process.env.SYNAPSE_MODE || 'standalone',
+  });
 });
 
 // --- Serve built frontend (if dist/ exists) ---
@@ -74,7 +78,7 @@ const distPath = path.resolve(__dirname, '..', 'dist');
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
   // SPA fallback: non-API routes serve index.html
-  app.get('*', (req, res, next) => {
+  app.get('{*path}', (req, res, next) => {
     if (req.path.startsWith('/api') || req.path === '/ws') return next();
     res.sendFile(path.join(distPath, 'index.html'));
   });

@@ -40,7 +40,11 @@ export interface AgentEvent {
   agentTranscriptPath?: string;  // Subagent transcript path
   notificationType?: string;     // permission_prompt/idle_prompt/auth_success
   compactTrigger?: string;       // manual/auto
-  eventSource?: 'hook' | 'sdk';  // Where the event originated
+  eventSource?: 'hook' | 'sdk' | 'openclaw';  // Where the event originated
+
+  // Multi-vendor support (OpenClaw integration)
+  vendor?: string;               // 'anthropic' | 'openai' | 'google' | 'groq' | 'openrouter' | 'custom'
+  costUsd?: number;              // Computed cost for this event
 }
 
 // ─── Session Data ──────────────────────────────────────────────────
@@ -55,6 +59,7 @@ export interface SessionData {
   source?: string;                // startup/resume
   cwd?: string;
   placeholder?: boolean;          // true if session was auto-created (missed SessionStart)
+  vendor?: string;                // Primary vendor for this session
 }
 
 // ─── React Flow Node Data ───────────────────────────────────────────
@@ -71,6 +76,7 @@ export interface AgentNodeData {
   startTime: number;
   endTime?: number;
   streamingText?: string;        // Live text being generated
+  vendor?: string;               // Inferred vendor (anthropic, openai, etc.)
 }
 
 export interface ToolCallSummary {

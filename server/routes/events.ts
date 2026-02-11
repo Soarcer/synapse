@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from 'express';
-import { storeAndBroadcast, getStoredEvents } from '../services/eventStore.js';
+import { storeAndBroadcast, storePreNormalized, getStoredEvents } from '../services/eventStore.js';
 import { deleteEventsBySession, deleteAllEvents, listSessions } from '../db.js';
 import type { Broadcaster } from '../services/broadcaster.js';
 
@@ -12,6 +12,14 @@ export function createEventsRouter(broadcaster: Broadcaster): Router {
       const raw = req.body;
       if (!raw || typeof raw !== 'object') {
         res.status(400).json({ error: 'Invalid JSON body' });
+        return;
+      }
+
+      // Pre-normalized events from OpenClaw plugin skip hook normalization
+      if (raw.eventSource === 'openclaw' && raw.id && raw.type && raw.sessionId) {
+        storePreNormalized(raw, broadcaster);
+        console.log(`[Events] openclaw -> ${raw.type} (${raw.sessionId})`);
+        res.status(200).json({ ok: true, eventId: raw.id });
         return;
       }
 
