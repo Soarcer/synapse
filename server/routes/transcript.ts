@@ -36,13 +36,14 @@ export function createTranscriptRouter(): Router {
 
       const summary = readTranscript(transcriptPath, sessionId);
       res.json(summary);
-    } catch (err: any) {
-      if (err?.code === 'ENOENT') {
-        res.status(404).json({ error: 'Transcript not found', sessionId: req.params.sessionId });
+    } catch (err: unknown) {
+      if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT') {
+        res.status(404).json({ error: 'Transcript not found', sessionId: req.params.sessionId as string });
         return;
       }
+      const message = err instanceof Error ? err.message : 'Unknown error';
       console.error('[Transcript] Error:', err);
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: message });
     }
   });
 
@@ -66,8 +67,9 @@ export function createTranscriptRouter(): Router {
       }
 
       res.json(available);
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      res.status(500).json({ error: message });
     }
   });
 

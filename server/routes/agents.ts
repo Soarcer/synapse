@@ -47,12 +47,13 @@ export function createAgentsRouter(
       const agentId = await agentManager.spawn(request, broadcaster);
       console.log(`[Agents] Spawned agent ${agentId}`);
       res.status(201).json({ ok: true, agentId });
-    } catch (err: any) {
-      if (err.message === 'Max concurrent agents reached') {
-        res.status(429).json({ error: err.message });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      if (message === 'Max concurrent agents reached') {
+        res.status(429).json({ error: message });
       } else {
         console.error('[Agents] Spawn error:', err);
-        res.status(500).json({ error: err.message || 'Spawn failed' });
+        res.status(500).json({ error: message });
       }
     }
   });
@@ -73,9 +74,10 @@ export function createAgentsRouter(
         return;
       }
       res.json({ ok: true });
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
       console.error('[Agents] Error sending message:', err);
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: message });
     }
   });
 

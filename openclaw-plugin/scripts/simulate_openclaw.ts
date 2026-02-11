@@ -44,8 +44,9 @@ async function postEvent(event: Record<string, unknown>, label: string): Promise
     const body = await res.json() as Record<string, unknown>;
     const status = res.ok ? '\x1b[32mOK\x1b[0m' : `\x1b[31m${res.status}\x1b[0m`;
     console.log(`  ${stepNum.toString().padStart(2)}. [${status}] ${label} → ${body.eventId ?? 'n/a'}`);
-  } catch (err: any) {
-    console.log(`  ${stepNum.toString().padStart(2)}. [\x1b[31mERR\x1b[0m] ${label} → ${err.message}`);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    console.log(`  ${stepNum.toString().padStart(2)}. [\x1b[31mERR\x1b[0m] ${label} → ${message}`);
   }
 }
 

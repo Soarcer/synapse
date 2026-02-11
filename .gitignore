@@ -2,8 +2,13 @@ node_modules
 dist
 server/synapse.db
 server/agentviz.db
+server/agentviz.db-shm
+server/agentviz.db-wal
 .env
 *.db-journal
+*.db-shm
+*.db-wal
 *.tsbuildinfo
 hook_debug.log
 nul
+c:temp*

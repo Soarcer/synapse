@@ -82,9 +82,10 @@ export function createSnapshotRouter(): Router {
         `attachment; filename="synapse-snapshot-${new Date().toISOString().replace(/[:.]/g, '-')}.json"`,
       );
       res.json(snapshot);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
       console.error('[Snapshot] Export error:', err);
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: message });
     }
   });
 
@@ -144,9 +145,10 @@ export function createSnapshotRouter(): Router {
           .filter((s) => s.transcript)
           .map((s) => ({ sessionId: s.sessionId, transcript: s.transcript })),
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
       console.error('[Snapshot] Import error:', err);
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: message });
     }
   });
 

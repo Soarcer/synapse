@@ -143,9 +143,10 @@ export class AgentManager {
           this.scheduleCleanup(agentId);
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (agent.abortController.signal.aborted) return;
 
+      const message = err instanceof Error ? err.message : String(err);
       agent.status = 'error';
       if (agent.timeoutTimer) clearTimeout(agent.timeoutTimer);
       const errorEvent: AgentEvent = {
@@ -155,11 +156,11 @@ export class AgentManager {
         agentId,
         agentType: agent.agentType,
         status: 'error',
-        error: err.message || String(err),
+        error: message,
         duration: Date.now() - agent.startTime,
         timestamp: Date.now(),
       };
-      this.persistAndBroadcast(errorEvent, 'AgentError', { error: err.message }, broadcaster);
+      this.persistAndBroadcast(errorEvent, 'AgentError', { error: message }, broadcaster);
       this.scheduleCleanup(agentId);
     }
   }

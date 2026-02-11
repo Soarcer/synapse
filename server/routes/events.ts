@@ -26,9 +26,10 @@ export function createEventsRouter(broadcaster: Broadcaster): Router {
       const event = storeAndBroadcast(raw, broadcaster);
       console.log(`[Events] ${raw.hook_event_name || 'unknown'} -> ${event.type} (${event.sessionId})`);
       res.status(200).json({ ok: true, eventId: event.id });
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
       console.error('[Events] Error processing event:', err);
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: message });
     }
   });
 
@@ -43,9 +44,10 @@ export function createEventsRouter(broadcaster: Broadcaster): Router {
         offset: req.query.offset ? parseInt(req.query.offset as string, 10) : undefined,
       });
       res.json(events);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
       console.error('[Events] Error querying events:', err);
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: message });
     }
   });
 
@@ -53,8 +55,9 @@ export function createEventsRouter(broadcaster: Broadcaster): Router {
   router.get('/sessions', (_req: Request, res: Response) => {
     try {
       res.json(listSessions());
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      res.status(500).json({ error: message });
     }
   });
 
@@ -64,8 +67,9 @@ export function createEventsRouter(broadcaster: Broadcaster): Router {
       const deleted = deleteAllEvents();
       console.log(`[Events] Deleted all events (${deleted} rows)`);
       res.json({ ok: true, deleted });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      res.status(500).json({ error: message });
     }
   });
 
@@ -76,8 +80,9 @@ export function createEventsRouter(broadcaster: Broadcaster): Router {
       const deleted = deleteEventsBySession(sessionId);
       console.log(`[Events] Deleted session ${sessionId} (${deleted} rows)`);
       res.json({ ok: true, deleted });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      res.status(500).json({ error: message });
     }
   });
 

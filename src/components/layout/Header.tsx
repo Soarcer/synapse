@@ -57,8 +57,9 @@ export function Header() {
       a.click();
       URL.revokeObjectURL(a.href);
       toast('Snapshot exported', 'info');
-    } catch (err: any) {
-      toast(`Export failed: ${err.message}`, 'error');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast(`Export failed: ${message}`, 'error');
     }
   }, [filter.sessionId]);
 
@@ -93,8 +94,9 @@ export function Header() {
       }
 
       toast(`Imported ${result.sessions} session(s), ${result.events} events`, 'info');
-    } catch (err: any) {
-      toast(`Import failed: ${err.message}`, 'error');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast(`Import failed: ${message}`, 'error');
     }
   }, []);
 
