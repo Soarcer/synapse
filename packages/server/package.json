@@ -1,0 +1,42 @@
+{
+  "name": "@synapse-ai/server",
+  "version": "0.1.0",
+  "description": "Synapse backend — Express + SQLite + WebSocket server",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "synapse-server": "dist/index.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist/"],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.32",
+    "@synapse-ai/core": "workspace:*",
+    "better-sqlite3": "^11.8.0",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.2.1",
+    "nanoid": "^5.1.0",
+    "pino": "^10.3.1",
+    "ws": "^8.18.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/express": "^5.0.0",
+    "@types/ws": "^8.18.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

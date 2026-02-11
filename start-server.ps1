@@ -14,4 +14,4 @@ if (Test-Path $envFile) {
 	}
 }
 
-npx tsx server/index.ts
+npx tsx packages/server/src/index.ts

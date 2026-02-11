@@ -1,10 +1,8 @@
 node_modules
 dist
-server/synapse.db
-server/agentviz.db
-server/agentviz.db-shm
-server/agentviz.db-wal
+out
 .env
+*.db
 *.db-journal
 *.db-shm
 *.db-wal
@@ -12,3 +10,10 @@ server/agentviz.db-wal
 hook_debug.log
 nul
 c:temp*
+
+# Old directories (migrated to packages/ and apps/)
+openclaw-plugin/dist/
+openclaw-plugin/node_modules/
+extension/out/
+extension/node_modules/
+distribution/

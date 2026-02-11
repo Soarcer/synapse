@@ -18,6 +18,6 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['dist/', 'node_modules/', 'openclaw-plugin/', 'extension/', '*.config.*', '*.mjs'],
+    ignores: ['**/dist/', '**/out/', '**/node_modules/', '*.config.*', '*.mjs'],
   },
 );

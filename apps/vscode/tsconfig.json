@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "out",
+    "rootDir": "src",
+    "lib": ["ES2022"],
+    "noEmit": true
+  },
+  "include": ["src"]
+}

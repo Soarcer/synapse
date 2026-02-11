@@ -15,4 +15,4 @@ if (Test-Path $envFile) {
 }
 
 $port = if ($env:VITE_DEV_PORT) { $env:VITE_DEV_PORT } else { "5173" }
-npx vite --port $port --strictPort
+npx vite --config apps/dashboard/vite.config.ts --port $port --strictPort
