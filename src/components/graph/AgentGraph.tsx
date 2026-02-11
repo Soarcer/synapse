@@ -7,144 +7,17 @@ import {
   BackgroundVariant,
   useReactFlow,
   ReactFlowProvider,
-  type Node,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useAgentStore } from '../../store/agentStore';
 import { useAutoLayout } from '../../hooks/useAutoLayout';
+import { useGraphNavigation } from '../../hooks/useGraphNavigation';
 import { nodeTypes, edgeTypes } from './nodeTypes';
-import type {
-  AgentNodeData,
-  SessionData,
-  ToolCallSummary,
-  UserPromptData,
-} from '../../types/agent';
+import { GraphSearchBox } from './GraphSearchBox';
+import { EdgeCostLegend } from './EdgeCostLegend';
+import { nodeMatchesSearch, buildParentMap, collectAncestors } from '../../utils/graphSearch';
+import type { AgentNodeData } from '../../types/agent';
 import { apiUrl } from '../../utils/api';
-
-// ── Search helpers ───────────────────────────────────────────
-
-function nodeMatchesSearch(node: Node, query: string): boolean {
-  if (node.id === '__spawn__') return false;
-  const d = node.data as Record<string, unknown>;
-
-  switch (node.type) {
-    case 'session': {
-      const s = d.session as SessionData;
-      return [s.sessionId, s.model, s.cwd].some((v) =>
-        v?.toLowerCase().includes(query),
-      );
-    }
-    case 'userPrompt': {
-      const p = d.prompt as UserPromptData;
-      return p.text.toLowerCase().includes(query);
-    }
-    case 'agent': {
-      const a = d.agent as AgentNodeData;
-      return [a.agentType, a.agentId].some((v) =>
-        v?.toLowerCase().includes(query),
-      );
-    }
-    case 'toolCall': {
-      const t = d.toolCall as ToolCallSummary;
-      return [t.toolName, t.inputPreview].some((v) =>
-        v?.toLowerCase().includes(query),
-      );
-    }
-    default:
-      return false;
-  }
-}
-
-/** Build a child→parent map from edges */
-function buildParentMap(edges: { source: string; target: string }[]): Map<string, string> {
-  const parentOf = new Map<string, string>();
-  for (const edge of edges) {
-    parentOf.set(edge.target, edge.source);
-  }
-  return parentOf;
-}
-
-/** Collect a node's ancestors by walking up the parent map */
-function collectAncestors(id: string, parentOf: Map<string, string>, into: Set<string>): void {
-  let current = id;
-  while (parentOf.has(current)) {
-    current = parentOf.get(current)!;
-    into.add(current);
-  }
-}
-
-// ── Search box overlay ───────────────────────────────────────
-
-function GraphSearchBox({ matchCount }: { matchCount: number | null }) {
-  const graphSearchQuery = useAgentStore((s) => s.graphSearchQuery);
-  const setGraphSearchQuery = useAgentStore((s) => s.setGraphSearchQuery);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  return (
-    <div className="absolute top-3 left-3 z-10 flex items-center gap-2">
-      <div className="relative">
-        <input
-          ref={inputRef}
-          id="graph-search-input"
-          value={graphSearchQuery}
-          onChange={(e) => setGraphSearchQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              setGraphSearchQuery('');
-              inputRef.current?.blur();
-            }
-          }}
-          placeholder="Search nodes... (/)"
-          className="w-56 px-3 py-1.5 bg-gray-900/90 border border-gray-700 rounded-lg text-xs text-gray-200 placeholder-gray-500 backdrop-blur-sm focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/25"
-        />
-        {graphSearchQuery && (
-          <button
-            onClick={() => {
-              setGraphSearchQuery('');
-              inputRef.current?.focus();
-            }}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 text-xs"
-          >
-            ✕
-          </button>
-        )}
-      </div>
-      {matchCount !== null && (
-        <span className="text-[10px] text-gray-500 tabular-nums">
-          {matchCount} match{matchCount !== 1 ? 'es' : ''}
-        </span>
-      )}
-    </div>
-  );
-}
-
-// ── Edge cost legend ─────────────────────────────────────────
-
-function EdgeCostLegend() {
-  return (
-    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-3 px-3 py-1.5 bg-gray-900/90 border border-gray-700/60 rounded-lg backdrop-blur-sm text-[10px] text-gray-400">
-      <span className="text-gray-500">Edge cost:</span>
-      <div className="flex items-center gap-1.5">
-        <span style={{ color: 'hsl(220, 70%, 50%)' }}>low</span>
-        <div
-          className="w-16 h-1.5 rounded-full"
-          style={{
-            background: 'linear-gradient(to right, hsl(220, 70%, 50%), hsl(110, 70%, 50%), hsl(40, 70%, 50%), hsl(0, 70%, 50%))',
-          }}
-        />
-        <span style={{ color: 'hsl(0, 70%, 50%)' }}>high</span>
-      </div>
-      <span className="text-gray-600">|</span>
-      <div className="flex items-center gap-1">
-        <div className="w-4 h-px" style={{ background: 'hsl(220, 70%, 50%)' }} />
-        <span>thin</span>
-        <span className="text-gray-600 mx-0.5">{'\u2192'}</span>
-        <div className="w-4 h-[3px]" style={{ background: 'hsl(0, 70%, 50%)' }} />
-        <span>thick</span>
-      </div>
-    </div>
-  );
-}
 
 // ── Main graph component ─────────────────────────────────────
 
@@ -505,8 +378,8 @@ function AgentGraphInner() {
       const vp = getViewport();
       const width = layoutNode.width ?? 200;
       const height = layoutNode.height ?? 100;
-      const nodeX = (layoutNode as any).positionAbsolute?.x ?? layoutNode.position.x;
-      const nodeY = (layoutNode as any).positionAbsolute?.y ?? layoutNode.position.y;
+      const nodeX = (layoutNode as unknown as { positionAbsolute?: { x: number } }).positionAbsolute?.x ?? layoutNode.position.x;
+      const nodeY = (layoutNode as unknown as { positionAbsolute?: { y: number } }).positionAbsolute?.y ?? layoutNode.position.y;
 
       const targetZoom = Math.min(
         containerEl.clientWidth / (width * (1 + zoomInPadding * 2)),
@@ -593,82 +466,7 @@ function AgentGraphInner() {
   }, [selectedNodeId, selectSource, expandedParentId, visibleEdges, layoutNodes, fitView, getViewport, setViewport]);
 
   // ── Arrow-key graph navigation ──────────────────────────────
-  const visibleNodesRef = useRef(visibleNodes);
-  const visibleEdgesRef = useRef(visibleEdges);
-  visibleNodesRef.current = visibleNodes;
-  visibleEdgesRef.current = visibleEdges;
-
-  useEffect(() => {
-    const handleArrowNav = (e: KeyboardEvent) => {
-      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
-
-      const tag = document.activeElement?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-
-      const currentId = useAgentStore.getState().selectedNodeId;
-      if (!currentId || currentId === '__spawn__') return;
-
-      e.preventDefault();
-
-      const vNodes = visibleNodesRef.current;
-      const vEdges = visibleEdgesRef.current;
-
-      // Build parent/children maps
-      const parentOf = new Map<string, string>();
-      const childrenOf = new Map<string, string[]>();
-      for (const edge of vEdges) {
-        parentOf.set(edge.target, edge.source);
-        const kids = childrenOf.get(edge.source) ?? [];
-        kids.push(edge.target);
-        childrenOf.set(edge.source, kids);
-      }
-
-      const currentNode = vNodes.find((n) => n.id === currentId);
-      if (!currentNode) return;
-      const currentType = currentNode.type;
-
-      let targetId: string | null = null;
-
-      if (e.key === 'ArrowLeft') {
-        // Go to parent node
-        targetId = parentOf.get(currentId) ?? null;
-      } else if (e.key === 'ArrowRight') {
-        // Go to first child node
-        const kids = childrenOf.get(currentId) ?? [];
-        targetId = kids[0] ?? null;
-      } else {
-        // ArrowUp / ArrowDown — navigate siblings of same type
-        const parentId = parentOf.get(currentId);
-        const sameTypeSiblings = parentId
-          ? (childrenOf.get(parentId) ?? []).filter((id) => {
-              const n = vNodes.find((nd) => nd.id === id);
-              return n?.type === currentType;
-            })
-          : vNodes
-              .filter((n) => n.type === currentType && !parentOf.has(n.id) && n.id !== '__spawn__')
-              .map((n) => n.id);
-
-        const idx = sameTypeSiblings.indexOf(currentId);
-        if (idx < 0 || sameTypeSiblings.length <= 1) return;
-
-        if (e.key === 'ArrowUp') {
-          targetId = sameTypeSiblings[idx > 0 ? idx - 1 : sameTypeSiblings.length - 1];
-        } else {
-          targetId = sameTypeSiblings[idx < sameTypeSiblings.length - 1 ? idx + 1 : 0];
-        }
-      }
-
-      if (targetId && targetId !== currentId) {
-        selectNode(targetId, 'graph');
-        setTimeout(() => {
-          fitView({ nodes: [{ id: targetId! }], duration: 200, padding: 0.8 });
-        }, 50);
-      }
-    };
-
-    window.addEventListener('keydown', handleArrowNav);
-    return () => window.removeEventListener('keydown', handleArrowNav);
-  }, [selectNode, fitView]);
+  useGraphNavigation(visibleNodes, visibleEdges, selectNode, fitView);
 
   const onPaneClick = useCallback(() => {
     selectNode(null);

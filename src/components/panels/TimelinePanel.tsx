@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useCallback } from 'react';
+import { useMemo, useRef, useState, useCallback, useEffect } from 'react';
 import { useAgentStore } from '../../store/agentStore';
 import { getTypeColor, formatDuration } from '../../utils/format';
 
@@ -12,15 +12,21 @@ export function TimelinePanel() {
 
   const agentList = useMemo(() => [...agents.values()], [agents]);
 
+  // Track "now" in a ref, updated via effect (avoids impure Date.now() during render)
+  // eslint-disable-next-line react-hooks/purity -- initializing time ref is intentionally impure
+  const nowRef = useRef(Date.now());
+  useEffect(() => { nowRef.current = Date.now(); });
+  const now = nowRef.current;
+
   // Compute time bounds
   const { minTime, maxTime } = useMemo(() => {
-    if (agentList.length === 0) return { minTime: Date.now(), maxTime: Date.now() + 1000 };
-    const times = agentList.flatMap((a) => [a.startTime, a.endTime ?? Date.now()]);
+    if (agentList.length === 0) return { minTime: now, maxTime: now + 1000 };
+    const times = agentList.flatMap((a) => [a.startTime, a.endTime ?? now]);
     return {
       minTime: Math.min(...times),
       maxTime: Math.max(...times),
     };
-  }, [agentList]);
+  }, [agentList, now]);
 
   const totalDuration = Math.max(maxTime - minTime, 1000);
 
@@ -65,7 +71,7 @@ export function TimelinePanel() {
           <div className="space-y-1" style={{ width: `${100 * zoom}%`, minWidth: '100%' }}>
             {agentList.map((agent) => {
               const startPct = ((agent.startTime - minTime) / totalDuration) * 100;
-              const endTime = agent.endTime ?? Date.now();
+              const endTime = agent.endTime ?? now;
               const widthPct = Math.max(((endTime - agent.startTime) / totalDuration) * 100, 0.5);
 
               return (

@@ -1,6 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { normalizeHookPayload, rowToAgentEvent } from '../services/eventStore.js';
-import type { EventRow } from '../db.js';
+import { normalizeHookPayload, rowToAgentEvent } from '../services/eventStore';
+import type { EventRow } from '../db';
 
 // ─── normalizeHookPayload ────────────────────────────────────────────
 

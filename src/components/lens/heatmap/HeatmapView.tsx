@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { useLens, type HeatmapCell } from '../LensContext';
+import { useLens } from '../LensContext';
 import { useAgentStore } from '../../../store/agentStore';
 import { formatTokens } from '../../../utils/format';
 

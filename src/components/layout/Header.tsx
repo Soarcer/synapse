@@ -67,7 +67,7 @@ export function Header() {
   const handleImport = useCallback(async (file: File) => {
     try {
       const text = await file.text();
-      const snapshot = JSON.parse(text);
+      JSON.parse(text); // validate JSON
 
       // Send to server for DB persistence
       const resp = await fetch(apiUrl('/api/snapshot/import'), {

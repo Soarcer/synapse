@@ -91,19 +91,6 @@ export function CostWaterfallView() {
     [onSelect],
   );
 
-  if (!hasTokenData || costPerTurn.length === 0) {
-    return (
-      <div className="p-4 text-center text-gray-600 text-xs">
-        No token data available yet.
-      </div>
-    );
-  }
-
-  // Compute total pixel height of the bar list (for SVG sizing)
-  // Each row = ROW_H, each compaction divider = COMPACT_ROW_H
-  const compactionCount = turnsWithCumulative.filter((t) => t.compactionBefore).length;
-  const totalH = turnsWithCumulative.length * ROW_H + compactionCount * COMPACT_ROW_H;
-
   // Build cumulative context level: grows each turn, drops at compaction
   const { contextLevels, peakContext } = useMemo(() => {
     const levels: number[] = [];
@@ -123,7 +110,7 @@ export function CostWaterfallView() {
   }, [turnsWithCumulative]);
 
   // Build the rotated area chart path: Y = time (top→bottom), X = cumulative context (left→right)
-  const { areaPath, areaLinePath, rowCenters } = useMemo(() => {
+  const { areaPath, areaLinePath } = useMemo(() => {
     const n = turnsWithCumulative.length;
     if (n === 0) return { areaPath: '', areaLinePath: '', rowCenters: [] as number[] };
 
@@ -145,8 +132,21 @@ export function CostWaterfallView() {
     const area = `M0,0 L${points[0]} ${points.slice(1).map((p) => `L${p}`).join(' ')} L0,${centers[n - 1] + ROW_H / 2} Z`;
     const line = `M${points.join(' L')}`;
 
-    return { areaPath: area, areaLinePath: line, rowCenters: centers };
+    return { areaPath: area, areaLinePath: line };
   }, [turnsWithCumulative, contextLevels, peakContext]);
+
+  // Early return after all hooks
+  if (!hasTokenData || costPerTurn.length === 0) {
+    return (
+      <div className="p-4 text-center text-gray-600 text-xs">
+        No token data available yet.
+      </div>
+    );
+  }
+
+  // Compute total pixel height of the bar list (for SVG sizing)
+  const compactionCount = turnsWithCumulative.filter((t) => t.compactionBefore).length;
+  const totalH = turnsWithCumulative.length * ROW_H + compactionCount * COMPACT_ROW_H;
 
   return (
     <div className="h-full flex flex-col overflow-hidden">

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useMemo } from 'react';
 import type { Node, Edge } from '@xyflow/react';
 
 // ── Fallback dimensions (used before DOM measurement) ────────
@@ -303,10 +303,6 @@ export function useAutoLayout(
   layoutMode: 'graph' | 'list' = 'graph',
   expandedParentId: string | null = null,
 ): Node[] {
-  const positionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
-  const zIndexRef = useRef<Map<string, number>>(new Map());
-  const prevKeyRef = useRef('');
-
   // Fingerprint: recompute when structure or measurements change
   let idHash = 0;
   for (const n of nodes) {
@@ -316,62 +312,58 @@ export function useAutoLayout(
   }
   const hasMeasured = nodes.some((n) => n.measured?.width);
   const key = `${layoutMode}:${nodes.length}:${edges.length}:${idHash}:${hasMeasured}:${expandedParentId}`;
-  const needsLayout = key !== prevKeyRef.current;
 
-  useEffect(() => {
-    prevKeyRef.current = key;
+  const { positions, zIndexMap } = useMemo(() => {
+    const graphNodes = nodes.filter((n) => n.id !== '__spawn__');
+    const spawnNode = nodes.find((n) => n.id === '__spawn__');
+
+    if (graphNodes.length === 0) {
+      return {
+        positions: new Map<string, { x: number; y: number }>(),
+        zIndexMap: new Map<string, number>(),
+      };
+    }
+
+    let positions: Map<string, { x: number; y: number }>;
+    let zIndexMap = new Map<string, number>();
+
+    if (layoutMode === 'list') {
+      positions = computeListLayout(graphNodes, edges);
+    } else {
+      const result = computeGraphLayout(graphNodes, edges, expandedParentId);
+      positions = result.positions;
+      zIndexMap = result.zIndexMap;
+    }
+
+    // Position spawn node at bottom-right of graph
+    if (spawnNode) {
+      let maxX = 0;
+      let maxY = 0;
+      for (const [id, pos] of positions) {
+        const node = graphNodes.find((n) => n.id === id);
+        const w = node ? nodeDims(node).width : 200;
+        maxX = Math.max(maxX, pos.x + w);
+        maxY = Math.max(maxY, pos.y);
+      }
+      if (layoutMode === 'list') {
+        positions.set('__spawn__', { x: 40, y: maxY + 40 });
+      } else {
+        positions.set('__spawn__', { x: maxX + 60, y: maxY / 2 });
+      }
+    }
+
+    return { positions, zIndexMap };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- key encodes all layout inputs
   }, [key]);
 
-  if (!needsLayout && positionsRef.current.size > 0) {
-    return nodes.map((node) => {
-      const pos = positionsRef.current.get(node.id);
-      if (!pos) return node;
-      const zIndex = zIndexRef.current.get(node.id) ?? 1;
-      return { ...node, position: pos, zIndex };
-    });
-  }
-
-  // Separate spawn node — positioned after layout
-  const graphNodes = nodes.filter((n) => n.id !== '__spawn__');
-  const spawnNode = nodes.find((n) => n.id === '__spawn__');
-
-  if (graphNodes.length === 0) return nodes;
-
-  let positions: Map<string, { x: number; y: number }>;
-  let zIndexMap = new Map<string, number>();
-
-  if (layoutMode === 'list') {
-    positions = computeListLayout(graphNodes, edges);
-  } else {
-    const result = computeGraphLayout(graphNodes, edges, expandedParentId);
-    positions = result.positions;
-    zIndexMap = result.zIndexMap;
-  }
-
-  // Position spawn node at bottom-right of graph
-  if (spawnNode) {
-    let maxX = 0;
-    let maxY = 0;
-    for (const [id, pos] of positions) {
-      const node = graphNodes.find((n) => n.id === id);
-      const w = node ? nodeDims(node).width : 200;
-      maxX = Math.max(maxX, pos.x + w);
-      maxY = Math.max(maxY, pos.y);
-    }
-    if (layoutMode === 'list') {
-      positions.set('__spawn__', { x: 40, y: maxY + 40 });
-    } else {
-      positions.set('__spawn__', { x: maxX + 60, y: maxY / 2 });
-    }
-  }
-
-  positionsRef.current = positions;
-  zIndexRef.current = zIndexMap;
-
-  return nodes.map((node) => {
-    const pos = positions.get(node.id);
-    if (!pos) return node;
-    const zIndex = zIndexMap.get(node.id) ?? 1; // all nodes above edges (z:0)
-    return { ...node, position: pos, zIndex };
-  });
+  return useMemo(
+    () =>
+      nodes.map((node) => {
+        const pos = positions.get(node.id);
+        if (!pos) return node;
+        const zIndex = zIndexMap.get(node.id) ?? 1;
+        return { ...node, position: pos, zIndex };
+      }),
+    [nodes, positions, zIndexMap],
+  );
 }

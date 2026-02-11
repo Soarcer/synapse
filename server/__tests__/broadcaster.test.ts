@@ -1,6 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { Broadcaster } from '../services/broadcaster.js';
-import type { AgentEvent, ActiveAgentInfo } from '../../src/types/agent.js';
+import { Broadcaster } from '../services/broadcaster';
+import type { AgentEvent, ActiveAgentInfo } from '../../src/types/agent';
 
 // ─── Mock WebSocket ──────────────────────────────────────────────────
 

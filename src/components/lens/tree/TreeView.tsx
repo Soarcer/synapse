@@ -33,19 +33,16 @@ export function TreeView() {
     });
   }, [treeRoots.length]); // Only when root count changes
 
-  // Filter logic
-  const matchesSearch = useCallback(
-    (node: LensTreeNode): boolean => {
-      if (!searchQuery) return true;
-      const q = searchQuery.toLowerCase();
-      if (node.label.toLowerCase().includes(q)) return true;
-      return node.children.some((c) => matchesSearch(c));
-    },
-    [searchQuery],
-  );
-
   // Flatten visible tree into a list
   const flatList = useMemo(() => {
+    const q = searchQuery?.toLowerCase() ?? '';
+
+    function matchesSearch(node: LensTreeNode): boolean {
+      if (!searchQuery) return true;
+      if (node.label.toLowerCase().includes(q)) return true;
+      return node.children.some((c) => matchesSearch(c));
+    }
+
     const list: LensTreeNode[] = [];
 
     function walk(nodes: LensTreeNode[]) {
@@ -60,7 +57,7 @@ export function TreeView() {
 
     walk(treeRoots);
     return list;
-  }, [treeRoots, expanded, searchQuery, matchesSearch]);
+  }, [treeRoots, expanded, searchQuery]);
 
   const toggleExpand = useCallback((id: string) => {
     setExpanded((prev) => {

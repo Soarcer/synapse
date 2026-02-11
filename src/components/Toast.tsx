@@ -9,9 +9,20 @@ interface ToastItem {
 let nextId = 0;
 const listeners = new Set<(toasts: ToastItem[]) => void>();
 let toasts: ToastItem[] = [];
+const autoRemoveTimers = new Map<number, ReturnType<typeof setTimeout>>();
 
-function notify(toasts: ToastItem[]) {
-  listeners.forEach((l) => l(toasts));
+function notify(updated: ToastItem[]) {
+  listeners.forEach((l) => l(updated));
+}
+
+function dismissToast(id: number) {
+  const timer = autoRemoveTimers.get(id);
+  if (timer) {
+    clearTimeout(timer);
+    autoRemoveTimers.delete(id);
+  }
+  toasts = toasts.filter((t) => t.id !== id);
+  notify(toasts);
 }
 
 export function toast(message: string, type: ToastItem['type'] = 'info') {
@@ -19,10 +30,12 @@ export function toast(message: string, type: ToastItem['type'] = 'info') {
   toasts = [...toasts, item];
   notify(toasts);
 
-  setTimeout(() => {
+  const timer = setTimeout(() => {
+    autoRemoveTimers.delete(item.id);
     toasts = toasts.filter((t) => t.id !== item.id);
     notify(toasts);
   }, 3000);
+  autoRemoveTimers.set(item.id, timer);
 }
 
 export function ToastContainer() {
@@ -36,8 +49,7 @@ export function ToastContainer() {
   }, []);
 
   const dismiss = useCallback((id: number) => {
-    toasts = toasts.filter((t) => t.id !== id);
-    notify(toasts);
+    dismissToast(id);
   }, []);
 
   if (items.length === 0) return null;

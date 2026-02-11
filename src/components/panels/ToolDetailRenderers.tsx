@@ -1,8 +1,17 @@
-import { useState, useCallback, useMemo, type ReactNode } from 'react';
-import { highlight, highlightJSON, highlightShell, detectLang } from '../../utils/syntaxHighlight';
-import { getToolIcon } from '../../utils/format';
-import type { ToolCallSummary } from '../../types/agent';
+import { useState, useMemo } from 'react';
+import { highlightJSON, highlightShell, detectLang } from '../../utils/syntaxHighlight';
 import { useAgentStore } from '../../store/agentStore';
+import {
+  CopyButton, CollapsibleBlock, FilePath, CodeBlock, Badge,
+  ErrorBanner, SizeIndicator, RunningIndicator, DefaultResponseBlock, FileList,
+  GrepContentBlock, SearchResultCard, parseWebSearchResults,
+  stripAnsi, shortPath,
+} from './renderers/shared';
+import { ToolSummaryLine, type AskQuestion, type TodoItem } from './renderers/ToolSummary';
+
+// ── Re-exports ─────────────────────────────────────────────────
+
+export { ToolSummaryLine };
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -12,267 +21,6 @@ export interface ToolRendererProps {
   status: 'running' | 'success' | 'error';
   toolName: string;
   toolUseId?: string;
-}
-
-// ── Shared Sub-Components ──────────────────────────────────────
-
-function CopyButton({ text, label }: { text: string; label?: string }) {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
-  }, [text]);
-
-  return (
-    <button
-      onClick={handleCopy}
-      title={label ?? 'Copy'}
-      className="text-gray-600 hover:text-gray-300 text-[10px] px-1 py-0.5 rounded hover:bg-gray-800 transition-colors shrink-0"
-    >
-      {copied ? '✓' : '⧉'}
-    </button>
-  );
-}
-
-function CollapsibleBlock({
-  label,
-  count,
-  defaultOpen = true,
-  children,
-}: {
-  label: string;
-  count?: string;
-  defaultOpen?: boolean;
-  children: ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div>
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 text-gray-500 text-xs hover:text-gray-300 transition-colors w-full"
-      >
-        <span className="text-[10px]">{open ? '▾' : '▸'}</span>
-        <span>{label}</span>
-        {count && <span className="text-gray-600 ml-auto">{count}</span>}
-      </button>
-      {open && <div className="mt-1">{children}</div>}
-    </div>
-  );
-}
-
-function FilePath({ path, showCopy = true }: { path: string; showCopy?: boolean }) {
-  const normalized = String(path).replace(/\\/g, '/');
-  const parts = normalized.split('/');
-  const filename = parts[parts.length - 1] || normalized;
-  return (
-    <div className="min-w-0">
-      <div className="flex items-center gap-1.5">
-        <span className="text-sm text-blue-300 font-medium truncate">{filename}</span>
-        {showCopy && <CopyButton text={normalized} label="Copy path" />}
-      </div>
-      {parts.length > 1 && (
-        <p className="text-[10px] text-gray-600 font-mono truncate mt-0.5" title={normalized}>
-          {normalized}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function CodeBlock({
-  code,
-  lang = 'text',
-  maxLines = 30,
-  showLineNumbers = true,
-}: {
-  code: string;
-  lang?: string;
-  maxLines?: number;
-  showLineNumbers?: boolean;
-}) {
-  const lines = code.split('\n');
-  const [expanded, setExpanded] = useState(lines.length <= maxLines);
-  const displayLines = expanded ? lines : lines.slice(0, maxLines - 5);
-
-  return (
-    <div className="relative">
-      <div className="bg-gray-950 rounded border border-gray-800 overflow-auto max-h-72 text-xs font-mono">
-        <table className="w-full border-collapse">
-          <tbody>
-            {displayLines.map((line, i) => (
-              <tr key={i} className="hover:bg-gray-900/50">
-                {showLineNumbers && (
-                  <td className="text-gray-700 text-right pr-2 pl-2 select-none w-8 align-top">
-                    {i + 1}
-                  </td>
-                )}
-                <td className="text-gray-300 pr-2 whitespace-pre-wrap break-all">
-                  {highlight(line, lang)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {!expanded && (
-          <button
-            onClick={() => setExpanded(true)}
-            className="w-full py-1.5 text-[10px] text-blue-400 hover:text-blue-300 bg-gray-900/80 border-t border-gray-800 transition-colors"
-          >
-            Show all ({lines.length} lines)
-          </button>
-        )}
-      </div>
-      <div className="absolute top-1 right-1">
-        <CopyButton text={code} label="Copy content" />
-      </div>
-    </div>
-  );
-}
-
-function Badge({ children, color = 'gray' }: { children: ReactNode; color?: 'gray' | 'green' | 'red' | 'blue' | 'amber' | 'purple' | 'cyan' }) {
-  const colors: Record<string, string> = {
-    gray: 'bg-gray-800 text-gray-400',
-    green: 'bg-green-900/50 text-green-300',
-    red: 'bg-red-900/50 text-red-300',
-    blue: 'bg-blue-900/50 text-blue-300',
-    amber: 'bg-amber-900/50 text-amber-300',
-    purple: 'bg-purple-900/50 text-purple-300',
-    cyan: 'bg-cyan-900/50 text-cyan-300',
-  };
-  return (
-    <span className={`text-[10px] px-2 py-0.5 rounded whitespace-nowrap ${colors[color]}`}>
-      {children}
-    </span>
-  );
-}
-
-function ErrorBanner({ error, context }: { error?: string; context?: string }) {
-  if (!error && !context) return null;
-  return (
-    <div className="bg-red-950/50 border border-red-800/50 rounded px-3 py-2 text-xs">
-      {error && <p className="text-red-300 font-medium">{error}</p>}
-      {context && <p className="text-red-400/70 mt-1">{context}</p>}
-    </div>
-  );
-}
-
-function SizeIndicator({ text }: { text: string }) {
-  return <Badge color="gray">{text}</Badge>;
-}
-
-function RunningIndicator() {
-  return (
-    <div className="flex items-center gap-2 text-xs text-purple-400 py-2">
-      <span className="animate-pulse">●</span>
-      Running...
-    </div>
-  );
-}
-
-// ── Tool Summary Line ──────────────────────────────────────────
-
-export function ToolSummaryLine({ tc }: { tc: ToolCallSummary }) {
-  const icon = getToolIcon(tc.toolName);
-  const summary = buildSummary(tc);
-  return (
-    <div className="flex items-start gap-2 text-xs text-gray-200 bg-gray-900/50 rounded px-2.5 py-2 border border-gray-800/50">
-      <span className="text-sm shrink-0 mt-px">{icon}</span>
-      <span className="break-all leading-relaxed">{summary}</span>
-    </div>
-  );
-}
-
-function buildSummary(tc: ToolCallSummary): string {
-  const input = tc.toolInput;
-  if (!input) return tc.toolName;
-
-  switch (tc.toolName) {
-    case 'Read': {
-      const path = shortPath(input.file_path as string);
-      const offset = input.offset as number | undefined;
-      const limit = input.limit as number | undefined;
-      if (offset || limit) return `Read ${path} (lines ${offset ?? 1}–${(offset ?? 1) + (limit ?? 0)})`;
-      return `Read ${path}`;
-    }
-    case 'Edit': {
-      const path = shortPath(input.file_path as string);
-      const oldStr = input.old_string as string | undefined;
-      const lines = oldStr ? oldStr.split('\n').length : 0;
-      const replaceAll = input.replace_all ? ' (all)' : '';
-      return `Edit ${path} — ${lines} line${lines !== 1 ? 's' : ''} changed${replaceAll}`;
-    }
-    case 'Write': {
-      const path = shortPath(input.file_path as string);
-      return `Write ${path}`;
-    }
-    case 'Bash': {
-      const desc = input.description as string | undefined;
-      const cmd = input.command as string | undefined;
-      if (desc) return `Run: ${desc}`;
-      if (cmd) return `$ ${cmd.length > 60 ? cmd.slice(0, 57) + '...' : cmd}`;
-      return 'Bash';
-    }
-    case 'Glob': {
-      const pattern = input.pattern as string;
-      const path = input.path as string | undefined;
-      return `Find files: ${pattern}${path ? ` in ${shortPath(path)}` : ''}`;
-    }
-    case 'Grep': {
-      const pattern = input.pattern as string;
-      const path = input.path as string | undefined;
-      const glob = input.glob as string | undefined;
-      let suffix = '';
-      if (path) suffix = ` in ${shortPath(path)}`;
-      if (glob) suffix += ` (${glob})`;
-      return `Search: "${pattern}"${suffix}`;
-    }
-    case 'WebSearch':
-      return `Search: "${input.query as string}"`;
-    case 'WebFetch': {
-      const url = input.url as string;
-      try { return `Fetch: ${new URL(url).hostname}`; } catch { return `Fetch: ${url?.slice(0, 50)}`; }
-    }
-    case 'Task': {
-      const desc = input.description as string | undefined;
-      const type = input.subagent_type as string | undefined;
-      return `${type ?? 'Task'}: ${desc ?? (input.prompt as string)?.slice(0, 50) ?? 'agent task'}`;
-    }
-    case 'NotebookEdit': {
-      const path = shortPath(input.notebook_path as string);
-      const mode = input.edit_mode as string | undefined;
-      return `Notebook ${mode ?? 'edit'}: ${path}`;
-    }
-    case 'AskUserQuestion': {
-      const questions = input.questions as AskQuestion[] | undefined;
-      if (!questions || questions.length === 0) return 'Ask user question';
-      const headers = questions.map((q) => q.header).join(', ');
-      return `Ask: ${headers} (${questions.length} question${questions.length !== 1 ? 's' : ''})`;
-    }
-    case 'TodoWrite': {
-      const todos = input.todos as TodoItem[] | undefined;
-      if (!todos || todos.length === 0) return 'Update task list';
-      const done = todos.filter((t) => t.status === 'completed').length;
-      const active = todos.filter((t) => t.status === 'in_progress').length;
-      const parts: string[] = [];
-      if (done > 0) parts.push(`${done} done`);
-      if (active > 0) parts.push(`${active} active`);
-      parts.push(`${todos.length} total`);
-      return `Tasks: ${parts.join(', ')}`;
-    }
-    default:
-      return tc.inputPreview ? `${tc.toolName}: ${tc.inputPreview}` : tc.toolName;
-  }
-}
-
-function shortPath(path: string | undefined): string {
-  if (!path) return '(unknown)';
-  const normalized = String(path).replace(/\\/g, '/');
-  const parts = normalized.split('/');
-  if (parts.length <= 3) return normalized;
-  return parts.slice(-3).join('/');
 }
 
 // ── Per-Tool Renderers ─────────────────────────────────────────
@@ -395,12 +143,6 @@ function WriteRenderer({ input, response, status }: ToolRendererProps) {
   );
 }
 
-// Strip ANSI escape codes from terminal output
-function stripAnsi(text: string): string {
-  // eslint-disable-next-line no-control-regex
-  return text.replace(/\x1b\[[0-9;]*[a-zA-Z]|\x1b\].*?(?:\x07|\x1b\\)/g, '');
-}
-
 // 4. Bash
 function BashRenderer({ input, response, status }: ToolRendererProps) {
   const command = input?.command as string | undefined;
@@ -491,30 +233,6 @@ function GlobRenderer({ input, response, status }: ToolRendererProps) {
   );
 }
 
-function FileList({ files }: { files: string[] }) {
-  const [expanded, setExpanded] = useState(files.length <= 20);
-  const display = expanded ? files : files.slice(0, 15);
-  return (
-    <div className="bg-gray-950 rounded border border-gray-800 overflow-auto max-h-60">
-      <div className="p-1.5 space-y-px">
-        {display.map((f, i) => (
-          <div key={i} className="text-xs font-mono text-gray-400 px-1.5 py-0.5 hover:bg-gray-900/50 rounded truncate">
-            {String(f).replace(/\\/g, '/')}
-          </div>
-        ))}
-      </div>
-      {!expanded && (
-        <button
-          onClick={() => setExpanded(true)}
-          className="w-full py-1.5 text-[10px] text-blue-400 hover:text-blue-300 bg-gray-900/80 border-t border-gray-800 transition-colors"
-        >
-          Show all ({files.length} files)
-        </button>
-      )}
-    </div>
-  );
-}
-
 // 6. Grep
 function GrepRenderer({ input, response, status }: ToolRendererProps) {
   const pattern = input?.pattern as string | undefined;
@@ -578,36 +296,6 @@ function GrepRenderer({ input, response, status }: ToolRendererProps) {
   );
 }
 
-function GrepContentBlock({ content, pattern }: { content: string; pattern?: string }) {
-  const lines = content.split('\n').slice(0, 200);
-  return (
-    <pre className="text-xs font-mono bg-gray-950 rounded border border-gray-800 p-2 overflow-auto max-h-60 whitespace-pre-wrap text-gray-400">
-      {lines.map((line, i) => (
-        <div key={i}>
-          {pattern ? highlightMatch(line, pattern) : line}
-          {'\n'}
-        </div>
-      ))}
-    </pre>
-  );
-}
-
-function highlightMatch(line: string, pattern: string): ReactNode[] {
-  try {
-    const re = new RegExp(`(${pattern})`, 'gi');
-    const parts = line.split(re);
-    return parts.map((part, i) =>
-      re.test(part) ? (
-        <span key={i} className="bg-amber-900/40 text-amber-200 rounded-sm px-0.5">{part}</span>
-      ) : (
-        <span key={i}>{part}</span>
-      )
-    );
-  } catch {
-    return [line];
-  }
-}
-
 // 7. WebSearch
 function WebSearchRenderer({ input, response, status }: ToolRendererProps) {
   const query = (input?.query ?? response?.query) as string | undefined;
@@ -656,59 +344,6 @@ function WebSearchRenderer({ input, response, status }: ToolRendererProps) {
           {(response.durationSeconds as number).toFixed(1)}s
         </span>
       )}
-    </div>
-  );
-}
-
-function parseWebSearchResults(rawResults: unknown[] | undefined): {
-  links: Array<{ title: string; url: string }>;
-  summary: string;
-} {
-  const links: Array<{ title: string; url: string }> = [];
-  let summary = '';
-
-  if (!rawResults) return { links, summary };
-
-  for (const item of rawResults) {
-    if (typeof item === 'string') {
-      // Summary text
-      summary += (summary ? '\n\n' : '') + item;
-    } else if (item && typeof item === 'object' && 'content' in item) {
-      // Object with content array of {title, url}
-      const content = (item as Record<string, unknown>).content;
-      if (Array.isArray(content)) {
-        for (const entry of content) {
-          if (entry && typeof entry === 'object' && 'title' in entry) {
-            links.push({
-              title: String((entry as Record<string, unknown>).title ?? ''),
-              url: String((entry as Record<string, unknown>).url ?? ''),
-            });
-          }
-        }
-      }
-    }
-  }
-
-  return { links, summary };
-}
-
-function SearchResultCard({ title, url }: { title: string; url: string }) {
-  let domain = '';
-  try { domain = new URL(url).hostname; } catch { /* ignore */ }
-
-  return (
-    <div className="flex items-start gap-2 bg-gray-950 rounded border border-gray-800 px-2.5 py-1.5 text-xs hover:bg-gray-900/80 transition-colors">
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="min-w-0 flex-1 cursor-pointer"
-        title={url}
-      >
-        <p className="text-blue-300 font-medium truncate hover:underline">{title || '(untitled)'}</p>
-        {domain && <p className="text-green-400/60 text-[10px] truncate">{domain}</p>}
-      </a>
-      {url && <CopyButton text={url} label="Copy URL" />}
     </div>
   );
 }
@@ -840,13 +475,6 @@ function NotebookEditRenderer({ input, response, status }: ToolRendererProps) {
 }
 
 // 11. AskUserQuestion
-interface AskQuestion {
-  question: string;
-  header: string;
-  options: Array<{ label: string; description: string }>;
-  multiSelect: boolean;
-}
-
 function AskUserQuestionRenderer({ input, response, status }: ToolRendererProps) {
   const questions = (input?.questions ?? response?.questions) as AskQuestion[] | undefined;
   const answers = (input?.answers ?? response?.answers) as Record<string, string> | undefined;
@@ -985,21 +613,13 @@ function AskUserQuestionRenderer({ input, response, status }: ToolRendererProps)
 }
 
 // 12. TodoWrite
-interface TodoItem {
-  content: string;
-  status: 'pending' | 'in_progress' | 'completed';
-  activeForm: string;
-}
-
 type TodoChange = 'new' | 'completed' | 'started' | 'reverted' | 'unchanged';
 
 function TodoWriteRenderer({ input, status, toolUseId }: ToolRendererProps) {
   const agents = useAgentStore((s) => s.agents);
   const toolAgentMap = useAgentStore((s) => s.toolAgentMap);
 
-  if (status === 'running') return <RunningIndicator />;
-
-  const todos = (input?.todos as TodoItem[] | undefined) ?? [];
+  const todos = useMemo(() => (input?.todos as TodoItem[] | undefined) ?? [], [input?.todos]);
 
   // Find previous TodoWrite call from same agent to diff against
   const prevTodos = useMemo(() => {
@@ -1051,6 +671,8 @@ function TodoWriteRenderer({ input, status, toolUseId }: ToolRendererProps) {
       return { ...todo, change };
     });
   }, [todos, prevMap]);
+
+  if (status === 'running') return <RunningIndicator />;
 
   const completed = todos.filter((t) => t.status === 'completed').length;
   const inProgress = todos.filter((t) => t.status === 'in_progress').length;
@@ -1239,17 +861,6 @@ function DefaultRenderer({ input, response, status }: ToolRendererProps) {
   );
 }
 
-function DefaultResponseBlock({ response }: { response: Record<string, unknown> }) {
-  const json = JSON.stringify(response, null, 2);
-  return (
-    <CollapsibleBlock label="Response" count={`${json.length} bytes`} defaultOpen={json.length < 500}>
-      <pre className="text-xs bg-gray-950 rounded border border-gray-800 p-2 text-gray-300 overflow-auto max-h-52 font-mono whitespace-pre-wrap">
-        {highlightJSON(json)}
-      </pre>
-    </CollapsibleBlock>
-  );
-}
-
 // ── Renderer Dispatch ──────────────────────────────────────────
 
 const TOOL_RENDERERS: Record<string, React.FC<ToolRendererProps>> = {
@@ -1305,4 +916,3 @@ function extractError(
 
   return { error, context };
 }
-

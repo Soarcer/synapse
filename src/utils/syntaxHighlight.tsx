@@ -27,8 +27,6 @@ export function detectLang(filePath: string): string {
 
 // ── Token types & colors ───────────────────────────────────────
 
-type Token = { text: string; cls?: string };
-
 const C = {
   key: 'text-blue-400',
   str: 'text-green-400',
