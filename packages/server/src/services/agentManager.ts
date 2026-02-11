@@ -206,6 +206,7 @@ export class AgentManager {
     broadcaster: Broadcaster,
   ): void {
     event.eventSource = 'sdk';
+    event.vendor = 'anthropic';
     try {
       insertEvent({
         event_id: event.id,
@@ -305,7 +306,9 @@ export class AgentManager {
 
   /** Stop all running agents and clear cleanup/timeout timers */
   stopAll(): void {
-    for (const agent of this.agents.values()) {
+    const snapshot = Array.from(this.agents.values());
+    this.agents.clear();
+    for (const agent of snapshot) {
       if (agent.cleanupTimer) clearTimeout(agent.cleanupTimer);
       if (agent.timeoutTimer) clearTimeout(agent.timeoutTimer);
       if (agent.status === 'running') {

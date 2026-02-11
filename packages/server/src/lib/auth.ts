@@ -1,0 +1,12 @@
+import type { Request, Response, NextFunction } from 'express';
+
+export function apiKeyAuth(req: Request, res: Response, next: NextFunction) {
+  const key = process.env.SYNAPSE_API_KEY;
+  if (!key) return next(); // No auth configured = allow all
+  const provided = req.headers.authorization?.replace('Bearer ', '');
+  if (provided !== key) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  next();
+}

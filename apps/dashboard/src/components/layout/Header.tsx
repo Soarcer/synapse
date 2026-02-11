@@ -33,12 +33,14 @@ export function Header() {
     connected: 'bg-green-400',
     disconnected: 'bg-red-400',
     reconnecting: 'bg-yellow-400 animate-pulse',
+    failed: 'bg-red-600',
   }[connectionStatus];
 
   const statusLabel = {
     connected: 'Connected',
     disconnected: 'Disconnected',
     reconnecting: 'Reconnecting...',
+    failed: 'Connection Failed',
   }[connectionStatus];
 
   // ── Export ────────────────────────────────────────────────

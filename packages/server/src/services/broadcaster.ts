@@ -1,4 +1,5 @@
 import { WebSocket } from 'ws';
+import { logger } from '../lib/logger.js';
 import type { AgentEvent, WsServerMessage, ActiveAgentInfo } from '@synapse-ai/core';
 
 const MAX_BUFFERED_AMOUNT = 1_048_576; // 1MB backpressure threshold
@@ -79,7 +80,10 @@ export class Broadcaster {
 
   private safeSend(client: WebSocket, payload: string): void {
     if (client.readyState !== WebSocket.OPEN) return;
-    if (client.bufferedAmount > MAX_BUFFERED_AMOUNT) return; // backpressure
+    if (client.bufferedAmount > MAX_BUFFERED_AMOUNT) {
+      logger.warn({ bufferedAmount: client.bufferedAmount }, 'WS backpressure: skipping send');
+      return;
+    }
     client.send(payload);
   }
 

@@ -6,6 +6,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { logger } from './lib/logger.js';
+import { apiKeyAuth } from './lib/auth.js';
 import { Broadcaster } from './services/broadcaster.js';
 import { AgentManager } from './services/agentManager.js';
 import { createEventsRouter } from './routes/events.js';
@@ -29,7 +30,7 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 
 // CORS for client
-const clientOrigin = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+const clientOrigin = process.env.CORS_ORIGIN || process.env.CLIENT_ORIGIN || 'http://localhost:5173';
 const allowedOrigins = clientOrigin.split(',').map((o) => o.trim()).filter(Boolean);
 
 app.use((_req, res, next) => {
@@ -42,13 +43,16 @@ app.use((_req, res, next) => {
     res.header('Access-Control-Allow-Origin', allowedOrigins[0]);
   }
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (_req.method === 'OPTIONS') {
     res.sendStatus(204);
     return;
   }
   next();
 });
+
+// API key auth (no-op if SYNAPSE_API_KEY not set)
+app.use('/api', apiKeyAuth);
 
 // Rate limiting
 const hookLimiter = rateLimit({ windowMs: 60_000, max: 200, message: { error: 'Too many requests' } });
@@ -127,7 +131,7 @@ server.listen(PORT, () => {
 function shutdown() {
   logger.info('Shutting down...');
 
-  // 1. Stop all running agents
+  // 1. Stop all running agents (clears timeout + cleanup timers)
   agentManager.stopAll();
 
   // 2. Stop heartbeat and close all WebSocket connections
@@ -137,19 +141,27 @@ function shutdown() {
   }
   wss.close();
 
-  // 3. Close HTTP server
+  // 3. Close HTTP server first (stop accepting new connections)
   server.close(() => {
-    // 4. Close SQLite database
+    logger.info('HTTP server closed, draining...');
+  });
+
+  // 4. Drain period: close DB after 5s, then exit
+  const drainTimer = setTimeout(() => {
     try { db.close(); } catch { /* already closed */ }
     logger.info('Shutdown complete');
     process.exit(0);
-  });
+  }, 5000);
 
-  // Force exit after 5 seconds if graceful shutdown stalls
-  setTimeout(() => {
+  // Force exit after 10 seconds if graceful shutdown stalls
+  const forceTimer = setTimeout(() => {
     logger.error('Forced shutdown after timeout');
     process.exit(1);
-  }, 5000);
+  }, 10_000);
+
+  // Don't let these timers prevent exit if everything else is done
+  if (drainTimer.unref) drainTimer.unref();
+  if (forceTimer.unref) forceTimer.unref();
 }
 
 process.on('SIGINT', shutdown);

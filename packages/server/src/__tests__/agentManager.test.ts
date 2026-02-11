@@ -201,10 +201,9 @@ describe('AgentManager', () => {
 
     manager.stopAll();
 
+    // stopAll() clears the agents Map entirely
     expect(manager.getActive()).toHaveLength(0);
-    const all = manager.getAll();
-    expect(all).toHaveLength(2);
-    expect(all.every((a) => a.status === 'stopped')).toBe(true);
+    expect(manager.getAll()).toHaveLength(0);
   });
 
   // ── 10. sendMessage() returns false for unknown agent ──

@@ -1,6 +1,6 @@
 import type { WsServerMessage, WsClientMessage } from '@synapse-ai/core';
 
-type ConnectionStatus = 'connected' | 'disconnected' | 'reconnecting';
+type ConnectionStatus = 'connected' | 'disconnected' | 'reconnecting' | 'failed';
 type EventCallback = (msg: WsServerMessage) => void;
 type StatusCallback = (status: ConnectionStatus) => void;
 type ReconnectCallback = () => void;
@@ -10,6 +10,8 @@ class WSClient {
   private url: string;
   private reconnectDelay = 1000;
   private maxReconnectDelay = 30000;
+  private maxRetries = 20;
+  private reconnectCount = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private onEvent: EventCallback | null = null;
   private onStatusChange: StatusCallback | null = null;
@@ -49,6 +51,7 @@ class WSClient {
 
       this.ws.onopen = () => {
         this.reconnectDelay = 1000;
+        this.reconnectCount = 0;
         this.wasConnected = true;
         this.setStatus('connected');
 
@@ -111,6 +114,11 @@ class WSClient {
 
   private scheduleReconnect() {
     if (!this.shouldReconnect) return;
+    this.reconnectCount++;
+    if (this.reconnectCount > this.maxRetries) {
+      this.setStatus('failed');
+      return;
+    }
     this.setStatus('reconnecting');
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;

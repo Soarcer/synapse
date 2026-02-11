@@ -12,9 +12,12 @@ import { useAgentStore } from './store/agentStore';
 import { wsClient } from './store/wsClient';
 import { apiUrl } from './utils/api';
 
-function isInputFocused() {
-  const tag = document.activeElement?.tagName;
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+function isEditableTarget(event: KeyboardEvent) {
+  return (
+    event.target instanceof HTMLInputElement ||
+    event.target instanceof HTMLTextAreaElement ||
+    (event.target instanceof HTMLElement && event.target.isContentEditable)
+  );
 }
 
 export default function App() {
@@ -54,14 +57,14 @@ export default function App() {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
+      // Skip shortcuts when typing in input fields, textareas, or contentEditable elements
+      if (isEditableTarget(e)) return;
+
       // Escape — close panels and dialogs
       if (e.key === 'Escape') {
         useAgentStore.getState().selectNode(null);
         useAgentStore.getState().setShowSpawnDialog(false);
       }
-
-      // Skip shortcuts when typing in inputs
-      if (isInputFocused()) return;
 
       // T — toggle tool log
       if (e.key === 't' && !e.ctrlKey && !e.metaKey) {

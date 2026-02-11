@@ -22,6 +22,15 @@ import {
   buildDerivedMaps,
 } from './eventHandlers';
 
+// ── Stable selectors (defined outside functions to avoid re-creation) ────
+
+export const selectEvents = (s: AgentStore) => s.events;
+export const selectAgents = (s: AgentStore) => s.agents;
+export const selectSessions = (s: AgentStore) => s.sessions;
+export const selectSelectedNodeId = (s: AgentStore) => s.selectedNodeId;
+export const selectConnectionStatus = (s: AgentStore) => s.connectionStatus;
+export const selectIsPaused = (s: AgentStore) => s.paused;
+
 // ── Shared fetch-and-reload ──────────────────────────────────
 
 let reloadAbort: AbortController | null = null;
@@ -61,7 +70,7 @@ interface AgentStore {
   selectedNodeId: string | null;
   highlightedNodeIds: Set<string> | null;
   multiHighlightIds: Set<string> | null;
-  connectionStatus: 'connected' | 'disconnected' | 'reconnecting';
+  connectionStatus: 'connected' | 'disconnected' | 'reconnecting' | 'failed';
   filter: { sessionId?: string; agentType?: string };
   showSpawnDialog: boolean;
   paused: boolean;
@@ -88,7 +97,7 @@ interface AgentStore {
   addEvent: (event: AgentEvent) => void;
   selectNode: (id: string | null, source?: 'graph' | 'lens') => void;
   setFilter: (filter: { sessionId?: string; agentType?: string }) => void;
-  setConnectionStatus: (s: 'connected' | 'disconnected' | 'reconnecting') => void;
+  setConnectionStatus: (s: 'connected' | 'disconnected' | 'reconnecting' | 'failed') => void;
   setShowSpawnDialog: (show: boolean) => void;
   setPaused: (paused: boolean) => void;
   setLayoutMode: (mode: 'graph' | 'list') => void;
@@ -158,48 +167,45 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   // ── addEvent ─────────────────────────────────────────────
 
   addEvent: (event) => {
-    const state = get();
-    if (state.paused) return;
+    set((state) => {
+      if (state.paused) return state;
 
-    // Fast path: text_delta — only copy agents Map + nodes array
-    if (event.type === 'text_delta') {
-      const agentId = event.agentId ?? '';
-      const agent = state.agents.get(agentId);
-      const events = [event, ...state.events].slice(0, 1000);
-      if (!agent) {
-        set({ events });
-        return;
+      // Fast path: text_delta — only copy agents Map + nodes array
+      if (event.type === 'text_delta') {
+        const agentId = event.agentId ?? '';
+        const agent = state.agents.get(agentId);
+        const events = [event, ...state.events].slice(0, 1000);
+        if (!agent) {
+          return { ...state, events };
+        }
+        const updated = {
+          ...agent,
+          streamingText: (agent.streamingText ?? '') + (event.text ?? ''),
+        };
+        const agents = new Map(state.agents);
+        agents.set(agentId, updated);
+        const nodes = state.nodes.map((n) =>
+          n.id === nid.agent(agentId) ? { ...n, data: { agent: updated } } : n,
+        );
+        return { ...state, agents, nodes, events, ...buildDerivedMaps(agents) };
       }
-      const updated = {
-        ...agent,
-        streamingText: (agent.streamingText ?? '') + (event.text ?? ''),
-      };
-      const agents = new Map(state.agents);
-      agents.set(agentId, updated);
-      const nodes = state.nodes.map((n) =>
-        n.id === nid.agent(agentId) ? { ...n, data: { agent: updated } } : n,
-      );
-      set({ agents, nodes, events, ...buildDerivedMaps(agents) });
-      return;
-    }
 
-    const events = [event, ...state.events].slice(0, 1000);
+      const events = [event, ...state.events].slice(0, 1000);
 
-    // Hidden hook events: store event, skip graph processing
-    if (event.eventSource === 'hook' && !state.showHookEvents) {
-      set({ events });
-      return;
-    }
+      // Hidden hook events: store event, skip graph processing
+      if (event.eventSource === 'hook' && !state.showHookEvents) {
+        return { ...state, events };
+      }
 
-    // No-op events: store event, skip graph processing
-    if (NO_GRAPH_EVENTS.has(event.type)) {
-      set({ events });
-      return;
-    }
+      // No-op events: store event, skip graph processing
+      if (NO_GRAPH_EVENTS.has(event.type)) {
+        return { ...state, events };
+      }
 
-    const draft = draftFromState(state);
-    processEvent(event, draft, state.showHookEvents);
-    set({ ...draft, events, ...buildDerivedMaps(draft.agents) });
+      const draft = draftFromState(state);
+      processEvent(event, draft, state.showHookEvents);
+      return { ...state, ...draft, events, ...buildDerivedMaps(draft.agents) };
+    });
   },
 
   // ── Simple setters ───────────────────────────────────────
