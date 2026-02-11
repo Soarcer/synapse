@@ -1,9 +1,11 @@
 import fs from 'fs';
 import { Router, type Request, type Response } from 'express';
+import { logger } from '../lib/logger.js';
 import { getEventsBySession, listSessions, insertEvent } from '../db.js';
 import { rowToAgentEvent } from '../services/eventStore.js';
 import { findTranscriptPath, readTranscript } from '../services/transcriptReader.js';
 import type { TranscriptSummary } from '../../src/types/transcript.js';
+import { SnapshotImportSchema, validateBody } from '../lib/schemas.js';
 
 // ─── Snapshot format ─────────────────────────────────────────
 
@@ -84,20 +86,15 @@ export function createSnapshotRouter(): Router {
       res.json(snapshot);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown error';
-      console.error('[Snapshot] Export error:', err);
+      logger.error({ err }, 'Export error');
       res.status(500).json({ error: message });
     }
   });
 
   // POST /api/snapshot/import — import a snapshot file
-  router.post('/import', (req: Request, res: Response) => {
+  router.post('/import', validateBody(SnapshotImportSchema), (req: Request, res: Response) => {
     try {
       const snapshot = req.body as SnapshotFile;
-
-      if (!snapshot || snapshot.version !== 1 || !Array.isArray(snapshot.sessions)) {
-        res.status(400).json({ error: 'Invalid snapshot format' });
-        return;
-      }
 
       let importedEvents = 0;
       let importedSessions = 0;
@@ -147,7 +144,7 @@ export function createSnapshotRouter(): Router {
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown error';
-      console.error('[Snapshot] Import error:', err);
+      logger.error({ err }, 'Import error');
       res.status(500).json({ error: message });
     }
   });

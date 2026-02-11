@@ -1,5 +1,6 @@
 import fs from 'fs';
 import { Router, type Request, type Response } from 'express';
+import { logger } from '../lib/logger.js';
 import { findTranscriptPath, readTranscript } from '../services/transcriptReader.js';
 import { queryEvents } from '../db.js';
 
@@ -42,7 +43,7 @@ export function createTranscriptRouter(): Router {
         return;
       }
       const message = err instanceof Error ? err.message : 'Unknown error';
-      console.error('[Transcript] Error:', err);
+      logger.error({ err }, 'Transcript error');
       res.status(500).json({ error: message });
     }
   });

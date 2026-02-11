@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { logger } from './lib/logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -9,7 +10,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const envDbPath = (() => {
   if (process.env.SYNAPSE_DB_PATH) return process.env.SYNAPSE_DB_PATH;
   if (process.env.AGENTVIZ_DB_PATH) {
-    console.warn('[DB] AGENTVIZ_DB_PATH is deprecated, use SYNAPSE_DB_PATH instead');
+    logger.warn('AGENTVIZ_DB_PATH is deprecated, use SYNAPSE_DB_PATH instead');
     return process.env.AGENTVIZ_DB_PATH;
   }
   return undefined;
@@ -22,7 +23,7 @@ if (!envDbPath) {
   const oldDb = path.join(__dirname, 'agentviz.db');
   const newDb = path.join(__dirname, 'synapse.db');
   if (!fs.existsSync(newDb) && fs.existsSync(oldDb)) {
-    console.log('[DB] Migrating agentviz.db → synapse.db');
+    logger.info('Migrating agentviz.db to synapse.db');
     fs.renameSync(oldDb, newDb);
     for (const suffix of ['-wal', '-shm']) {
       const oldFile = oldDb + suffix;
@@ -30,14 +31,17 @@ if (!envDbPath) {
         fs.renameSync(oldFile, newDb + suffix);
       }
     }
-    console.log('[DB] Migration complete');
+    logger.info('DB migration complete');
   }
 }
 
 const db = new Database(DB_PATH);
 
-// Enable WAL mode for better concurrent read/write performance
+// SQLite performance pragmas
 db.pragma('journal_mode = WAL');
+db.pragma('synchronous = NORMAL');
+db.pragma('cache_size = -64000'); // 64MB cache
+db.pragma('busy_timeout = 5000');
 
 // ─── Schema ─────────────────────────────────────────────────────────
 
@@ -69,6 +73,8 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_events_agent ON events(agent_id);
   CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type);
   CREATE INDEX IF NOT EXISTS idx_events_time ON events(created_at);
+  CREATE INDEX IF NOT EXISTS idx_events_session_time ON events(session_id, created_at);
+  CREATE INDEX IF NOT EXISTS idx_events_session_type ON events(session_id, event_type);
 `);
 
 // Migration: add vendor column to existing databases
@@ -244,6 +250,28 @@ export interface SessionSummary {
 
 export function listSessions(): SessionSummary[] {
   return listSessionsStmt.all() as SessionSummary[];
+}
+
+// ─── Database Stats (for health check) ──────────────────────────────
+
+export interface DbStats {
+  totalEvents: number;
+  totalSessions: number;
+  dbSizeBytes: number;
+}
+
+export function getDbStats(): DbStats {
+  const eventCount = db.prepare('SELECT COUNT(*) as count FROM events').get() as { count: number };
+  const sessionCount = db.prepare('SELECT COUNT(DISTINCT session_id) as count FROM events').get() as { count: number };
+  const pageCount = db.pragma('page_count') as Array<{ page_count: number }>;
+  const pageSize = db.pragma('page_size') as Array<{ page_size: number }>;
+  const dbSizeBytes = (pageCount[0]?.page_count ?? 0) * (pageSize[0]?.page_size ?? 4096);
+
+  return {
+    totalEvents: eventCount.count,
+    totalSessions: sessionCount.count,
+    dbSizeBytes,
+  };
 }
 
 export default db;

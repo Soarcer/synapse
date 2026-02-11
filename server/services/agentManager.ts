@@ -1,5 +1,6 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { nanoid } from 'nanoid';
+import { logger } from '../lib/logger.js';
 import type { Broadcaster } from './broadcaster.js';
 import { insertEvent } from '../db.js';
 import type {
@@ -65,7 +66,7 @@ export class AgentManager {
 
     // Run agent in background (don't await)
     this.runAgent(agentId, request, broadcaster).catch((err) => {
-      console.error(`[AgentManager] Agent ${agentId} error:`, err);
+      logger.error({ err, agentId }, 'Agent error');
     });
 
     return agentId;
@@ -227,7 +228,7 @@ export class AgentManager {
         created_at: event.timestamp,
       });
     } catch (err) {
-      console.error('[AgentManager] Failed to persist event:', err);
+      logger.error({ err }, 'Failed to persist event');
     }
     broadcaster.broadcast(event);
   }
@@ -274,7 +275,7 @@ export class AgentManager {
 
     // Run in background
     this.runAgent(agentId, { prompt: message } as SpawnAgentRequest, broadcaster).catch(
-      (err) => console.error(`[AgentManager] Resume error for ${agentId}:`, err),
+      (err) => logger.error({ err, agentId }, 'Resume error'),
     );
 
     return true;

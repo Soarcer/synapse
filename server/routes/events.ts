@@ -1,40 +1,38 @@
 import { Router, type Request, type Response } from 'express';
+import { logger } from '../lib/logger.js';
 import { storeAndBroadcast, storePreNormalized, getStoredEvents } from '../services/eventStore.js';
 import { deleteEventsBySession, deleteAllEvents, listSessions } from '../db.js';
 import type { Broadcaster } from '../services/broadcaster.js';
+import { AgentEventSchema, EventQuerySchema, validateBody, validateQuery } from '../lib/schemas.js';
 
 export function createEventsRouter(broadcaster: Broadcaster): Router {
   const router = Router();
 
   // POST /api/events — receives raw hook JSON body
-  router.post('/', (req: Request, res: Response) => {
+  router.post('/', validateBody(AgentEventSchema), (req: Request, res: Response) => {
     try {
       const raw = req.body;
-      if (!raw || typeof raw !== 'object') {
-        res.status(400).json({ error: 'Invalid JSON body' });
-        return;
-      }
 
       // Pre-normalized events from OpenClaw plugin skip hook normalization
       if (raw.eventSource === 'openclaw' && raw.id && raw.type && raw.sessionId) {
         storePreNormalized(raw, broadcaster);
-        console.log(`[Events] openclaw -> ${raw.type} (${raw.sessionId})`);
+        logger.info({ eventSource: 'openclaw', type: raw.type, sessionId: raw.sessionId }, 'Event received');
         res.status(200).json({ ok: true, eventId: raw.id });
         return;
       }
 
       const event = storeAndBroadcast(raw, broadcaster);
-      console.log(`[Events] ${raw.hook_event_name || 'unknown'} -> ${event.type} (${event.sessionId})`);
+      logger.info({ hookEvent: raw.hook_event_name || 'unknown', type: event.type, sessionId: event.sessionId }, 'Event received');
       res.status(200).json({ ok: true, eventId: event.id });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown error';
-      console.error('[Events] Error processing event:', err);
+      logger.error({ err }, 'Error processing event');
       res.status(500).json({ error: message });
     }
   });
 
   // GET /api/events — query stored events
-  router.get('/', (req: Request, res: Response) => {
+  router.get('/', validateQuery(EventQuerySchema), (req: Request, res: Response) => {
     try {
       const events = getStoredEvents({
         sessionId: req.query.sessionId as string | undefined,
@@ -46,7 +44,7 @@ export function createEventsRouter(broadcaster: Broadcaster): Router {
       res.json(events);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown error';
-      console.error('[Events] Error querying events:', err);
+      logger.error({ err }, 'Error querying events');
       res.status(500).json({ error: message });
     }
   });
@@ -65,7 +63,7 @@ export function createEventsRouter(broadcaster: Broadcaster): Router {
   router.delete('/', (_req: Request, res: Response) => {
     try {
       const deleted = deleteAllEvents();
-      console.log(`[Events] Deleted all events (${deleted} rows)`);
+      logger.info({ deleted }, 'Deleted all events');
       res.json({ ok: true, deleted });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown error';
@@ -78,7 +76,7 @@ export function createEventsRouter(broadcaster: Broadcaster): Router {
     try {
       const sessionId = req.params.sessionId as string;
       const deleted = deleteEventsBySession(sessionId);
-      console.log(`[Events] Deleted session ${sessionId} (${deleted} rows)`);
+      logger.info({ sessionId, deleted }, 'Deleted session events');
       res.json({ ok: true, deleted });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown error';

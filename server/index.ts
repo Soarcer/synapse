@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { logger } from './lib/logger.js';
 import { Broadcaster } from './services/broadcaster.js';
 import { AgentManager } from './services/agentManager.js';
 import { createEventsRouter } from './routes/events.js';
@@ -13,7 +14,7 @@ import { createTranscriptRouter } from './routes/transcript.js';
 import { createSnapshotRouter } from './routes/snapshot.js';
 
 // Import db.ts to trigger schema initialization
-import db from './db.js';
+import db, { getDbStats } from './db.js';
 
 const PORT = parseInt(process.env.PORT || '4000', 10);
 
@@ -63,10 +64,13 @@ app.use('/api/snapshot', createSnapshotRouter());
 
 // Health check
 app.get('/api/health', (_req, res) => {
+  const dbStats = getDbStats();
   res.json({
     ok: true,
     clients: broadcaster.clientCount,
+    agents: agentManager.getActive().length,
     mode: process.env.SYNAPSE_MODE || 'standalone',
+    db: dbStats,
   });
 });
 
@@ -82,12 +86,12 @@ if (fs.existsSync(distPath)) {
     if (req.path.startsWith('/api') || req.path === '/ws') return next();
     res.sendFile(path.join(distPath, 'index.html'));
   });
-  console.log(`[Server] Serving frontend from ${distPath}`);
+  logger.info({ distPath }, 'Serving frontend from dist');
 }
 
 // Global error handler (must be after all route registrations)
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error('[Server] Unhandled error:', err.stack);
+  logger.error({ err }, 'Unhandled error');
   res.status(500).json({ error: 'Internal server error' });
 });
 
@@ -98,16 +102,16 @@ const server = createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });
 
 wss.on('connection', (ws: WebSocket) => {
-  console.log(`[WS] Client connected (total: ${broadcaster.clientCount + 1})`);
+  logger.info({ clients: broadcaster.clientCount + 1 }, 'WS client connected');
   broadcaster.addClient(ws, agentManager.getActive());
 
   ws.on('close', () => {
     broadcaster.removeClient(ws);
-    console.log(`[WS] Client disconnected (total: ${broadcaster.clientCount})`);
+    logger.info({ clients: broadcaster.clientCount }, 'WS client disconnected');
   });
 
   ws.on('error', (err) => {
-    console.error('[WS] Client error:', err);
+    logger.error({ err }, 'WS client error');
     broadcaster.removeClient(ws);
   });
 });
@@ -115,22 +119,19 @@ wss.on('connection', (ws: WebSocket) => {
 // --- Start ---
 
 server.listen(PORT, () => {
-  console.log('');
-  console.log('  Synapse Server');
-  console.log(`  HTTP:  http://localhost:${PORT}`);
-  console.log(`  WS:    ws://localhost:${PORT}/ws`);
-  console.log('');
+  logger.info({ port: PORT }, 'Synapse server started');
 });
 
 // --- Graceful Shutdown ---
 
 function shutdown() {
-  console.log('\n[Server] Shutting down...');
+  logger.info('Shutting down...');
 
   // 1. Stop all running agents
   agentManager.stopAll();
 
-  // 2. Close all WebSocket connections
+  // 2. Stop heartbeat and close all WebSocket connections
+  broadcaster.destroy();
   for (const client of wss.clients) {
     client.close(1001, 'Server shutting down');
   }
@@ -140,13 +141,13 @@ function shutdown() {
   server.close(() => {
     // 4. Close SQLite database
     try { db.close(); } catch { /* already closed */ }
-    console.log('[Server] Shutdown complete.');
+    logger.info('Shutdown complete');
     process.exit(0);
   });
 
   // Force exit after 5 seconds if graceful shutdown stalls
   setTimeout(() => {
-    console.error('[Server] Forced shutdown after timeout.');
+    logger.error('Forced shutdown after timeout');
     process.exit(1);
   }, 5000);
 }
@@ -155,9 +156,9 @@ process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
 process.on('uncaughtException', (err) => {
-  console.error('[Server] Uncaught exception:', err);
+  logger.error({ err }, 'Uncaught exception');
   shutdown();
 });
 process.on('unhandledRejection', (reason) => {
-  console.error('[Server] Unhandled rejection:', reason);
+  logger.error({ err: reason }, 'Unhandled rejection');
 });
