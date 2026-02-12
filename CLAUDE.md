@@ -52,10 +52,14 @@ Then open **http://localhost:5173** in your browser.
 
 Any Claude Code session running in this project will automatically send hook events to the dashboard via `.claude/settings.json` → `hooks/send_event.cjs` → `POST localhost:4000/api/events`.
 
-To test without a live session, run the simulation script:
+To test without a live session, run a simulation script:
 
 ```powershell
+# Basic simulation (8 events — session, prompt, agent, tools)
 npx tsx scripts/simulate_session.ts
+
+# Comprehensive demo (31 events — every node type, error states, compaction)
+npx tsx scripts/simulate_all_nodes.ts
 ```
 
 Stop either server with **Ctrl+C** in its terminal.
@@ -67,7 +71,8 @@ Stop either server with **Ctrl+C** in its terminal.
 - `pnpm dev` — start both concurrently
 - `pnpm -r build` — build all packages
 - `pnpm test` — run all tests
-- `npx tsx scripts/simulate_session.ts` — simulate a full session with 8 events
+- `npx tsx scripts/simulate_session.ts` — simulate a basic session (8 events)
+- `npx tsx scripts/simulate_all_nodes.ts` — comprehensive demo of all node types (31 events)
 
 ## Keyboard Shortcuts
 

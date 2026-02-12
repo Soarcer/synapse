@@ -5,14 +5,16 @@ import { formatTokens, formatTime } from '@synapse-ai/core';
 import { useHandlePositions } from '../../../hooks/useHandlePositions';
 import { useAgentStore } from '../../../store/agentStore';
 import { CollapsibleSourceHandle } from '../CollapsibleSourceHandle';
+import { extractUserMessage } from '../../../utils/promptText';
 
 const EMPTY_AGENTS: AgentNodeData[] = [];
 
 function UserPromptNodeComponent({ data }: NodeProps) {
   const prompt = (data as { prompt: UserPromptData }).prompt;
-  const preview = prompt.text.length > 80
-    ? prompt.text.slice(0, 80) + '...'
-    : prompt.text;
+  const userText = extractUserMessage(prompt.text);
+  const preview = userText.length > 80
+    ? userText.slice(0, 80) + '...'
+    : userText;
   const { source, target, sourceStyle } = useHandlePositions();
   const sessionAgents = useAgentStore((s) => s.agentsBySession.get(prompt.sessionId)) ?? EMPTY_AGENTS;
   const prompts = useAgentStore((s) => s.prompts);

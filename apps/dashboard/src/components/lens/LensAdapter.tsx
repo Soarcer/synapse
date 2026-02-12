@@ -11,6 +11,7 @@ import type {
   TranscriptSummary,
 } from '@synapse-ai/core';
 import { apiUrl } from '../../utils/api';
+import { extractUserMessage } from '../../utils/promptText';
 import {
   LensProvider,
   type LensContextValue,
@@ -182,7 +183,7 @@ function buildTreeRoots(
       return {
         id: gNode.id,
         kind: 'prompt',
-        label: prompt.text.length > 40 ? prompt.text.slice(0, 40) + '...' : prompt.text || '(empty)',
+        label: (() => { const t = extractUserMessage(prompt.text); return t.length > 40 ? t.slice(0, 40) + '...' : t || '(empty)'; })(),
         status: 'success',
         tokens,
         count,
@@ -615,7 +616,7 @@ function buildCostPerTurn(
 
       turns.push({
         promptId: prompt.id,
-        promptText: prompt.text,
+        promptText: extractUserMessage(prompt.text),
         sessionId,
         timestamp: prompt.timestamp,
         turnIndex: i,

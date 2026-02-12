@@ -4,6 +4,7 @@ import { ConfirmDialog } from '../ConfirmDialog';
 import type { ToolCallSummary } from '@synapse-ai/core';
 import { formatTime, formatDuration } from '@synapse-ai/core';
 import { apiUrl } from '../../utils/api';
+import { extractUserMessage } from '../../utils/promptText';
 import { toast } from '../Toast';
 import { ToolRenderer, ToolSummaryLine } from './ToolDetailRenderers';
 
@@ -174,7 +175,7 @@ export function AgentDetailPanel() {
                       onClick={() => selectNode(`prompt-${p.id}`)}
                       className="w-full text-left bg-amber-900/20 hover:bg-amber-900/40 border border-amber-800/30 rounded px-2 py-1.5 text-xs text-gray-300 truncate transition-colors"
                     >
-                      {p.text.slice(0, 60) || '(empty)'}
+                      {(() => { const t = extractUserMessage(p.text); return t.slice(0, 60) || '(empty)'; })()}
                     </button>
                   ))}
                 </div>
@@ -272,7 +273,7 @@ export function AgentDetailPanel() {
             <div>
               <span className="text-gray-500 text-xs block mb-1.5">Prompt text</span>
               <pre className="text-xs bg-gray-900 rounded p-3 text-gray-200 overflow-auto max-h-80 font-mono whitespace-pre-wrap leading-relaxed">
-                {foundPrompt.text || '(empty)'}
+                {extractUserMessage(foundPrompt.text) || '(empty)'}
               </pre>
             </div>
 
