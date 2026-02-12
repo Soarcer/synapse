@@ -18,6 +18,7 @@
 | 6 | VSCode Extension | 🔶 **35% DONE** | Extension skeleton: StatusBar, WebView Panel, 5 commands |
 | 7 | Auto-Resume + Cost | 🔶 **10% DONE** | Snapshot export/import exists; no auto-load/save or cost tables |
 | 8 | ClawBrain | 🔶 **65% DONE** | 3-layer plugin + backend integration; missing adapter + /brain |
+| 9 | Multi-Vendor Integration | ⬜ **PLANNED** | Gemini CLI + Codex CLI adapters; plan + research complete |
 | — | Packaging & CLI | ✅ **90% DONE** | All 5 packaging options implemented |
 
 ---
@@ -300,6 +301,42 @@ Then sequential: Wire `apps/dashboard/` to import from `@synapse-viz/core` with 
 | Layer 3 integration | ❌ | Waiting on OpenClaw provider plugin interface confirmation |
 
 **Verify:** ClawBrain plugin in OpenClaw → live agent graph + cost tracking.
+
+---
+
+## Phase 9: Multi-Vendor Integration — ⬜ NOT STARTED
+
+> Extend Synapse to monitor Gemini CLI and OpenAI Codex CLI alongside Claude Code.
+> Full plan: `docs/MULTI_VENDOR_PLAN.md`
+
+**Three integration patterns:**
+1. **Hook-based** (push, real-time) — Claude Code, Gemini CLI
+2. **File-based** (pull, near real-time) — Codex CLI, Aider (future)
+3. **Plugin/framework** (embedded) — OpenClaw (already exists)
+
+| Sub-Phase | Name | Effort | Status |
+|-----------|------|--------|--------|
+| 9.1 | Shared infra + Claude adapter extraction | Small | ⬜ Not started |
+| 9.2 | Gemini CLI adapter (hooks + file watcher) | Small | ⬜ Not started |
+| 9.3 | Codex CLI adapter (file watcher + notify) | Medium | ⬜ Not started |
+| 9.4 | Dashboard multi-vendor UI | Small | ⬜ Not started |
+
+**Key deliverables:**
+- `packages/adapter-common/` — shared file watcher base, pricing, platform paths
+- `packages/adapter-claude/` — extracted from server (refactor, no behavior change)
+- `packages/adapter-gemini/` — hook script + normalizer + file watcher
+- `packages/adapter-codex/` — file watcher + normalizer + cumulative token tracker
+- `AdapterRegistry` in server — replaces hardcoded Claude normalization
+
+**Research docs:**
+- `docs/GEMINI_INTEGRATION.md` — Gemini CLI hook schemas, JSON formats, normalizer design
+- `docs/CODEX_INTEGRATION.md` — Codex CLI JSONL schemas, token tracking, notify hook
+- `docs/CODEX_FORMATS.md` — Detailed Codex file format reference with all event types
+- `docs/MULTI_VENDOR_PROMPT.md` — Ready-to-use implementation prompt for new session
+
+**API proxies (OpenRouter, LiteLLM):** No separate adapters needed — covered by tool-level adapters + OpenClaw's provider wrapper + `inferVendor()` model name detection.
+
+**Gate:** All three vendors coexist in SQLite. Simulation scripts for each tool produce correct events.
 
 ---
 
