@@ -9,6 +9,7 @@ const HEARTBEAT_INTERVAL_MS = 30_000;
 export class Broadcaster {
   private clients = new Set<WebSocket>();
   private alive = new WeakMap<WebSocket, boolean>();
+  private stale = new WeakSet<WebSocket>();
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
@@ -82,7 +83,14 @@ export class Broadcaster {
     if (client.readyState !== WebSocket.OPEN) return;
     if (client.bufferedAmount > MAX_BUFFERED_AMOUNT) {
       logger.warn({ bufferedAmount: client.bufferedAmount }, 'WS backpressure: skipping send');
+      this.stale.add(client);
       return;
+    }
+    // If client was stale (missed events), send a stale signal so it reloads
+    if (this.stale.has(client)) {
+      this.stale.delete(client);
+      const staleMsg: WsServerMessage = { type: 'stale' as WsServerMessage['type'], data: {} };
+      client.send(JSON.stringify(staleMsg));
     }
     client.send(payload);
   }

@@ -20,8 +20,6 @@ export const projectCwd: string | null = (() => {
   return raw ? normalizeCwd(raw) : null;
 })();
 
-/** Active cwd filter — starts matching the URL param, can be toggled to null (all). */
-let cwdFilter: string | null = projectCwd;
 import {
   SPAWN_NODE,
   NO_GRAPH_EVENTS,
@@ -41,6 +39,30 @@ export const selectSelectedNodeId = (s: AgentStore) => s.selectedNodeId;
 export const selectConnectionStatus = (s: AgentStore) => s.connectionStatus;
 export const selectIsPaused = (s: AgentStore) => s.paused;
 
+// ── Event cap tracking ───────────────────────────────────────
+let eventCapToastFired = false;
+
+// ── Binary-search insertion for event ordering ───────────────
+function insertEventSorted(events: AgentEvent[], event: AgentEvent, maxSize: number): AgentEvent[] {
+  // Events stored newest-first. Find insertion point via binary search.
+  let lo = 0;
+  let hi = events.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (events[mid].timestamp > event.timestamp) lo = mid + 1;
+    else hi = mid;
+  }
+  const result = [...events.slice(0, lo), event, ...events.slice(lo)];
+  if (result.length > maxSize) {
+    if (!eventCapToastFired) {
+      eventCapToastFired = true;
+      toast('Event limit reached — oldest events are being dropped', 'warning');
+    }
+    return result.slice(0, maxSize);
+  }
+  return result;
+}
+
 // ── Shared fetch-and-reload ──────────────────────────────────
 
 let reloadAbort: AbortController | null = null;
@@ -50,6 +72,7 @@ function reloadAllEvents(): void {
   reloadAbort = new AbortController();
   const signal = reloadAbort.signal;
 
+  const cwdFilter = useAgentStore.getState().cwdFilter;
   const cwdParam = cwdFilter ? `&cwd=${encodeURIComponent(cwdFilter)}` : '';
   fetch(apiUrl(`/api/events?limit=2000${cwdParam}`), { signal })
     .then((r) => r.json())
@@ -76,6 +99,7 @@ interface AgentStore {
   activeAgents: Map<string, string[]>;
   toolAgentMap: Map<string, string>;
   events: AgentEvent[];
+  pauseQueue: AgentEvent[];
   nodes: Node[];
   edges: Edge[];
   selectedNodeId: string | null;
@@ -91,6 +115,7 @@ interface AgentStore {
   lockViewport: boolean;
   autoClosePrompts: boolean;
   cwdFilterActive: boolean;
+  cwdFilter: string | null;
   graphSearchQuery: string;
   collapsedNodes: Set<string>;
   transcripts: Map<string, TranscriptSummary>;
@@ -149,6 +174,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   activeAgents: new Map(),
   toolAgentMap: new Map(),
   events: [],
+  pauseQueue: [],
   nodes: [{ ...SPAWN_NODE }],
   edges: [],
   selectedNodeId: null,
@@ -164,6 +190,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   lockViewport: true,
   autoClosePrompts: false,
   cwdFilterActive: projectCwd !== null,
+  cwdFilter: projectCwd,
   graphSearchQuery: '',
   collapsedNodes: new Set<string>(),
   transcripts: new Map(),
@@ -182,13 +209,16 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
   addEvent: (event) => {
     set((state) => {
-      if (state.paused) return state;
+      // Queue events while paused (don't discard)
+      if (state.paused) {
+        return { ...state, pauseQueue: [...state.pauseQueue, event] };
+      }
 
       // Fast path: text_delta — only copy agents Map + nodes array
       if (event.type === 'text_delta') {
         const agentId = event.agentId ?? '';
         const agent = state.agents.get(agentId);
-        const events = [event, ...state.events].slice(0, 1000);
+        const events = insertEventSorted(state.events, event, 1000);
         if (!agent) {
           return { ...state, events };
         }
@@ -204,7 +234,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
         return { ...state, agents, nodes, events, ...buildDerivedMaps(agents) };
       }
 
-      const events = [event, ...state.events].slice(0, 1000);
+      const events = insertEventSorted(state.events, event, 1000);
 
       // Hidden hook events: store event, skip graph processing
       if (event.eventSource === 'hook' && !state.showHookEvents) {
@@ -279,14 +309,22 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   setLockViewport: (lockViewport) => set({ lockViewport }),
 
   setCwdFilterActive: (active) => {
-    cwdFilter = active ? projectCwd : null;
-    set({ cwdFilterActive: active });
+    const newFilter = active ? projectCwd : null;
+    set({ cwdFilterActive: active, cwdFilter: newFilter });
     reloadAllEvents();
   },
 
   setPaused: (paused) => {
-    set({ paused });
-    if (!paused) reloadAllEvents();
+    if (!paused) {
+      // Replay queued events in order, then clear queue
+      const queued = get().pauseQueue;
+      set({ paused: false, pauseQueue: [] });
+      for (const event of queued) {
+        get().addEvent(event);
+      }
+    } else {
+      set({ paused: true });
+    }
   },
 
   // ── removeNode (BFS with adjacency map) ──────────────────
@@ -332,9 +370,9 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
         toolCalls.delete(aid);
       } else if (rid.startsWith('prompt-')) {
         const pid = rid.slice('prompt-'.length);
-        for (const [sid, pList] of prompts) {
+        for (const [, pList] of prompts) {
           const filtered = pList.filter((p) => p.id !== pid);
-          if (filtered.length !== pList.length) prompts.set(sid, filtered);
+          if (filtered.length !== pList.length) prompts.set(pList[0]?.id ?? '', filtered);
         }
       } else if (rid.startsWith('tool-')) {
         const tid = rid.slice('tool-'.length);
@@ -403,6 +441,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       activeAgents: new Map(),
       toolAgentMap: new Map(),
       events: [],
+      pauseQueue: [],
       nodes: [{ ...SPAWN_NODE }],
       edges: [],
       selectedNodeId: null,
@@ -438,6 +477,7 @@ wsClient.setOnEvent((msg) => {
     const event = msg.data;
 
     // Skip events from other projects when cwd filter is active
+    const cwdFilter = useAgentStore.getState().cwdFilter;
     if (cwdFilter && event.cwd && normalizeCwd(event.cwd) !== cwdFilter) return;
 
     useAgentStore.getState().addEvent(event);
@@ -462,14 +502,20 @@ wsClient.setOnEvent((msg) => {
       );
     }
   } else if (msg.type === 'agent_text') {
+    // Look up the agent's sessionId for proper filtering
+    const agentData = useAgentStore.getState().agents.get(msg.data.agentId);
+    const sessionId = agentData?.sessionId ?? '';
     useAgentStore.getState().addEvent({
       id: `text-${Date.now()}`,
       type: 'text_delta',
-      sessionId: '',
+      sessionId,
       agentId: msg.data.agentId,
       text: msg.data.text,
       timestamp: Date.now(),
     });
+  } else if (msg.type === 'stale') {
+    // Server signals missed events due to backpressure — do full reload
+    reloadAllEvents();
   }
 });
 

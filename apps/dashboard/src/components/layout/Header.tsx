@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useCallback } from 'react';
 import { useAgentStore, projectCwd } from '../../store/agentStore';
+import { wsClient } from '../../store/wsClient';
 import { toast } from '../Toast';
 import { ConfirmDialog } from '../ConfirmDialog';
 import type { TranscriptSummary } from '@synapse-ai/core';
@@ -124,6 +125,14 @@ export function Header() {
       <div className="flex items-center gap-1.5 ml-2">
         <span className={`w-2 h-2 rounded-full ${statusDot}`} />
         <span className="text-xs text-gray-500">{statusLabel}</span>
+        {connectionStatus === 'failed' && (
+          <button
+            onClick={() => wsClient.resetAndReconnect()}
+            className="ml-1 px-2 py-0.5 text-[10px] bg-blue-600 hover:bg-blue-500 text-white rounded"
+          >
+            Reconnect
+          </button>
+        )}
       </div>
 
       {/* Project scope selector */}
@@ -148,6 +157,15 @@ export function Header() {
           Paused
         </button>
       )}
+
+      {/* Analytics link */}
+      <a
+        href="?view=analytics"
+        className="px-3 py-1 text-xs text-amber-400 hover:text-amber-200 bg-amber-900/20 hover:bg-amber-800/30 border border-amber-700/30 rounded transition-colors"
+        title="Open Analytics Dashboard"
+      >
+        Analytics
+      </a>
 
       <div className="flex-1" />
 

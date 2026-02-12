@@ -99,12 +99,17 @@ class WSClient {
     }
   }
 
-  subscribe(sessionId: string) {
-    this.send({ type: 'subscribe', sessionId });
-  }
-
-  unsubscribe(sessionId: string) {
-    this.send({ type: 'unsubscribe', sessionId });
+  /** Reset retry counter and reconnect. Used by manual reconnect button. */
+  resetAndReconnect() {
+    this.reconnectCount = 0;
+    this.reconnectDelay = 1000;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.ws?.close();
+    this.ws = null;
+    this.connect();
   }
 
   private setStatus(status: ConnectionStatus) {
