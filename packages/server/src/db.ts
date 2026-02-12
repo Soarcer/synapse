@@ -125,6 +125,78 @@ export async function initDb(): Promise<void> {
   db.run('CREATE INDEX IF NOT EXISTS idx_events_vendor ON events(vendor)');
   db.run('CREATE INDEX IF NOT EXISTS idx_events_cwd ON events(cwd)');
 
+  // Migration: add model column to existing databases
+  try { db.run('ALTER TABLE events ADD COLUMN model TEXT'); } catch { /* column already exists */ }
+  db.run('CREATE INDEX IF NOT EXISTS idx_events_model ON events(model)');
+
+  // ── Analytics rollup tables ──────────────────────────────────────
+  db.run(`
+    CREATE TABLE IF NOT EXISTS analytics_daily (
+      date TEXT NOT NULL,
+      cwd TEXT,
+      model TEXT,
+      vendor TEXT,
+      total_events INTEGER DEFAULT 0,
+      total_sessions INTEGER DEFAULT 0,
+      total_input_tokens INTEGER DEFAULT 0,
+      total_output_tokens INTEGER DEFAULT 0,
+      total_cache_read_tokens INTEGER DEFAULT 0,
+      total_cache_creation_tokens INTEGER DEFAULT 0,
+      total_cost_usd REAL DEFAULT 0,
+      total_tool_calls INTEGER DEFAULT 0,
+      total_errors INTEGER DEFAULT 0,
+      total_compactions INTEGER DEFAULT 0,
+      sum_latency_ms INTEGER DEFAULT 0,
+      count_latency INTEGER DEFAULT 0,
+      min_latency_ms INTEGER,
+      max_latency_ms INTEGER,
+      PRIMARY KEY (date, cwd, model)
+    )
+  `);
+  db.run('CREATE INDEX IF NOT EXISTS idx_daily_date ON analytics_daily(date)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_daily_cwd ON analytics_daily(cwd)');
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS analytics_tool_daily (
+      date TEXT NOT NULL,
+      cwd TEXT,
+      tool_name TEXT NOT NULL,
+      call_count INTEGER DEFAULT 0,
+      error_count INTEGER DEFAULT 0,
+      total_duration_ms INTEGER DEFAULT 0,
+      avg_duration_ms REAL DEFAULT 0,
+      PRIMARY KEY (date, cwd, tool_name)
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS price_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      model TEXT NOT NULL,
+      vendor TEXT NOT NULL,
+      effective_from INTEGER NOT NULL,
+      input_per_1m REAL NOT NULL,
+      cached_input_per_1m REAL NOT NULL,
+      output_per_1m REAL NOT NULL,
+      source TEXT DEFAULT 'default',
+      created_at INTEGER NOT NULL
+    )
+  `);
+  db.run('CREATE INDEX IF NOT EXISTS idx_price_model ON price_history(model, effective_from)');
+
+  // ── Badges table ──────────────────────────────────────────────────
+  db.run(`
+    CREATE TABLE IF NOT EXISTS badges_earned (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      badge_id TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL,
+      icon TEXT NOT NULL,
+      category TEXT NOT NULL,
+      earned_at INTEGER NOT NULL
+    )
+  `);
+
   logger.info({ path: DB_PATH }, 'Database initialized');
 }
 
@@ -265,14 +337,14 @@ export function queryEvents(params: {
   }
   if (params.sessionId) {
     return queryAll(
-      'SELECT * FROM events WHERE session_id = ? ORDER BY created_at ASC',
-      [params.sessionId],
+      'SELECT * FROM events WHERE session_id = ? ORDER BY created_at ASC LIMIT ? OFFSET ?',
+      [params.sessionId, limit, offset],
     ) as unknown as EventRow[];
   }
   if (params.agentId) {
     return queryAll(
-      'SELECT * FROM events WHERE agent_id = ? ORDER BY created_at ASC',
-      [params.agentId],
+      'SELECT * FROM events WHERE agent_id = ? ORDER BY created_at ASC LIMIT ? OFFSET ?',
+      [params.agentId, limit, offset],
     ) as unknown as EventRow[];
   }
   if (params.type) {
@@ -339,6 +411,213 @@ export function getDbStats(): DbStats {
     totalSessions: sessionCount?.count ?? 0,
     dbSizeBytes,
   };
+}
+
+// ─── Analytics Query Helpers ─────────────────────────────────────────
+
+export function analyticsQueryAll(sql: string, params?: unknown[]): Record<string, unknown>[] {
+  return queryAll(sql, params);
+}
+
+export function analyticsQueryGet(sql: string, params?: unknown[]): Record<string, unknown> | undefined {
+  return queryGet(sql, params);
+}
+
+export function analyticsExecute(sql: string, params?: unknown[]): number {
+  const result = execute(sql, params);
+  scheduleSave();
+  return result;
+}
+
+// ─── Daily Rollup Update ─────────────────────────────────────────────
+
+export function updateDailyRollup(event: {
+  created_at: number;
+  cwd?: string | null;
+  model?: string | null;
+  vendor?: string | null;
+  event_type: string;
+  token_input?: number | null;
+  token_output?: number | null;
+  duration_ms?: number | null;
+  tool_name?: string | null;
+  status?: string | null;
+  cost_usd?: number;
+}): void {
+  const date = new Date(event.created_at).toISOString().split('T')[0];
+  const cwd = event.cwd ?? '__all__';
+  const model = event.model ?? '__all__';
+  const vendor = event.vendor ?? null;
+
+  const isToolEvent = event.event_type === 'tool_start' || event.event_type === 'tool_end' || event.event_type === 'tool_error';
+  const isError = event.event_type === 'tool_error' || event.status === 'error';
+  const isCompaction = event.event_type === 'compact';
+  const isSessionStart = event.event_type === 'session_start';
+
+  const inputTokens = event.token_input ?? 0;
+  const outputTokens = event.token_output ?? 0;
+  const latencyMs = event.duration_ms ?? 0;
+  const costUsd = event.cost_usd ?? 0;
+
+  // Upsert daily rollup
+  execute(`
+    INSERT INTO analytics_daily (date, cwd, model, vendor, total_events, total_sessions,
+      total_input_tokens, total_output_tokens, total_cost_usd, total_tool_calls,
+      total_errors, total_compactions, sum_latency_ms, count_latency, min_latency_ms, max_latency_ms)
+    VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (date, cwd, model)
+    DO UPDATE SET
+      total_events = total_events + 1,
+      total_sessions = total_sessions + excluded.total_sessions,
+      total_input_tokens = total_input_tokens + excluded.total_input_tokens,
+      total_output_tokens = total_output_tokens + excluded.total_output_tokens,
+      total_cost_usd = total_cost_usd + excluded.total_cost_usd,
+      total_tool_calls = total_tool_calls + excluded.total_tool_calls,
+      total_errors = total_errors + excluded.total_errors,
+      total_compactions = total_compactions + excluded.total_compactions,
+      sum_latency_ms = sum_latency_ms + excluded.sum_latency_ms,
+      count_latency = count_latency + excluded.count_latency,
+      min_latency_ms = MIN(COALESCE(min_latency_ms, excluded.min_latency_ms), excluded.min_latency_ms),
+      max_latency_ms = MAX(COALESCE(max_latency_ms, excluded.max_latency_ms), excluded.max_latency_ms)
+  `, [
+    date, cwd, model, vendor,
+    isSessionStart ? 1 : 0,
+    inputTokens, outputTokens, costUsd,
+    isToolEvent ? 1 : 0,
+    isError ? 1 : 0,
+    isCompaction ? 1 : 0,
+    latencyMs, latencyMs > 0 ? 1 : 0,
+    latencyMs > 0 ? latencyMs : null,
+    latencyMs > 0 ? latencyMs : null,
+  ]);
+
+  // Update tool-level rollup
+  if (isToolEvent && event.tool_name) {
+    const durationMs = event.duration_ms ?? 0;
+    const isToolError = event.event_type === 'tool_error' ? 1 : 0;
+
+    execute(`
+      INSERT INTO analytics_tool_daily (date, cwd, tool_name, call_count, error_count, total_duration_ms, avg_duration_ms)
+      VALUES (?, ?, ?, 1, ?, ?, ?)
+      ON CONFLICT (date, cwd, tool_name)
+      DO UPDATE SET
+        call_count = call_count + 1,
+        error_count = error_count + excluded.error_count,
+        total_duration_ms = total_duration_ms + excluded.total_duration_ms,
+        avg_duration_ms = CAST((total_duration_ms + excluded.total_duration_ms) AS REAL) / (call_count + 1)
+    `, [date, cwd, event.tool_name, isToolError, durationMs, durationMs]);
+    // Note: `cwd` already uses '__all__' sentinel from above
+  }
+
+  scheduleSave();
+}
+
+// ─── Price History Helpers ────────────────────────────────────────────
+
+export interface PriceHistoryRow {
+  id: number;
+  model: string;
+  vendor: string;
+  effective_from: number;
+  input_per_1m: number;
+  cached_input_per_1m: number;
+  output_per_1m: number;
+  source: string;
+  created_at: number;
+}
+
+export function getAllPriceHistory(): PriceHistoryRow[] {
+  return queryAll(
+    'SELECT * FROM price_history ORDER BY model, effective_from DESC',
+  ) as unknown as PriceHistoryRow[];
+}
+
+export function insertPriceHistory(params: {
+  model: string;
+  vendor: string;
+  effective_from: number;
+  input_per_1m: number;
+  cached_input_per_1m: number;
+  output_per_1m: number;
+  source?: string;
+}): number {
+  execute(`
+    INSERT INTO price_history (model, vendor, effective_from, input_per_1m, cached_input_per_1m, output_per_1m, source, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `, [
+    params.model, params.vendor, params.effective_from,
+    params.input_per_1m, params.cached_input_per_1m, params.output_per_1m,
+    params.source ?? 'user', Date.now(),
+  ]);
+  scheduleSave();
+  return db.getRowsModified();
+}
+
+export function deletePriceHistory(id: number): number {
+  const result = execute('DELETE FROM price_history WHERE id = ?', [id]);
+  scheduleSave();
+  return result;
+}
+
+// ─── Event Retention / Pruning ────────────────────────────────────────
+
+export function pruneOldEvents(maxAgeDays: number): number {
+  const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
+  const changes = execute('DELETE FROM events WHERE created_at < ?', [cutoff]);
+  if (changes > 0) {
+    logger.info({ pruned: changes, maxAgeDays }, 'Pruned old events');
+    scheduleSave();
+  }
+  return changes;
+}
+
+export function pruneExcessEvents(maxCount: number): number {
+  const countRow = queryGet('SELECT COUNT(*) as count FROM events') as { count: number } | undefined;
+  const total = countRow?.count ?? 0;
+  if (total <= maxCount) return 0;
+  const excess = total - maxCount;
+  const changes = execute(
+    'DELETE FROM events WHERE id IN (SELECT id FROM events ORDER BY created_at ASC LIMIT ?)',
+    [excess],
+  );
+  if (changes > 0) {
+    logger.info({ pruned: changes, maxCount, total }, 'Pruned excess events');
+    scheduleSave();
+  }
+  return changes;
+}
+
+const PRUNE_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+
+export function startPruneTimer(): ReturnType<typeof setInterval> {
+  const maxAgeDays = parseInt(process.env.SYNAPSE_MAX_EVENT_AGE_DAYS || '30', 10);
+  const maxEvents = parseInt(process.env.SYNAPSE_MAX_EVENTS || '100000', 10);
+
+  const timer = setInterval(() => {
+    pruneOldEvents(maxAgeDays);
+    pruneExcessEvents(maxEvents);
+  }, PRUNE_INTERVAL_MS);
+
+  if (timer.unref) timer.unref();
+  return timer;
+}
+
+// ─── Batch Query for Snapshot Export ──────────────────────────────────
+
+export function getEventsBySessionIds(sessionIds: string[]): Map<string, EventRow[]> {
+  if (sessionIds.length === 0) return new Map();
+  const placeholders = sessionIds.map(() => '?').join(',');
+  const rows = queryAll(
+    `SELECT * FROM events WHERE session_id IN (${placeholders}) ORDER BY session_id, created_at ASC`,
+    sessionIds,
+  ) as unknown as EventRow[];
+  const grouped = new Map<string, EventRow[]>();
+  for (const row of rows) {
+    const list = grouped.get(row.session_id);
+    if (list) list.push(row);
+    else grouped.set(row.session_id, [row]);
+  }
+  return grouped;
 }
 
 // ─── Shutdown ─────────────────────────────────────────────────────────

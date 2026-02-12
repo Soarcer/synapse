@@ -16,8 +16,23 @@ function projectHash(projectPath: string): string {
   return projectPath.replace(/[:\\/]/g, '-');
 }
 
-/** Find the JSONL transcript file for a given session */
+// ─── Transcript path cache (5-min TTL) ──────────────────────────────
+
+const PATH_CACHE_TTL_MS = 5 * 60 * 1000;
+const pathCache = new Map<string, { path: string | null; expiry: number }>();
+
+/** Find the JSONL transcript file for a given session (cached) */
 export function findTranscriptPath(sessionId: string, projectDir?: string): string | null {
+  const cacheKey = `${sessionId}:${projectDir ?? ''}`;
+  const cached = pathCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiry) return cached.path;
+
+  const result = findTranscriptPathUncached(sessionId, projectDir);
+  pathCache.set(cacheKey, { path: result, expiry: Date.now() + PATH_CACHE_TTL_MS });
+  return result;
+}
+
+function findTranscriptPathUncached(sessionId: string, projectDir?: string): string | null {
   const claudeDir = path.join(os.homedir(), '.claude', 'projects');
 
   if (projectDir) {

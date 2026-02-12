@@ -10,17 +10,30 @@
 const fs = require('fs');
 const path = require('path');
 
+// Parse --port from command line (set by VS Code extension hookManager)
+function getCliPort() {
+  const idx = process.argv.indexOf('--port');
+  if (idx !== -1 && process.argv[idx + 1]) {
+    return parseInt(process.argv[idx + 1], 10);
+  }
+  return null;
+}
+
 const SERVER_URL = (() => {
   if (process.env.SYNAPSE_URL) return process.env.SYNAPSE_URL;
   if (process.env.AGENTVIZ_URL) {
     process.stderr.write('[hook] AGENTVIZ_URL is deprecated, use SYNAPSE_URL instead\n');
     return process.env.AGENTVIZ_URL;
   }
+  const cliPort = getCliPort();
+  if (cliPort) return `http://localhost:${cliPort}/api/events`;
   return 'http://localhost:4000/api/events';
 })();
+const DEBUG = process.env.SYNAPSE_DEBUG === '1';
 const DEBUG_LOG = path.join(__dirname, '..', 'hook_debug.log');
 
 function debugLog(msg) {
+  if (!DEBUG) return;
   try {
     fs.appendFileSync(DEBUG_LOG, `[${new Date().toISOString()}] ${msg}\n`);
   } catch { /* ignore */ }

@@ -118,30 +118,32 @@ export class AgentManager {
           ...options,
           model: request.model,
           abortController: agent.abortController,
-        } as any,
+        } as Record<string, unknown>,
       });
 
       for await (const message of stream) {
         if (agent.abortController.signal.aborted) break;
 
+        const msg = message as Record<string, unknown>;
+
         // SystemMessage — capture session ID
-        if (message.type === 'system' && (message as any).subtype === 'init') {
-          const sdkSessionId = (message as any).session_id;
+        if (msg.type === 'system' && msg.subtype === 'init') {
+          const sdkSessionId = msg.session_id as string | undefined;
           if (sdkSessionId) agent.sessionId = sdkSessionId;
         }
 
         // StreamEvent — real-time streaming
-        if (message.type === 'stream_event') {
-          const rawEvent = (message as any).event;
+        if (msg.type === 'stream_event') {
+          const rawEvent = msg.event as Record<string, unknown>;
           this.handleStreamEvent(agentId, agent, rawEvent, broadcaster);
         }
 
         // ResultMessage — final result with usage
-        if (message.type === 'result') {
-          const result = message as any;
+        if (msg.type === 'result') {
+          const result = msg;
           const endTime = Date.now();
           const tokenUsage = result.cost_usd != null
-            ? { input: result.input_tokens ?? 0, output: result.output_tokens ?? 0 }
+            ? { input: (result.input_tokens as number) ?? 0, output: (result.output_tokens as number) ?? 0 }
             : undefined;
 
           agent.status = 'success';
@@ -186,21 +188,22 @@ export class AgentManager {
   private handleStreamEvent(
     agentId: string,
     agent: RunningAgent,
-    rawEvent: any,
+    rawEvent: Record<string, unknown>,
     broadcaster: Broadcaster,
   ): void {
     const eventType = rawEvent?.type;
 
     // content_block_start with tool_use → tool_start
-    if (eventType === 'content_block_start' && rawEvent.content_block?.type === 'tool_use') {
-      const block = rawEvent.content_block;
+    const contentBlock = rawEvent.content_block as Record<string, unknown> | undefined;
+    if (eventType === 'content_block_start' && contentBlock?.type === 'tool_use') {
+      const block = contentBlock;
       const event: AgentEvent = {
         id: nanoid(),
         type: 'tool_start',
         sessionId: agent.sessionId,
         agentId,
-        toolName: block.name,
-        toolUseId: block.id,
+        toolName: block.name as string,
+        toolUseId: block.id as string,
         status: 'running',
         timestamp: Date.now(),
       };
@@ -208,8 +211,9 @@ export class AgentManager {
     }
 
     // content_block_delta with text_delta → text_delta
-    if (eventType === 'content_block_delta' && rawEvent.delta?.type === 'text_delta') {
-      const text = rawEvent.delta.text;
+    const delta = rawEvent.delta as Record<string, unknown> | undefined;
+    if (eventType === 'content_block_delta' && delta?.type === 'text_delta') {
+      const text = delta.text as string | undefined;
       if (text) {
         broadcaster.broadcastText(agentId, text, true);
       }
@@ -219,7 +223,7 @@ export class AgentManager {
   private persistAndBroadcast(
     event: AgentEvent,
     hookEventName: string,
-    raw: any,
+    raw: unknown,
     broadcaster: Broadcaster,
   ): void {
     event.eventSource = 'sdk';

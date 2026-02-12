@@ -1,7 +1,7 @@
 import fs from 'fs';
 import { Router, type Request, type Response } from 'express';
 import { logger } from '../lib/logger.js';
-import { getEventsBySession, listSessions, insertEvent } from '../db.js';
+import { getEventsBySessionIds, listSessions, insertEvent } from '../db.js';
 import { rowToAgentEvent } from '../services/eventStore.js';
 import { findTranscriptPath, readTranscript } from '../services/transcriptReader.js';
 import type { TranscriptSummary } from '@synapse-ai/core';
@@ -37,16 +37,19 @@ export function createSnapshotRouter(): Router {
         ? allSessions.filter((s) => s.session_id === filterSessionId)
         : allSessions;
 
+      // Batch query: single query for all sessions (fixes N+1)
+      const sessionIds = sessions.map((s) => s.session_id);
+      const groupedRows = getEventsBySessionIds(sessionIds);
+
       const snapshots: SessionSnapshot[] = [];
 
       for (const s of sessions) {
-        const rows = getEventsBySession(s.session_id);
+        const rows = groupedRows.get(s.session_id) ?? [];
         const events = rows.map(rowToAgentEvent);
 
         // Try to find and include transcript
         let transcript: TranscriptSummary | null = null;
         try {
-          // Check if any session_start event has transcript_path
           let transcriptPath: string | null = null;
           const startRow = rows.find((r) => r.event_type === 'session_start');
           if (startRow) {
@@ -99,6 +102,7 @@ export function createSnapshotRouter(): Router {
 
       let importedEvents = 0;
       let importedSessions = 0;
+      let skippedEvents = 0;
 
       for (const session of snapshot.sessions) {
         if (!session.events || session.events.length === 0) continue;
@@ -129,14 +133,20 @@ export function createSnapshotRouter(): Router {
             importedEvents++;
           } catch {
             // Skip duplicate event_id (UNIQUE constraint)
+            skippedEvents++;
           }
         }
+      }
+
+      if (skippedEvents > 0) {
+        logger.info({ skippedEvents }, 'Import skipped duplicate events');
       }
 
       res.json({
         imported: true,
         sessions: importedSessions,
         events: importedEvents,
+        skipped: skippedEvents,
         // Return the event data so the frontend can replay it
         allEvents: snapshot.sessions.flatMap((s) => s.events),
         transcripts: snapshot.sessions
