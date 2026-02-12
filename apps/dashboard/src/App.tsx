@@ -99,9 +99,8 @@ export default function App() {
     const unsub = useAgentStore.subscribe((state) => {
       if (state.selectedNodeId !== prev) {
         prev = state.selectedNodeId;
-        // VS Code webview requires '*' (cross-origin iframe); standalone uses own origin
-        const origin = viewMode === 'full' ? window.location.origin : '*';
-        window.parent.postMessage({ type: 'selectionChanged', nodeId: prev }, origin);
+        // VS Code webview requires '*' (cross-origin iframe); this effect only runs for non-full modes
+        window.parent.postMessage({ type: 'selectionChanged', nodeId: prev }, '*');
       }
     });
     return unsub;
