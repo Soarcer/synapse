@@ -18,6 +18,10 @@ const AGENT_H = 110;
 const TOOL_W = 150;
 const TOOL_H = 32;
 
+/** Offscreen position + hidden so new nodes aren't visible before layout runs */
+const OFFSCREEN = { x: -9999, y: -9999 };
+const HIDDEN_STYLE = { visibility: 'hidden' as const };
+
 export const SPAWN_NODE: Node = {
   id: '__spawn__',
   type: 'spawnAgent',
@@ -123,7 +127,8 @@ function ensureSession(
   draft.nodes.push({
     id: nid.session(sessionId),
     type: 'session',
-    position: { x: 0, y: 0 },
+    position: OFFSCREEN,
+    style: HIDDEN_STYLE,
     data: { session },
     width: SESSION_W,
     height: SESSION_H,
@@ -152,7 +157,8 @@ function handleSessionStart(event: AgentEvent, draft: StateDraft): void {
     draft.nodes.push({
       id: nid.session(event.sessionId),
       type: 'session',
-      position: { x: 0, y: 0 },
+      position: OFFSCREEN,
+      style: HIDDEN_STYLE,
       data: { session },
       width: SESSION_W,
       height: SESSION_H,
@@ -184,7 +190,8 @@ function handleUserPrompt(event: AgentEvent, draft: StateDraft): void {
   draft.nodes.push({
     id: nid.prompt(event.id),
     type: 'userPrompt',
-    position: { x: 0, y: 0 },
+    position: OFFSCREEN,
+    style: HIDDEN_STYLE,
     data: { prompt },
     width: PROMPT_W,
     height: PROMPT_H,
@@ -227,7 +234,8 @@ function handleAgentStart(event: AgentEvent, draft: StateDraft): void {
   draft.nodes.push({
     id: nid.agent(agentId),
     type: 'agent',
-    position: { x: 0, y: 0 },
+    position: OFFSCREEN,
+    style: HIDDEN_STYLE,
     data: { agent },
     width: AGENT_W,
     height: AGENT_H,
@@ -315,7 +323,8 @@ function handleToolStart(event: AgentEvent, draft: StateDraft): void {
   draft.nodes.push({
     id: nid.tool(toolUseId),
     type: 'toolCall',
-    position: { x: 0, y: 0 },
+    position: OFFSCREEN,
+    style: HIDDEN_STYLE,
     data: { toolCall: tc },
     width: TOOL_W,
     height: TOOL_H,

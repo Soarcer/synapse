@@ -362,7 +362,11 @@ export function useAutoLayout(
         const pos = positions.get(node.id);
         if (!pos) return node;
         const zIndex = zIndexMap.get(node.id) ?? 1;
-        return { ...node, position: pos, zIndex };
+        // Reveal nodes that were created hidden (visibility:'hidden' in eventHandlers)
+        const style = node.style?.visibility === 'hidden'
+          ? { ...node.style, visibility: 'visible' as const }
+          : node.style;
+        return { ...node, position: pos, zIndex, style };
       }),
     [nodes, positions, zIndexMap],
   );

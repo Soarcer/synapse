@@ -418,17 +418,24 @@ wsClient.setOnEvent((msg) => {
     const event = msg.data;
     useAgentStore.getState().addEvent(event);
 
-    // Toast notifications for key events
+    // Toast notifications for key events (with nodeId for click-to-focus)
     if (event.type === 'agent_start') {
-      toast(`Agent started: ${event.agentType ?? 'unknown'}`, 'info');
+      const agentId = event.agentId ?? event.id;
+      toast(`Agent started: ${event.agentType ?? 'unknown'}`, 'info', nid.agent(agentId));
     } else if (event.type === 'agent_stop') {
+      const agentId = event.agentId ?? event.id;
       toast(
         `Agent ${event.status === 'error' ? 'failed' : 'completed'}: ${event.agentType ?? 'unknown'}`,
         event.status === 'error' ? 'error' : 'success',
+        nid.agent(agentId),
       );
     } else if (event.type === 'user_prompt') {
       const preview = (event.text ?? '').slice(0, 60);
-      toast(`Prompt: ${preview}${(event.text?.length ?? 0) > 60 ? '...' : ''}`, 'info');
+      toast(
+        `Prompt: ${preview}${(event.text?.length ?? 0) > 60 ? '...' : ''}`,
+        'info',
+        nid.prompt(event.id),
+      );
     }
   } else if (msg.type === 'agent_text') {
     useAgentStore.getState().addEvent({

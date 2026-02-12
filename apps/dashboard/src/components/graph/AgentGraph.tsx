@@ -15,6 +15,7 @@ import { useGraphNavigation } from '../../hooks/useGraphNavigation';
 import { nodeTypes, edgeTypes } from './nodeTypes';
 import { GraphSearchBox } from './GraphSearchBox';
 import { EdgeCostLegend } from './EdgeCostLegend';
+import { registerToastNavigator, unregisterToastNavigator } from '../Toast';
 import { nodeMatchesSearch, buildParentMap, collectAncestors } from '../../utils/graphSearch';
 import type { AgentNodeData } from '@synapse-ai/core';
 import { apiUrl } from '../../utils/api';
@@ -36,6 +37,15 @@ function AgentGraphInner() {
   const { fitView, getViewport, setViewport } = useReactFlow();
   const prevNodeCountRef = useRef(rawNodes.length);
   const prevExpandedRef = useRef<string | null>(null);
+
+  // Register toast click→node navigator so toasts can zoom to nodes
+  useEffect(() => {
+    registerToastNavigator((nodeId: string) => {
+      useAgentStore.getState().selectNode(nodeId, 'lens');
+      setTimeout(() => fitView({ nodes: [{ id: nodeId }], duration: 300, padding: 1 }), 50);
+    });
+    return unregisterToastNavigator;
+  }, [fitView]);
 
   // ── Tool collapse: hide leaf tools, keep structural tools (Task→child agent) ──
 
@@ -590,3 +600,5 @@ export function AgentGraph() {
     </ReactFlowProvider>
   );
 }
+
+export default AgentGraph;
