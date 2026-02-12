@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAgentStore } from '../../store/agentStore';
+import { SkeletonLoader } from '../SkeletonLoader';
 import type { AgentEvent } from '@synapse-ai/core';
 
 export function ToolLogPanel() {
   const events = useAgentStore((s) => s.events);
   const agents = useAgentStore((s) => s.agents);
+  const isLoading = useAgentStore((s) => s.isLoading);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [filterTool, setFilterTool] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<string>('');
@@ -74,7 +76,9 @@ export function ToolLogPanel() {
 
       {/* List */}
       <div ref={listRef} onScroll={handleScroll} className="flex-1 overflow-auto">
-        {toolEvents.length === 0 ? (
+        {isLoading && toolEvents.length === 0 ? (
+          <SkeletonLoader rows={4} />
+        ) : toolEvents.length === 0 ? (
           <div className="p-8 text-center text-gray-600 text-sm">No tool events yet</div>
         ) : (
           <div className="divide-y divide-gray-800/50">

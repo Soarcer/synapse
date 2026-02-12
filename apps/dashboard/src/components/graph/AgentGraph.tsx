@@ -534,6 +534,17 @@ function AgentGraphInner() {
           </div>
         </div>
       )}
+      {!hasContentNodes && !isLoading && !loadError && events.length === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+          <div className="pointer-events-auto bg-gray-900/90 rounded-lg p-8 border border-gray-800 text-center max-w-sm backdrop-blur-sm">
+            <div className="text-3xl mb-3 text-gray-600">&#x2B22;</div>
+            <h3 className="text-sm font-medium text-gray-300 mb-2">No active sessions</h3>
+            <p className="text-xs text-gray-500">
+              Start a Claude Code session in this project, or run a simulation script to see the graph in action.
+            </p>
+          </div>
+        </div>
+      )}
       {!hasContentNodes && events.length > 0 && !showHookEvents && (
         <div className="absolute top-14 left-1/2 -translate-x-1/2 z-10 px-4 py-2 bg-amber-900/70 border border-amber-600/40 rounded-lg text-xs text-amber-200 backdrop-blur-sm text-center">
           Hook events are hidden — press <kbd className="px-1.5 py-0.5 bg-amber-800/60 rounded text-amber-100 font-mono mx-0.5">H</kbd> to show them

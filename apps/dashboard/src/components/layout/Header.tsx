@@ -26,6 +26,8 @@ export function Header() {
   const setAutoClosePrompts = useAgentStore((s) => s.setAutoClosePrompts);
   const cwdFilterActive = useAgentStore((s) => s.cwdFilterActive);
   const setCwdFilterActive = useAgentStore((s) => s.setCwdFilterActive);
+  const events = useAgentStore((s) => s.events);
+  const loadError = useAgentStore((s) => s.loadError);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -113,7 +115,12 @@ export function Header() {
     }
   }, [handleImport]);
 
+  // Banner flags
+  const showServerBanner = connectionStatus === 'disconnected' || connectionStatus === 'reconnecting' || connectionStatus === 'failed' || !!loadError;
+  const showEventCap = events.length >= 1000;
+
   return (
+    <>
     <header className="flex items-center gap-4 px-4 h-12 bg-[#161b22] border-b border-gray-800 flex-shrink-0">
       {/* Title */}
       <div className="flex items-center gap-2">
@@ -304,5 +311,45 @@ export function Header() {
         onCancel={() => setShowClearConfirm(false)}
       />
     </header>
+
+    {/* Server-down banner */}
+    {showServerBanner && (
+      <div className="flex items-center gap-2 px-4 py-1.5 bg-red-950/60 border-b border-red-900/40 text-xs flex-shrink-0">
+        {connectionStatus === 'reconnecting' && (
+          <>
+            <svg className="animate-spin h-3 w-3 text-yellow-400" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <span className="text-yellow-300">Server connection lost. Retrying...</span>
+          </>
+        )}
+        {connectionStatus === 'failed' && (
+          <>
+            <span className="text-red-300">Connection failed.</span>
+            <button
+              onClick={() => wsClient.resetAndReconnect()}
+              className="px-2 py-0.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px]"
+            >
+              Reconnect
+            </button>
+          </>
+        )}
+        {connectionStatus === 'disconnected' && !loadError && (
+          <span className="text-gray-400">Disconnected from server.</span>
+        )}
+        {loadError && (
+          <span className="text-red-300">Server not running. Start the server and refresh.</span>
+        )}
+      </div>
+    )}
+
+    {/* Event cap warning banner */}
+    {showEventCap && (
+      <div className="flex items-center gap-2 px-4 py-1 bg-blue-950/40 border-b border-blue-900/30 text-xs text-blue-300 flex-shrink-0">
+        Showing last 1,000 events. Older events are available in the database.
+      </div>
+    )}
+    </>
   );
 }
