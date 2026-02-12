@@ -20,7 +20,9 @@
     "lint:fix": "eslint packages/ apps/ --fix",
     "format": "prettier --write 'packages/**/*.ts' 'apps/**/*.{ts,tsx}'",
     "format:check": "prettier --check 'packages/**/*.ts' 'apps/**/*.{ts,tsx}'",
-    "clean": "pnpm -r clean"
+    "clean": "pnpm -r clean",
+    "audit": "pnpm audit --audit-level=high",
+    "typecheck": "pnpm -r --parallel exec tsc --noEmit"
   },
   "lint-staged": {
     "*.{ts,tsx}": ["eslint --fix", "prettier --write"],

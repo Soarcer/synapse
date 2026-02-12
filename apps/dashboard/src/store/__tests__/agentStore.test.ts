@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import type { AgentEvent } from '@synapse-ai/core';
 import { PALETTES } from '@synapse-ai/core';
 
