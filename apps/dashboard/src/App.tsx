@@ -2,6 +2,7 @@ import { useEffect, useMemo, lazy, Suspense } from 'react';
 import { Header } from './components/layout/Header';
 import { GraphLayout } from './components/layout/GraphLayout';
 import { LensAdapter } from './components/lens/LensAdapter';
+import { useBreakpoint } from './hooks/useBreakpoint';
 
 const AnalyticsPage = lazy(() => import('./components/analytics/AnalyticsPageLazy'));
 import { ToastContainer } from './components/Toast';
@@ -232,6 +233,13 @@ export default function App() {
   }
 
   // ── Full view (browser / VS Code single-panel mode) ─────────
+  return <FullView />;
+}
+
+function FullView() {
+  const bp = useBreakpoint();
+  const showLens = bp !== 'sm';
+
   return (
     <div className="h-screen w-screen flex flex-col bg-[#0d1117] text-gray-200 overflow-hidden">
       <a href="#main-graph" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-1 focus:left-1 focus:px-3 focus:py-1.5 focus:bg-blue-600 focus:text-white focus:rounded focus:text-sm">
@@ -243,11 +251,13 @@ export default function App() {
       </ErrorBoundary>
 
       <div className="flex flex-1 overflow-hidden">
-        <ErrorBoundary name="LensAdapter">
-          <nav aria-label="Lens panels">
-            <LensAdapter />
-          </nav>
-        </ErrorBoundary>
+        {showLens && (
+          <ErrorBoundary name="LensAdapter">
+            <nav aria-label="Lens panels">
+              <LensAdapter />
+            </nav>
+          </ErrorBoundary>
+        )}
 
         <main id="main-graph" role="main">
           <GraphLayout />

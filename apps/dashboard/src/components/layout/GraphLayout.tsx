@@ -5,6 +5,7 @@ import { SpawnAgentDialog } from '../panels/SpawnAgentDialog';
 import { TimelinePanel } from '../panels/TimelinePanel';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { useAgentStore } from '../../store/agentStore';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const AgentGraph = lazy(() => import('../graph/AgentGraph'));
 
@@ -19,8 +20,12 @@ function GraphLoadingPlaceholder() {
 /** Shared graph + panels layout used by both "graph" and "full" view modes. */
 export function GraphLayout() {
   const selectedNodeId = useAgentStore((s) => s.selectedNodeId);
+  const selectNode = useAgentStore((s) => s.selectNode);
   const paused = useAgentStore((s) => s.paused);
   const [showToolLog, setShowToolLog] = useState(false);
+  const bp = useBreakpoint();
+  const isSmall = bp === 'sm';
+  const showDetail = selectedNodeId && selectedNodeId !== '__spawn__';
 
   const toggleToolLog = useCallback(() => setShowToolLog((prev) => !prev), []);
 
@@ -43,7 +48,7 @@ export function GraphLayout() {
   return (
     <>
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex overflow-hidden relative">
           <div className="flex-1 relative">
             <ErrorBoundary name="AgentGraph">
               <Suspense fallback={<GraphLoadingPlaceholder />}>
@@ -66,15 +71,31 @@ export function GraphLayout() {
             </button>
           </div>
 
-          {selectedNodeId && selectedNodeId !== '__spawn__' && (
-            <ErrorBoundary name="AgentDetailPanel">
-              <AgentDetailPanel />
-            </ErrorBoundary>
+          {/* Detail panel: sidebar on md+, overlay sheet on sm */}
+          {showDetail && (
+            isSmall ? (
+              <>
+                {/* Backdrop */}
+                <div
+                  className="absolute inset-0 bg-black/40 z-20"
+                  onClick={() => selectNode(null)}
+                />
+                <div className="absolute inset-y-0 right-0 w-[85vw] max-w-80 z-30">
+                  <ErrorBoundary name="AgentDetailPanel">
+                    <AgentDetailPanel />
+                  </ErrorBoundary>
+                </div>
+              </>
+            ) : (
+              <ErrorBoundary name="AgentDetailPanel">
+                <AgentDetailPanel />
+              </ErrorBoundary>
+            )
           )}
         </div>
 
         {showToolLog && (
-          <div className="h-64 border-t border-gray-800 bg-[#161b22] flex-shrink-0">
+          <div className={`border-t border-gray-800 bg-[#161b22] flex-shrink-0 ${isSmall ? 'h-48' : 'h-64'}`}>
             <ErrorBoundary name="ToolLogPanel">
               <ToolLogPanel />
             </ErrorBoundary>

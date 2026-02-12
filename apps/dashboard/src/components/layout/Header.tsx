@@ -1,8 +1,9 @@
-import { useState, useMemo, useRef, useCallback } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useAgentStore, projectCwd } from '../../store/agentStore';
 import { wsClient } from '../../store/wsClient';
 import { toast } from '../Toast';
 import { ConfirmDialog } from '../ConfirmDialog';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 import type { TranscriptSummary } from '@synapse-ai/core';
 import { apiUrl } from '../../utils/api';
 
@@ -30,7 +31,23 @@ export function Header() {
   const loadError = useAgentStore((s) => s.loadError);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const overflowRef = useRef<HTMLDivElement>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showOverflow, setShowOverflow] = useState(false);
+  const bp = useBreakpoint();
+  const isSmall = bp === 'sm';
+
+  // Close overflow menu on outside click
+  useEffect(() => {
+    if (!showOverflow) return;
+    const handleClick = (e: MouseEvent) => {
+      if (overflowRef.current && !overflowRef.current.contains(e.target as Node)) {
+        setShowOverflow(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showOverflow]);
 
   const sessionList = useMemo(() => [...sessions.values()], [sessions]);
 
@@ -121,7 +138,7 @@ export function Header() {
 
   return (
     <>
-    <header role="banner" className="flex items-center gap-4 px-4 h-12 bg-[#161b22] border-b border-gray-800 flex-shrink-0">
+    <header role="banner" className={`flex items-center h-12 bg-[#161b22] border-b border-gray-800 flex-shrink-0 ${isSmall ? 'gap-2 px-2' : 'gap-4 px-4'}`}>
       {/* Title */}
       <div className="flex items-center gap-2">
         <span className="text-base font-bold text-gray-100 tracking-tight">Synapse</span>
@@ -131,7 +148,7 @@ export function Header() {
       {/* Connection status */}
       <div className="flex items-center gap-1.5 ml-2" role="status" aria-label={`Connection: ${statusLabel}`}>
         <span className={`w-2 h-2 rounded-full ${statusDot}`} aria-hidden="true" />
-        <span className="text-xs text-gray-500">{statusLabel}</span>
+        {!isSmall && <span className="text-xs text-gray-500">{statusLabel}</span>}
         {connectionStatus === 'failed' && (
           <button
             onClick={() => wsClient.resetAndReconnect()}
@@ -142,8 +159,8 @@ export function Header() {
         )}
       </div>
 
-      {/* Project scope selector */}
-      {projectCwd && (
+      {/* Project scope selector — hidden on small screens */}
+      {projectCwd && !isSmall && (
         <select
           value={cwdFilterActive ? 'project' : 'all'}
           onChange={(e) => setCwdFilterActive(e.target.value === 'project')}
@@ -176,7 +193,7 @@ export function Header() {
 
       <div className="flex-1" />
 
-      {/* Keyboard shortcuts hint */}
+      {/* Keyboard shortcuts hint — large screens only */}
       <div className="hidden lg:flex items-center gap-3 text-[10px] text-gray-600">
         <span>1-9 lens</span>
         <span>T log</span>
@@ -190,101 +207,203 @@ export function Header() {
         <span>Space pause</span>
       </div>
 
-      {/* Layout toggle */}
-      <button
-        onClick={() => setLayoutMode(layoutMode === 'graph' ? 'list' : 'graph')}
-        className="px-3 py-1 text-xs text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700 rounded transition-colors"
-        title="Toggle layout (L)"
-      >
-        {layoutMode === 'graph' ? 'List' : 'Graph'}
-      </button>
+      {/* ── Toolbar buttons (inline on md+, overflow menu on sm) ── */}
+      {!isSmall ? (
+        <>
+          <button
+            onClick={() => setLayoutMode(layoutMode === 'graph' ? 'list' : 'graph')}
+            className="px-3 py-1 text-xs text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700 rounded transition-colors"
+            title="Toggle layout (L)"
+          >
+            {layoutMode === 'graph' ? 'List' : 'Graph'}
+          </button>
 
-      {/* Lock viewport toggle */}
-      <button
-        onClick={() => setLockViewport(!lockViewport)}
-        className={`px-3 py-1 text-xs rounded transition-colors ${
-          lockViewport
-            ? 'text-blue-300 bg-blue-900/50 hover:bg-blue-800/50 border border-blue-600/40'
-            : 'text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700'
-        }`}
-        title="Lock viewport — prevent auto-zoom on new nodes (V)"
-      >
-        {lockViewport ? 'Locked' : 'Lock'}
-      </button>
+          <button
+            onClick={() => setLockViewport(!lockViewport)}
+            className={`px-3 py-1 text-xs rounded transition-colors ${
+              lockViewport
+                ? 'text-blue-300 bg-blue-900/50 hover:bg-blue-800/50 border border-blue-600/40'
+                : 'text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700'
+            }`}
+            title="Lock viewport — prevent auto-zoom on new nodes (V)"
+          >
+            {lockViewport ? 'Locked' : 'Lock'}
+          </button>
 
-      {/* Show all tools toggle */}
-      <button
-        onClick={() => setShowAllTools(!showAllTools)}
-        className={`px-3 py-1 text-xs rounded transition-colors ${
-          showAllTools
-            ? 'text-purple-300 bg-purple-900/50 hover:bg-purple-800/50 border border-purple-600/40'
-            : 'text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700'
-        }`}
-        title="Show all tool nodes (F)"
-      >
-        {showAllTools ? 'Tools ON' : 'Tools'}
-      </button>
+          <button
+            onClick={() => setShowAllTools(!showAllTools)}
+            className={`px-3 py-1 text-xs rounded transition-colors ${
+              showAllTools
+                ? 'text-purple-300 bg-purple-900/50 hover:bg-purple-800/50 border border-purple-600/40'
+                : 'text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700'
+            }`}
+            title="Show all tool nodes (F)"
+          >
+            {showAllTools ? 'Tools ON' : 'Tools'}
+          </button>
 
-      {/* Auto-close prompts toggle */}
-      <button
-        onClick={() => setAutoClosePrompts(!autoClosePrompts)}
-        className={`px-3 py-1 text-xs rounded transition-colors ${
-          autoClosePrompts
-            ? 'text-cyan-300 bg-cyan-900/50 hover:bg-cyan-800/50 border border-cyan-600/40'
-            : 'text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700'
-        }`}
-        title="Auto-collapse prompt children (C)"
-      >
-        {autoClosePrompts ? 'Collapse ON' : 'Collapse'}
-      </button>
+          <button
+            onClick={() => setAutoClosePrompts(!autoClosePrompts)}
+            className={`px-3 py-1 text-xs rounded transition-colors ${
+              autoClosePrompts
+                ? 'text-cyan-300 bg-cyan-900/50 hover:bg-cyan-800/50 border border-cyan-600/40'
+                : 'text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700'
+            }`}
+            title="Auto-collapse prompt children (C)"
+          >
+            {autoClosePrompts ? 'Collapse ON' : 'Collapse'}
+          </button>
 
-      {/* Hook events toggle */}
-      <button
-        onClick={() => setShowHookEvents(!showHookEvents)}
-        className={`px-3 py-1 text-xs rounded transition-colors ${
-          showHookEvents
-            ? 'text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700'
-            : 'text-amber-300 bg-amber-900/50 hover:bg-amber-800/50 border border-amber-600/40'
-        }`}
-        title="Toggle hook event visibility (H)"
-      >
-        {showHookEvents ? 'Hide Hooks' : 'Hooks Hidden'}
-      </button>
+          <button
+            onClick={() => setShowHookEvents(!showHookEvents)}
+            className={`px-3 py-1 text-xs rounded transition-colors ${
+              showHookEvents
+                ? 'text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700'
+                : 'text-amber-300 bg-amber-900/50 hover:bg-amber-800/50 border border-amber-600/40'
+            }`}
+            title="Toggle hook event visibility (H)"
+          >
+            {showHookEvents ? 'Hide Hooks' : 'Hooks Hidden'}
+          </button>
 
-      {/* Session filter */}
-      {sessionList.length > 0 && (
-        <select
-          value={filter.sessionId ?? ''}
-          onChange={(e) => setFilter({ ...filter, sessionId: e.target.value || undefined })}
-          className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-300"
-        >
-          <option value="">All sessions</option>
-          {sessionList.map((s) => (
-            <option key={s.sessionId} value={s.sessionId}>
-              {s.sessionId.slice(0, 8)}
-            </option>
-          ))}
-        </select>
+          {sessionList.length > 0 && (
+            <select
+              value={filter.sessionId ?? ''}
+              onChange={(e) => setFilter({ ...filter, sessionId: e.target.value || undefined })}
+              className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-300"
+            >
+              <option value="">All sessions</option>
+              {sessionList.map((s) => (
+                <option key={s.sessionId} value={s.sessionId}>
+                  {s.sessionId.slice(0, 8)}
+                </option>
+              ))}
+            </select>
+          )}
+
+          <button
+            id="snapshot-export-btn"
+            onClick={handleExport}
+            className="px-3 py-1 text-xs text-green-400 hover:text-green-200 bg-green-900/30 hover:bg-green-800/40 border border-green-700/30 rounded transition-colors"
+            title="Export snapshot (E)"
+          >
+            Export
+          </button>
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="px-3 py-1 text-xs text-blue-400 hover:text-blue-200 bg-blue-900/30 hover:bg-blue-800/40 border border-blue-700/30 rounded transition-colors"
+            title="Import snapshot (I)"
+          >
+            Import
+          </button>
+
+          <button
+            onClick={() => setShowClearConfirm(true)}
+            className="px-3 py-1 text-xs text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700 rounded transition-colors"
+            aria-label="Clear all events"
+          >
+            Clear
+          </button>
+        </>
+      ) : (
+        /* ── Small-screen overflow menu ── */
+        <div ref={overflowRef} className="relative">
+          <button
+            onClick={() => setShowOverflow(!showOverflow)}
+            className="px-2 py-1 text-xs text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700 rounded transition-colors"
+            aria-label="More options"
+            aria-expanded={showOverflow}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <circle cx="12" cy="5" r="1.5" fill="currentColor" stroke="none" />
+              <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+              <circle cx="12" cy="19" r="1.5" fill="currentColor" stroke="none" />
+            </svg>
+          </button>
+
+          {showOverflow && (
+            <div className="absolute right-0 top-full mt-1 w-56 bg-[#1c2128] border border-gray-700 rounded-lg shadow-xl z-50 py-1 max-h-[70vh] overflow-auto">
+              {/* View toggles */}
+              <div className="px-2 py-1 text-[10px] text-gray-500 uppercase tracking-wider">View</div>
+              <OverflowItem
+                label={layoutMode === 'graph' ? 'Switch to List' : 'Switch to Graph'}
+                shortcut="L"
+                onClick={() => { setLayoutMode(layoutMode === 'graph' ? 'list' : 'graph'); setShowOverflow(false); }}
+              />
+              <OverflowToggle
+                label="Lock Viewport"
+                shortcut="V"
+                active={lockViewport}
+                onClick={() => setLockViewport(!lockViewport)}
+              />
+              <OverflowToggle
+                label="Show All Tools"
+                shortcut="F"
+                active={showAllTools}
+                onClick={() => setShowAllTools(!showAllTools)}
+              />
+              <OverflowToggle
+                label="Collapse Prompts"
+                shortcut="C"
+                active={autoClosePrompts}
+                onClick={() => setAutoClosePrompts(!autoClosePrompts)}
+              />
+              <OverflowToggle
+                label="Show Hook Events"
+                shortcut="H"
+                active={showHookEvents}
+                onClick={() => setShowHookEvents(!showHookEvents)}
+              />
+
+              {/* Session filter */}
+              {sessionList.length > 0 && (
+                <>
+                  <div className="border-t border-gray-700 my-1" />
+                  <div className="px-2 py-1 text-[10px] text-gray-500 uppercase tracking-wider">Session</div>
+                  <div className="px-2 py-1">
+                    <select
+                      value={filter.sessionId ?? ''}
+                      onChange={(e) => { setFilter({ ...filter, sessionId: e.target.value || undefined }); setShowOverflow(false); }}
+                      className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-300"
+                    >
+                      <option value="">All sessions</option>
+                      {sessionList.map((s) => (
+                        <option key={s.sessionId} value={s.sessionId}>
+                          {s.sessionId.slice(0, 8)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
+
+              {/* Actions */}
+              <div className="border-t border-gray-700 my-1" />
+              <div className="px-2 py-1 text-[10px] text-gray-500 uppercase tracking-wider">Actions</div>
+              <OverflowItem
+                label="Export Snapshot"
+                shortcut="E"
+                className="text-green-400"
+                onClick={() => { handleExport(); setShowOverflow(false); }}
+              />
+              <OverflowItem
+                label="Import Snapshot"
+                shortcut="I"
+                className="text-blue-400"
+                onClick={() => { fileInputRef.current?.click(); setShowOverflow(false); }}
+              />
+              <OverflowItem
+                label="Clear All"
+                className="text-red-400"
+                onClick={() => { setShowClearConfirm(true); setShowOverflow(false); }}
+              />
+            </div>
+          )}
+        </div>
       )}
 
-      {/* Export */}
-      <button
-        id="snapshot-export-btn"
-        onClick={handleExport}
-        className="px-3 py-1 text-xs text-green-400 hover:text-green-200 bg-green-900/30 hover:bg-green-800/40 border border-green-700/30 rounded transition-colors"
-        title="Export snapshot (E)"
-      >
-        Export
-      </button>
-
-      {/* Import */}
-      <button
-        onClick={() => fileInputRef.current?.click()}
-        className="px-3 py-1 text-xs text-blue-400 hover:text-blue-200 bg-blue-900/30 hover:bg-blue-800/40 border border-blue-700/30 rounded transition-colors"
-        title="Import snapshot (I)"
-      >
-        Import
-      </button>
+      {/* Hidden file input (always present for keyboard shortcut) */}
       <input
         id="snapshot-import-input"
         ref={fileInputRef}
@@ -293,15 +412,10 @@ export function Header() {
         onChange={handleFileChange}
         className="hidden"
       />
-
-      {/* Clear */}
-      <button
-        onClick={() => setShowClearConfirm(true)}
-        className="px-3 py-1 text-xs text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700 rounded transition-colors"
-        aria-label="Clear all events"
-      >
-        Clear
-      </button>
+      {/* Hidden export button for keyboard shortcut — only when inline button isn't rendered */}
+      {isSmall && (
+        <button id="snapshot-export-btn" onClick={handleExport} className="hidden" aria-hidden="true" />
+      )}
 
       <ConfirmDialog
         open={showClearConfirm}
@@ -352,5 +466,44 @@ export function Header() {
       </div>
     )}
     </>
+  );
+}
+
+/** A simple row in the overflow dropdown menu. */
+function OverflowItem({ label, shortcut, className, onClick }: {
+  label: string;
+  shortcut?: string;
+  className?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-800/80 transition-colors text-left ${className ?? 'text-gray-300'}`}
+    >
+      <span className="flex-1">{label}</span>
+      {shortcut && <kbd className="text-[10px] text-gray-600 bg-gray-800 px-1 rounded">{shortcut}</kbd>}
+    </button>
+  );
+}
+
+/** A toggle row in the overflow dropdown menu with active indicator. */
+function OverflowToggle({ label, shortcut, active, onClick }: {
+  label: string;
+  shortcut?: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-800/80 transition-colors text-left text-gray-300"
+      role="switch"
+      aria-checked={active}
+    >
+      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${active ? 'bg-green-400' : 'bg-gray-600'}`} />
+      <span className="flex-1">{label}</span>
+      {shortcut && <kbd className="text-[10px] text-gray-600 bg-gray-800 px-1 rounded">{shortcut}</kbd>}
+    </button>
   );
 }
