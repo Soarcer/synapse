@@ -72,3 +72,26 @@ export const SnapshotImportSchema = z.object({
     }),
   ),
 });
+
+/** Validates GET /api/analytics/* query parameters. */
+export const AnalyticsQuerySchema = z.object({
+  from: z.coerce.number().int().min(0).optional(),
+  to: z.coerce.number().int().min(0).optional(),
+  cwd: z.string().optional(),
+  granularity: z.enum(['hour', 'day', 'week']).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional(),
+  offset: z.coerce.number().int().min(0).max(100_000).optional(),
+  sessionId: z.string().optional(),
+  model: z.string().optional(),
+  vendor: z.string().optional(),
+});
+
+/** Validates POST /api/analytics/prices body. */
+export const PriceCreateSchema = z.object({
+  model: z.string().min(1),
+  vendor: z.string().min(1),
+  effectiveFrom: z.number().int().min(0),
+  inputPer1M: z.number().min(0),
+  cachedInputPer1M: z.number().min(0),
+  outputPer1M: z.number().min(0),
+});

@@ -8,6 +8,7 @@ import { HookManager } from './hookManager';
 import { SynapseTreeProvider } from './treeView';
 import { ExtensionWsClient } from './wsClient';
 import { SynapseSidebarProvider } from './sidebarProvider';
+import { normalizeCwd } from '@synapse-ai/core';
 
 let serverManager: ServerManager | undefined;
 let hookManager: HookManager | undefined;
@@ -17,11 +18,6 @@ let treeProvider: SynapseTreeProvider | undefined;
 let graphPanel: SynapsePanel | undefined;
 let sidebarProvider: SynapseSidebarProvider;
 let workspaceCwd: string | undefined;
-
-/** Normalize a cwd path for cross-platform comparison (lowercase, forward slashes, no trailing slash). */
-function normalizeCwd(cwd: string): string {
-  return cwd.replace(/\\/g, '/').replace(/\/$/, '').toLowerCase();
-}
 
 export async function activate(context: vscode.ExtensionContext) {
   const outputChannel = vscode.window.createOutputChannel('Synapse');
@@ -65,11 +61,18 @@ export async function activate(context: vscode.ExtensionContext) {
 
   // ── Server events ──────────────────────────────────────────────
   serverManager.onStarted(() => {
+    const port = serverManager!.port;
     vscode.commands.executeCommand('setContext', 'synapse.serverRunning', true);
     updateStatusBar(true);
-    sidebarProvider.updatePort(serverManager!.port);
-    connectWsClient(context, serverManager!.port);
-    // Auto-open the dashboard
+    sidebarProvider.updatePort(port);
+    connectWsClient(context, port);
+
+    // Configure hooks with the actual port (may differ from default if port was busy)
+    if (hookManager!.needsConfiguration(port)) {
+      outputChannel.appendLine(`Configuring hooks for port ${port}...`);
+      hookManager!.configureHooks(port);
+    }
+
     vscode.commands.executeCommand('synapse.openDashboard');
   });
 
@@ -135,11 +138,11 @@ export async function activate(context: vscode.ExtensionContext) {
     }),
 
     vscode.commands.registerCommand('synapse.configureHooks', () => {
-      hookManager.configureHooks();
+      hookManager!.configureHooks(serverManager!.port);
     }),
 
     vscode.commands.registerCommand('synapse.removeHooks', () => {
-      hookManager.removeHooks();
+      hookManager!.removeHooks();
     }),
 
     vscode.commands.registerCommand('synapse.switchLens', async () => {
@@ -172,14 +175,10 @@ export async function activate(context: vscode.ExtensionContext) {
     },
   });
 
-  // Auto-configure hooks if needed, then auto-start
+  // Auto-start server (hooks are configured in the onStarted callback once port is known)
   const autoStart = vscode.workspace.getConfiguration('synapse').get('autoStart', true);
-  if (autoStart && hookManager.needsConfiguration()) {
-    outputChannel.appendLine('Synapse hooks not found — auto-configuring for this project...');
-    await hookManager.configureHooks();
-  }
-  if (autoStart && hasClaude()) {
-    outputChannel.appendLine('Claude hooks detected — auto-starting Synapse server...');
+  if (autoStart) {
+    outputChannel.appendLine('Auto-starting Synapse server...');
     await serverManager.start();
   } else {
     // Check if an external server is already running and auto-open
@@ -197,8 +196,8 @@ export async function activate(context: vscode.ExtensionContext) {
 export function deactivate() {
   wsClient?.dispose();
   serverManager?.dispose();
-  // Clean up hooks so they don't point to a missing extension after uninstall
-  hookManager?.removeHooks(true);
+  // Don't remove hooks on deactivate — they survive VS Code restarts.
+  // Hooks are only removed via the explicit synapse.removeHooks command.
 }
 
 function connectWsClient(context: vscode.ExtensionContext, port: number): void {
@@ -282,14 +281,4 @@ function checkServerHealth(port: number): Promise<boolean> {
       resolve(false);
     });
   });
-}
-
-function hasClaude(): boolean {
-  const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-  if (!workspaceFolder) return false;
-  const claudeDir = path.join(workspaceFolder.uri.fsPath, '.claude');
-  return (
-    fs.existsSync(path.join(claudeDir, 'settings.json')) ||
-    fs.existsSync(path.join(claudeDir, 'settings.local.json'))
-  );
 }

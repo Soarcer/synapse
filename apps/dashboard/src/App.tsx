@@ -1,25 +1,22 @@
-import { useEffect, useState, useMemo, lazy, Suspense } from 'react';
+import { useEffect, useMemo, lazy, Suspense } from 'react';
 import { Header } from './components/layout/Header';
+import { GraphLayout } from './components/layout/GraphLayout';
 import { LensAdapter } from './components/lens/LensAdapter';
-import { AgentDetailPanel } from './components/panels/AgentDetailPanel';
 
-const AgentGraph = lazy(() => import('./components/graph/AgentGraph'));
-import { ToolLogPanel } from './components/panels/ToolLogPanel';
-import { SpawnAgentDialog } from './components/panels/SpawnAgentDialog';
-import { TimelinePanel } from './components/panels/TimelinePanel';
+const AnalyticsPage = lazy(() => import('./components/analytics/AnalyticsPageLazy'));
 import { ToastContainer } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useAgentStore } from './store/agentStore';
 import { wsClient } from './store/wsClient';
 import { apiUrl } from './utils/api';
 
-/** Layout modes: full (browser), lens (VS Code sidebar), graph (VS Code editor) */
-type ViewMode = 'full' | 'lens' | 'graph';
+/** Layout modes: full (browser), lens (VS Code sidebar), graph (VS Code editor), analytics (reporting dashboard) */
+type ViewMode = 'full' | 'lens' | 'graph' | 'analytics';
 
 function getViewMode(): ViewMode {
   const params = new URLSearchParams(window.location.search);
   const view = params.get('view');
-  if (view === 'lens' || view === 'graph') return view;
+  if (view === 'lens' || view === 'graph' || view === 'analytics') return view;
   return 'full';
 }
 
@@ -31,20 +28,9 @@ function isEditableTarget(event: KeyboardEvent) {
   );
 }
 
-function GraphLoadingPlaceholder() {
-  return (
-    <div className="flex-1 flex items-center justify-center bg-[#0d1117] text-gray-500 text-sm">
-      Loading graph...
-    </div>
-  );
-}
-
 export default function App() {
   const viewMode = useMemo(getViewMode, []);
-  const selectedNodeId = useAgentStore((s) => s.selectedNodeId);
   const loadEvents = useAgentStore((s) => s.loadEvents);
-  const paused = useAgentStore((s) => s.paused);
-  const [showToolLog, setShowToolLog] = useState(false);
 
   // Connect WebSocket and load existing events on mount
   // In VS Code mode (lens/graph), events arrive via postMessage from the extension — skip direct WS/fetch
@@ -113,7 +99,9 @@ export default function App() {
     const unsub = useAgentStore.subscribe((state) => {
       if (state.selectedNodeId !== prev) {
         prev = state.selectedNodeId;
-        window.parent.postMessage({ type: 'selectionChanged', nodeId: prev }, '*');
+        // VS Code webview requires '*' (cross-origin iframe); standalone uses own origin
+        const origin = viewMode === 'full' ? window.location.origin : '*';
+        window.parent.postMessage({ type: 'selectionChanged', nodeId: prev }, origin);
       }
     });
     return unsub;
@@ -150,9 +138,6 @@ export default function App() {
       if (e.key === 'Escape') {
         useAgentStore.getState().selectNode(null);
         useAgentStore.getState().setShowSpawnDialog(false);
-      }
-      if (e.key === 't' && !e.ctrlKey && !e.metaKey) {
-        setShowToolLog((prev) => !prev);
       }
       if (e.key === ' ') {
         e.preventDefault();
@@ -192,15 +177,32 @@ export default function App() {
         e.preventDefault();
         document.getElementById('graph-search-input')?.focus();
       }
-      const tabKeys = ['tree', 'heatmap', 'treemap', 'sankey', 'compaction', 'cost'];
-      const tabIdx = parseInt(e.key, 10) - 1;
-      if (tabIdx >= 0 && tabIdx < tabKeys.length) {
-        useAgentStore.getState().setActiveLensTab(tabKeys[tabIdx]);
+      // Number keys switch lens tabs only when no modifier is held
+      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        const tabKeys = ['tree', 'heatmap', 'treemap', 'sankey', 'compaction', 'cost'];
+        const tabIdx = parseInt(e.key, 10) - 1;
+        if (tabIdx >= 0 && tabIdx < tabKeys.length) {
+          useAgentStore.getState().setActiveLensTab(tabKeys[tabIdx]);
+        }
       }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, []);
+
+  // ── Analytics view ──────────────────────────────────────────
+  if (viewMode === 'analytics') {
+    return (
+      <div className="h-screen w-screen flex flex-col bg-[#0d1117] text-gray-200 overflow-hidden">
+        <ErrorBoundary name="AnalyticsPage">
+          <Suspense fallback={<div className="flex-1 flex items-center justify-center text-gray-500 text-sm">Loading analytics...</div>}>
+            <AnalyticsPage />
+          </Suspense>
+        </ErrorBoundary>
+        <ToastContainer />
+      </div>
+    );
+  }
 
   // ── Lens-only view (VS Code sidebar) ────────────────────────
   if (viewMode === 'lens') {
@@ -224,51 +226,7 @@ export default function App() {
           <Header />
         </ErrorBoundary>
 
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 flex overflow-hidden">
-            <div className="flex-1 relative">
-              <ErrorBoundary name="AgentGraph">
-                <Suspense fallback={<GraphLoadingPlaceholder />}>
-                  <AgentGraph />
-                </Suspense>
-              </ErrorBoundary>
-
-              {paused && (
-                <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 px-3 py-1.5 bg-yellow-900/80 border border-yellow-600/50 rounded-lg text-xs text-yellow-200 backdrop-blur-sm">
-                  Paused — press Space to resume
-                </div>
-              )}
-
-              <button
-                onClick={() => setShowToolLog(!showToolLog)}
-                className="absolute bottom-3 right-3 z-10 px-3 py-1.5 bg-gray-800/90 hover:bg-gray-700/90 border border-gray-700 rounded-lg text-xs text-gray-400 hover:text-gray-200 transition-colors backdrop-blur-sm"
-                title="Toggle tool log (T)"
-              >
-                {showToolLog ? 'Hide' : 'Show'} Tool Log
-              </button>
-            </div>
-
-            {selectedNodeId && selectedNodeId !== '__spawn__' && (
-              <ErrorBoundary name="AgentDetailPanel">
-                <AgentDetailPanel />
-              </ErrorBoundary>
-            )}
-          </div>
-
-          {showToolLog && (
-            <div className="h-64 border-t border-gray-800 bg-[#161b22] flex-shrink-0">
-              <ErrorBoundary name="ToolLogPanel">
-                <ToolLogPanel />
-              </ErrorBoundary>
-            </div>
-          )}
-
-          <ErrorBoundary name="TimelinePanel">
-            <TimelinePanel />
-          </ErrorBoundary>
-        </div>
-
-        <SpawnAgentDialog />
+        <GraphLayout />
         <ToastContainer />
       </div>
     );
@@ -286,52 +244,9 @@ export default function App() {
           <LensAdapter />
         </ErrorBoundary>
 
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 flex overflow-hidden">
-            <div className="flex-1 relative">
-              <ErrorBoundary name="AgentGraph">
-                <Suspense fallback={<GraphLoadingPlaceholder />}>
-                  <AgentGraph />
-                </Suspense>
-              </ErrorBoundary>
-
-              {paused && (
-                <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 px-3 py-1.5 bg-yellow-900/80 border border-yellow-600/50 rounded-lg text-xs text-yellow-200 backdrop-blur-sm">
-                  Paused — press Space to resume
-                </div>
-              )}
-
-              <button
-                onClick={() => setShowToolLog(!showToolLog)}
-                className="absolute bottom-3 right-3 z-10 px-3 py-1.5 bg-gray-800/90 hover:bg-gray-700/90 border border-gray-700 rounded-lg text-xs text-gray-400 hover:text-gray-200 transition-colors backdrop-blur-sm"
-                title="Toggle tool log (T)"
-              >
-                {showToolLog ? 'Hide' : 'Show'} Tool Log
-              </button>
-            </div>
-
-            {selectedNodeId && selectedNodeId !== '__spawn__' && (
-              <ErrorBoundary name="AgentDetailPanel">
-                <AgentDetailPanel />
-              </ErrorBoundary>
-            )}
-          </div>
-
-          {showToolLog && (
-            <div className="h-64 border-t border-gray-800 bg-[#161b22] flex-shrink-0">
-              <ErrorBoundary name="ToolLogPanel">
-                <ToolLogPanel />
-              </ErrorBoundary>
-            </div>
-          )}
-
-          <ErrorBoundary name="TimelinePanel">
-            <TimelinePanel />
-          </ErrorBoundary>
-        </div>
+        <GraphLayout />
       </div>
 
-      <SpawnAgentDialog />
       <ToastContainer />
     </div>
   );
