@@ -234,16 +234,24 @@ export default function App() {
   // ── Full view (browser / VS Code single-panel mode) ─────────
   return (
     <div className="h-screen w-screen flex flex-col bg-[#0d1117] text-gray-200 overflow-hidden">
+      <a href="#main-graph" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-1 focus:left-1 focus:px-3 focus:py-1.5 focus:bg-blue-600 focus:text-white focus:rounded focus:text-sm">
+        Skip to main content
+      </a>
+
       <ErrorBoundary name="Header">
         <Header />
       </ErrorBoundary>
 
       <div className="flex flex-1 overflow-hidden">
         <ErrorBoundary name="LensAdapter">
-          <LensAdapter />
+          <nav aria-label="Lens panels">
+            <LensAdapter />
+          </nav>
         </ErrorBoundary>
 
-        <GraphLayout />
+        <main id="main-graph" role="main">
+          <GraphLayout />
+        </main>
       </div>
 
       <ToastContainer />

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useAgentStore } from '../../store/agentStore';
 import { apiUrl } from '../../utils/api';
 
@@ -70,11 +70,23 @@ export function SpawnAgentDialog() {
     }
   }, [prompt, model, tools, permissionMode, systemPrompt, cwd, targetSessionId, latestSessionId, setShowSpawnDialog]);
 
+  const promptRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-focus the prompt textarea when dialog opens
+  useEffect(() => {
+    if (showSpawnDialog) {
+      setTimeout(() => promptRef.current?.focus(), 50);
+    }
+  }, [showSpawnDialog]);
+
   if (!showSpawnDialog) return null;
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="spawn-dialog-title"
       onClick={() => setShowSpawnDialog(false)}
     >
       <div
@@ -83,10 +95,11 @@ export function SpawnAgentDialog() {
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
-          <h2 className="text-base font-semibold text-gray-100">Spawn Agent</h2>
+          <h2 id="spawn-dialog-title" className="text-base font-semibold text-gray-100">Spawn Agent</h2>
           <button
             onClick={() => setShowSpawnDialog(false)}
             className="text-gray-500 hover:text-gray-300 text-xl leading-none"
+            aria-label="Close dialog"
           >
             &times;
           </button>
@@ -98,6 +111,7 @@ export function SpawnAgentDialog() {
           <div>
             <label className="text-xs text-gray-400 block mb-1">Prompt *</label>
             <textarea
+              ref={promptRef}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="What should the agent do?"
@@ -128,6 +142,7 @@ export function SpawnAgentDialog() {
                 <button
                   key={tool}
                   onClick={() => toggleTool(tool)}
+                  aria-pressed={tools.has(tool)}
                   className={`
                     px-2.5 py-1 rounded-full text-xs border transition-colors
                     ${
@@ -178,6 +193,7 @@ export function SpawnAgentDialog() {
           {/* Advanced */}
           <button
             onClick={() => setShowAdvanced(!showAdvanced)}
+            aria-expanded={showAdvanced}
             className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
           >
             {showAdvanced ? '▾' : '▸'} Advanced options

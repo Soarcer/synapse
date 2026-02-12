@@ -121,7 +121,7 @@ export function Header() {
 
   return (
     <>
-    <header className="flex items-center gap-4 px-4 h-12 bg-[#161b22] border-b border-gray-800 flex-shrink-0">
+    <header role="banner" className="flex items-center gap-4 px-4 h-12 bg-[#161b22] border-b border-gray-800 flex-shrink-0">
       {/* Title */}
       <div className="flex items-center gap-2">
         <span className="text-base font-bold text-gray-100 tracking-tight">Synapse</span>
@@ -129,8 +129,8 @@ export function Header() {
       </div>
 
       {/* Connection status */}
-      <div className="flex items-center gap-1.5 ml-2">
-        <span className={`w-2 h-2 rounded-full ${statusDot}`} />
+      <div className="flex items-center gap-1.5 ml-2" role="status" aria-label={`Connection: ${statusLabel}`}>
+        <span className={`w-2 h-2 rounded-full ${statusDot}`} aria-hidden="true" />
         <span className="text-xs text-gray-500">{statusLabel}</span>
         {connectionStatus === 'failed' && (
           <button
@@ -298,6 +298,7 @@ export function Header() {
       <button
         onClick={() => setShowClearConfirm(true)}
         className="px-3 py-1 text-xs text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700 rounded transition-colors"
+        aria-label="Clear all events"
       >
         Clear
       </button>

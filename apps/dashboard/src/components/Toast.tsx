@@ -75,7 +75,7 @@ export function ToastContainer() {
   if (items.length === 0) return null;
 
   return (
-    <div className="fixed top-14 right-4 z-50 space-y-2 pointer-events-none">
+    <div className="fixed top-14 right-4 z-50 space-y-2 pointer-events-none" role="status" aria-live="polite">
       {items.map((item) => (
         <div
           key={item.id}
