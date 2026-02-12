@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { useLens } from '../LensContext';
 import { useAgentStore } from '../../../store/agentStore';
 import { formatTokens } from '@synapse-ai/core';
+import { buildWaterfallSpans, computeTimeRange, buildHeatmapData } from '../lensComputations';
 
 const CELL_SIZE = 18;
 const LABEL_WIDTH = 80;
@@ -26,8 +27,13 @@ function tokenHeatColor(intensity: number): string {
 }
 
 export function HeatmapView() {
-  const { heatmapData, selectedId, onSelect } = useLens();
+  const { treeRoots, paletteIndex, selectedId, onSelect } = useLens();
   const setMultiHighlight = useAgentStore((s) => s.setMultiHighlight);
+
+  // Compute heatmap data locally (only when heatmap tab is active)
+  const waterfallSpans = useMemo(() => buildWaterfallSpans(treeRoots, paletteIndex), [treeRoots, paletteIndex]);
+  const timeRange = useMemo(() => computeTimeRange(waterfallSpans), [waterfallSpans]);
+  const heatmapData = useMemo(() => buildHeatmapData(waterfallSpans, timeRange), [waterfallSpans, timeRange]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to the cell containing the selected node

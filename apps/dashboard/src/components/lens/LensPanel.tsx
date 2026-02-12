@@ -10,19 +10,22 @@ import { CompactionView } from './compaction/CompactionView';
 import { CostWaterfallView } from './cost/CostWaterfallView';
 
 interface LensPanelProps {
-  width: number;
-  onWidthChange: (w: number) => void;
+  width?: number;
+  onWidthChange?: (w: number) => void;
+  fillWidth?: boolean;
 }
 
-export function LensPanel({ width, onWidthChange }: LensPanelProps) {
+export function LensPanel({ width, onWidthChange, fillWidth }: LensPanelProps) {
   const { activeTab, searchQuery, onSearchChange } = useLens();
 
   return (
     <aside
-      className="bg-[#161b22] border-r border-gray-800 flex flex-col flex-shrink-0 relative overflow-hidden"
-      style={{ width }}
+      className={`bg-[#161b22] border-r border-gray-800 flex flex-col relative overflow-hidden ${fillWidth ? 'flex-1' : 'flex-shrink-0'}`}
+      style={fillWidth ? undefined : { width }}
     >
-      <LensResizeHandle width={width} onWidthChange={onWidthChange} />
+      {!fillWidth && onWidthChange && (
+        <LensResizeHandle width={width ?? 320} onWidthChange={onWidthChange} />
+      )}
       <LensTabBar />
 
       {/* Search input (Tree tab only) */}

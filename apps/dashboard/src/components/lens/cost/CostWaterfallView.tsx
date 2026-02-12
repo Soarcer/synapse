@@ -1,6 +1,7 @@
 import { useMemo, useCallback, useState, useRef, useEffect } from 'react';
 import { useLens } from '../LensContext';
 import { formatTokens } from '@synapse-ai/core';
+import { buildCompactEvents, buildCostPerTurn } from '../lensComputations';
 
 type ZeroTokenMode = 'show' | 'estimate' | 'hide';
 
@@ -14,7 +15,14 @@ function formatCost(usd: number): string {
 }
 
 export function CostWaterfallView() {
-  const { costPerTurn, hasTokenData, transcripts, selectedId, onSelect } = useLens();
+  const { agents, events, prompts, transcripts, hasTokenData, selectedId, onSelect } = useLens();
+
+  // Compute locally (only when cost tab is active)
+  const compactEvents = useMemo(() => buildCompactEvents(events), [events]);
+  const costPerTurn = useMemo(
+    () => buildCostPerTurn(prompts, agents, compactEvents, transcripts),
+    [prompts, agents, compactEvents, transcripts],
+  );
   const [zeroMode, setZeroMode] = useState<ZeroTokenMode>('show');
   const scrollRef = useRef<HTMLDivElement>(null);
 

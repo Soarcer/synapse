@@ -3,7 +3,7 @@ import { logger } from '../lib/logger.js';
 import { storeAndBroadcast, storePreNormalized, getStoredEvents } from '../services/eventStore.js';
 import { deleteEventsBySession, deleteAllEvents, listSessions } from '../db.js';
 import type { Broadcaster } from '../services/broadcaster.js';
-import { AgentEventSchema, EventQuerySchema } from '@synapse-ai/core';
+import { AgentEventSchema, EventQuerySchema, normalizeCwd } from '@synapse-ai/core';
 import { validateBody, validateQuery } from '../lib/validate.js';
 
 export function createEventsRouter(broadcaster: Broadcaster): Router {
@@ -35,10 +35,12 @@ export function createEventsRouter(broadcaster: Broadcaster): Router {
   // GET /api/events — query stored events
   router.get('/', validateQuery(EventQuerySchema), (req: Request, res: Response) => {
     try {
+      const cwdParam = req.query.cwd as string | undefined;
       const events = getStoredEvents({
         sessionId: req.query.sessionId as string | undefined,
         agentId: req.query.agentId as string | undefined,
         type: req.query.type as string | undefined,
+        cwd: cwdParam ? normalizeCwd(cwdParam) : undefined,
         limit: req.query.limit ? parseInt(req.query.limit as string, 10) : undefined,
         offset: req.query.offset ? parseInt(req.query.offset as string, 10) : undefined,
       });

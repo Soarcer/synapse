@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { TranscriptSummary } from '@synapse-ai/core';
+import type { AgentNodeData, UserPromptData, AgentEvent, TranscriptSummary } from '@synapse-ai/core';
 
 // ── Data types for the Lens Panel ───────────────────────────
 
@@ -108,13 +108,15 @@ export interface HeatmapData {
 // ── Context value ───────────────────────────────────────────
 
 export interface LensContextValue {
-  // Data
+  // Shared derived data
   treeRoots: LensTreeNode[];
-  heatmapData: HeatmapData;
-  sankeyData: SankeyData;
-  compactEvents: CompactEvent[];
-  costPerTurn: CostTurn[];
   transcripts: Map<string, TranscriptSummary>;
+
+  // Raw data for views to compute locally
+  agents: Map<string, AgentNodeData>;
+  events: AgentEvent[];
+  prompts: Map<string, UserPromptData[]>;
+  paletteIndex: number;
 
   // Selection
   selectedId: string | null;

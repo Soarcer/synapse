@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ChildProcess, spawn } from 'child_process';
+import { ChildProcess, spawn, execSync } from 'child_process';
 import * as path from 'path';
 import * as http from 'http';
 
@@ -8,6 +8,7 @@ export class ServerManager {
   private _port: number;
   private resourcesPath: string;
   private outputChannel: vscode.OutputChannel;
+  private killTimer: ReturnType<typeof setTimeout> | null = null;
 
   private _onStarted = new vscode.EventEmitter<void>();
   private _onStopped = new vscode.EventEmitter<void>();
@@ -37,23 +38,46 @@ export class ServerManager {
       return;
     }
 
+    // Check for Node.js before attempting to start
+    if (!this.hasNode()) {
+      const msg = 'Node.js is not installed or not on your PATH. Synapse requires Node.js 20+ to run.';
+      this.outputChannel.appendLine(`ERROR: ${msg}`);
+      const action = await vscode.window.showErrorMessage(
+        msg,
+        'Download Node.js',
+        'Dismiss',
+      );
+      if (action === 'Download Node.js') {
+        vscode.env.openExternal(vscode.Uri.parse('https://nodejs.org/'));
+      }
+      this._onError.fire(msg);
+      return;
+    }
+
     this._port = vscode.workspace.getConfiguration('synapse').get('port', 4000);
     const serverDir = path.join(this.resourcesPath, 'synapse-server');
-    const serverEntry = path.join(serverDir, 'server', 'index.ts');
+    const serverEntry = path.join(serverDir, 'server.mjs');
+    const dashboardDir = path.join(serverDir, 'dashboard');
 
     this.outputChannel.appendLine(`Starting Synapse on port ${this._port}...`);
-    this.outputChannel.appendLine(`Server dir: ${serverDir}`);
+    this.outputChannel.appendLine(`Server entry: ${serverEntry}`);
 
     const env = {
       ...process.env,
       PORT: String(this._port),
       CLIENT_ORIGIN: '*',
+      NODE_ENV: 'production',
+      SYNAPSE_DASHBOARD_DIR: dashboardDir,
+      SYNAPSE_DB_PATH: path.join(serverDir, 'synapse.db'),
     };
 
-    this.process = spawn('npx', ['tsx', serverEntry], {
+    // Use 'node' from PATH (required prerequisite — Claude Code already needs Node.js)
+    const nodeCmd = process.platform === 'win32' ? 'node.exe' : 'node';
+
+    this.process = spawn(nodeCmd, [serverEntry], {
       cwd: serverDir,
       env,
-      shell: true,
+      shell: false,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
@@ -65,9 +89,20 @@ export class ServerManager {
       this.outputChannel.append(data.toString());
     });
 
-    this.process.on('error', (err) => {
-      this.outputChannel.appendLine(`Server error: ${err.message}`);
-      this._onError.fire(err.message);
+    this.process.on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'ENOENT') {
+        const msg = 'Node.js was not found. Please install Node.js 20+ and ensure it is on your PATH.';
+        this.outputChannel.appendLine(`ERROR: ${msg}`);
+        vscode.window.showErrorMessage(msg, 'Download Node.js').then((action) => {
+          if (action === 'Download Node.js') {
+            vscode.env.openExternal(vscode.Uri.parse('https://nodejs.org/'));
+          }
+        });
+        this._onError.fire(msg);
+      } else {
+        this.outputChannel.appendLine(`Server error: ${err.message}`);
+        this._onError.fire(err.message);
+      }
     });
 
     this.process.on('exit', (code) => {
@@ -76,33 +111,52 @@ export class ServerManager {
       this._onStopped.fire();
     });
 
-    // Wait for server to be ready
-    await this.waitForReady(10000);
-    this._onStarted.fire();
+    // Wait for server to be ready — rejects on timeout
+    try {
+      await this.waitForReady(10000);
+      this._onStarted.fire();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Server startup failed';
+      this.outputChannel.appendLine(msg);
+      this._onError.fire(msg);
+    }
   }
 
   stop(): void {
+    if (this.killTimer) {
+      clearTimeout(this.killTimer);
+      this.killTimer = null;
+    }
     if (this.process && !this.process.killed) {
       this.outputChannel.appendLine('Stopping Synapse...');
       this.process.kill('SIGTERM');
-      // Force kill after 3 seconds
-      setTimeout(() => {
+      // Force kill after 10 seconds
+      this.killTimer = setTimeout(() => {
         if (this.process && !this.process.killed) {
           this.process.kill('SIGKILL');
         }
-      }, 3000);
+        this.killTimer = null;
+      }, 10_000);
     }
     this.process = null;
     this._onStopped.fire();
   }
 
+  private hasNode(): boolean {
+    try {
+      execSync('node --version', { stdio: 'ignore', timeout: 5000 });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private waitForReady(timeoutMs: number): Promise<void> {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const start = Date.now();
       const check = () => {
         if (Date.now() - start > timeoutMs) {
-          this.outputChannel.appendLine('Server startup timeout — may still be starting.');
-          resolve();
+          reject(new Error(`Server failed to start within ${timeoutMs}ms`));
           return;
         }
 
@@ -117,7 +171,7 @@ export class ServerManager {
         req.on('error', () => setTimeout(check, 500));
         req.end();
       };
-      setTimeout(check, 1000); // Initial delay to let the process start
+      setTimeout(check, 1000);
     });
   }
 

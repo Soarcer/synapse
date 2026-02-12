@@ -1,6 +1,7 @@
 import { nanoid } from 'nanoid';
 import { insertEvent, queryEvents, type EventRow } from '../db.js';
 import type { Broadcaster } from './broadcaster.js';
+import { normalizeCwd } from '@synapse-ai/core';
 import type { AgentEvent, AgentEventType } from '@synapse-ai/core';
 
 // ─── Hook Event Name → AgentEventType Mapping ──────────────────────
@@ -46,6 +47,7 @@ export function normalizeHookPayload(raw: Record<string, unknown>): AgentEvent {
   // ── Agent fields ──
   if (raw.agent_id) event.agentId = raw.agent_id as string;
   if (raw.agent_type) event.agentType = raw.agent_type as string;
+  if (raw.parent_agent_id) event.parentAgentId = raw.parent_agent_id as string;
   if (raw.agent_transcript_path) event.agentTranscriptPath = raw.agent_transcript_path as string;
 
   // ── Tool fields ──
@@ -127,6 +129,7 @@ export function storeAndBroadcast(
     token_output: event.tokenUsage?.output,
     duration_ms: event.duration,
     vendor: event.vendor,
+    cwd: event.cwd ? normalizeCwd(event.cwd) : null,
     raw_payload: JSON.stringify(raw),
     created_at: event.timestamp,
   });
@@ -171,6 +174,7 @@ export function rowToAgentEvent(row: EventRow): AgentEvent {
     event.eventSource = HOOK_EVENT_NAMES.has(row.hook_event_name) ? 'hook' : 'sdk';
   }
   if (row.vendor) event.vendor = row.vendor;
+  if (row.cwd) event.cwd = row.cwd;
 
   // Restore rich metadata from raw_payload
   try {
@@ -178,7 +182,7 @@ export function rowToAgentEvent(row: EventRow): AgentEvent {
     if (raw.model) event.model = raw.model;
     if (raw.source) event.source = raw.source;
     if (raw.reason) event.reason = raw.reason;
-    if (raw.cwd) event.cwd = raw.cwd;
+    if (!event.cwd && raw.cwd) event.cwd = raw.cwd; // fallback for old rows
     if (raw.permission_mode) event.permissionMode = raw.permission_mode;
     if (raw.prompt) event.text = raw.prompt;
     if (raw.message && event.type === 'notification') event.text = raw.message;
@@ -214,6 +218,7 @@ export function storePreNormalized(
     token_output: event.tokenUsage?.output,
     duration_ms: event.duration,
     vendor: event.vendor,
+    cwd: event.cwd ? normalizeCwd(event.cwd) : null,
     raw_payload: JSON.stringify(event),
     created_at: event.timestamp,
   });
@@ -227,6 +232,7 @@ export function getStoredEvents(params: {
   sessionId?: string;
   agentId?: string;
   type?: string;
+  cwd?: string;
   limit?: number;
   offset?: number;
 }): AgentEvent[] {

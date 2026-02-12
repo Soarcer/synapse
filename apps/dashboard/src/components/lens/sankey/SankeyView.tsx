@@ -1,6 +1,8 @@
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { useLens, type SankeyNode, type SankeyLink } from '../LensContext';
+import { useState, useMemo, useCallback, useRef, useEffect, useLayoutEffect } from 'react';
+import { useLens } from '../LensContext';
+import type { SankeyNode, SankeyLink } from '../LensContext';
 import { formatTokens, formatDuration, formatCount } from '@synapse-ai/core';
+import { buildSankeyData } from '../lensComputations';
 
 const LAYER_LABELS = ['Sessions', 'Prompts', 'Agents', 'Tools'];
 const NODE_WIDTH = 14;
@@ -23,16 +25,56 @@ interface LayoutLink extends SankeyLink {
 }
 
 export function SankeyView() {
-  const { sankeyData, profileMetric, onProfileMetricChange, selectedId, onSelect, hasTokenData } = useLens();
+  const { treeRoots, paletteIndex, profileMetric, onProfileMetricChange, selectedId, onSelect, hasTokenData } = useLens();
+
+  // Compute sankey data locally (only when sankey tab is active)
+  const sankeyData = useMemo(
+    () => buildSankeyData(treeRoots, profileMetric, paletteIndex),
+    [treeRoots, profileMetric, paletteIndex],
+  );
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string[] } | null>(null);
   const [zoom, setZoom] = useState(1);
+  const zoomRef = useRef(1);
+  const pendingScrollRef = useRef<{ left: number; top: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    if (!e.shiftKey) return; // Shift+scroll to zoom, normal scroll passes through
-    e.preventDefault();
-    setZoom((prev) => Math.max(0.5, Math.min(5, prev + (e.deltaY > 0 ? -0.1 : 0.1))));
+  // Shift+scroll zoom centered on mouse position (native listener for passive:false)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      if (!e.shiftKey) return;
+      e.preventDefault();
+
+      const rect = el.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      const oldZoom = zoomRef.current;
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      const newZoom = Math.max(0.5, Math.min(5, oldZoom + delta));
+      if (newZoom === oldZoom) return;
+
+      const newScrollLeft = (el.scrollLeft + mouseX) * newZoom / oldZoom - mouseX;
+      const newScrollTop = (el.scrollTop + mouseY) * newZoom / oldZoom - mouseY;
+
+      zoomRef.current = newZoom;
+      pendingScrollRef.current = { left: newScrollLeft, top: newScrollTop };
+      setZoom(newZoom);
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
   }, []);
+
+  // Apply scroll adjustment after DOM update to avoid flicker
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    const pending = pendingScrollRef.current;
+    if (!el || !pending) return;
+    el.scrollLeft = pending.left;
+    el.scrollTop = pending.top;
+    pendingScrollRef.current = null;
+  }, [zoom]);
 
   // Mousedown pan
   useEffect(() => {
@@ -208,7 +250,7 @@ export function SankeyView() {
       </div>
 
       {/* Sankey diagram */}
-      <div ref={containerRef} className="flex-1 overflow-auto p-1 cursor-grab" onWheel={handleWheel}>
+      <div ref={containerRef} className="flex-1 overflow-auto p-1 cursor-grab">
         <svg
           viewBox={`0 0 ${viewW} ${viewH}`}
           className="w-full"

@@ -6,7 +6,7 @@ export function TimelinePanel() {
   const agents = useAgentStore((s) => s.agents);
   const selectNode = useAgentStore((s) => s.selectNode);
   const paletteIndex = useAgentStore((s) => s.paletteIndex);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
 

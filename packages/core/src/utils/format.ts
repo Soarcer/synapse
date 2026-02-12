@@ -199,3 +199,10 @@ export function getTypeColor(agentType: string, paletteIndex = 0): string {
   const palette = PALETTES[paletteIndex] ?? PALETTES[0];
   return palette.type[agentType] ?? '#6b7280';
 }
+
+// ── Path utilities ──────────────────────────────────────────
+
+/** Normalize a cwd path for cross-platform comparison (lowercase, forward slashes, no trailing slash). */
+export function normalizeCwd(cwd: string): string {
+  return cwd.replace(/\\/g, '/').replace(/\/$/, '').toLowerCase();
+}

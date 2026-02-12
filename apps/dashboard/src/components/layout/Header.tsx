@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useCallback } from 'react';
-import { useAgentStore } from '../../store/agentStore';
+import { useAgentStore, projectCwd } from '../../store/agentStore';
 import { toast } from '../Toast';
 import { ConfirmDialog } from '../ConfirmDialog';
 import type { TranscriptSummary } from '@synapse-ai/core';
@@ -23,6 +23,8 @@ export function Header() {
   const setLockViewport = useAgentStore((s) => s.setLockViewport);
   const autoClosePrompts = useAgentStore((s) => s.autoClosePrompts);
   const setAutoClosePrompts = useAgentStore((s) => s.setAutoClosePrompts);
+  const cwdFilterActive = useAgentStore((s) => s.cwdFilterActive);
+  const setCwdFilterActive = useAgentStore((s) => s.setCwdFilterActive);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -123,6 +125,19 @@ export function Header() {
         <span className={`w-2 h-2 rounded-full ${statusDot}`} />
         <span className="text-xs text-gray-500">{statusLabel}</span>
       </div>
+
+      {/* Project scope selector */}
+      {projectCwd && (
+        <select
+          value={cwdFilterActive ? 'project' : 'all'}
+          onChange={(e) => setCwdFilterActive(e.target.value === 'project')}
+          className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-300"
+          title={cwdFilterActive ? `Filtered to: ${projectCwd}` : 'Showing all projects'}
+        >
+          <option value="project">This Project</option>
+          <option value="all">All Projects</option>
+        </select>
+      )}
 
       {/* Pause indicator */}
       {paused && (

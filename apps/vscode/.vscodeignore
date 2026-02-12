@@ -1,6 +1,10 @@
 src/
 tsconfig.json
 esbuild.mjs
-node_modules/
 .gitignore
 *.map
+*.ts
+!*.d.ts
+pnpm-lock.yaml
+package-lock.json
+node_modules/

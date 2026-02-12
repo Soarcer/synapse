@@ -14,10 +14,12 @@ import { createAgentsRouter } from './routes/agents.js';
 import { createTranscriptRouter } from './routes/transcript.js';
 import { createSnapshotRouter } from './routes/snapshot.js';
 
-// Import db.ts to trigger schema initialization
-import db, { getDbStats } from './db.js';
+import { initDb, getDbStats, closeDb } from './db.js';
 
 const PORT = parseInt(process.env.PORT || '4000', 10);
+
+// --- Initialize database (async — sql.js requires WASM init) ---
+await initDb();
 
 // --- Services ---
 
@@ -81,7 +83,8 @@ app.get('/api/health', (_req, res) => {
 // --- Serve built frontend (if dist/ exists) ---
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const distPath = path.resolve(__dirname, '..', '..', '..', 'apps', 'dashboard', 'dist');
+const distPath = process.env.SYNAPSE_DASHBOARD_DIR
+  || path.resolve(__dirname, '..', '..', '..', 'apps', 'dashboard', 'dist');
 
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
@@ -148,7 +151,7 @@ function shutdown() {
 
   // 4. Drain period: close DB after 5s, then exit
   const drainTimer = setTimeout(() => {
-    try { db.close(); } catch { /* already closed */ }
+    closeDb();
     logger.info('Shutdown complete');
     process.exit(0);
   }, 5000);

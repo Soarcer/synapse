@@ -102,12 +102,18 @@ importers:
       '@types/vscode':
         specifier: ^1.95.0
         version: 1.109.0
+      '@types/ws':
+        specifier: ^8.5.0
+        version: 8.18.1
       '@vscode/vsce':
         specifier: ^3.0.0
         version: 3.7.1
       esbuild:
         specifier: ^0.24.0
         version: 0.24.2
+      ws:
+        specifier: ^8.18.0
+        version: 8.19.0
 
   packages/core:
     dependencies:
@@ -161,9 +167,6 @@ importers:
       '@synapse-ai/core':
         specifier: workspace:*
         version: link:../core
-      better-sqlite3:
-        specifier: ^11.8.0
-        version: 11.10.0
       express:
         specifier: ^5.1.0
         version: 5.2.1
@@ -176,6 +179,9 @@ importers:
       pino:
         specifier: ^10.3.1
         version: 10.3.1
+      sql.js:
+        specifier: ^1.13.0
+        version: 1.13.0
       ws:
         specifier: ^8.18.0
         version: 8.19.0
@@ -183,9 +189,6 @@ importers:
         specifier: ^4.3.6
         version: 4.3.6
     devDependencies:
-      '@types/better-sqlite3':
-        specifier: ^7.6.0
-        version: 7.6.13
       '@types/express':
         specifier: ^5.0.0
         version: 5.0.6
@@ -2543,9 +2546,6 @@ packages:
 
   '@types/babel__traverse@7.28.0':
     resolution: {integrity: sha512-8PvcXf70gTDZBgt9ptxJ8elBeBjcLOAcOtoO/mPJjtji1+CdGbHgm77om1GrsPxsiE+uXIpNSK64UYaIwQXd4Q==}
-
-  '@types/better-sqlite3@7.6.13':
-    resolution: {integrity: sha512-NMv9ASNARoKksWtsq/SHakpYAYnhBrQgGD8zkLYk/jaK8jUGn08CfEdTRgYhMypUQAfzSP8W6gNLe0q19/t4VA==}
 
   '@types/body-parser@1.19.6':
     resolution: {integrity: sha512-HLFeCYgz89uk22N5Qg3dvGvsv46B8GLvKKo1zKG4NybA8U2DiEO3w9lqGg29t/tfLRJpJ6iQxnVw4OnB7MoM9g==}
@@ -5170,6 +5170,9 @@ packages:
   split2@4.2.0:
     resolution: {integrity: sha512-UcjcJOWknrNkF6PLX83qcHM6KHgVKNkV62Y8a5uYDVv9ydGQVwAHMKqHdJje1VTWpljG0WYpCDhrCdAOYH4TWg==}
     engines: {node: '>= 10.x'}
+
+  sql.js@1.13.0:
+    resolution: {integrity: sha512-RJbVP1HRDlUUXahJ7VMTcu9Rm1Nzw+EBpoPr94vnbD4LwR715F3CcxE2G2k45PewcaZ57pjetYa+LoSJLAASgA==}
 
   sqlite-vec-darwin-arm64@0.1.7-alpha.2:
     resolution: {integrity: sha512-raIATOqFYkeCHhb/t3r7W7Cf2lVYdf4J3ogJ6GFc8PQEgHCPEsi+bYnm2JT84MzLfTlSTIdxr4/NKv+zF7oLPw==}
@@ -8420,10 +8423,6 @@ snapshots:
     dependencies:
       '@babel/types': 7.29.0
 
-  '@types/better-sqlite3@7.6.13':
-    dependencies:
-      '@types/node': 22.19.11
-
   '@types/body-parser@1.19.6':
     dependencies:
       '@types/connect': 3.4.38
@@ -11458,6 +11457,8 @@ snapshots:
   spdx-license-ids@3.0.22: {}
 
   split2@4.2.0: {}
+
+  sql.js@1.13.0: {}
 
   sqlite-vec-darwin-arm64@0.1.7-alpha.2:
     optional: true

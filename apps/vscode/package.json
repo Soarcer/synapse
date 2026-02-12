@@ -1,5 +1,5 @@
 {
-  "name": "@synapse-ai/vscode",
+  "name": "synapse-vscode",
   "displayName": "Synapse — Agent Monitor",
   "description": "Real-time Claude agent monitoring dashboard inside VS Code",
   "version": "0.1.0",
@@ -38,8 +38,41 @@
       {
         "command": "synapse.removeHooks",
         "title": "Synapse: Remove Hooks from This Project"
+      },
+      {
+        "command": "synapse.switchLens",
+        "title": "Synapse: Switch Lens View"
+      },
+      {
+        "command": "synapse.reconnect",
+        "title": "Synapse: Reconnect to Server"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "synapseSidebar",
+          "title": "Synapse",
+          "icon": "$(pulse)"
+        }
+      ]
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "synapseExplorer",
+          "name": "Synapse Agents",
+          "when": "synapse.serverRunning"
+        }
+      ],
+      "synapseSidebar": [
+        {
+          "type": "webview",
+          "id": "synapseSidebarView",
+          "name": "Synapse Dashboard"
+        }
+      ]
+    },
     "configuration": {
       "title": "Synapse",
       "properties": {
@@ -52,20 +85,34 @@
           "type": "boolean",
           "default": true,
           "description": "Auto-start server when opening a project with Claude hooks"
+        },
+        "synapse.layout": {
+          "type": "string",
+          "enum": ["split", "single"],
+          "default": "split",
+          "description": "Dashboard layout in VS Code",
+          "enumDescriptions": [
+            "Lenses in the sidebar, graph in a separate editor panel",
+            "Full dashboard in a single editor panel"
+          ]
         }
       }
     }
   },
   "scripts": {
     "build": "node esbuild.mjs",
+    "build:ext-only": "node esbuild.mjs --skip-server",
     "watch": "node esbuild.mjs --watch",
-    "package": "npx @vscode/vsce package",
-    "prepackage": "npm run build"
+    "package": "npx @vscode/vsce package --no-dependencies",
+    "prepackage": "node esbuild.mjs",
+    "clean": "node -e \"const fs=require('fs'); if(fs.existsSync('resources'))fs.rmSync('resources',{recursive:true}); if(fs.existsSync('out'))fs.rmSync('out',{recursive:true})\""
   },
   "devDependencies": {
     "@types/vscode": "^1.95.0",
     "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.0",
     "esbuild": "^0.24.0",
+    "ws": "^8.18.0",
     "@vscode/vsce": "^3.0.0"
   }
 }

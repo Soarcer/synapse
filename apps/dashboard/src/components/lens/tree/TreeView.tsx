@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect, useLayoutEffect } from 'react';
 import { useLens, type LensTreeNode } from '../LensContext';
 import { TreeRow } from './TreeRow';
 
@@ -8,12 +8,46 @@ export function TreeView() {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [focusIndex, setFocusIndex] = useState(-1);
   const [zoom, setZoom] = useState(1);
+  const zoomRef = useRef(1);
+  const pendingScrollRef = useRef<{ left: number; top: number } | null>(null);
 
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    if (!e.shiftKey) return;
-    e.preventDefault();
-    setZoom((prev) => Math.max(0.5, Math.min(3, prev + (e.deltaY > 0 ? -0.1 : 0.1))));
+  // Shift+scroll zoom centered on mouse position (native listener for passive:false)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      if (!e.shiftKey) return;
+      e.preventDefault();
+
+      const rect = el.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      const oldZoom = zoomRef.current;
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      const newZoom = Math.max(0.5, Math.min(3, oldZoom + delta));
+      if (newZoom === oldZoom) return;
+
+      const newScrollLeft = (el.scrollLeft + mouseX) * newZoom / oldZoom - mouseX;
+      const newScrollTop = (el.scrollTop + mouseY) * newZoom / oldZoom - mouseY;
+
+      zoomRef.current = newZoom;
+      pendingScrollRef.current = { left: newScrollLeft, top: newScrollTop };
+      setZoom(newZoom);
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
   }, []);
+
+  // Apply scroll adjustment after DOM update to avoid flicker
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    const pending = pendingScrollRef.current;
+    if (!el || !pending) return;
+    el.scrollLeft = pending.left;
+    el.scrollTop = pending.top;
+    pendingScrollRef.current = null;
+  }, [zoom]);
 
   // Auto-expand sessions and prompts on first data
   useEffect(() => {
@@ -186,7 +220,6 @@ export function TreeView() {
       <div
         ref={containerRef}
         className="flex-1 overflow-auto focus:outline-none"
-        onWheel={handleWheel}
         onKeyDown={handleKeyDown}
         tabIndex={0}
       >

@@ -54,6 +54,7 @@ export const EventQuerySchema = z.object({
   sessionId: z.string().optional(),
   agentId: z.string().optional(),
   type: z.string().optional(),
+  cwd: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(2000).optional(),
   offset: z.coerce.number().int().min(0).max(100_000).optional(),
 });

@@ -18,4 +18,13 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-xyflow': ['@xyflow/react'],
+        },
+      },
+    },
+  },
 });

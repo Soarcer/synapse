@@ -8,10 +8,20 @@ import type {
   UserPromptData,
   TranscriptSummary,
 } from '@synapse-ai/core';
-import { PALETTES } from '@synapse-ai/core';
+import { PALETTES, normalizeCwd } from '@synapse-ai/core';
 import { wsClient } from './wsClient';
 import { toast } from '../components/Toast';
 import { apiUrl } from '../utils/api';
+
+// ── CWD filter ────────────────────────────────────────────────
+/** The project cwd from the URL (null when not embedded with ?cwd=). */
+export const projectCwd: string | null = (() => {
+  const raw = new URLSearchParams(window.location.search).get('cwd');
+  return raw ? normalizeCwd(raw) : null;
+})();
+
+/** Active cwd filter — starts matching the URL param, can be toggled to null (all). */
+let cwdFilter: string | null = projectCwd;
 import {
   SPAWN_NODE,
   NO_GRAPH_EVENTS,
@@ -40,7 +50,8 @@ function reloadAllEvents(): void {
   reloadAbort = new AbortController();
   const signal = reloadAbort.signal;
 
-  fetch(apiUrl('/api/events?limit=2000'), { signal })
+  const cwdParam = cwdFilter ? `&cwd=${encodeURIComponent(cwdFilter)}` : '';
+  fetch(apiUrl(`/api/events?limit=2000${cwdParam}`), { signal })
     .then((r) => r.json())
     .then((data) => {
       const events = Array.isArray(data) ? data : data?.events;
@@ -79,6 +90,7 @@ interface AgentStore {
   showAllTools: boolean;
   lockViewport: boolean;
   autoClosePrompts: boolean;
+  cwdFilterActive: boolean;
   graphSearchQuery: string;
   collapsedNodes: Set<string>;
   transcripts: Map<string, TranscriptSummary>;
@@ -105,6 +117,7 @@ interface AgentStore {
   setShowAllTools: (show: boolean) => void;
   setLockViewport: (lock: boolean) => void;
   setAutoClosePrompts: (v: boolean) => void;
+  setCwdFilterActive: (active: boolean) => void;
   setGraphSearchQuery: (query: string) => void;
   toggleCollapsed: (nodeId: string) => void;
   expandNode: (nodeId: string) => void;
@@ -150,6 +163,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   showAllTools: false,
   lockViewport: true,
   autoClosePrompts: false,
+  cwdFilterActive: projectCwd !== null,
   graphSearchQuery: '',
   collapsedNodes: new Set<string>(),
   transcripts: new Map(),
@@ -160,7 +174,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   activeLensTab: 'tree',
   lensPanelWidth: 320,
   lensSearchQuery: '',
-  profileMetric: 'tokens',
+  profileMetric: 'count',
   paletteIndex: 0,
   selectSource: null,
 
@@ -263,6 +277,12 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   setShowAllTools: (showAllTools) => set({ showAllTools }),
 
   setLockViewport: (lockViewport) => set({ lockViewport }),
+
+  setCwdFilterActive: (active) => {
+    cwdFilter = active ? projectCwd : null;
+    set({ cwdFilterActive: active });
+    reloadAllEvents();
+  },
 
   setPaused: (paused) => {
     set({ paused });
@@ -416,6 +436,10 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 wsClient.setOnEvent((msg) => {
   if (msg.type === 'event') {
     const event = msg.data;
+
+    // Skip events from other projects when cwd filter is active
+    if (cwdFilter && event.cwd && normalizeCwd(event.cwd) !== cwdFilter) return;
+
     useAgentStore.getState().addEvent(event);
 
     // Toast notifications for key events (with nodeId for click-to-focus)

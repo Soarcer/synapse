@@ -1,21 +1,44 @@
 import * as vscode from 'vscode';
 
+type SelectionHandler = (nodeId: string | null) => void;
+type VoidHandler = () => void;
+
 export class SynapsePanel {
   private static currentPanel: SynapsePanel | undefined;
   private readonly panel: vscode.WebviewPanel;
   private readonly port: number;
+  private readonly viewParam: string;
+  private readonly cwd: string | undefined;
   private disposables: vscode.Disposable[] = [];
+  private _onSelectionChanged: SelectionHandler | undefined;
+  private _onIframeReady: VoidHandler | undefined;
 
-  private constructor(panel: vscode.WebviewPanel, port: number) {
+  private constructor(panel: vscode.WebviewPanel, port: number, viewParam: string, cwd?: string) {
     this.panel = panel;
     this.port = port;
+    this.viewParam = viewParam;
+    this.cwd = cwd;
 
     this.panel.webview.html = this.getHtml();
+
+    // Listen for messages from the iframe
+    this.panel.webview.onDidReceiveMessage(
+      (message) => {
+        if (message.type === 'selectionChanged' && this._onSelectionChanged) {
+          this._onSelectionChanged(message.nodeId ?? null);
+        }
+        if (message.type === 'iframeReady' && this._onIframeReady) {
+          this._onIframeReady();
+        }
+      },
+      null,
+      this.disposables,
+    );
 
     this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
   }
 
-  static create(extensionUri: vscode.Uri, port: number): SynapsePanel {
+  static create(extensionUri: vscode.Uri, port: number, viewParam = '', cwd?: string): SynapsePanel {
     if (SynapsePanel.currentPanel) {
       SynapsePanel.currentPanel.panel.reveal(vscode.ViewColumn.One);
       return SynapsePanel.currentPanel;
@@ -28,15 +51,39 @@ export class SynapsePanel {
       {
         enableScripts: true,
         retainContextWhenHidden: true,
-      }
+      },
     );
 
-    SynapsePanel.currentPanel = new SynapsePanel(panel, port);
+    SynapsePanel.currentPanel = new SynapsePanel(panel, port, viewParam, cwd);
     return SynapsePanel.currentPanel;
   }
 
+  /** Register a callback for when the user selects a node in the graph */
+  onSelectionChanged(handler: SelectionHandler): void {
+    this._onSelectionChanged = handler;
+  }
+
+  /** Forward a selectNode message into the iframe */
+  postSelectNode(nodeId: string | null): void {
+    this.panel.webview.postMessage({ type: 'selectNode', nodeId });
+  }
+
+  /** Forward any message to the iframe */
+  postMessage(message: unknown): void {
+    this.panel.webview.postMessage(message);
+  }
+
+  /** Register a callback for when the iframe signals readiness */
+  onIframeReady(handler: VoidHandler): void {
+    this._onIframeReady = handler;
+  }
+
   private getHtml(): string {
-    const url = `http://localhost:${this.port}`;
+    const params = new URLSearchParams();
+    if (this.viewParam) params.set('view', this.viewParam);
+    if (this.cwd) params.set('cwd', this.cwd.replace(/\\/g, '/').replace(/\/$/, '').toLowerCase());
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const url = `http://localhost:${this.port}${query}`;
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -45,6 +92,7 @@ export class SynapsePanel {
   <meta http-equiv="Content-Security-Policy"
     content="default-src 'none';
              frame-src http://localhost:*;
+             script-src 'unsafe-inline';
              style-src 'unsafe-inline';">
   <title>Synapse Dashboard</title>
   <style>
@@ -80,13 +128,14 @@ export class SynapsePanel {
   <script>
     const iframe = document.getElementById('dashboard');
     const loading = document.getElementById('loading');
+    const vscodeApi = acquireVsCodeApi();
 
     iframe.onload = () => {
       iframe.classList.remove('hidden');
       loading.classList.add('hidden');
+      vscodeApi.postMessage({ type: 'iframeReady' });
     };
 
-    // Retry on load failure
     let retries = 0;
     iframe.onerror = () => {
       if (retries++ < 10) {
@@ -96,11 +145,33 @@ export class SynapsePanel {
       }
     };
 
-    // Also retry if iframe stays blank
     setTimeout(() => {
       if (loading.classList.contains('hidden')) return;
       iframe.src = '${url}';
     }, 3000);
+
+    // Bidirectional message relay: extension ↔ iframe
+    window.addEventListener('message', (event) => {
+      const msg = event.data;
+      if (!msg || typeof msg !== 'object') return;
+      // Extension → iframe
+      if ((msg.type === 'selectNode' || msg.type === 'synapseEvent' || msg.type === 'hydrateEvents') && iframe.contentWindow) {
+        iframe.contentWindow.postMessage(msg, '*');
+      }
+      // iframe → extension
+      if (msg.type === 'selectionChanged') {
+        vscodeApi.postMessage(msg);
+      }
+      // Forward keyboard shortcuts from iframe back to VS Code
+      if (msg.type === 'forwardKeydown') {
+        document.dispatchEvent(new KeyboardEvent('keydown', {
+          key: msg.key, code: msg.code,
+          ctrlKey: msg.ctrlKey, shiftKey: msg.shiftKey,
+          altKey: msg.altKey, metaKey: msg.metaKey,
+          bubbles: true, cancelable: true,
+        }));
+      }
+    });
   </script>
 </body>
 </html>`;

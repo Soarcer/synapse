@@ -1,6 +1,7 @@
 import { useMemo, useRef, useEffect } from 'react';
 import { useLens } from '../LensContext';
 import { formatTokens, formatDuration } from '@synapse-ai/core';
+import { buildCompactEvents, buildCostPerTurn } from '../lensComputations';
 
 /** Small SVG sparkline showing cumulative tokens with compaction drop markers */
 function ContextGrowthChart({
@@ -81,7 +82,14 @@ function ContextGrowthChart({
 }
 
 export function CompactionView() {
-  const { compactEvents, costPerTurn, hasTokenData, transcripts, selectedId, onSelect } = useLens();
+  const { agents, events, prompts, transcripts, hasTokenData, selectedId, onSelect } = useLens();
+
+  // Compute locally (only when compaction tab is active)
+  const compactEvents = useMemo(() => buildCompactEvents(events), [events]);
+  const costPerTurn = useMemo(
+    () => buildCostPerTurn(prompts, agents, compactEvents, transcripts),
+    [prompts, agents, compactEvents, transcripts],
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to selected turn row

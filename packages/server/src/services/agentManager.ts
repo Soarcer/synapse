@@ -1,4 +1,3 @@
-import { query } from '@anthropic-ai/claude-agent-sdk';
 import { nanoid } from 'nanoid';
 import { logger } from '../lib/logger.js';
 import type { Broadcaster } from './broadcaster.js';
@@ -8,6 +7,23 @@ import type {
   SpawnAgentRequest,
   ActiveAgentInfo,
 } from '@synapse-ai/core';
+
+// Lazy-load the agent SDK so the server can start without it
+// (e.g. in the VS Code extension bundle where the 69MB SDK is not included)
+let _query: typeof import('@anthropic-ai/claude-agent-sdk').query | undefined;
+async function getQueryFn() {
+  if (!_query) {
+    try {
+      const sdk = await import('@anthropic-ai/claude-agent-sdk');
+      _query = sdk.query;
+    } catch {
+      throw new Error(
+        'Claude Agent SDK is not installed. Agent spawning requires @anthropic-ai/claude-agent-sdk.',
+      );
+    }
+  }
+  return _query;
+}
 
 const MAX_CONCURRENT_AGENTS = 10;
 const AGENT_TIMEOUT_MS = 300_000; // 5 minutes
@@ -95,7 +111,8 @@ export class AgentManager {
         options.cwd = request.cwd;
       }
 
-      const stream = query({
+      const queryFn = await getQueryFn();
+      const stream = queryFn({
         prompt: request.prompt,
         options: {
           ...options,

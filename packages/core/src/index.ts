@@ -53,6 +53,7 @@ export {
   statusBorderColor,
   TYPE_COLORS,
   getTypeColor,
+  normalizeCwd,
 } from './utils/format.js';
 
 export type { ColorPalette } from './utils/format.js';

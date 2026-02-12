@@ -20,6 +20,23 @@ export class HookManager {
     this.resourcesPath = resourcesPath;
   }
 
+  /** Returns true if the workspace needs Synapse hooks configured. */
+  needsConfiguration(): boolean {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) return false;
+
+    const settingsFile = path.join(workspaceFolder.uri.fsPath, '.claude', 'settings.local.json');
+    if (!fs.existsSync(settingsFile)) return true;
+
+    try {
+      const content = fs.readFileSync(settingsFile, 'utf-8');
+      // Check if our hook script is already referenced
+      return !content.includes('send_event.cjs');
+    } catch {
+      return true;
+    }
+  }
+
   async configureHooks(): Promise<void> {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
@@ -64,20 +81,20 @@ export class HookManager {
     vscode.window.showInformationMessage(`Synapse hooks configured in ${settingsFile}`);
   }
 
-  async removeHooks(): Promise<void> {
+  async removeHooks(silent = false): Promise<void> {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
-      vscode.window.showErrorMessage('No workspace folder open');
+      if (!silent) vscode.window.showErrorMessage('No workspace folder open');
       return;
     }
 
     const settingsFile = path.join(workspaceFolder.uri.fsPath, '.claude', 'settings.local.json');
 
     if (fs.existsSync(settingsFile)) {
-      fs.unlinkSync(settingsFile);
-      vscode.window.showInformationMessage('Synapse hooks removed');
+      try { fs.unlinkSync(settingsFile); } catch { /* ignore on shutdown */ }
+      if (!silent) vscode.window.showInformationMessage('Synapse hooks removed');
     } else {
-      vscode.window.showInformationMessage('No .claude/settings.local.json found');
+      if (!silent) vscode.window.showInformationMessage('No .claude/settings.local.json found');
     }
   }
 }
