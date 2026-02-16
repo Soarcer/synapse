@@ -124,6 +124,11 @@ export class AgentManager {
       for await (const message of stream) {
         if (agent.abortController.signal.aborted) break;
 
+        // Yield briefly if clients have backpressure
+        if (broadcaster.hasBackpressure()) {
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
         const msg = message as Record<string, unknown>;
 
         // SystemMessage — capture session ID
