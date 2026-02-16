@@ -10,6 +10,8 @@ interface Props {
   data: MockData;
 }
 
+type SortField = 'date' | 'cost' | 'tokens' | 'turns';
+
 const MODEL_COLORS: Record<string, string> = {
   'claude-opus-4-6': '#e8956a',
   'claude-sonnet-4-5': '#3b82f6',
@@ -95,12 +97,20 @@ function TurnCard({
           onClick={onToggle}
           className="flex-1 text-left bg-[#161b22] border border-gray-800 rounded-lg p-3 hover:border-gray-700 transition-colors"
         >
-          {/* Header */}
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <p className="text-xs text-gray-300 truncate">{turn.promptText}</p>
-              <p className="text-[10px] text-gray-600 mt-0.5">{fmtTime(turn.timestamp)}</p>
+          {/* Prompt text card */}
+          {turn.promptText ? (
+            <div className="mb-2 px-2.5 py-2 bg-[#0d1117] border border-gray-800/70 rounded-md">
+              <p className="text-[11px] text-gray-300 leading-relaxed line-clamp-3">{turn.promptText}</p>
             </div>
+          ) : (
+            <div className="mb-2 px-2.5 py-1.5 bg-[#0d1117]/50 border border-gray-800/40 rounded-md">
+              <p className="text-[10px] text-gray-600 italic">no prompt text</p>
+            </div>
+          )}
+
+          {/* Stats header */}
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-[10px] text-gray-600">{fmtTime(turn.timestamp)}</p>
             <div className="flex items-center gap-3 flex-shrink-0">
               <div className="text-right">
                 <div className="text-xs font-medium text-amber-400">{fmtUsd(turn.costUsd)}</div>
@@ -209,6 +219,39 @@ function TurnCard({
 export function SessionReplay({ data }: Props) {
   const [selectedSession, setSelectedSession] = useState<string>(data.sessions[data.sessions.length - 1]?.id ?? '');
   const [expandedTurn, setExpandedTurn] = useState<number | null>(null);
+  const [sortField, setSortField] = useState<SortField>('date');
+  const [sortAsc, setSortAsc] = useState(false);
+
+  // Sort sessions
+  const sortedSessions = useMemo(() => {
+    const arr = [...data.sessions];
+    arr.sort((a, b) => {
+      let cmp = 0;
+      switch (sortField) {
+        case 'date': cmp = a.startTime - b.startTime; break;
+        case 'cost': cmp = a.totalCost - b.totalCost; break;
+        case 'tokens': cmp = (a.totalInputTokens + a.totalOutputTokens) - (b.totalInputTokens + b.totalOutputTokens); break;
+        case 'turns': cmp = a.promptCount - b.promptCount; break;
+      }
+      return sortAsc ? cmp : -cmp;
+    });
+    return arr;
+  }, [data.sessions, sortField, sortAsc]);
+
+  // Group sorted sessions by day
+  const groupedSessions = useMemo(() => {
+    const groups: { date: string; sessions: MockSession[] }[] = [];
+    let currentDate = '';
+    for (const s of sortedSessions) {
+      const dateKey = new Date(s.startTime).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+      if (dateKey !== currentDate) {
+        currentDate = dateKey;
+        groups.push({ date: dateKey, sessions: [] });
+      }
+      groups[groups.length - 1].sessions.push(s);
+    }
+    return groups;
+  }, [sortedSessions]);
 
   const session = useMemo(() =>
     data.sessions.find((s) => s.id === selectedSession),
@@ -267,6 +310,15 @@ export function SessionReplay({ data }: Props) {
     [sessionTurns],
   );
 
+  const handleSortChange = (field: SortField) => {
+    if (sortField === field) {
+      setSortAsc(!sortAsc);
+    } else {
+      setSortField(field);
+      setSortAsc(false);
+    }
+  };
+
   if (!session) {
     return <div className="p-8 text-center text-gray-500">No sessions available</div>;
   }
@@ -275,23 +327,77 @@ export function SessionReplay({ data }: Props) {
     <div className="flex h-full overflow-hidden">
       {/* Left: Session picker + timeline */}
       <div className="w-[420px] flex-shrink-0 border-r border-gray-800 flex flex-col overflow-hidden">
-        {/* Session picker */}
+        {/* Sort controls */}
         <div className="p-3 border-b border-gray-800 bg-[#0d1117]">
-          <label className="text-[10px] text-gray-500 uppercase tracking-wider font-medium block mb-1.5">Session</label>
-          <select
-            value={selectedSession}
-            onChange={(e) => { setSelectedSession(e.target.value); setExpandedTurn(null); }}
-            className="w-full bg-[#161b22] border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-blue-500"
-          >
-            {data.sessions.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} — {fmtUsd(s.totalCost)} — {new Date(s.startTime).toLocaleDateString()}
-              </option>
+          <label className="text-[10px] text-gray-500 uppercase tracking-wider font-medium block mb-1.5">Sort by</label>
+          <div className="flex items-center gap-1">
+            {([['date', 'Date'], ['cost', 'Cost'], ['tokens', 'Tokens'], ['turns', 'Turns']] as const).map(([field, label]) => (
+              <button
+                key={field}
+                onClick={() => handleSortChange(field)}
+                className={`px-2.5 py-1 text-[11px] rounded-md transition-all ${
+                  sortField === field
+                    ? 'bg-blue-500/20 text-blue-400 font-medium'
+                    : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+                }`}
+              >
+                {label}
+                {sortField === field && (
+                  <span className="ml-0.5">{sortAsc ? '\u2191' : '\u2193'}</span>
+                )}
+              </button>
             ))}
-          </select>
+          </div>
+        </div>
 
-          {/* Session summary */}
-          <div className="flex items-center gap-3 mt-2 text-[10px] text-gray-500">
+        {/* Session picker — grouped by day */}
+        <div className="p-3 border-b border-gray-800 bg-[#0d1117] max-h-[260px] overflow-y-auto">
+          <label className="text-[10px] text-gray-500 uppercase tracking-wider font-medium block mb-1.5">
+            Sessions ({data.sessions.length})
+          </label>
+          <div className="space-y-2">
+            {groupedSessions.map((group) => (
+              <div key={group.date}>
+                <div className="text-[10px] text-gray-600 font-medium mb-1 sticky top-0 bg-[#0d1117] py-0.5">{group.date}</div>
+                <div className="space-y-0.5">
+                  {group.sessions.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => { setSelectedSession(s.id); setExpandedTurn(null); }}
+                      className={`w-full text-left px-2.5 py-1.5 rounded-md text-[11px] transition-all ${
+                        selectedSession === s.id
+                          ? 'bg-blue-500/15 border border-blue-500/30 text-gray-200'
+                          : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-300 border border-transparent'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="truncate flex-1 mr-2">{s.name}</span>
+                        <span className="text-amber-400 font-medium flex-shrink-0">{fmtUsd(s.totalCost)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-600">
+                        <span>{s.promptCount} turns</span>
+                        <span>{fmtTokens(s.totalInputTokens + s.totalOutputTokens)} tok</span>
+                        <span
+                          className="px-1 rounded"
+                          style={{
+                            backgroundColor: `${MODEL_COLORS[s.model] ?? '#6b7280'}15`,
+                            color: MODEL_COLORS[s.model] ?? '#6b7280',
+                          }}
+                        >
+                          {MODEL_LABELS[s.model] ?? s.model}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Session summary */}
+        <div className="px-3 py-2 border-b border-gray-800 bg-[#0d1117]">
+          <div className="flex items-center gap-3 text-[10px] text-gray-500">
             <span>{sessionTurns.length} turns</span>
             <span>{fmtTokens(session.totalInputTokens + session.totalOutputTokens)} tokens</span>
             <span>{session.toolCalls} tool calls</span>

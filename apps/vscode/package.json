@@ -3,7 +3,7 @@
   "displayName": "Synapse — Agent Monitor",
   "description": "Real-time Claude agent monitoring dashboard inside VS Code",
   "version": "0.1.0",
-  "publisher": "bernhard",
+  "publisher": "Soarcer",
   "license": "MIT",
   "engines": {
     "vscode": "^1.95.0"
@@ -46,8 +46,22 @@
       {
         "command": "synapse.reconnect",
         "title": "Synapse: Reconnect to Server"
+      },
+      {
+        "command": "synapse.openSettings",
+        "title": "Synapse: Settings",
+        "icon": "$(gear)"
       }
     ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "synapse.openSettings",
+          "when": "view == synapseSidebarView",
+          "group": "navigation"
+        }
+      ]
+    },
     "viewsContainers": {
       "activitybar": [
         {
@@ -79,7 +93,7 @@
         "synapse.port": {
           "type": "number",
           "default": 4000,
-          "description": "Port for the Synapse server"
+          "description": "Preferred port for the Synapse server. If busy, the next available port is used automatically."
         },
         "synapse.autoStart": {
           "type": "boolean",
@@ -95,6 +109,48 @@
             "Lenses in the sidebar, graph in a separate editor panel",
             "Full dashboard in a single editor panel"
           ]
+        },
+        "synapse.animationSpeed": {
+          "type": "string",
+          "enum": ["off", "slow", "normal", "fast"],
+          "default": "normal",
+          "description": "Speed of edge and node animations in the graph"
+        },
+        "synapse.defaultLens": {
+          "type": "string",
+          "enum": ["tree", "heat", "tmap", "flow", "comp", "cost"],
+          "default": "tree",
+          "description": "Default lens view when opening the sidebar"
+        },
+        "synapse.nodeLabelDensity": {
+          "type": "string",
+          "enum": ["minimal", "normal", "verbose"],
+          "default": "normal",
+          "description": "Amount of detail shown on graph nodes"
+        },
+        "synapse.edgeStyle": {
+          "type": "string",
+          "enum": ["smoothstep", "bezier", "straight"],
+          "default": "smoothstep",
+          "description": "Edge routing style in the graph"
+        },
+        "synapse.autoZoom": {
+          "type": "string",
+          "enum": ["fit-all", "follow-latest", "manual"],
+          "default": "fit-all",
+          "description": "Auto-zoom behavior when new nodes appear"
+        },
+        "synapse.themeOverride": {
+          "type": "string",
+          "enum": ["auto", "dark", "light"],
+          "default": "auto",
+          "description": "Override the dashboard theme (auto follows VS Code theme)"
+        },
+        "synapse.maxEvents": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Maximum events to retain in the database (0 = unlimited)"
         }
       }
     }

@@ -7,9 +7,12 @@ synapse.db-journal
 synapse.db-shm
 synapse.db-wal
 *.tsbuildinfo
+*.vsix
 hook_debug.log
 nul
 c:temp*
+test-results/
+.claude/settings.local.json
 
 # Old directories (migrated to packages/ and apps/)
 openclaw-plugin/dist/

@@ -259,7 +259,7 @@ function FullView() {
           </ErrorBoundary>
         )}
 
-        <main id="main-graph" role="main">
+        <main id="main-graph" role="main" className="flex-1 flex flex-col min-w-0">
           <GraphLayout />
         </main>
       </div>

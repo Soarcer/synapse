@@ -1,8 +1,10 @@
 import { nanoid } from 'nanoid';
-import { insertEvent, queryEvents, type EventRow } from '../db.js';
+import { insertEvent, queryEvents, updateDailyRollup, type EventRow } from '../db.js';
 import type { Broadcaster } from './broadcaster.js';
 import { normalizeCwd } from '@synapse-ai/core';
 import type { AgentEvent, AgentEventType } from '@synapse-ai/core';
+import { computeCostUsd } from './costService.js';
+import { checkNudges, updateEventBuffer } from './nudgeEngine.js';
 
 // ─── Hook Event Name → AgentEventType Mapping ──────────────────────
 
@@ -110,6 +112,8 @@ export function storeAndBroadcast(
   const event = normalizeHookPayload(raw);
   const hookEventName = (raw.hook_event_name as string) || 'unknown';
 
+  const normalizedCwd = event.cwd ? normalizeCwd(event.cwd) : null;
+
   // Persist to SQLite
   insertEvent({
     event_id: event.id,
@@ -128,14 +132,41 @@ export function storeAndBroadcast(
     token_input: event.tokenUsage?.input,
     token_output: event.tokenUsage?.output,
     duration_ms: event.duration,
+    model: event.model,
     vendor: event.vendor,
-    cwd: event.cwd ? normalizeCwd(event.cwd) : null,
+    cwd: normalizedCwd,
     raw_payload: JSON.stringify(raw),
     created_at: event.timestamp,
   });
 
+  // Update daily analytics rollup
+  const inputTokens = event.tokenUsage?.input ?? 0;
+  const outputTokens = event.tokenUsage?.output ?? 0;
+  const cacheRead = Math.round(inputTokens * 0.5);
+  const costUsd = inputTokens > 0
+    ? computeCostUsd(event.model ?? 'claude-sonnet-4-5', inputTokens, outputTokens, cacheRead, event.timestamp)
+    : 0;
+
+  updateDailyRollup({
+    created_at: event.timestamp,
+    cwd: normalizedCwd,
+    model: event.model,
+    vendor: event.vendor,
+    event_type: event.type,
+    token_input: event.tokenUsage?.input,
+    token_output: event.tokenUsage?.output,
+    duration_ms: event.duration,
+    tool_name: event.toolName,
+    status: event.status,
+    cost_usd: costUsd,
+  });
+
   // Broadcast to all WebSocket clients
   broadcaster.broadcast(event);
+
+  // Coaching nudge engine
+  updateEventBuffer(event);
+  checkNudges(event, broadcaster);
 
   return event;
 }
@@ -200,6 +231,8 @@ export function storePreNormalized(
   event: AgentEvent,
   broadcaster: Broadcaster,
 ): void {
+  const normalizedCwd = event.cwd ? normalizeCwd(event.cwd) : null;
+
   insertEvent({
     event_id: event.id,
     session_id: event.sessionId,
@@ -217,13 +250,40 @@ export function storePreNormalized(
     token_input: event.tokenUsage?.input,
     token_output: event.tokenUsage?.output,
     duration_ms: event.duration,
+    model: event.model,
     vendor: event.vendor,
-    cwd: event.cwd ? normalizeCwd(event.cwd) : null,
+    cwd: normalizedCwd,
     raw_payload: JSON.stringify(event),
     created_at: event.timestamp,
   });
 
+  // Update daily analytics rollup
+  const inputTokens = event.tokenUsage?.input ?? 0;
+  const outputTokens = event.tokenUsage?.output ?? 0;
+  const cacheRead = Math.round(inputTokens * 0.5);
+  const costUsd = inputTokens > 0
+    ? computeCostUsd(event.model ?? 'claude-sonnet-4-5', inputTokens, outputTokens, cacheRead, event.timestamp)
+    : 0;
+
+  updateDailyRollup({
+    created_at: event.timestamp,
+    cwd: normalizedCwd,
+    model: event.model,
+    vendor: event.vendor,
+    event_type: event.type,
+    token_input: event.tokenUsage?.input,
+    token_output: event.tokenUsage?.output,
+    duration_ms: event.duration,
+    tool_name: event.toolName,
+    status: event.status,
+    cost_usd: costUsd,
+  });
+
   broadcaster.broadcast(event);
+
+  // Coaching nudge engine (same as storeAndBroadcast)
+  updateEventBuffer(event);
+  checkNudges(event, broadcaster);
 }
 
 // ─── Query Events (returns AgentEvent[]) ────────────────────────────

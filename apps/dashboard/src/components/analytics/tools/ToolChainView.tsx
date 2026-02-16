@@ -15,17 +15,28 @@ const TOOL_COLORS: Record<string, string> = {
 };
 
 export function ToolChainView({ data }: ToolChainViewProps) {
-  // Tool co-occurrence matrix
+  // Tool co-occurrence: tools used within the same session
   const coOccurrence = useMemo(() => {
     const toolSet = new Set<string>();
     const pairCounts = new Map<string, number>();
 
+    // Group turns by session, find which tools co-occur
+    const sessionTools = new Map<string, Set<string>>();
     for (const turn of data.turns) {
-      const tools = [...new Set(turn.toolNames)];
-      for (const t of tools) toolSet.add(t);
-      for (let i = 0; i < tools.length; i++) {
-        for (let j = i + 1; j < tools.length; j++) {
-          const key = [tools[i], tools[j]].sort().join('→');
+      for (const t of turn.toolNames) {
+        toolSet.add(t);
+        let set = sessionTools.get(turn.sessionId);
+        if (!set) { set = new Set(); sessionTools.set(turn.sessionId, set); }
+        set.add(t);
+      }
+    }
+
+    // Count pairs of tools that co-occur in the same session
+    for (const [, tools] of sessionTools) {
+      const arr = [...tools].sort();
+      for (let i = 0; i < arr.length; i++) {
+        for (let j = i + 1; j < arr.length; j++) {
+          const key = `${arr[i]}→${arr[j]}`;
           pairCounts.set(key, (pairCounts.get(key) || 0) + 1);
         }
       }
@@ -42,23 +53,53 @@ export function ToolChainView({ data }: ToolChainViewProps) {
     return { allTools, matrix: matrix.slice(0, 20) };
   }, [data.turns]);
 
-  // Common tool sequences (consecutive tools within turns)
+  // Common tool sequences: consecutive tool usage across turns
   const sequences = useMemo(() => {
     const seqCounts = new Map<string, number>();
+
+    // Group turns by session
+    const sessionTurns = new Map<string, typeof data.turns>();
     for (const turn of data.turns) {
-      if (turn.toolNames.length < 2) continue;
-      for (let i = 0; i < turn.toolNames.length - 1; i++) {
-        const seq = `${turn.toolNames[i]} → ${turn.toolNames[i + 1]}`;
-        seqCounts.set(seq, (seqCounts.get(seq) || 0) + 1);
+      let arr = sessionTurns.get(turn.sessionId);
+      if (!arr) { arr = []; sessionTurns.set(turn.sessionId, arr); }
+      arr.push(turn);
+    }
+
+    // Within each session, look at consecutive turns' tools
+    for (const [, turns] of sessionTurns) {
+      turns.sort((a, b) => a.timestamp - b.timestamp);
+      let prevTool = '';
+      for (const turn of turns) {
+        for (const tool of turn.toolNames) {
+          if (prevTool && prevTool !== tool) {
+            const seq = `${prevTool} → ${tool}`;
+            seqCounts.set(seq, (seqCounts.get(seq) || 0) + 1);
+          }
+          prevTool = tool;
+        }
       }
     }
+
     return [...seqCounts.entries()]
       .map(([seq, count]) => ({ sequence: seq, count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 15);
   }, [data.turns]);
 
-  // Tool error hotspots
+  // Tool usage frequency (from turns data, which has full coverage)
+  const toolUsage = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const turn of data.turns) {
+      for (const tool of turn.toolNames) {
+        counts.set(tool, (counts.get(tool) || 0) + 1);
+      }
+    }
+    return [...counts.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [data.turns]);
+
+  // Tool error hotspots (from event-level data)
   const errorHotspots = useMemo(() => {
     const errorMap = new Map<string, { errors: number; total: number }>();
     for (const tc of data.toolCalls) {
@@ -124,6 +165,28 @@ export function ToolChainView({ data }: ToolChainViewProps) {
           </ResponsiveContainer>
         </div>
       </div>
+
+      {/* Tool Usage Frequency */}
+      {toolUsage.length > 0 && (
+        <div className="bg-[#161b22] border border-gray-800 rounded-xl p-4">
+          <h4 className="text-xs font-medium text-gray-400 mb-3">Tool Usage Frequency</h4>
+          <ResponsiveContainer width="100%" height={Math.max(200, toolUsage.length * 28)}>
+            <BarChart data={toolUsage} layout="vertical">
+              <CartesianGrid strokeDasharray="3 3" stroke="#21262d" />
+              <XAxis type="number" tick={{ fill: '#8b949e', fontSize: 10 }} />
+              <YAxis dataKey="name" type="category" width={100} tick={{ fill: '#8b949e', fontSize: 10 }} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#161b22', border: '1px solid #30363d', borderRadius: '8px', fontSize: '11px' }}
+              />
+              <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                {toolUsage.map((entry) => (
+                  <Cell key={entry.name} fill={TOOL_COLORS[entry.name] || '#6366f1'} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {/* Error Hotspots */}
       {errorHotspots.length > 0 && (

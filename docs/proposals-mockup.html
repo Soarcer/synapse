@@ -1,0 +1,2437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Synapse Coach — Session Intelligence Proposals</title>
+  <style>
+    :root {
+      --bg-primary: #0f1117;
+      --bg-secondary: #1a1d27;
+      --bg-tertiary: #252932;
+      --bg-hover: #2d3139;
+      --text-primary: #ffffff;
+      --text-secondary: #9ca3af;
+      --text-tertiary: #6b7280;
+      --accent-blue: #3b82f6;
+      --accent-blue-dark: #2563eb;
+      --accent-green: #22c55e;
+      --accent-yellow: #eab308;
+      --accent-orange: #f97316;
+      --accent-red: #ef4444;
+      --border-color: #2d3139;
+      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, var(--bg-secondary) 0%, #1e2330 100%);
+      border-bottom: 1px solid var(--border-color);
+      padding: 1.5rem 2rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: var(--shadow);
+    }
+
+    .header-content {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .logo {
+      font-size: 1.5rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent-blue) 0%, #60a5fa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle {
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      margin-left: 1rem;
+      padding-left: 1rem;
+      border-left: 1px solid var(--border-color);
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+      background: var(--bg-secondary);
+      padding: 0.5rem;
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+    }
+
+    .tab {
+      flex: 1;
+      padding: 0.875rem 1.5rem;
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 0.938rem;
+      font-weight: 500;
+      cursor: pointer;
+      border-radius: 8px;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .tab:hover {
+      color: var(--text-primary);
+      background: var(--bg-hover);
+    }
+
+    .tab.active {
+      color: var(--text-primary);
+      background: var(--accent-blue);
+      box-shadow: var(--shadow);
+    }
+
+    .tab-content {
+      display: none;
+      animation: fadeIn 0.4s ease;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: var(--shadow);
+      transition: all 0.2s ease;
+    }
+
+    .card:hover {
+      border-color: var(--bg-hover);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .card-header {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .icon {
+      width: 1.5rem;
+      height: 1.5rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .score-hero {
+      text-align: center;
+      padding: 2rem;
+      background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+      border-radius: 16px;
+      margin-bottom: 2rem;
+      border: 1px solid var(--border-color);
+    }
+
+    .score-value {
+      font-size: 4rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent-green) 0%, #4ade80 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1;
+      margin-bottom: 0.5rem;
+    }
+
+    .score-label {
+      color: var(--text-secondary);
+      font-size: 1.125rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .radar-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 2rem 0;
+      min-height: 500px;
+    }
+
+    .radar-legend {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-top: 1.5rem;
+      width: 100%;
+      max-width: 600px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.813rem;
+      color: var(--text-secondary);
+    }
+
+    .legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-blue);
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .metric-card {
+      background: var(--bg-tertiary);
+      padding: 1rem;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      text-align: center;
+    }
+
+    .metric-value {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--accent-blue);
+      margin-bottom: 0.25rem;
+    }
+
+    .metric-label {
+      font-size: 0.813rem;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .insights-grid {
+      display: grid;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .insight-card {
+      padding: 1.25rem;
+      border-radius: 8px;
+      border: 1px solid;
+      display: flex;
+      gap: 1rem;
+      transition: all 0.2s ease;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .insight-card:hover {
+      transform: translateX(4px);
+    }
+
+    .insight-card.success {
+      background: rgba(34, 197, 94, 0.1);
+      border-color: var(--accent-green);
+    }
+
+    .insight-card.warning {
+      background: rgba(234, 179, 8, 0.1);
+      border-color: var(--accent-yellow);
+    }
+
+    .insight-card.danger {
+      background: rgba(249, 115, 22, 0.1);
+      border-color: var(--accent-orange);
+    }
+
+    .insight-card.info {
+      background: rgba(59, 130, 246, 0.1);
+      border-color: var(--accent-blue);
+    }
+
+    .insight-icon {
+      flex-shrink: 0;
+      width: 2.5rem;
+      height: 2.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      font-size: 1.25rem;
+    }
+
+    .insight-card.success .insight-icon {
+      background: rgba(34, 197, 94, 0.2);
+    }
+
+    .insight-card.warning .insight-icon {
+      background: rgba(234, 179, 8, 0.2);
+    }
+
+    .insight-card.danger .insight-icon {
+      background: rgba(249, 115, 22, 0.2);
+    }
+
+    .insight-card.info .insight-icon {
+      background: rgba(59, 130, 246, 0.2);
+    }
+
+    .insight-content {
+      flex: 1;
+    }
+
+    .insight-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .insight-title {
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+      font-size: 0.938rem;
+    }
+
+    .insight-text {
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+    }
+
+    .expand-chevron {
+      flex-shrink: 0;
+      width: 1.5rem;
+      height: 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-tertiary);
+      transition: transform 0.3s ease;
+    }
+
+    .insight-card.expanded .expand-chevron {
+      transform: rotate(180deg);
+    }
+
+    .expandable-content {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+
+    .insight-card.expanded .expandable-content {
+      max-height: 2000px;
+    }
+
+    .expandable-inner {
+      padding-top: 1rem;
+      margin-top: 1rem;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .why-section {
+      margin-bottom: 1.5rem;
+    }
+
+    .why-header {
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+    }
+
+    .why-text {
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      line-height: 1.6;
+      margin-bottom: 1rem;
+    }
+
+    .before-after {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .before-after-card {
+      background: #111827;
+      border-radius: 6px;
+      border-left: 3px solid;
+      padding: 1rem;
+    }
+
+    .before-after-card.before {
+      border-color: var(--accent-red);
+    }
+
+    .before-after-card.after {
+      border-color: var(--accent-green);
+    }
+
+    .before-after-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+    }
+
+    .before-after-card.before .before-after-label {
+      color: var(--accent-red);
+    }
+
+    .before-after-card.after .before-after-label {
+      color: var(--accent-green);
+    }
+
+    .before-after-text {
+      font-size: 0.813rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+    }
+
+    .how-to-section {
+      background: rgba(59, 130, 246, 0.05);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: 6px;
+      padding: 1rem;
+    }
+
+    .how-to-header {
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: var(--accent-blue);
+      margin-bottom: 0.5rem;
+    }
+
+    .how-to-text {
+      color: var(--text-secondary);
+      font-size: 0.813rem;
+      line-height: 1.6;
+      margin-bottom: 0.75rem;
+    }
+
+    .code-block {
+      position: relative;
+      background: #111827;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 1rem;
+      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+      font-size: 0.813rem;
+      line-height: 1.5;
+      color: #e5e7eb;
+      overflow-x: auto;
+    }
+
+    .code-block .keyword {
+      color: #60a5fa;
+    }
+
+    .code-block .string {
+      color: #34d399;
+    }
+
+    .code-block .comment {
+      color: #6b7280;
+    }
+
+    .copy-btn {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      padding: 0.375rem 0.75rem;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      color: var(--text-secondary);
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .copy-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .copy-btn.copied {
+      background: var(--accent-green);
+      color: white;
+    }
+
+    .trends-section {
+      background: var(--bg-tertiary);
+      padding: 1.5rem;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      margin-bottom: 2rem;
+    }
+
+    .trends-header {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-size: 0.813rem;
+    }
+
+    .trends-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .trend-item {
+      text-align: center;
+    }
+
+    .trend-label {
+      font-size: 0.75rem;
+      color: var(--text-tertiary);
+      margin-bottom: 0.5rem;
+    }
+
+    .trend-chart {
+      height: 40px;
+      margin-bottom: 0.5rem;
+    }
+
+    .trend-value {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--accent-blue);
+    }
+
+    .callout-box {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 100%);
+      border: 1px solid var(--accent-blue);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .callout-header {
+      font-size: 1.125rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      color: var(--accent-blue);
+    }
+
+    .callout-text {
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    .search-bar {
+      position: relative;
+      margin-bottom: 1.5rem;
+    }
+
+    .search-input {
+      width: 100%;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.875rem 1rem 0.875rem 2.5rem;
+      color: var(--text-primary);
+      font-size: 0.938rem;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    .search-input:focus {
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 0.875rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-tertiary);
+    }
+
+    .filter-chips {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      padding: 0.5rem 1rem;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      font-size: 0.813rem;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .chip:hover,
+    .chip.active {
+      background: var(--accent-blue);
+      color: var(--text-primary);
+      border-color: var(--accent-blue);
+    }
+
+    .playbook-grid {
+      display: grid;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .playbook-card {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 1.25rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .playbook-card:hover {
+      border-color: var(--accent-blue);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .playbook-card.featured {
+      border-color: var(--accent-yellow);
+      background: linear-gradient(135deg, rgba(234, 179, 8, 0.1) 0%, var(--bg-tertiary) 100%);
+    }
+
+    .playbook-card.anti {
+      border-color: var(--accent-orange);
+      background: linear-gradient(135deg, rgba(249, 115, 22, 0.1) 0%, var(--bg-tertiary) 100%);
+    }
+
+    .playbook-header {
+      display: flex;
+      align-items: start;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .playbook-icon {
+      font-size: 1.25rem;
+      flex-shrink: 0;
+    }
+
+    .playbook-title {
+      flex: 1;
+      font-weight: 600;
+      font-size: 1rem;
+    }
+
+    .playbook-meta {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.75rem;
+      font-size: 0.813rem;
+      color: var(--text-secondary);
+    }
+
+    .playbook-meta-item {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .playbook-tags {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 0.75rem;
+    }
+
+    .tag {
+      padding: 0.25rem 0.5rem;
+      background: var(--bg-secondary);
+      border-radius: 4px;
+      font-size: 0.75rem;
+      color: var(--text-tertiary);
+    }
+
+    .score-badge {
+      position: absolute;
+      top: 1.25rem;
+      right: 1.25rem;
+      padding: 0.5rem 0.75rem;
+      background: var(--bg-secondary);
+      border-radius: 20px;
+      font-weight: 600;
+      font-size: 0.875rem;
+    }
+
+    .score-badge.high {
+      color: var(--accent-green);
+    }
+
+    .score-badge.medium {
+      color: var(--accent-yellow);
+    }
+
+    .score-badge.low {
+      color: var(--accent-orange);
+    }
+
+    .playbook-expanded {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 2rem;
+      margin-top: 2rem;
+    }
+
+    .key-lesson-box {
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.05) 100%);
+      border: 1px solid var(--accent-green);
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 2rem;
+    }
+
+    .key-lesson-header {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: var(--accent-green);
+    }
+
+    .key-lesson-text {
+      color: var(--text-secondary);
+      line-height: 1.6;
+      font-size: 0.875rem;
+    }
+
+    .common-mistakes-box {
+      background: rgba(249, 115, 22, 0.05);
+      border: 1px solid rgba(249, 115, 22, 0.3);
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 2rem;
+    }
+
+    .common-mistakes-header {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      color: var(--accent-orange);
+    }
+
+    .common-mistakes-list {
+      list-style: none;
+      padding: 0;
+    }
+
+    .common-mistakes-list li {
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      line-height: 1.6;
+      margin-bottom: 0.5rem;
+      padding-left: 1.5rem;
+      position: relative;
+    }
+
+    .common-mistakes-list li::before {
+      content: '×';
+      position: absolute;
+      left: 0;
+      color: var(--accent-orange);
+      font-weight: bold;
+      font-size: 1.125rem;
+    }
+
+    .timeline {
+      margin: 2rem 0;
+      position: relative;
+      padding-left: 2rem;
+    }
+
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 0.5rem;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--border-color);
+    }
+
+    .timeline-item {
+      position: relative;
+      margin-bottom: 1.5rem;
+    }
+
+    .timeline-item::before {
+      content: '';
+      position: absolute;
+      left: -1.5rem;
+      top: 0.25rem;
+      width: 0.75rem;
+      height: 0.75rem;
+      background: var(--accent-blue);
+      border-radius: 50%;
+      border: 2px solid var(--bg-secondary);
+    }
+
+    .timeline-phase {
+      font-weight: 600;
+      color: var(--accent-blue);
+      margin-bottom: 0.25rem;
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .timeline-description {
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      line-height: 1.6;
+    }
+
+    .comparison-table {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 1px;
+      background: var(--border-color);
+      border-radius: 8px;
+      overflow: hidden;
+      margin: 2rem 0;
+    }
+
+    .comparison-header,
+    .comparison-cell {
+      background: var(--bg-tertiary);
+      padding: 0.875rem;
+      text-align: center;
+    }
+
+    .comparison-header {
+      font-weight: 600;
+      font-size: 0.813rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+    }
+
+    .comparison-cell {
+      font-size: 0.938rem;
+    }
+
+    .comparison-value {
+      font-weight: 600;
+      color: var(--accent-blue);
+    }
+
+    .button-group {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+    }
+
+    .button {
+      padding: 0.75rem 1.5rem;
+      background: var(--accent-blue);
+      color: var(--text-primary);
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .button:hover {
+      background: var(--accent-blue-dark);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow);
+    }
+
+    .button.secondary {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+    }
+
+    .button.secondary:hover {
+      background: var(--bg-hover);
+    }
+
+    .health-panel {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .health-header {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-size: 0.813rem;
+    }
+
+    .health-content {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .progress-bar-container {
+      margin-bottom: 1rem;
+    }
+
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+      font-size: 0.813rem;
+      color: var(--text-secondary);
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: var(--bg-tertiary);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-green) 0%, var(--accent-blue) 100%);
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+
+    .health-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 1rem;
+    }
+
+    .health-stat {
+      background: var(--bg-tertiary);
+      padding: 0.875rem;
+      border-radius: 6px;
+      text-align: center;
+    }
+
+    .health-stat-label {
+      font-size: 0.75rem;
+      color: var(--text-tertiary);
+      margin-bottom: 0.25rem;
+    }
+
+    .health-stat-value {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--accent-blue);
+    }
+
+    .tool-usage {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-top: 0.75rem;
+    }
+
+    .tool-badge {
+      padding: 0.5rem 0.875rem;
+      background: var(--bg-tertiary);
+      border-radius: 6px;
+      font-size: 0.813rem;
+      color: var(--text-secondary);
+      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+    }
+
+    .nudge-cards {
+      display: grid;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .nudge-card {
+      padding: 1.25rem;
+      border-radius: 8px;
+      border-left: 4px solid;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .nudge-card:hover {
+      transform: translateX(4px);
+      box-shadow: var(--shadow);
+    }
+
+    .nudge-card.info {
+      background: rgba(59, 130, 246, 0.1);
+      border-color: var(--accent-blue);
+    }
+
+    .nudge-card.warning {
+      background: rgba(234, 179, 8, 0.1);
+      border-color: var(--accent-yellow);
+    }
+
+    .nudge-card.danger {
+      background: rgba(249, 115, 22, 0.1);
+      border-color: var(--accent-orange);
+    }
+
+    .nudge-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+    }
+
+    .nudge-title {
+      font-weight: 600;
+      font-size: 0.938rem;
+    }
+
+    .nudge-dismiss {
+      color: var(--text-tertiary);
+      cursor: pointer;
+      font-size: 0.75rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      transition: all 0.2s ease;
+    }
+
+    .nudge-dismiss:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+    }
+
+    .nudge-text {
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      line-height: 1.6;
+    }
+
+    .nudge-stat {
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 4px;
+      padding: 0.5rem 0.75rem;
+      margin: 0.75rem 0;
+      font-size: 0.813rem;
+      font-weight: 600;
+      color: var(--accent-blue);
+    }
+
+    .nudge-expandable {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+
+    .nudge-card.expanded .nudge-expandable {
+      max-height: 1000px;
+    }
+
+    .nudge-expand-btn {
+      margin-top: 0.75rem;
+      color: var(--accent-blue);
+      font-size: 0.813rem;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    .nudge-expand-btn:hover {
+      text-decoration: underline;
+    }
+
+    .tiltmeter {
+      height: 8px;
+      background: linear-gradient(90deg, var(--accent-green) 0%, var(--accent-yellow) 33%, var(--accent-orange) 66%, var(--accent-red) 100%);
+      border-radius: 4px;
+      position: relative;
+      margin: 0.75rem 0;
+    }
+
+    .tiltmeter-marker {
+      position: absolute;
+      top: -2px;
+      width: 12px;
+      height: 12px;
+      background: white;
+      border: 2px solid var(--accent-orange);
+      border-radius: 50%;
+      transform: translateX(-50%);
+    }
+
+    .vscode-status-bar {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+      font-size: 0.813rem;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .vscode-status-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .settings-panel {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+
+    .settings-header {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-size: 0.813rem;
+    }
+
+    .setting-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.875rem;
+      background: var(--bg-tertiary);
+      border-radius: 6px;
+      margin-bottom: 0.5rem;
+    }
+
+    .setting-label {
+      font-size: 0.875rem;
+    }
+
+    .toggle {
+      width: 44px;
+      height: 24px;
+      background: var(--bg-hover);
+      border-radius: 12px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    .toggle.active {
+      background: var(--accent-blue);
+    }
+
+    .toggle::after {
+      content: '';
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      background: white;
+      border-radius: 50%;
+      top: 3px;
+      left: 3px;
+      transition: transform 0.2s ease;
+    }
+
+    .toggle.active::after {
+      transform: translateX(20px);
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+    }
+
+    @media (max-width: 1024px) {
+      .two-col {
+        grid-template-columns: 1fr;
+      }
+      .before-after {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-content">
+      <div class="logo">Synapse Coach</div>
+      <div class="subtitle">Session Intelligence for AI-Assisted Development</div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="tabs">
+      <button class="tab active" data-tab="report-card">Session Report Card</button>
+      <button class="tab" data-tab="playbooks">Playbooks</button>
+      <button class="tab" data-tab="live-intelligence">Live Intelligence</button>
+    </div>
+
+    <!-- Tab 1: Session Report Card -->
+    <div id="report-card" class="tab-content active">
+      <div class="score-hero">
+        <div class="score-value">78<span style="font-size: 2.5rem; color: var(--text-tertiary);">/100</span></div>
+        <div class="score-label">Session Score</div>
+      </div>
+
+      <div class="radar-container">
+        <svg width="500" height="500" viewBox="0 0 500 500">
+          <defs>
+            <linearGradient id="radarGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:rgb(59, 130, 246);stop-opacity:0.3" />
+              <stop offset="100%" style="stop-color:rgb(34, 197, 94);stop-opacity:0.3" />
+            </linearGradient>
+          </defs>
+
+          <!-- Grid lines (octagon, 5 levels) -->
+          <g opacity="0.2">
+            <!-- Level 1 (20%) -->
+            <polygon points="250,210 285,210 310,235 310,265 285,290 215,290 190,265 190,235"
+                     fill="none" stroke="#6b7280" stroke-width="1"/>
+            <!-- Level 2 (40%) -->
+            <polygon points="250,170 320,170 370,220 370,280 320,330 180,330 130,280 130,220"
+                     fill="none" stroke="#6b7280" stroke-width="1"/>
+            <!-- Level 3 (60%) -->
+            <polygon points="250,130 355,130 430,205 430,295 355,370 145,370 70,295 70,205"
+                     fill="none" stroke="#6b7280" stroke-width="1"/>
+            <!-- Level 4 (80%) -->
+            <polygon points="250,90 390,90 465,165 465,335 390,410 110,410 35,335 35,165"
+                     fill="none" stroke="#6b7280" stroke-width="1"/>
+            <!-- Level 5 (100%) -->
+            <polygon points="250,50 425,50 490,115 490,385 425,450 75,450 10,115"
+                     fill="none" stroke="#6b7280" stroke-width="1"/>
+          </g>
+
+          <!-- Axis lines -->
+          <g opacity="0.3">
+            <line x1="250" y1="250" x2="250" y2="50" stroke="#9ca3af" stroke-width="1"/>
+            <line x1="250" y1="250" x2="425" y2="50" stroke="#9ca3af" stroke-width="1"/>
+            <line x1="250" y1="250" x2="490" y2="115" stroke="#9ca3af" stroke-width="1"/>
+            <line x1="250" y1="250" x2="490" y2="385" stroke="#9ca3af" stroke-width="1"/>
+            <line x1="250" y1="250" x2="425" y2="450" stroke="#9ca3af" stroke-width="1"/>
+            <line x1="250" y1="250" x2="75" y2="450" stroke="#9ca3af" stroke-width="1"/>
+            <line x1="250" y1="250" x2="10" y2="385" stroke="#9ca3af" stroke-width="1"/>
+            <line x1="250" y1="250" x2="10" y2="115" stroke="#9ca3af" stroke-width="1"/>
+          </g>
+
+          <!-- Data polygon (scores: Planning 72, Precision 85, Tool Craft 70, Context 82, Cost 58, Verification 45, Strategy 88, Config 75) -->
+          <polygon points="250,106 399,64 471,154 462,339 398,424 137,408 28,291 54,156"
+                   fill="url(#radarGradient)" stroke="#3b82f6" stroke-width="2"/>
+
+          <!-- Data points -->
+          <circle cx="250" cy="106" r="4" fill="#3b82f6"/>
+          <circle cx="399" cy="64" r="4" fill="#22c55e"/>
+          <circle cx="471" cy="154" r="4" fill="#3b82f6"/>
+          <circle cx="462" cy="339" r="4" fill="#3b82f6"/>
+          <circle cx="398" cy="424" r="4" fill="#eab308"/>
+          <circle cx="137" cy="408" r="4" fill="#ef4444"/>
+          <circle cx="28" cy="291" r="4" fill="#22c55e"/>
+          <circle cx="54" cy="156" r="4" fill="#3b82f6"/>
+
+          <!-- Labels -->
+          <text x="250" y="35" text-anchor="middle" fill="#9ca3af" font-size="11" font-weight="600">Planning</text>
+          <text x="435" y="45" text-anchor="middle" fill="#9ca3af" font-size="11" font-weight="600">Precision</text>
+          <text x="500" y="105" text-anchor="start" fill="#9ca3af" font-size="11" font-weight="600">Tool Craft</text>
+          <text x="500" y="395" text-anchor="start" fill="#9ca3af" font-size="11" font-weight="600">Context</text>
+          <text x="435" y="470" text-anchor="middle" fill="#9ca3af" font-size="11" font-weight="600">Cost</text>
+          <text x="65" y="470" text-anchor="middle" fill="#9ca3af" font-size="11" font-weight="600">Verification</text>
+          <text x="0" y="395" text-anchor="start" fill="#9ca3af" font-size="11" font-weight="600">Strategy</text>
+          <text x="0" y="105" text-anchor="start" fill="#9ca3af" font-size="11" font-weight="600">Config</text>
+        </svg>
+
+        <div class="radar-legend">
+          <div class="legend-item">
+            <div class="legend-dot"></div>
+            <span>Planning: 72</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background: var(--accent-green);"></div>
+            <span>Precision: 85</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot"></div>
+            <span>Tool Craft: 70</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot"></div>
+            <span>Context Mgmt: 82</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background: var(--accent-yellow);"></div>
+            <span>Cost Efficiency: 58</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background: var(--accent-red);"></div>
+            <span>Verification: 45</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background: var(--accent-green);"></div>
+            <span>Session Strategy: 88</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot"></div>
+            <span>Configuration: 75</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-value">$3.21</div>
+          <div class="metric-label">Total Cost</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value">84K / 12K</div>
+          <div class="metric-label">Tokens (In/Out)</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value">67%</div>
+          <div class="metric-label">Cache Hit Rate</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value">12 min</div>
+          <div class="metric-label">Duration</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value">4</div>
+          <div class="metric-label">Prompts</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value">18</div>
+          <div class="metric-label">Tool Calls</div>
+        </div>
+      </div>
+
+      <div class="card-header" style="margin-bottom: 1rem;">Key Insights</div>
+      <div class="insights-grid">
+        <!-- Insight 1: Success - Model Routing -->
+        <div class="insight-card success" data-insight="1">
+          <div class="insight-icon">✓</div>
+          <div class="insight-content">
+            <div class="insight-header-row">
+              <div>
+                <div class="insight-title">Great model routing!</div>
+                <div class="insight-text">You switched to Haiku for exploration, saving ~$4.20</div>
+              </div>
+            </div>
+            <div class="expandable-content">
+              <div class="expandable-inner">
+                <div class="why-section">
+                  <div class="why-header">Why this matters</div>
+                  <div class="why-text">Model costs differ by 19× between Opus ($15/MTok) and Haiku ($0.80/MTok). Most sessions have distinct phases: exploration (reading, searching), implementation (editing, writing), and verification (testing). Only implementation needs the most capable model.</div>
+                  <div class="before-after">
+                    <div class="before-after-card before">
+                      <div class="before-after-label">Without model switching</div>
+                      <div class="before-after-text">23 Read + Grep calls at Opus rates = $6.90 for exploration phase</div>
+                    </div>
+                    <div class="before-after-card after">
+                      <div class="before-after-label">With model switching</div>
+                      <div class="before-after-text">Switch to Haiku: /model haiku<br>Same 23 calls = $0.45<br>Savings: $6.45 (93%)</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="how-to-section">
+                  <div class="how-to-header">Here's how to do this</div>
+                  <div class="how-to-text">Use /model haiku before exploration phases, /model opus before complex implementation:</div>
+                  <div class="code-block">
+                    <button class="copy-btn" onclick="copyCode(this, 'model-routing')">Copy</button>
+                    <div id="model-routing"><span class="comment"># Start exploration with lightweight model</span>
+/model haiku
+"Explore the codebase and explain how the auth system works"
+
+<span class="comment"># Switch to powerful model for implementation</span>
+/model opus
+"Refactor the auth middleware to use JWT tokens"</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="expand-chevron">▼</div>
+        </div>
+
+        <!-- Insight 2: Warning - Sequential Reads -->
+        <div class="insight-card warning" data-insight="2">
+          <div class="insight-icon">💡</div>
+          <div class="insight-content">
+            <div class="insight-header-row">
+              <div>
+                <div class="insight-title">8 sequential Read calls detected</div>
+                <div class="insight-text">An Explore subagent could handle this in one call</div>
+              </div>
+            </div>
+            <div class="expandable-content">
+              <div class="expandable-inner">
+                <div class="why-section">
+                  <div class="why-header">Why this matters</div>
+                  <div class="why-text">Every file read in the main context stays there permanently (until compaction). An Explore subagent reads files in its own context and returns only a summary — saving 60-80% of context space.</div>
+                  <div class="before-after">
+                    <div class="before-after-card before">
+                      <div class="before-after-label">Main context pollution</div>
+                      <div class="before-after-text">Read auth/login.ts (2.1K tokens)
+Read auth/register.ts (1.8K tokens)
+Read auth/refresh.ts (1.4K tokens)
+... 5 more files ...
+→ 12K tokens in main context
+→ Context now 40% full</div>
+                    </div>
+                    <div class="before-after-card after">
+                      <div class="before-after-label">Subagent approach</div>
+                      <div class="before-after-text">Explore subagent reads all files
+→ Returns 400-token summary
+→ Main context: +400 tokens
+→ Context stays at 8%</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="how-to-section">
+                  <div class="how-to-header">Here's how to do this</div>
+                  <div class="how-to-text">Use this prompt template whenever you need to investigate how a system works:</div>
+                  <div class="code-block">
+                    <button class="copy-btn" onclick="copyCode(this, 'explore-subagent')">Copy</button>
+                    <div id="explore-subagent">"Use an Explore subagent to investigate how the <span class="string">[authentication system]</span> works. Read all relevant files and summarize:
+- Overall architecture and flow
+- Key files and their responsibilities
+- Important patterns or gotchas I should know
+
+Keep the summary concise — I want to understand the system before making changes."</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="expand-chevron">▼</div>
+        </div>
+
+        <!-- Insight 3: Danger - No Verification -->
+        <div class="insight-card danger" data-insight="3">
+          <div class="insight-icon">⚠</div>
+          <div class="insight-content">
+            <div class="insight-header-row">
+              <div>
+                <div class="insight-title">No verification steps</div>
+                <div class="insight-text">Sessions with verification have 73% lower rework rate</div>
+              </div>
+            </div>
+            <div class="expandable-content">
+              <div class="expandable-inner">
+                <div class="why-section">
+                  <div class="why-header">Why this matters</div>
+                  <div class="why-text">Boris Cherny's #1 insight: <em>"Give Claude a way to verify its work — it will 2-3× the quality of the final result."</em> Verification isn't optional; it's the highest-leverage practice in AI-assisted coding. Without it, bugs lurk until the next session, triggering expensive rework.</div>
+                  <div class="before-after">
+                    <div class="before-after-card before">
+                      <div class="before-after-label">Without verification</div>
+                      <div class="before-after-text">Edit 6 files → Session ends
+Next day: discover 3 broken tests
+New session: debug + fix = $8.40</div>
+                    </div>
+                    <div class="before-after-card after">
+                      <div class="before-after-label">With verification</div>
+                      <div class="before-after-text">Edit 6 files → Run npm test
+1 test fails → Fix immediately = $1.20
+All tests pass → Done</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="how-to-section">
+                  <div class="how-to-header">Here's how to do this</div>
+                  <div class="how-to-text">Always end implementation prompts with a verification step. Add this to every prompt that makes changes:</div>
+                  <div class="code-block">
+                    <button class="copy-btn" onclick="copyCode(this, 'verification-template')">Copy</button>
+                    <div id="verification-template">"[Your implementation instructions here]
+
+After making the changes, run `<span class="string">npm test</span>` to verify nothing is broken. If any tests fail, analyze the failure and fix it before finishing."</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="expand-chevron">▼</div>
+        </div>
+
+        <!-- Insight 4: Warning - Edit Retry Loop -->
+        <div class="insight-card warning" data-insight="4">
+          <div class="insight-icon">🔄</div>
+          <div class="insight-content">
+            <div class="insight-header-row">
+              <div>
+                <div class="insight-title">Edit retry loop on auth.ts</div>
+                <div class="insight-text">3 edits to the same file. Read → Understand → Single Edit is more efficient.</div>
+              </div>
+            </div>
+            <div class="expandable-content">
+              <div class="expandable-inner">
+                <div class="why-section">
+                  <div class="why-header">Why this matters</div>
+                  <div class="why-text">Each failed Edit costs tokens AND pollutes context with failed approaches. After 2 failures, /clear and rewrite the prompt. Claude's Edit tool requires an exact old_string match — guessing the content causes failures.</div>
+                  <div class="before-after">
+                    <div class="before-after-card before">
+                      <div class="before-after-label">Retry loop pattern</div>
+                      <div class="before-after-text">Edit auth.ts → fails (wrong old_string)
+Read auth.ts → sees actual content
+Edit auth.ts → fails (indentation wrong)
+Read auth.ts → check again
+Edit auth.ts → finally succeeds
+→ 5 tool calls, 3 wasted</div>
+                    </div>
+                    <div class="before-after-card after">
+                      <div class="before-after-label">Read-first pattern</div>
+                      <div class="before-after-text">Read auth.ts → see exact content
+Edit auth.ts → succeeds first try
+→ 2 tool calls, 0 wasted</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="how-to-section">
+                  <div class="how-to-header">Here's how to do this</div>
+                  <div class="how-to-text">For complex edits, explicitly instruct Claude to read first:</div>
+                  <div class="code-block">
+                    <button class="copy-btn" onclick="copyCode(this, 'read-first')">Copy</button>
+                    <div id="read-first">"Read <span class="string">src/auth/login.ts</span> first to see the exact current implementation, then make one comprehensive edit to change the rate limit from 100 to 200 requests per minute."</div>
+                  </div>
+                  <div class="how-to-text" style="margin-top: 0.75rem;">After 2 failed edits to the same file, stop and /clear:</div>
+                  <div class="code-block">
+                    <button class="copy-btn" onclick="copyCode(this, 'clear-rewrite')">Copy</button>
+                    <div id="clear-rewrite"><span class="comment"># Press Esc to stop, then:</span>
+/clear
+
+<span class="comment"># Rewrite with more context:</span>
+"In src/auth.ts, the rate limiter on line 47 currently uses <span class="string">rateLimit(100)</span>. Change it to <span class="string">rateLimit(200)</span> and also update the comment above it to reflect the new limit."</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="expand-chevron">▼</div>
+        </div>
+
+        <!-- Insight 5: Info - Bash(cat) instead of Read -->
+        <div class="insight-card info" data-insight="5">
+          <div class="insight-icon">📊</div>
+          <div class="insight-content">
+            <div class="insight-header-row">
+              <div>
+                <div class="insight-title">Bash(cat) used instead of Read tool</div>
+                <div class="insight-text">Dedicated tools are faster and skip permission prompts</div>
+              </div>
+            </div>
+            <div class="expandable-content">
+              <div class="expandable-inner">
+                <div class="why-section">
+                  <div class="why-header">Why this matters</div>
+                  <div class="why-text">The Read tool has built-in pagination, line numbers, and never triggers permission prompts. Bash(cat) requires a permission approval each time and dumps the entire file as raw text.</div>
+                  <div class="before-after">
+                    <div class="before-after-card before">
+                      <div class="before-after-label">Using Bash commands</div>
+                      <div class="before-after-text">Bash: cat src/auth/login.ts
+→ Permission prompt appears
+→ Wait for user approval
+→ Full file dump, no line numbers
+→ ~27% more tokens</div>
+                    </div>
+                    <div class="before-after-card after">
+                      <div class="before-after-label">Using dedicated tools</div>
+                      <div class="before-after-text">Read: src/auth/login.ts
+→ No permission prompt
+→ Paginated with line numbers
+→ Optimized token usage
+→ Can specify offset/limit</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="how-to-section">
+                  <div class="how-to-header">Here's how to do this</div>
+                  <div class="how-to-text">Add this to your CLAUDE.md to enforce dedicated tool usage:</div>
+                  <div class="code-block">
+                    <button class="copy-btn" onclick="copyCode(this, 'claude-md-tools')">Copy</button>
+                    <div id="claude-md-tools"><span class="comment"># Tool Usage Rules</span>
+
+ALWAYS use dedicated tools instead of Bash equivalents:
+- <span class="keyword">Read</span> files (not <span class="string">cat</span>)
+- <span class="keyword">Grep</span> for content search (not <span class="string">grep</span> or <span class="string">rg</span>)
+- <span class="keyword">Glob</span> for file patterns (not <span class="string">find</span> or <span class="string">ls</span>)
+- <span class="keyword">Edit</span> for changes (not <span class="string">sed</span> or <span class="string">awk</span>)
+
+Dedicated tools are faster, skip permission prompts, and provide better formatting.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="expand-chevron">▼</div>
+        </div>
+
+        <!-- Insight 6: Success - Clean Context -->
+        <div class="insight-card success" data-insight="6">
+          <div class="insight-icon">✓</div>
+          <div class="insight-content">
+            <div class="insight-header-row">
+              <div>
+                <div class="insight-title">Clean session segmentation</div>
+                <div class="insight-text">You used /clear between tasks — keeping context clean and focused</div>
+              </div>
+            </div>
+            <div class="expandable-content">
+              <div class="expandable-inner">
+                <div class="why-section">
+                  <div class="why-header">Why this matters</div>
+                  <div class="why-text">Context from Task A pollutes Task B. Claude references irrelevant code, makes false connections, and the growing context triggers compaction that loses important details. The /clear command costs 0 tokens and gives you a fresh start.</div>
+                </div>
+                <div class="how-to-section">
+                  <div class="how-to-header">Here's how to do this</div>
+                  <div class="how-to-text">Rule of thumb: If the next task doesn't need context from the current task, /clear. Think of sessions like git branches — one purpose, clean scope.</div>
+                  <div class="code-block">
+                    <button class="copy-btn" onclick="copyCode(this, 'clear-pattern')">Copy</button>
+                    <div id="clear-pattern"><span class="comment"># After completing a bugfix:</span>
+"The login timeout bug is fixed and tests pass."
+
+<span class="comment"># Starting a new unrelated feature:</span>
+/clear
+
+<span class="comment"># Fresh context for the new task:</span>
+"Add a dark mode toggle to the settings page following the existing theme system in src/theme/."</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="expand-chevron">▼</div>
+        </div>
+      </div>
+
+      <div class="trends-section">
+        <div class="trends-header">Last 10 Sessions Trends</div>
+        <div class="trends-grid">
+          <div class="trend-item">
+            <div class="trend-label">Planning</div>
+            <div class="trend-chart">
+              <svg width="100%" height="40" viewBox="0 0 100 40">
+                <polyline points="0,30 12,28 24,25 36,26 48,22 60,20 72,18 84,20 96,16"
+                          fill="none" stroke="#3b82f6" stroke-width="2"/>
+                <circle cx="96" cy="16" r="3" fill="#3b82f6"/>
+              </svg>
+            </div>
+            <div class="trend-value">72</div>
+          </div>
+          <div class="trend-item">
+            <div class="trend-label">Precision</div>
+            <div class="trend-chart">
+              <svg width="100%" height="40" viewBox="0 0 100 40">
+                <polyline points="0,25 12,24 24,22 36,20 48,18 60,15 72,14 84,12 96,8"
+                          fill="none" stroke="#22c55e" stroke-width="2"/>
+                <circle cx="96" cy="8" r="3" fill="#22c55e"/>
+              </svg>
+            </div>
+            <div class="trend-value">85 ↑</div>
+          </div>
+          <div class="trend-item">
+            <div class="trend-label">Tool Craft</div>
+            <div class="trend-chart">
+              <svg width="100%" height="40" viewBox="0 0 100 40">
+                <polyline points="0,32 12,30 24,28 36,26 48,25 60,24 72,22 84,20 96,18"
+                          fill="none" stroke="#3b82f6" stroke-width="2"/>
+                <circle cx="96" cy="18" r="3" fill="#3b82f6"/>
+              </svg>
+            </div>
+            <div class="trend-value">70</div>
+          </div>
+          <div class="trend-item">
+            <div class="trend-label">Context Mgmt</div>
+            <div class="trend-chart">
+              <svg width="100%" height="40" viewBox="0 0 100 40">
+                <polyline points="0,28 12,26 24,27 36,25 48,23 60,20 72,19 84,17 96,12"
+                          fill="none" stroke="#3b82f6" stroke-width="2"/>
+                <circle cx="96" cy="12" r="3" fill="#3b82f6"/>
+              </svg>
+            </div>
+            <div class="trend-value">82 ↑</div>
+          </div>
+          <div class="trend-item">
+            <div class="trend-label">Cost Efficiency</div>
+            <div class="trend-chart">
+              <svg width="100%" height="40" viewBox="0 0 100 40">
+                <polyline points="0,18 12,20 24,22 36,21 48,24 60,26 72,28 84,30 96,28"
+                          fill="none" stroke="#eab308" stroke-width="2"/>
+                <circle cx="96" cy="28" r="3" fill="#eab308"/>
+              </svg>
+            </div>
+            <div class="trend-value">58</div>
+          </div>
+          <div class="trend-item">
+            <div class="trend-label">Verification</div>
+            <div class="trend-chart">
+              <svg width="100%" height="40" viewBox="0 0 100 40">
+                <polyline points="0,20 12,22 24,24 36,23 48,26 60,28 72,30 84,32 96,35"
+                          fill="none" stroke="#ef4444" stroke-width="2"/>
+                <circle cx="96" cy="35" r="3" fill="#ef4444"/>
+              </svg>
+            </div>
+            <div class="trend-value">45 ↓</div>
+          </div>
+          <div class="trend-item">
+            <div class="trend-label">Strategy</div>
+            <div class="trend-chart">
+              <svg width="100%" height="40" viewBox="0 0 100 40">
+                <polyline points="0,22 12,20 24,18 36,16 48,15 60,13 72,11 84,9 96,6"
+                          fill="none" stroke="#22c55e" stroke-width="2"/>
+                <circle cx="96" cy="6" r="3" fill="#22c55e"/>
+              </svg>
+            </div>
+            <div class="trend-value">88 ↑</div>
+          </div>
+          <div class="trend-item">
+            <div class="trend-label">Configuration</div>
+            <div class="trend-chart">
+              <svg width="100%" height="40" viewBox="0 0 100 40">
+                <polyline points="0,26 12,25 24,24 36,22 48,20 60,18 72,17 84,15 96,14"
+                          fill="none" stroke="#3b82f6" stroke-width="2"/>
+                <circle cx="96" cy="14" r="3" fill="#3b82f6"/>
+              </svg>
+            </div>
+            <div class="trend-value">75</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout-box">
+        <div class="callout-header">💪 If You Did One Thing Differently...</div>
+        <div class="callout-text">
+          <strong>Add a test run after your edits.</strong> Your sessions without verification steps cost an average of 2.3× more in follow-up sessions due to rework and bug fixes. A simple <code>npm test</code> or <code>build</code> command after edits could save you $5-8 per day.
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 2: Playbooks -->
+    <div id="playbooks" class="tab-content">
+      <div class="search-bar">
+        <svg class="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+          <circle cx="7" cy="7" r="5" stroke-width="2"/>
+          <line x1="11" y1="11" x2="15" y2="15" stroke-width="2"/>
+        </svg>
+        <input type="text" class="search-input" placeholder="Search playbooks...">
+      </div>
+
+      <div class="filter-chips">
+        <div class="chip active">All</div>
+        <div class="chip">Feature</div>
+        <div class="chip">Bugfix</div>
+        <div class="chip">Refactor</div>
+        <div class="chip">Test</div>
+      </div>
+
+      <div class="playbook-grid">
+        <div class="playbook-card featured">
+          <div class="score-badge high">94/100</div>
+          <div class="playbook-header">
+            <div class="playbook-icon">⭐</div>
+            <div class="playbook-title">Add cursor-based pagination to REST endpoint</div>
+          </div>
+          <div class="playbook-meta">
+            <div class="playbook-meta-item">
+              <span>💬</span> 4 prompts
+            </div>
+            <div class="playbook-meta-item">
+              <span>💰</span> $2.84
+            </div>
+            <div class="playbook-meta-item">
+              <span>⏱</span> 12 min
+            </div>
+            <div class="playbook-meta-item">
+              <span>📊</span> Used 12 times
+            </div>
+          </div>
+          <div class="playbook-tags">
+            <div class="tag">#api</div>
+            <div class="tag">#pagination</div>
+            <div class="tag">#typescript</div>
+          </div>
+        </div>
+
+        <div class="playbook-card">
+          <div class="score-badge medium">82/100</div>
+          <div class="playbook-header">
+            <div class="playbook-icon">📝</div>
+            <div class="playbook-title">Add CRUD endpoints for new resource</div>
+          </div>
+          <div class="playbook-meta">
+            <div class="playbook-meta-item">
+              <span>💬</span> 6 prompts
+            </div>
+            <div class="playbook-meta-item">
+              <span>💰</span> $4.10
+            </div>
+            <div class="playbook-meta-item">
+              <span>⏱</span> 18 min
+            </div>
+            <div class="playbook-meta-item">
+              <span>📊</span> Used 8 times
+            </div>
+          </div>
+          <div class="playbook-tags">
+            <div class="tag">#api</div>
+            <div class="tag">#crud</div>
+            <div class="tag">#express</div>
+            <div class="tag">#postgres</div>
+          </div>
+        </div>
+
+        <div class="playbook-card anti">
+          <div class="score-badge low">31/100</div>
+          <div class="playbook-header">
+            <div class="playbook-icon">⚠️</div>
+            <div class="playbook-title">Add WebSocket endpoint (anti-pattern example)</div>
+          </div>
+          <div class="playbook-meta">
+            <div class="playbook-meta-item">
+              <span>💬</span> 23 prompts
+            </div>
+            <div class="playbook-meta-item">
+              <span>💰</span> $18.70
+            </div>
+            <div class="playbook-meta-item">
+              <span>⏱</span> 45 min
+            </div>
+            <div class="playbook-meta-item">
+              <span>💡</span> Lesson learned
+            </div>
+          </div>
+          <div class="playbook-tags">
+            <div class="tag">#api</div>
+            <div class="tag">#websocket</div>
+            <div class="tag">#debugging</div>
+          </div>
+        </div>
+
+        <div class="playbook-card">
+          <div class="score-badge high">89/100</div>
+          <div class="playbook-header">
+            <div class="playbook-icon">🔧</div>
+            <div class="playbook-title">Refactor auth middleware to use JWT</div>
+          </div>
+          <div class="playbook-meta">
+            <div class="playbook-meta-item">
+              <span>💬</span> 5 prompts
+            </div>
+            <div class="playbook-meta-item">
+              <span>💰</span> $3.50
+            </div>
+            <div class="playbook-meta-item">
+              <span>⏱</span> 15 min
+            </div>
+            <div class="playbook-meta-item">
+              <span>📊</span> Used 5 times
+            </div>
+          </div>
+          <div class="playbook-tags">
+            <div class="tag">#refactor</div>
+            <div class="tag">#auth</div>
+            <div class="tag">#jwt</div>
+            <div class="tag">#security</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="playbook-expanded">
+        <div class="card-header">Playbook: Add cursor-based pagination to REST endpoint</div>
+
+        <div class="key-lesson-box">
+          <div class="key-lesson-header">✨ Key Lesson — Why This Playbook Scored 94/100</div>
+          <div class="key-lesson-text">
+            This session followed the optimal pattern: <strong>Plan → Implement → Verify → Refine</strong>. By starting in Plan Mode, Claude explored the existing codebase and proposed an approach that reused existing utilities. This prevented reinventing pagination logic and kept the implementation consistent with the rest of the codebase. The verification step caught edge cases before they became bugs.
+          </div>
+        </div>
+
+        <div class="common-mistakes-box">
+          <div class="common-mistakes-header">⚠️ Common Mistakes to Avoid</div>
+          <ul class="common-mistakes-list">
+            <li><strong>Skipping the plan step</strong> — Jumping straight to implementation without analyzing existing patterns leads to inconsistent code and missed reuse opportunities.</li>
+            <li><strong>Not specifying pagination type</strong> — Vague prompts like "add pagination" leave Claude guessing between offset-based, cursor-based, or page-based approaches.</li>
+            <li><strong>Forgetting to test edge cases</strong> — Pagination has tricky edges (empty results, last page, invalid cursors). Always verify with real queries.</li>
+          </ul>
+        </div>
+
+        <div class="timeline">
+          <div class="timeline-item">
+            <div class="timeline-phase">[PLAN]</div>
+            <div class="timeline-description">
+              Developer started in Plan Mode, asking Claude to analyze the existing endpoint and propose a pagination strategy.
+              <br><br>
+              Claude used 3 Read calls to examine the route handler, database query layer, and existing pagination utilities.
+              <br><br>
+              <strong>Output:</strong> Detailed plan proposing cursor-based pagination using existing helper functions.
+            </div>
+          </div>
+
+          <div class="timeline-item">
+            <div class="timeline-phase">[IMPLEMENT]</div>
+            <div class="timeline-description">
+              Developer approved plan and switched to auto-accept mode.
+              <br><br>
+              Claude edited 2 files (route handler + DB query function) across 4 tool calls.
+              <br><br>
+              <strong>Total changes:</strong> 34 lines modified across 2 files.
+            </div>
+          </div>
+
+          <div class="timeline-item">
+            <div class="timeline-phase">[VERIFY]</div>
+            <div class="timeline-description">
+              Developer asked Claude to run the test suite.
+              <br><br>
+              1 Bash call: <code>npm test</code> — all 47 tests passed.
+              <br>
+              1 Bash call: <code>curl</code> command to manually test the new endpoint.
+            </div>
+          </div>
+
+          <div class="timeline-item">
+            <div class="timeline-phase">[REFINE]</div>
+            <div class="timeline-description">
+              Developer requested TypeScript types for the pagination parameters.
+              <br><br>
+              1 Edit call to add comprehensive type definitions.
+              <br>
+              Re-ran tests — all passed.
+            </div>
+          </div>
+        </div>
+
+        <div class="card-header" style="margin-top: 2rem;">Performance Comparison</div>
+        <div class="comparison-table">
+          <div class="comparison-header">Metric</div>
+          <div class="comparison-header">This Playbook</div>
+          <div class="comparison-header">Category Average</div>
+
+          <div class="comparison-cell">Cost</div>
+          <div class="comparison-cell"><span class="comparison-value">$2.84</span></div>
+          <div class="comparison-cell" style="color: var(--text-tertiary);">$8.40</div>
+
+          <div class="comparison-cell">Prompts</div>
+          <div class="comparison-cell"><span class="comparison-value">4</span></div>
+          <div class="comparison-cell" style="color: var(--text-tertiary);">11</div>
+
+          <div class="comparison-cell">Tool Calls</div>
+          <div class="comparison-cell"><span class="comparison-value">18</span></div>
+          <div class="comparison-cell" style="color: var(--text-tertiary);">47</div>
+
+          <div class="comparison-cell">Retries</div>
+          <div class="comparison-cell"><span class="comparison-value">0</span></div>
+          <div class="comparison-cell" style="color: var(--text-tertiary);">3.2</div>
+
+          <div class="comparison-cell">Verification Steps</div>
+          <div class="comparison-cell"><span class="comparison-value">2</span></div>
+          <div class="comparison-cell" style="color: var(--text-tertiary);">0.6</div>
+
+          <div class="comparison-cell">Files Touched</div>
+          <div class="comparison-cell"><span class="comparison-value">2</span></div>
+          <div class="comparison-cell" style="color: var(--text-tertiary);">5.3</div>
+        </div>
+
+        <div class="card-header" style="margin-top: 2rem;">Prompt Templates</div>
+        <div class="card" style="background: var(--bg-tertiary); margin-top: 1rem;">
+          <div style="color: var(--text-tertiary); font-size: 0.813rem; margin-bottom: 0.5rem;">Prompt 1 — Planning (with annotations)</div>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this, 'playbook-prompt-1')">Copy</button>
+            <div id="playbook-prompt-1"><span class="comment">// Be specific about the pagination type and approach</span>
+"I need to add <span class="keyword">cursor-based pagination</span> to <span class="string">GET /api/users</span>.
+
+<span class="comment">// Point Claude to existing patterns</span>
+Analyze the existing implementation and propose a plan that uses our existing pagination utilities in <span class="string">src/utils/pagination.ts</span>.
+
+<span class="comment">// Set expectations for the plan output</span>
+In your plan, specify:
+- Which files need to be modified
+- What parameters the endpoint should accept (limit, cursor)
+- How to encode/decode cursors
+- Error handling for invalid cursors"</div>
+          </div>
+        </div>
+        <div class="card" style="background: var(--bg-tertiary); margin-top: 0.5rem;">
+          <div style="color: var(--text-tertiary); font-size: 0.813rem; margin-bottom: 0.5rem;">Prompt 2 — Implementation</div>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this, 'playbook-prompt-2')">Copy</button>
+            <div id="playbook-prompt-2">"Approved. Implement the plan."</div>
+          </div>
+        </div>
+        <div class="card" style="background: var(--bg-tertiary); margin-top: 0.5rem;">
+          <div style="color: var(--text-tertiary); font-size: 0.813rem; margin-bottom: 0.5rem;">Prompt 3 — Verification (with test cases)</div>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this, 'playbook-prompt-3')">Copy</button>
+            <div id="playbook-prompt-3">"Run all tests. Then manually test these scenarios:
+
+1. First page: <span class="string">curl 'localhost:3000/api/users?limit=10'</span>
+   Expected: 10 users + next_cursor
+
+2. Next page: <span class="string">curl 'localhost:3000/api/users?limit=10&cursor=<span class="keyword">[cursor from step 1]</span>'</span>
+   Expected: next 10 users
+
+3. Invalid cursor: <span class="string">curl 'localhost:3000/api/users?cursor=invalid'</span>
+   Expected: 400 error with clear message
+
+If any test fails or manual check shows unexpected behavior, debug and fix."</div>
+          </div>
+        </div>
+        <div class="card" style="background: var(--bg-tertiary); margin-top: 0.5rem;">
+          <div style="color: var(--text-tertiary); font-size: 0.813rem; margin-bottom: 0.5rem;">Prompt 4 — Refinement</div>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this, 'playbook-prompt-4')">Copy</button>
+            <div id="playbook-prompt-4">"Add comprehensive TypeScript types for the pagination parameters (PaginationParams, PaginationResponse) and re-run tests to ensure type safety."</div>
+          </div>
+        </div>
+
+        <div class="button-group">
+          <button class="button">Use as Template</button>
+          <button class="button secondary">Share with Team</button>
+          <button class="button secondary">Export</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 3: Live Intelligence -->
+    <div id="live-intelligence" class="tab-content">
+      <div class="health-panel">
+        <div class="health-header">Session Health — Live</div>
+        <div class="health-content">
+          <div class="progress-bar-container">
+            <div class="progress-label">
+              <span>Context Utilization</span>
+              <span style="color: var(--accent-green); font-weight: 600;">42%</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: 42%;"></div>
+            </div>
+          </div>
+
+          <div class="health-stats">
+            <div class="health-stat">
+              <div class="health-stat-label">Cost</div>
+              <div class="health-stat-value">$3.21</div>
+            </div>
+            <div class="health-stat">
+              <div class="health-stat-label">Tokens In</div>
+              <div class="health-stat-value">84K</div>
+            </div>
+            <div class="health-stat">
+              <div class="health-stat-label">Tokens Out</div>
+              <div class="health-stat-value">12K</div>
+            </div>
+            <div class="health-stat">
+              <div class="health-stat-label">Cache Hit</div>
+              <div class="health-stat-value">67%</div>
+            </div>
+            <div class="health-stat">
+              <div class="health-stat-label">Model</div>
+              <div class="health-stat-value" style="font-size: 0.938rem;">Opus</div>
+            </div>
+            <div class="health-stat">
+              <div class="health-stat-label">Duration</div>
+              <div class="health-stat-value">12m</div>
+            </div>
+          </div>
+
+          <div style="margin-top: 1rem;">
+            <div style="color: var(--text-tertiary); font-size: 0.75rem; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em;">Tool Usage</div>
+            <div class="tool-usage">
+              <div class="tool-badge">Read(4)</div>
+              <div class="tool-badge">Edit(2)</div>
+              <div class="tool-badge">Bash(1)</div>
+              <div class="tool-badge">Grep(3)</div>
+              <div class="tool-badge">Task(1)</div>
+            </div>
+          </div>
+
+          <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 0.25rem;">Efficiency Pulse</div>
+                <div style="font-size: 1.5rem; font-weight: 600; color: var(--accent-blue);">78/100</div>
+              </div>
+              <div style="text-align: right; font-size: 0.813rem; color: var(--text-secondary); line-height: 1.6;">
+                <div style="color: var(--accent-green);">↑ Good planning</div>
+                <div style="color: var(--accent-green);">↑ Clean context</div>
+                <div style="color: var(--accent-yellow);">↓ No verification</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-header" style="margin-bottom: 1rem;">Active Nudges</div>
+      <div class="nudge-cards">
+        <!-- Nudge 1: Context Health -->
+        <div class="nudge-card info" data-nudge="1">
+          <div class="nudge-header">
+            <div class="nudge-title">⚡ Context at 42% — looking good</div>
+            <div class="nudge-dismiss">Dismiss</div>
+          </div>
+          <div class="nudge-text">
+            Your context utilization is healthy. Subagents are keeping your main context lean.
+          </div>
+          <div class="nudge-stat">
+            Your Explore call at turn 3 saved ~25K tokens from entering main context.
+          </div>
+          <div class="nudge-expand-btn">Show how to maintain clean context ▼</div>
+          <div class="nudge-expandable">
+            <div class="code-block" style="margin-top: 1rem;">
+              <button class="copy-btn" onclick="copyCode(this, 'context-tips')">Copy</button>
+              <div id="context-tips"><span class="comment"># Keep context clean with these practices:</span>
+
+1. <span class="keyword">Use /clear between unrelated tasks</span>
+   If task B doesn't need context from task A, clear.
+
+2. <span class="keyword">Use Explore subagents for investigation</span>
+   Reads happen in subagent context, only summary returns.
+
+3. <span class="keyword">Watch the context bar</span>
+   Stay below 70% to avoid auto-compaction.
+
+4. <span class="keyword">Compact manually when YOU choose</span>
+   /compact Preserve [what matters]</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Nudge 2: Consider Explore Subagent -->
+        <div class="nudge-card warning" data-nudge="2">
+          <div class="nudge-header">
+            <div class="nudge-title">🔍 Consider an Explore subagent</div>
+            <div class="nudge-dismiss">Dismiss</div>
+          </div>
+          <div class="nudge-text">
+            You've run 5 sequential Read + Grep calls. An Explore subagent could handle this in one call.
+          </div>
+          <div class="before-after" style="margin-top: 1rem;">
+            <div class="before-after-card before">
+              <div class="before-after-label">Current approach</div>
+              <div class="before-after-text">5 files × 2K tokens = 10K in main context</div>
+            </div>
+            <div class="before-after-card after">
+              <div class="before-after-label">With Explore subagent</div>
+              <div class="before-after-text">500-token summary in main context<br>Savings: 9.5K tokens</div>
+            </div>
+          </div>
+          <div class="code-block" style="margin-top: 1rem;">
+            <button class="copy-btn" onclick="copyCode(this, 'explore-nudge')">Copy</button>
+            <div id="explore-nudge">"Use an Explore subagent to investigate how <span class="string">[the payment system]</span> works, then summarize the key files and architecture for me."</div>
+          </div>
+          <div style="margin-top: 0.75rem;">
+            <button class="button" style="padding: 0.5rem 0.875rem; font-size: 0.813rem;">Use Explore</button>
+          </div>
+        </div>
+
+        <!-- Nudge 3: Verification Reminder -->
+        <div class="nudge-card danger" data-nudge="3">
+          <div class="nudge-header">
+            <div class="nudge-title">⚠ Verification reminder</div>
+            <div class="nudge-dismiss">Dismiss</div>
+          </div>
+          <div class="nudge-text">
+            You've made 4 edits across 2 files without running tests.
+          </div>
+          <div class="nudge-stat">
+            Sessions with verification → 73% lower rework rate
+          </div>
+          <div class="code-block" style="margin-top: 1rem;">
+            <button class="copy-btn" onclick="copyCode(this, 'verify-now')">Copy</button>
+            <div id="verify-now">"Run `<span class="string">npm test</span>` to verify the changes. If any tests fail, analyze and fix them before continuing."</div>
+          </div>
+          <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem;">
+            <button class="button" style="padding: 0.5rem 0.875rem; font-size: 0.813rem;">Run Tests</button>
+            <button class="button secondary" style="padding: 0.5rem 0.875rem; font-size: 0.813rem;">Remind Later</button>
+          </div>
+        </div>
+
+        <!-- Nudge 4: Frustration Detected (Tiltmeter) -->
+        <div class="nudge-card danger" data-nudge="4">
+          <div class="nudge-header">
+            <div class="nudge-title">🛑 Frustration detected (Tiltmeter)</div>
+            <div class="nudge-dismiss">Dismiss</div>
+          </div>
+          <div class="nudge-text">
+            3 prompts in 90 seconds with increasing length. This is a common frustration pattern.
+          </div>
+          <div class="tiltmeter">
+            <div class="tiltmeter-marker" style="left: 68%;"></div>
+          </div>
+          <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 0.75rem;">
+            Calm → Focused → Hurried → <strong style="color: var(--accent-orange);">Frustrated</strong> → Tilted
+          </div>
+          <div class="why-text" style="margin-bottom: 1rem;">
+            <strong>What to do:</strong> Stop → Clear → Rewrite one clean prompt. Continuing in this state adds failed approaches to context and reduces quality.
+          </div>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this, 'tilt-recovery')">Copy</button>
+            <div id="tilt-recovery"><span class="comment"># Press Esc to stop current generation</span>
+
+<span class="comment"># Clear the polluted context</span>
+/clear
+
+<span class="comment"># Take 30 seconds to think, then write ONE clean prompt:</span>
+"[Incorporate what you learned from the failures, but write it clearly and specifically, with file paths and verification steps]"</div>
+          </div>
+        </div>
+
+        <!-- Nudge 5: Large File Warning -->
+        <div class="nudge-card warning" data-nudge="5">
+          <div class="nudge-header">
+            <div class="nudge-title">📏 This file is 1,847 lines</div>
+            <div class="nudge-dismiss">Dismiss</div>
+          </div>
+          <div class="nudge-text">
+            Files over 1,000 lines have 20% first-edit success vs 85% for 100-300 line files.
+          </div>
+          <div class="nudge-stat">
+            Consider breaking this file into smaller modules before editing.
+          </div>
+          <div class="code-block" style="margin-top: 1rem;">
+            <button class="copy-btn" onclick="copyCode(this, 'large-file-refactor')">Copy</button>
+            <div id="large-file-refactor">"Before making the edit I requested, first analyze <span class="string">src/handlers/orders.ts</span> and propose how to break it into smaller, focused modules.
+
+I want to separate:
+- Order validation logic → its own file
+- Order processing logic → its own file
+- Keep only the route handlers in the main file
+
+After the refactor, THEN make my original edit."</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div>
+          <div class="card-header" style="margin-bottom: 1rem;">VS Code Status Bar</div>
+          <div class="vscode-status-bar">
+            <div class="vscode-status-item">
+              <span style="color: var(--accent-blue);">$(synapse)</span>
+              <span>$3.21</span>
+            </div>
+            <div class="vscode-status-item">
+              <span>·</span>
+            </div>
+            <div class="vscode-status-item">
+              <span>78/100</span>
+            </div>
+            <div class="vscode-status-item">
+              <span>·</span>
+            </div>
+            <div class="vscode-status-item">
+              <span>⚡ 2 suggestions</span>
+            </div>
+          </div>
+          <div style="color: var(--text-tertiary); font-size: 0.813rem; margin-top: 0.5rem;">
+            Click to open the suggestion panel in VS Code
+          </div>
+        </div>
+
+        <div>
+          <div class="settings-panel">
+            <div class="settings-header">Nudge Settings</div>
+            <div class="setting-item">
+              <div class="setting-label">Context Health Monitor</div>
+              <div class="toggle active"></div>
+            </div>
+            <div class="setting-item">
+              <div class="setting-label">Cost Velocity Tracker</div>
+              <div class="toggle active"></div>
+            </div>
+            <div class="setting-item">
+              <div class="setting-label">Retry Loop Detector</div>
+              <div class="toggle active"></div>
+            </div>
+            <div class="setting-item">
+              <div class="setting-label">Tool Selection Advisor</div>
+              <div class="toggle active"></div>
+            </div>
+            <div class="setting-item">
+              <div class="setting-label">Frustration Detector</div>
+              <div class="toggle active"></div>
+            </div>
+            <div class="setting-item">
+              <div class="setting-label">Verification Reminders</div>
+              <div class="toggle active"></div>
+            </div>
+            <div class="setting-item">
+              <div class="setting-label">Session Start Advisor</div>
+              <div class="toggle active"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Tab switching
+    const tabs = document.querySelectorAll('.tab');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        const targetId = tab.getAttribute('data-tab');
+
+        tabs.forEach(t => t.classList.remove('active'));
+        tabContents.forEach(tc => tc.classList.remove('active'));
+
+        tab.classList.add('active');
+        document.getElementById(targetId).classList.add('active');
+      });
+    });
+
+    // Toggle switches
+    const toggles = document.querySelectorAll('.toggle');
+    toggles.forEach(toggle => {
+      toggle.addEventListener('click', () => {
+        toggle.classList.toggle('active');
+      });
+    });
+
+    // Filter chips
+    const chips = document.querySelectorAll('.chip');
+    chips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        chips.forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+      });
+    });
+
+    // Nudge dismiss
+    const dismissButtons = document.querySelectorAll('.nudge-dismiss');
+    dismissButtons.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const card = e.target.closest('.nudge-card');
+        card.style.opacity = '0';
+        setTimeout(() => {
+          card.remove();
+        }, 300);
+      });
+    });
+
+    // Nudge expand
+    const nudgeCards = document.querySelectorAll('.nudge-card');
+    nudgeCards.forEach(card => {
+      const expandBtn = card.querySelector('.nudge-expand-btn');
+      if (expandBtn) {
+        expandBtn.addEventListener('click', () => {
+          card.classList.toggle('expanded');
+          expandBtn.textContent = card.classList.contains('expanded')
+            ? 'Hide details ▲'
+            : 'Show how to maintain clean context ▼';
+        });
+      }
+    });
+
+    // Playbook card click
+    const playbooks = document.querySelectorAll('.playbook-card');
+    playbooks.forEach(card => {
+      card.addEventListener('click', () => {
+        const expanded = document.querySelector('.playbook-expanded');
+        expanded.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        expanded.style.borderColor = 'var(--accent-blue)';
+        setTimeout(() => {
+          expanded.style.borderColor = 'var(--border-color)';
+        }, 1000);
+      });
+    });
+
+    // Insight card expand/collapse
+    const insightCards = document.querySelectorAll('.insight-card');
+    insightCards.forEach(card => {
+      card.addEventListener('click', () => {
+        card.classList.toggle('expanded');
+      });
+    });
+
+    // Copy button functionality
+    function copyCode(button, elementId) {
+      const code = document.getElementById(elementId).textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        const originalText = button.textContent;
+        button.textContent = 'Copied!';
+        button.classList.add('copied');
+        setTimeout(() => {
+          button.textContent = originalText;
+          button.classList.remove('copied');
+        }, 2000);
+      });
+    }
+
+    // Add hover effects to cards
+    const cards = document.querySelectorAll('.card');
+    cards.forEach(card => {
+      card.addEventListener('mouseenter', function() {
+        this.style.transform = 'translateY(-2px)';
+      });
+      card.addEventListener('mouseleave', function() {
+        this.style.transform = 'translateY(0)';
+      });
+    });
+  </script>
+</body>
+</html>

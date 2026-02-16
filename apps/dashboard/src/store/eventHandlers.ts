@@ -10,13 +10,13 @@ import type {
 // ── Constants ────────────────────────────────────────────────
 
 const SESSION_W = 220;
-const SESSION_H = 80;
+const SESSION_H = 65;
 const PROMPT_W = 240;
-const PROMPT_H = 130;
+const PROMPT_H = 95;
 const AGENT_W = 200;
-const AGENT_H = 110;
+const AGENT_H = 80;
 const TOOL_W = 150;
-const TOOL_H = 32;
+const TOOL_H = 28;
 
 /** Offscreen position + hidden so new nodes aren't visible before layout runs */
 const OFFSCREEN = { x: -9999, y: -9999 };
@@ -74,6 +74,10 @@ export interface StateDraft {
   prompts: Map<string, UserPromptData[]>;
   activeAgents: Map<string, string[]>;
   toolAgentMap: Map<string, string>;
+  /** sessionId → FIFO queue of running Task tool_use_ids (for Task→Agent correlation) */
+  pendingTaskTools: Map<string, string[]>;
+  /** taskToolUseId → childAgentId (set when SubagentStart links to a Task tool) */
+  taskToolAgentMap: Map<string, string>;
   nodes: Node[];
   edges: Edge[];
 }
@@ -86,6 +90,8 @@ export function createFreshDraft(): StateDraft {
     prompts: new Map(),
     activeAgents: new Map(),
     toolAgentMap: new Map(),
+    pendingTaskTools: new Map(),
+    taskToolAgentMap: new Map(),
     nodes: [{ ...SPAWN_NODE }],
     edges: [],
   };
@@ -99,6 +105,10 @@ export function draftFromState(state: StateDraft): StateDraft {
     prompts: new Map(state.prompts),
     activeAgents: new Map(state.activeAgents),
     toolAgentMap: new Map(state.toolAgentMap),
+    pendingTaskTools: new Map(
+      Array.from(state.pendingTaskTools, ([k, v]) => [k, [...v]]),
+    ),
+    taskToolAgentMap: new Map(state.taskToolAgentMap),
     nodes: [...state.nodes],
     edges: [...state.edges],
   };
@@ -241,17 +251,43 @@ function handleAgentStart(event: AgentEvent, draft: StateDraft): void {
     height: AGENT_H,
   });
 
-  // Edge: parent agent, or latest prompt, or session
-  let parentNodeId: string;
+  // ── Determine parent node for the agent edge ──
+  // Priority: parentAgentId (if valid) → pending Task tool → latest prompt → session
+  let parentNodeId: string | undefined;
+
+  // 1. Explicit parent agent (for nested subagents)
   if (event.parentAgentId) {
-    parentNodeId = nid.agent(event.parentAgentId);
-  } else {
+    const parentExists = draft.nodes.some((n) => n.id === nid.agent(event.parentAgentId!));
+    if (parentExists) {
+      parentNodeId = nid.agent(event.parentAgentId);
+    }
+    // If parent agent doesn't exist yet (out-of-order events), fall through
+  }
+
+  // 2. Pending Task tool — SubagentStart arriving after PreToolUse(Task)
+  if (!parentNodeId) {
+    const pending = draft.pendingTaskTools.get(event.sessionId);
+    if (pending && pending.length > 0) {
+      const taskToolUseId = pending.shift()!; // consume oldest pending Task
+      if (pending.length === 0) draft.pendingTaskTools.delete(event.sessionId);
+      const taskToolNodeId = nid.tool(taskToolUseId);
+      if (draft.nodes.some((n) => n.id === taskToolNodeId)) {
+        parentNodeId = taskToolNodeId;
+        // Record mapping so handleToolEnd can also do re-pointing for SDK events
+        draft.taskToolAgentMap.set(taskToolUseId, agentId);
+      }
+    }
+  }
+
+  // 3. Latest prompt or session fallback
+  if (!parentNodeId) {
     const sessionPrompts = draft.prompts.get(event.sessionId);
     const latestPrompt = sessionPrompts?.[sessionPrompts.length - 1];
     parentNodeId = latestPrompt
       ? nid.prompt(latestPrompt.id)
       : nid.session(event.sessionId);
   }
+
   draft.edges.push({
     id: eid(parentNodeId, nid.agent(agentId)),
     source: parentNodeId,
@@ -299,6 +335,12 @@ function handleToolStart(event: AgentEvent, draft: StateDraft): void {
     }
   }
   draft.toolAgentMap.set(toolUseId, agentId);
+
+  // Track running Task tools so SubagentStart can link to them
+  if (event.toolName === 'Task') {
+    const pending = draft.pendingTaskTools.get(event.sessionId) ?? [];
+    draft.pendingTaskTools.set(event.sessionId, [...pending, toolUseId]);
+  }
 
   const tc: ToolCallSummary = {
     toolUseId,
@@ -363,6 +405,20 @@ function finalizeToolCall(
   const agentId = event.agentId || draft.toolAgentMap.get(toolUseId) || '';
   const patch: Partial<ToolCallSummary> = { status, endTime: event.timestamp, ...extras };
 
+  // If tool_end arrived before tool_start (async hook race), create the tool
+  // node now so the completion isn't silently lost.
+  const toolNodeExists = draft.nodes.some((n) => n.id === nid.tool(toolUseId));
+  if (!toolNodeExists && toolUseId) {
+    handleToolStart(
+      {
+        ...event,
+        type: 'tool_start',
+        status: 'running',
+      },
+      draft,
+    );
+  }
+
   // Update toolCalls Map
   const agentTools = draft.toolCalls.get(agentId);
   if (agentTools) {
@@ -404,21 +460,34 @@ function handleToolEnd(event: AgentEvent, draft: StateDraft): void {
     toolResponse: event.toolResponse,
   });
 
-  // Task tool response → link child agent to this tool node
-  if (event.toolName !== 'Task' || !event.toolResponse) return;
+  if (event.toolName !== 'Task') return;
 
   const toolUseId = event.toolUseId ?? '';
-  const childAgentId = (event.toolResponse as Record<string, unknown>).agentId as
-    | string
-    | undefined;
+
+  // Consume from pendingTaskTools if this Task wasn't consumed by SubagentStart
+  // (happens when PostToolUse(Task) arrives but no SubagentStart was processed)
+  const pending = draft.pendingTaskTools.get(event.sessionId);
+  if (pending) {
+    const idx = pending.indexOf(toolUseId);
+    if (idx >= 0) {
+      pending.splice(idx, 1);
+      if (pending.length === 0) draft.pendingTaskTools.delete(event.sessionId);
+    }
+  }
+
+  // Resolve child agent: try toolResponse.agentId (SDK), then taskToolAgentMap (hooks)
+  const childAgentId =
+    ((event.toolResponse as Record<string, unknown> | undefined)?.agentId as string | undefined) ??
+    draft.taskToolAgentMap.get(toolUseId);
   if (!childAgentId) return;
 
   const toolNodeId = nid.tool(toolUseId);
   const agentNodeId = nid.agent(childAgentId);
 
   // Re-point the child agent's incoming edge to this Task tool
+  // (only needed if handleAgentStart didn't already link to the Task tool, e.g. SDK path)
   for (let i = 0; i < draft.edges.length; i++) {
-    if (draft.edges[i].target === agentNodeId) {
+    if (draft.edges[i].target === agentNodeId && draft.edges[i].source !== toolNodeId) {
       draft.edges[i] = {
         ...draft.edges[i],
         id: eid(toolNodeId, agentNodeId),
@@ -427,7 +496,8 @@ function handleToolEnd(event: AgentEvent, draft: StateDraft): void {
     }
   }
 
-  // Extract token usage from Task response
+  // Extract token usage from Task response (SDK path)
+  if (!event.toolResponse) return;
   const resp = event.toolResponse as Record<string, unknown>;
   const usage = resp.usage as Record<string, number> | undefined;
   if (!usage) return;

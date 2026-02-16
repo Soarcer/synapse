@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  BarChart, Bar, PieChart, Pie, Cell, CartesianGrid,
+  BarChart, Bar, PieChart, Pie, Cell, CartesianGrid, ComposedChart,
+  Legend,
 } from 'recharts';
 import { KpiCard } from '../shared/KpiCard';
 import { ChartCard } from '../shared/ChartCard';
@@ -59,42 +60,54 @@ export function ExecutiveOverview({ data }: Props) {
   const latency = useMemo(() => latencyPercentiles(data), [data]);
   const cacheRate = useMemo(() => avgCacheHitRate(data), [data]);
 
-  // Cost over time (daily)
-  const costTimeSeries = useMemo(() =>
-    data.dailyRollups.map((d) => ({
-      date: d.date.slice(5), // MM-DD
-      inputCost: d.totalInputTokens * 0.000003, // approximate
-      outputCost: d.totalOutputTokens * 0.000015,
-      totalCost: d.totalCost,
-    })),
-    [data],
-  );
+  // Cost over time — daily bars + cumulative area line
+  const costTimeSeries = useMemo(() => {
+    let cumCost = 0;
+    return data.dailyRollups.map((d) => {
+      cumCost += d.totalCost;
+      return {
+        date: d.date.slice(5),
+        dailyCost: d.totalCost,
+        cumulativeCost: cumCost,
+      };
+    });
+  }, [data]);
 
-  // Token over time (daily)
-  const tokenTimeSeries = useMemo(() =>
-    data.dailyRollups.map((d) => ({
-      date: d.date.slice(5),
-      input: d.totalInputTokens,
-      output: d.totalOutputTokens,
-      cached: d.totalCacheRead,
-    })),
-    [data],
-  );
+  // Token over time — daily bars + cumulative area line
+  const tokenTimeSeries = useMemo(() => {
+    let cumTokens = 0;
+    return data.dailyRollups.map((d) => {
+      const dayTotal = d.totalInputTokens + d.totalOutputTokens;
+      cumTokens += dayTotal;
+      return {
+        date: d.date.slice(5),
+        dailyTokens: dayTotal,
+        cumulativeTokens: cumTokens,
+        input: d.totalInputTokens,
+        output: d.totalOutputTokens,
+        cached: d.totalCacheRead,
+      };
+    });
+  }, [data]);
 
-  // Sparkline data for KPIs
-  const costSpark = useMemo(() => data.dailyRollups.map((d) => d.totalCost), [data]);
-  const tokenSpark = useMemo(() => data.dailyRollups.map((d) => d.totalInputTokens + d.totalOutputTokens), [data]);
-  const sessionSpark = useMemo(() => data.dailyRollups.map((d) => d.sessions), [data]);
-  const toolSpark = useMemo(() => data.dailyRollups.map((d) => d.totalToolCalls), [data]);
+  // KPI sparklines (cumulative)
+  const costSpark = useMemo(() => {
+    let cum = 0;
+    return data.dailyRollups.map((d) => { cum += d.totalCost; return cum; });
+  }, [data]);
+  const tokenSpark = useMemo(() => {
+    let cum = 0;
+    return data.dailyRollups.map((d) => { cum += d.totalInputTokens + d.totalOutputTokens; return cum; });
+  }, [data]);
+  const sessionSpark = useMemo(() => {
+    let cum = 0;
+    return data.dailyRollups.map((d) => { cum += d.sessions; return cum; });
+  }, [data]);
+  const toolSpark = useMemo(() => {
+    let cum = 0;
+    return data.dailyRollups.map((d) => { cum += d.totalToolCalls; return cum; });
+  }, [data]);
   const latencySpark = useMemo(() => data.dailyRollups.map((d) => d.avgLatencyMs), [data]);
-
-  // Compute deltas (last day vs first day)
-  const delta = (spark: number[]): number => {
-    if (spark.length < 2) return 0;
-    const first = spark[0] || 1;
-    const last = spark[spark.length - 1];
-    return ((last - first) / first) * 100;
-  };
 
   // Tool bar chart data (top 8)
   const toolBarData = useMemo(() =>
@@ -120,24 +133,21 @@ export function ExecutiveOverview({ data }: Props) {
           label="Total Cost"
           value={formatUsd(cost)}
           subtitle={`${data.sessions.length} sessions`}
-          delta={delta(costSpark)}
           sparkData={costSpark}
           color="#f59e0b"
           icon="$"
         />
         <KpiCard
           label="Total Tokens"
-          value={formatTokensShort(tokens.input + tokens.output)}
-          subtitle={`${formatTokensShort(tokens.input)} in / ${formatTokensShort(tokens.output)} out`}
-          delta={delta(tokenSpark)}
+          value={formatTokensShort(tokens.input + tokens.output + tokens.cacheRead)}
+          subtitle={`${formatTokensShort(tokens.input)} in / ${formatTokensShort(tokens.output)} out / ${formatTokensShort(tokens.cacheRead)} cached`}
           sparkData={tokenSpark}
           color="#3b82f6"
         />
         <KpiCard
           label="Sessions"
           value={String(data.sessions.length)}
-          subtitle={`Avg ${formatUsd(cost / data.sessions.length)}/session`}
-          delta={delta(sessionSpark)}
+          subtitle={`Avg ${formatUsd(cost / Math.max(1, data.sessions.length))}/session`}
           sparkData={sessionSpark}
           color="#10b981"
         />
@@ -145,7 +155,6 @@ export function ExecutiveOverview({ data }: Props) {
           label="Tool Calls"
           value={formatTokensShort(tools)}
           subtitle={`${toolData.length} unique tools`}
-          delta={delta(toolSpark)}
           sparkData={toolSpark}
           color="#8b5cf6"
         />
@@ -153,84 +162,80 @@ export function ExecutiveOverview({ data }: Props) {
           label="Avg Latency"
           value={formatMs(latency.p50)}
           subtitle={`P90: ${formatMs(latency.p90)} / P99: ${formatMs(latency.p99)}`}
-          delta={-delta(latencySpark)} // Lower is better, invert
           sparkData={latencySpark}
           color="#06b6d4"
         />
       </div>
 
-      {/* Primary chart: Cost Over Time */}
-      <ChartCard title="Cost Over Time" subtitle="Daily spend breakdown" height={280}>
+      {/* Primary chart: Cost Over Time — bars for daily, area for cumulative */}
+      <ChartCard title="Cost Over Time" subtitle={`Cumulative: ${formatUsd(cost)}`} height={280}>
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={costTimeSeries} margin={{ top: 8, right: 12, bottom: 0, left: 8 }}>
+          <ComposedChart data={costTimeSeries} margin={{ top: 8, right: 12, bottom: 0, left: 8 }}>
             <defs>
-              <linearGradient id="costGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.4} />
+              <linearGradient id="cumCostGradExec" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.3} />
                 <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e2a3a" />
             <XAxis dataKey="date" tick={{ fill: '#6b7280', fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis
+              yAxisId="daily"
               tick={{ fill: '#6b7280', fontSize: 11 }}
               axisLine={false}
               tickLine={false}
-              tickFormatter={(v: number) => `$${v.toFixed(2)}`}
+              tickFormatter={(v: number) => formatUsd(v)}
+            />
+            <YAxis
+              yAxisId="cumulative"
+              orientation="right"
+              tick={{ fill: '#f59e0b', fontSize: 10 }}
+              axisLine={false}
+              tickLine={false}
+              tickFormatter={(v: number) => formatUsd(v)}
             />
             <Tooltip
-              contentStyle={{
-                backgroundColor: '#1c2128',
-                border: '1px solid #30363d',
-                borderRadius: 8,
-                fontSize: 12,
-              }}
-              formatter={(value: number = 0) => [`$${value.toFixed(4)}`, '']}
+              contentStyle={{ backgroundColor: '#1c2128', border: '1px solid #30363d', borderRadius: 8, fontSize: 12 }}
+              formatter={(value: number = 0, name: string = '') => [
+                formatUsd(value),
+                name === 'cumulativeCost' ? 'Cumulative' : 'Daily',
+              ]}
               labelStyle={{ color: '#8b949e' }}
             />
-            <Area
-              type="monotone"
-              dataKey="totalCost"
-              stroke="#f59e0b"
-              strokeWidth={2}
-              fill="url(#costGrad)"
-              isAnimationActive={false}
-            />
-          </AreaChart>
+            <Bar yAxisId="daily" dataKey="dailyCost" fill="#f59e0b" fillOpacity={0.5} radius={[4, 4, 0, 0]} isAnimationActive={false} name="dailyCost" />
+            <Area yAxisId="cumulative" type="monotone" dataKey="cumulativeCost" stroke="#f59e0b" strokeWidth={2} fill="url(#cumCostGradExec)" isAnimationActive={false} name="cumulativeCost" />
+          </ComposedChart>
         </ResponsiveContainer>
       </ChartCard>
 
       {/* Secondary row: Token Usage, Tool Distribution, Model Mix */}
       <div className="grid grid-cols-3 gap-3">
-        {/* Token Usage Over Time */}
-        <ChartCard title="Token Usage" subtitle="Input vs Output vs Cached">
+        {/* Token Usage Over Time — bars + cumulative line */}
+        <ChartCard title="Token Usage" subtitle={`Cumulative: ${formatTokensShort(tokens.input + tokens.output)}`}>
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={tokenTimeSeries} margin={{ top: 8, right: 12, bottom: 0, left: 8 }}>
+            <ComposedChart data={tokenTimeSeries} margin={{ top: 8, right: 12, bottom: 0, left: 8 }}>
               <defs>
-                <linearGradient id="inputGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.4} />
+                <linearGradient id="cumTokenGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.3} />
                   <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="outputGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#10b981" stopOpacity={0.4} />
-                  <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="cachedGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2a3a" />
               <XAxis dataKey="date" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => formatTokensShort(v)} />
+              <YAxis yAxisId="daily" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => formatTokensShort(v)} />
+              <YAxis yAxisId="cum" orientation="right" tick={{ fill: '#3b82f6', fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => formatTokensShort(v)} />
               <Tooltip
                 contentStyle={{ backgroundColor: '#1c2128', border: '1px solid #30363d', borderRadius: 8, fontSize: 11 }}
-                formatter={(v: number = 0) => [formatTokensShort(v), '']}
+                formatter={(v: number = 0, name: string = '') => [
+                  formatTokensShort(v),
+                  name === 'cumulativeTokens' ? 'Cumulative' : name === 'input' ? 'Input' : name === 'output' ? 'Output' : 'Cached',
+                ]}
                 labelStyle={{ color: '#8b949e' }}
               />
-              <Area type="monotone" dataKey="input" stackId="1" stroke="#3b82f6" fill="url(#inputGrad)" strokeWidth={1.5} isAnimationActive={false} />
-              <Area type="monotone" dataKey="output" stackId="1" stroke="#10b981" fill="url(#outputGrad)" strokeWidth={1.5} isAnimationActive={false} />
-              <Area type="monotone" dataKey="cached" stroke="#8b5cf6" fill="url(#cachedGrad)" strokeWidth={1.5} strokeDasharray="4 2" isAnimationActive={false} />
-            </AreaChart>
+              <Bar yAxisId="daily" dataKey="input" stackId="1" fill="#3b82f6" fillOpacity={0.6} isAnimationActive={false} />
+              <Bar yAxisId="daily" dataKey="output" stackId="1" fill="#10b981" fillOpacity={0.6} radius={[4, 4, 0, 0]} isAnimationActive={false} />
+              <Area yAxisId="cum" type="monotone" dataKey="cumulativeTokens" stroke="#3b82f6" strokeWidth={2} fill="url(#cumTokenGrad)" isAnimationActive={false} />
+            </ComposedChart>
           </ResponsiveContainer>
         </ChartCard>
 
@@ -291,7 +296,7 @@ export function ExecutiveOverview({ data }: Props) {
             {modelPieData.map((m) => (
               <div key={m.name} className="flex items-center gap-1.5 text-[10px] text-gray-400">
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: m.color }} />
-                {m.name}
+                {m.name} ({formatUsd(m.value)})
               </div>
             ))}
           </div>

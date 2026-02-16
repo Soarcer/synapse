@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  BarChart, Bar, Cell, CartesianGrid, LineChart, Line,
-  ScatterChart, Scatter, ReferenceLine, ComposedChart,
+  BarChart, Bar, Cell, CartesianGrid,
+  ScatterChart, Scatter, ReferenceLine, ComposedChart, Line,
 } from 'recharts';
 import { ChartCard } from '../shared/ChartCard';
 import type { MockData } from '../mockData';
-import { toolBreakdown, modelBreakdown } from '../mockData';
+import { toolBreakdown } from '../mockData';
 
 interface Props {
   data: MockData;
@@ -44,46 +44,61 @@ export function DeepDiveExplorer({ data }: Props) {
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
 
+  // Filtered data — model filter affects turns, sessions, and dailyRollups
   const filteredTurns = useMemo(() => {
     let turns = data.turns;
     if (selectedModel) turns = turns.filter((t) => t.model === selectedModel);
     return turns;
   }, [data.turns, selectedModel]);
 
+  const filteredSessions = useMemo(() => {
+    if (!selectedModel) return data.sessions;
+    return data.sessions.filter((s) => s.model === selectedModel);
+  }, [data.sessions, selectedModel]);
+
   const filteredToolCalls = useMemo(() => {
     let tcs = data.toolCalls;
     if (selectedTool) tcs = tcs.filter((t) => t.toolName === selectedTool);
+    if (selectedModel) {
+      // Filter tool calls to only sessions matching the selected model
+      const modelSessionIds = new Set(filteredSessions.map((s) => s.id));
+      tcs = tcs.filter((t) => modelSessionIds.has(t.sessionId));
+    }
     return tcs;
-  }, [data.toolCalls, selectedTool]);
+  }, [data.toolCalls, selectedTool, selectedModel, filteredSessions]);
 
   // 1. Cost stacked by model over time
   const costByModelTime = useMemo(() => {
     return data.dailyRollups.map((d) => {
       const row: Record<string, unknown> = { date: d.date.slice(5) };
       for (const [model, stats] of Object.entries(d.models)) {
-        row[model] = stats.cost;
+        if (!selectedModel || model === selectedModel) {
+          row[model] = stats.cost;
+        }
       }
       return row;
     });
-  }, [data.dailyRollups]);
+  }, [data.dailyRollups, selectedModel]);
 
   const allModels = useMemo(() => {
     const set = new Set<string>();
     for (const d of data.dailyRollups) {
       for (const model of Object.keys(d.models)) set.add(model);
     }
+    // Also include models from sessions (in case dailyRollups are empty)
+    for (const s of data.sessions) set.add(s.model);
     return [...set];
-  }, [data.dailyRollups]);
+  }, [data.dailyRollups, data.sessions]);
 
-  // 2. Token breakdown per session (stacked bar)
+  // 2. Token breakdown per session (stacked bar) — uses filteredSessions
   const tokenPerSession = useMemo(() => {
-    return data.sessions.map((s) => ({
-      name: s.name.slice(0, 16),
+    return filteredSessions.slice(0, 20).map((s) => ({
+      name: s.name.length > 16 ? s.name.slice(0, 14) + '..' : s.name,
       input: s.totalInputTokens - s.totalCacheReadTokens,
       cached: s.totalCacheReadTokens,
       output: s.totalOutputTokens,
     }));
-  }, [data.sessions]);
+  }, [filteredSessions]);
 
   // 3. Latency distribution (histogram)
   const latencyHistogram = useMemo(() => {
@@ -109,15 +124,22 @@ export function DeepDiveExplorer({ data }: Props) {
   const p50 = sortedLatencies[Math.floor(sortedLatencies.length * 0.5)] ?? 0;
   const p99 = sortedLatencies[Math.floor(sortedLatencies.length * 0.99)] ?? 0;
 
-  // 4. Tool usage heatmap (tool x hour)
+  // 4. Tool usage heatmap (tool x hour) — uses filteredToolCalls
   const toolHeatmapData = useMemo(() => {
-    const tools = toolBreakdown(data).slice(0, 8).map((t) => t.name);
+    const toolCounts = new Map<string, number>();
+    for (const tc of filteredToolCalls) {
+      toolCounts.set(tc.toolName, (toolCounts.get(tc.toolName) ?? 0) + 1);
+    }
+    const tools = [...toolCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([name]) => name);
     const hours = Array.from({ length: 24 }, (_, i) => i);
     const grid: { tool: string; hour: number; count: number }[] = [];
 
     for (const tool of tools) {
       for (const hour of hours) {
-        const count = data.toolCalls.filter((tc) => {
+        const count = filteredToolCalls.filter((tc) => {
           const h = new Date(tc.timestamp).getHours();
           return tc.toolName === tool && h === hour;
         }).length;
@@ -125,7 +147,7 @@ export function DeepDiveExplorer({ data }: Props) {
       }
     }
     return { tools, hours, grid };
-  }, [data]);
+  }, [filteredToolCalls]);
 
   // 5. Cache hit rate over turns
   const cacheRateOverTime = useMemo(() => {
@@ -158,6 +180,15 @@ export function DeepDiveExplorer({ data }: Props) {
     Math.max(1, ...toolHeatmapData.grid.map((c) => c.count)),
     [toolHeatmapData],
   );
+
+  // Active filter summary
+  const filterSummary = useMemo(() => {
+    const parts: string[] = [];
+    if (selectedModel) parts.push(MODEL_LABELS[selectedModel] ?? selectedModel);
+    if (selectedTool) parts.push(selectedTool);
+    if (parts.length === 0) return null;
+    return `Filtered: ${parts.join(' + ')} — ${filteredTurns.length} turns, ${filteredSessions.length} sessions`;
+  }, [selectedModel, selectedTool, filteredTurns.length, filteredSessions.length]);
 
   return (
     <div className="space-y-3 p-4 max-w-[1400px] mx-auto">
@@ -201,6 +232,12 @@ export function DeepDiveExplorer({ data }: Props) {
             </button>
           ))}
         </div>
+        {filterSummary && (
+          <>
+            <div className="w-px h-5 bg-gray-700" />
+            <span className="text-[10px] text-gray-500 italic">{filterSummary}</span>
+          </>
+        )}
       </div>
 
       {/* Row 1: Cost by model + Token per session */}
@@ -277,7 +314,7 @@ export function DeepDiveExplorer({ data }: Props) {
           </ResponsiveContainer>
         </ChartCard>
 
-        {/* Tool × Hour Heatmap (custom rendered) */}
+        {/* Tool x Hour Heatmap (custom rendered) */}
         <ChartCard title="Tool Activity Heatmap" subtitle="Tool calls by hour of day" height={220}>
           <div className="h-full px-2 pb-1 overflow-hidden">
             <div className="h-full flex flex-col">

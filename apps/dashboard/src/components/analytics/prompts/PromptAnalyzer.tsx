@@ -46,15 +46,97 @@ function computeComplexity(text: string, outputTokens: number, toolCount: number
   return Math.min(100, Math.max(0, Math.round(score)));
 }
 
+const TOOL_COLORS: Record<string, string> = {
+  Read: '#3b82f6', Write: '#22c55e', Edit: '#a855f7', Bash: '#f97316',
+  Grep: '#06b6d4', Glob: '#eab308', Task: '#ef4444', WebFetch: '#ec4899',
+  WebSearch: '#8b5cf6', TodoWrite: '#14b8a6', NotebookEdit: '#f43f5e',
+};
+
+const MODEL_LABELS: Record<string, string> = {
+  'claude-opus-4-6': 'Opus 4.6',
+  'claude-sonnet-4-5': 'Sonnet 4.5',
+  'claude-sonnet-4-5-20250929': 'Sonnet 4.5',
+  'claude-haiku-4-5': 'Haiku 4.5',
+  'claude-haiku-4-5-20251001': 'Haiku 4.5',
+};
+
+const MODEL_COLORS: Record<string, string> = {
+  'claude-opus-4-6': '#e8956a',
+  'claude-sonnet-4-5': '#3b82f6',
+  'claude-sonnet-4-5-20250929': '#3b82f6',
+  'claude-haiku-4-5': '#22d3ee',
+  'claude-haiku-4-5-20251001': '#22d3ee',
+};
+
+function fmtTokens(n: number): string {
+  if (n < 1000) return String(n);
+  if (n < 1_000_000) return `${(n / 1000).toFixed(1)}k`;
+  return `${(n / 1_000_000).toFixed(2)}M`;
+}
+
 export function PromptAnalyzer({ data }: PromptAnalyzerProps) {
   const [sortField, setSortField] = useState<'complexity' | 'cost' | 'tokens'>('cost');
   const [sortAsc, setSortAsc] = useState(false);
+  const [expandedRow, setExpandedRow] = useState<number | null>(null);
 
   const analyses = useMemo(() => {
-    return data.turns.map((t) => ({
-      ...t,
-      category: classifyPrompt(t.promptText),
-      complexity: computeComplexity(t.promptText, t.outputTokens, t.toolCount),
+    // Group turns by sessionId + promptText to aggregate work from one user prompt
+    const grouped = new Map<string, {
+      promptText: string;
+      sessionId: string;
+      costUsd: number;
+      inputTokens: number;
+      outputTokens: number;
+      cacheReadTokens: number;
+      thinkingTokens: number;
+      toolCount: number;
+      toolNames: string[];
+      latencyMs: number;
+      model: string;
+      turnIndex: number;
+      turnCount: number;
+    }>();
+
+    for (const t of data.turns) {
+      if (t.promptText.trim().length === 0) continue;
+      const key = `${t.sessionId}::${t.promptText}`;
+      const existing = grouped.get(key);
+      if (existing) {
+        existing.costUsd += t.costUsd;
+        existing.inputTokens += t.inputTokens;
+        existing.outputTokens += t.outputTokens;
+        existing.cacheReadTokens += t.cacheReadTokens;
+        existing.thinkingTokens += t.thinkingTokens;
+        existing.toolCount += t.toolCount;
+        existing.latencyMs += t.latencyMs;
+        existing.turnCount += 1;
+        // Merge tool names (deduplicate)
+        for (const name of t.toolNames) {
+          if (!existing.toolNames.includes(name)) existing.toolNames.push(name);
+        }
+      } else {
+        grouped.set(key, {
+          promptText: t.promptText,
+          sessionId: t.sessionId,
+          costUsd: t.costUsd,
+          inputTokens: t.inputTokens,
+          outputTokens: t.outputTokens,
+          cacheReadTokens: t.cacheReadTokens,
+          thinkingTokens: t.thinkingTokens,
+          toolCount: t.toolCount,
+          toolNames: [...t.toolNames],
+          latencyMs: t.latencyMs,
+          model: t.model,
+          turnIndex: t.turnIndex,
+          turnCount: 1,
+        });
+      }
+    }
+
+    return [...grouped.values()].map((g) => ({
+      ...g,
+      category: classifyPrompt(g.promptText),
+      complexity: computeComplexity(g.promptText, g.outputTokens, g.toolCount),
     }));
   }, [data.turns]);
 
@@ -172,31 +254,186 @@ export function PromptAnalyzer({ data }: PromptAnalyzerProps) {
               </tr>
             </thead>
             <tbody>
-              {sorted.slice(0, 50).map((a, i) => (
-                <tr key={i} className="border-b border-gray-800/50 hover:bg-[#0d1117]/50">
-                  <td className="p-3 text-gray-600">{a.turnIndex + 1}</td>
-                  <td className="p-3 text-gray-300 max-w-[300px] truncate">{a.promptText || '—'}</td>
-                  <td className="p-3">
-                    <span
-                      className="px-2 py-0.5 rounded-full text-[10px] font-medium"
-                      style={{ backgroundColor: `${CATEGORY_COLORS[a.category]}20`, color: CATEGORY_COLORS[a.category] }}
-                    >
-                      {a.category}
-                    </span>
-                  </td>
-                  <td className="p-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                        <div className="h-full rounded-full" style={{ width: `${a.complexity}%`, backgroundColor: a.complexity > 70 ? '#ef4444' : a.complexity > 40 ? '#eab308' : '#22c55e' }} />
-                      </div>
-                      <span className="text-gray-400">{a.complexity}</span>
-                    </div>
-                  </td>
-                  <td className="p-3 text-gray-300">${a.costUsd.toFixed(4)}</td>
-                  <td className="p-3 text-gray-400">{(a.inputTokens + a.outputTokens).toLocaleString()}</td>
-                  <td className="p-3 text-gray-500">{a.toolNames.join(', ') || '—'}</td>
-                </tr>
-              ))}
+              {sorted.slice(0, 50).map((a, i) => {
+                const isExpanded = expandedRow === i;
+                const cacheRate = (a.inputTokens + a.cacheReadTokens) > 0
+                  ? (a.cacheReadTokens / (a.inputTokens + a.cacheReadTokens)) * 100
+                  : 0;
+                const totalTokens = a.inputTokens + a.outputTokens + a.cacheReadTokens;
+                const wordCount = a.promptText.split(/\s+/).filter(Boolean).length;
+
+                return (
+                  <tr
+                    key={i}
+                    className={`border-b border-gray-800/50 cursor-pointer transition-colors ${isExpanded ? 'bg-[#0d1117]/70' : 'hover:bg-[#0d1117]/50'}`}
+                    onClick={() => setExpandedRow(isExpanded ? null : i)}
+                  >
+                    <td className="p-3 align-top text-gray-600">
+                      {i + 1}
+                      {a.turnCount > 1 && (
+                        <div className="text-[9px] text-gray-600 mt-0.5">{a.turnCount} turns</div>
+                      )}
+                    </td>
+                    <td className="p-3 align-top" colSpan={isExpanded ? 6 : 1}>
+                      {/* Prompt text — truncated or full */}
+                      <p className={`text-gray-300 ${isExpanded ? '' : 'max-w-[300px] truncate'}`}>
+                        {a.promptText || '\u2014'}
+                      </p>
+
+                      {/* Expanded detail panel */}
+                      {isExpanded && (
+                        <div className="mt-3 space-y-3">
+                          {/* Stat cards row */}
+                          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+                            <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
+                              <div className="text-[10px] text-gray-500">Cost</div>
+                              <div className="text-sm font-semibold text-amber-400">${a.costUsd.toFixed(4)}</div>
+                            </div>
+                            <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
+                              <div className="text-[10px] text-gray-500">Total Tokens</div>
+                              <div className="text-sm font-semibold text-gray-200">{fmtTokens(totalTokens)}</div>
+                            </div>
+                            <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
+                              <div className="text-[10px] text-gray-500">Cache Hit</div>
+                              <div className={`text-sm font-semibold ${cacheRate > 50 ? 'text-emerald-400' : cacheRate > 20 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                {cacheRate.toFixed(1)}%
+                              </div>
+                            </div>
+                            <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
+                              <div className="text-[10px] text-gray-500">Latency</div>
+                              <div className="text-sm font-semibold text-gray-200">
+                                {a.latencyMs < 1000 ? `${Math.round(a.latencyMs)}ms` : `${(a.latencyMs / 1000).toFixed(1)}s`}
+                              </div>
+                            </div>
+                            <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
+                              <div className="text-[10px] text-gray-500">Complexity</div>
+                              <div className="text-sm font-semibold" style={{ color: a.complexity > 70 ? '#ef4444' : a.complexity > 40 ? '#eab308' : '#22c55e' }}>
+                                {a.complexity}/100
+                              </div>
+                            </div>
+                            <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
+                              <div className="text-[10px] text-gray-500">Turns</div>
+                              <div className="text-sm font-semibold text-gray-200">{a.turnCount}</div>
+                            </div>
+                          </div>
+
+                          {/* Token breakdown bar */}
+                          <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
+                            <div className="text-[10px] text-gray-500 mb-1.5">Token Breakdown</div>
+                            <div className="flex h-3 rounded-full overflow-hidden bg-gray-800">
+                              {a.cacheReadTokens > 0 && (
+                                <div
+                                  className="h-full"
+                                  style={{ width: `${(a.cacheReadTokens / totalTokens) * 100}%`, backgroundColor: '#8b5cf6' }}
+                                  title={`Cached: ${fmtTokens(a.cacheReadTokens)}`}
+                                />
+                              )}
+                              <div
+                                className="h-full"
+                                style={{ width: `${(a.inputTokens / totalTokens) * 100}%`, backgroundColor: '#3b82f6' }}
+                                title={`Input: ${fmtTokens(a.inputTokens)}`}
+                              />
+                              <div
+                                className="h-full"
+                                style={{ width: `${(a.outputTokens / totalTokens) * 100}%`, backgroundColor: '#10b981' }}
+                                title={`Output: ${fmtTokens(a.outputTokens)}`}
+                              />
+                            </div>
+                            <div className="flex items-center gap-4 mt-1.5">
+                              <span className="text-[9px] text-purple-400 flex items-center gap-1">
+                                <span className="inline-block w-2 h-2 rounded-sm bg-purple-500" /> cached {fmtTokens(a.cacheReadTokens)}
+                              </span>
+                              <span className="text-[9px] text-blue-400 flex items-center gap-1">
+                                <span className="inline-block w-2 h-2 rounded-sm bg-blue-500" /> input {fmtTokens(a.inputTokens)}
+                              </span>
+                              <span className="text-[9px] text-emerald-400 flex items-center gap-1">
+                                <span className="inline-block w-2 h-2 rounded-sm bg-emerald-500" /> output {fmtTokens(a.outputTokens)}
+                              </span>
+                              {a.thinkingTokens > 0 && (
+                                <span className="text-[9px] text-pink-400 flex items-center gap-1">
+                                  <span className="inline-block w-2 h-2 rounded-sm bg-pink-500" /> thinking {fmtTokens(a.thinkingTokens)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Tools + Model row */}
+                          <div className="flex items-start gap-3 flex-wrap">
+                            {/* Tools */}
+                            {a.toolNames.length > 0 && (
+                              <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2 flex-1 min-w-[200px]">
+                                <div className="text-[10px] text-gray-500 mb-1.5">Tools Used ({a.toolCount})</div>
+                                <div className="flex flex-wrap gap-1">
+                                  {a.toolNames.map((name, ti) => (
+                                    <span
+                                      key={ti}
+                                      className="px-2 py-0.5 rounded text-[10px] font-medium"
+                                      style={{
+                                        backgroundColor: `${TOOL_COLORS[name] ?? '#6b7280'}20`,
+                                        color: TOOL_COLORS[name] ?? '#6b7280',
+                                      }}
+                                    >
+                                      {name}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Model + Category */}
+                            <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
+                              <div className="text-[10px] text-gray-500 mb-1.5">Model</div>
+                              <span
+                                className="px-2 py-0.5 rounded text-[10px] font-medium"
+                                style={{
+                                  backgroundColor: `${MODEL_COLORS[a.model] ?? '#6b7280'}20`,
+                                  color: MODEL_COLORS[a.model] ?? '#6b7280',
+                                }}
+                              >
+                                {MODEL_LABELS[a.model] ?? a.model}
+                              </span>
+                            </div>
+
+                            <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
+                              <div className="text-[10px] text-gray-500 mb-1.5">Category</div>
+                              <span
+                                className="px-2 py-0.5 rounded-full text-[10px] font-medium"
+                                style={{ backgroundColor: `${CATEGORY_COLORS[a.category]}20`, color: CATEGORY_COLORS[a.category] }}
+                              >
+                                {a.category}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </td>
+                    {/* Only render remaining cells when collapsed */}
+                    {!isExpanded && (
+                      <>
+                        <td className="p-3">
+                          <span
+                            className="px-2 py-0.5 rounded-full text-[10px] font-medium"
+                            style={{ backgroundColor: `${CATEGORY_COLORS[a.category]}20`, color: CATEGORY_COLORS[a.category] }}
+                          >
+                            {a.category}
+                          </span>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${a.complexity}%`, backgroundColor: a.complexity > 70 ? '#ef4444' : a.complexity > 40 ? '#eab308' : '#22c55e' }} />
+                            </div>
+                            <span className="text-gray-400">{a.complexity}</span>
+                          </div>
+                        </td>
+                        <td className="p-3 text-gray-300">${a.costUsd.toFixed(4)}</td>
+                        <td className="p-3 text-gray-400">{(a.inputTokens + a.outputTokens).toLocaleString()}</td>
+                        <td className="p-3 text-gray-500">{a.toolNames.join(', ') || '\u2014'}</td>
+                      </>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

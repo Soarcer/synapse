@@ -21,6 +21,18 @@ export type {
   TranscriptSummary,
 } from './types/transcript.js';
 
+export type {
+  CoachingDimension,
+  DetectorResult,
+  DimensionScore,
+  ReportCard,
+  NudgeSeverity,
+  CoachingNudge,
+  PlaybookCategory,
+  PlaybookPattern,
+  Playbook,
+} from './types/coaching.js';
+
 // Transcript constants
 export { MODEL_PRICING, DEFAULT_PRICING } from './types/transcript.js';
 
@@ -33,6 +45,10 @@ export {
   SnapshotImportSchema,
   AnalyticsQuerySchema,
   PriceCreateSchema,
+  CoachingQuerySchema,
+  CoachingMultiQuerySchema,
+  PlaybookCreateSchema,
+  NudgeDismissSchema,
 } from './schemas.js';
 
 // Format utilities

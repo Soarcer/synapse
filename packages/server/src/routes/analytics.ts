@@ -460,44 +460,75 @@ export function createAnalyticsRouter(): Router {
 
       const allTurns: TurnData[] = [];
 
-      // For sessions with transcripts, use rich transcript data
+      // For sessions with transcripts, aggregate all assistant records
+      // belonging to the same prompt group into a single turn.
+      // A new prompt group starts when we see a user record with actual
+      // prompt text (not a tool_result which has no text blocks).
       for (const [sid, summary] of transcripts) {
-        // Pair user→assistant turns, extracting user prompt text
         let turnIndex = 0;
-        let lastUserTimestamp = 0;
-        let lastUserText = '';
+        let promptTimestamp = 0;
+        let promptText = '';
+        let currentGroup: TurnData | null = null;
+        const toolNameSet = new Set<string>();
+
+        const flushGroup = () => {
+          if (currentGroup) {
+            currentGroup.toolNames = [...toolNameSet];
+            allTurns.push(currentGroup);
+            toolNameSet.clear();
+          }
+        };
+
         for (const turn of summary.turns) {
           if (turn.type === 'user') {
-            lastUserTimestamp = turn.timestamp;
-            // Only update prompt text when the user record has actual text
-            // (not tool_result records which have no text blocks)
-            if (turn.promptText) lastUserText = turn.promptText;
+            // Real user prompt (has text) vs tool_result (no text)
+            if (turn.promptText) {
+              flushGroup();
+              promptTimestamp = turn.timestamp;
+              promptText = turn.promptText;
+              currentGroup = null;
+            }
             continue;
           }
           if (turn.type !== 'assistant') continue;
 
-          const latencyMs = lastUserTimestamp > 0 ? turn.timestamp - lastUserTimestamp : 0;
           const model = turn.model ?? 'claude-sonnet-4-5';
           const costUsd = computeCostUsd(model, turn.inputTokens, turn.outputTokens, turn.cacheReadTokens, turn.timestamp);
 
-          allTurns.push({
-            sessionId: sid,
-            turnIndex: turnIndex++,
-            timestamp: turn.timestamp,
-            promptText: lastUserText,
-            inputTokens: turn.inputTokens,
-            outputTokens: turn.outputTokens,
-            cacheReadTokens: turn.cacheReadTokens,
-            cacheCreationTokens: turn.cacheCreationTokens,
-            thinkingTokens: turn.thinkingLength,
-            toolCount: turn.toolUseCount,
-            toolNames: turn.toolNames,
-            latencyMs: latencyMs > 0 && latencyMs < 600_000 ? latencyMs : 0,
-            costUsd,
-            model,
-            compactionBefore: false,
-          });
+          if (!currentGroup) {
+            // First assistant record in this prompt group
+            const latencyMs = promptTimestamp > 0 ? turn.timestamp - promptTimestamp : 0;
+            currentGroup = {
+              sessionId: sid,
+              turnIndex: turnIndex++,
+              timestamp: turn.timestamp,
+              promptText,
+              inputTokens: turn.inputTokens,
+              outputTokens: turn.outputTokens,
+              cacheReadTokens: turn.cacheReadTokens,
+              cacheCreationTokens: turn.cacheCreationTokens,
+              thinkingTokens: turn.thinkingLength,
+              toolCount: turn.toolUseCount,
+              toolNames: [],  // filled on flush
+              latencyMs: latencyMs > 0 && latencyMs < 600_000 ? latencyMs : 0,
+              costUsd,
+              model,
+              compactionBefore: false,
+            };
+            for (const name of turn.toolNames) toolNameSet.add(name);
+          } else {
+            // Subsequent assistant record — aggregate into existing group
+            currentGroup.inputTokens += turn.inputTokens;
+            currentGroup.outputTokens += turn.outputTokens;
+            currentGroup.cacheReadTokens += turn.cacheReadTokens;
+            currentGroup.cacheCreationTokens += turn.cacheCreationTokens;
+            currentGroup.thinkingTokens += turn.thinkingLength;
+            currentGroup.toolCount += turn.toolUseCount;
+            currentGroup.costUsd += costUsd;
+            for (const name of turn.toolNames) toolNameSet.add(name);
+          }
         }
+        flushGroup();
       }
 
       // For sessions without transcripts, fall back to event-based turn construction

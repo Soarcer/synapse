@@ -10,10 +10,11 @@ import { TokenVelocityView } from './velocity/TokenVelocityView';
 import { PromptAnalyzer } from './prompts/PromptAnalyzer';
 import { ToolChainView } from './tools/ToolChainView';
 import { InsightsView } from './insights/InsightsView';
+import { CoachingView } from './coaching/CoachingView';
 import { ExportDialog } from './export/ExportDialog';
 import { TimeRangeSelector } from './shared/TimeRangeSelector';
 
-type AnalyticsTab = 'executive' | 'explorer' | 'replay' | 'comparison' | 'whatif' | 'velocity' | 'prompts' | 'tools' | 'insights';
+type AnalyticsTab = 'executive' | 'explorer' | 'replay' | 'comparison' | 'whatif' | 'velocity' | 'prompts' | 'tools' | 'insights' | 'coach';
 
 const TABS: { id: AnalyticsTab; label: string; description: string }[] = [
   { id: 'executive', label: 'Executive', description: 'KPI overview with sparklines' },
@@ -25,6 +26,7 @@ const TABS: { id: AnalyticsTab; label: string; description: string }[] = [
   { id: 'prompts', label: 'Prompts', description: 'Prompt complexity analysis' },
   { id: 'tools', label: 'Tool Chains', description: 'Tool co-occurrence & sequences' },
   { id: 'insights', label: 'Insights', description: 'AI coach, badges & budget' },
+  { id: 'coach', label: 'Coach', description: 'Session coaching & playbooks' },
 ];
 
 export function AnalyticsPage() {
@@ -121,6 +123,7 @@ export function AnalyticsPage() {
         {activeTab === 'prompts' && <PromptAnalyzer data={mockData} />}
         {activeTab === 'tools' && <ToolChainView data={mockData} />}
         {activeTab === 'insights' && <InsightsView data={mockData} />}
+        {activeTab === 'coach' && <CoachingView sessions={analytics.sessions} />}
       </div>
 
       {/* Export Dialog */}

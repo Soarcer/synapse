@@ -125,7 +125,9 @@ export interface McpServerConfig {
 export type WsServerMessage =
   | { type: 'event'; data: AgentEvent }
   | { type: 'connected'; data: { activeAgents: ActiveAgentInfo[] } }
-  | { type: 'agent_text'; data: { agentId: string; text: string; isPartial: boolean } };
+  | { type: 'agent_text'; data: { agentId: string; text: string; isPartial: boolean } }
+  | { type: 'stale'; data: Record<string, never> }
+  | { type: 'coaching_nudge'; data: import('./coaching.js').CoachingNudge };
 
 export type WsClientMessage =
   | { type: 'subscribe'; sessionId: string }

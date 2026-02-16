@@ -21,6 +21,7 @@ export interface TranscriptTurn {
   toolUseCount: number;
   textLength: number;              // total text output chars
   thinkingLength: number;          // thinking block chars
+  promptText?: string;             // user prompt text (first 500 chars, user turns only)
 
   // Derived
   totalInputTokens: number;        // input + cache_read
