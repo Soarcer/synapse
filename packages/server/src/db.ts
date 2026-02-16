@@ -20,22 +20,43 @@ const DB_PATH = envDbPath ? path.resolve(envDbPath) : path.join(__dirname, '..',
 
 let db: SqlJsDatabase;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let lastSaveTime = 0;
+const MAX_SAVE_DELAY_MS = 5000; // Force save after 5s under continuous writes
 
 // ─── Persistence ──────────────────────────────────────────────────────
+// sql.js runs single-threaded; all queries are synchronous against the
+// in-memory WASM database.  `scheduleSave()` debounces disk persistence
+// via `db.export()` → `fs.writeFileSync()`.  Under continuous writes the
+// debounce could delay indefinitely, so we force a save after 5 seconds.
 
 function scheduleSave(): void {
+  const now = Date.now();
+  const sinceLast = now - lastSaveTime;
+
+  // Force immediate save if too long since last save
+  if (lastSaveTime > 0 && sinceLast >= MAX_SAVE_DELAY_MS) {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    performSave();
+    return;
+  }
+
   if (saveTimer) return;
   saveTimer = setTimeout(() => {
     saveTimer = null;
-    try {
-      const data = db.export();
-      const dir = path.dirname(DB_PATH);
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(DB_PATH, Buffer.from(data));
-    } catch (err) {
-      logger.error({ err }, 'Failed to save database');
-    }
+    performSave();
   }, 1000);
+}
+
+function performSave(): void {
+  try {
+    const data = db.export();
+    const dir = path.dirname(DB_PATH);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(DB_PATH, Buffer.from(data));
+    lastSaveTime = Date.now();
+  } catch (err) {
+    logger.error({ err }, 'Failed to save database');
+  }
 }
 
 function saveNow(): void {
@@ -43,14 +64,7 @@ function saveNow(): void {
     clearTimeout(saveTimer);
     saveTimer = null;
   }
-  try {
-    const data = db.export();
-    const dir = path.dirname(DB_PATH);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(DB_PATH, Buffer.from(data));
-  } catch (err) {
-    logger.error({ err }, 'Failed to save database on shutdown');
-  }
+  performSave();
 }
 
 // ─── Initialization ──────────────────────────────────────────────────
@@ -124,6 +138,7 @@ export async function initDb(): Promise<void> {
 
   db.run('CREATE INDEX IF NOT EXISTS idx_events_vendor ON events(vendor)');
   db.run('CREATE INDEX IF NOT EXISTS idx_events_cwd ON events(cwd)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_events_tool_use_id ON events(tool_use_id)');
 
   // Migration: add model column to existing databases
   try { db.run('ALTER TABLE events ADD COLUMN model TEXT'); } catch { /* column already exists */ }
@@ -197,6 +212,51 @@ export async function initDb(): Promise<void> {
     )
   `);
 
+  // ── Coaching tables ────────────────────────────────────────────────
+  db.run(`
+    CREATE TABLE IF NOT EXISTS coaching_report_cards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id TEXT NOT NULL UNIQUE,
+      computed_at INTEGER NOT NULL,
+      overall_score INTEGER NOT NULL,
+      dimension_scores TEXT NOT NULL,
+      detector_results TEXT NOT NULL,
+      summary TEXT NOT NULL
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS coaching_nudges (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id TEXT NOT NULL,
+      nudge_id TEXT NOT NULL,
+      detector_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      recommendation TEXT,
+      severity TEXT NOT NULL,
+      fired_at INTEGER NOT NULL,
+      dismissed INTEGER DEFAULT 0,
+      UNIQUE(session_id, nudge_id)
+    )
+  `);
+  db.run('CREATE INDEX IF NOT EXISTS idx_nudges_session ON coaching_nudges(session_id)');
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS coaching_playbooks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL,
+      category TEXT NOT NULL,
+      source_session_id TEXT,
+      pattern TEXT NOT NULL,
+      tags TEXT,
+      score INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+
   logger.info({ path: DB_PATH }, 'Database initialized');
 }
 
@@ -204,7 +264,7 @@ export async function initDb(): Promise<void> {
 
 function queryAll(sql: string, params?: unknown[]): Record<string, unknown>[] {
   const stmt = db.prepare(sql);
-  if (params) stmt.bind(params as initSqlJs.BindParams);
+  if (params) stmt.bind(params as unknown[]);
   const results: Record<string, unknown>[] = [];
   while (stmt.step()) {
     results.push(stmt.getAsObject() as Record<string, unknown>);
@@ -219,7 +279,7 @@ function queryGet(sql: string, params?: unknown[]): Record<string, unknown> | un
 }
 
 function execute(sql: string, params?: unknown[]): number {
-  db.run(sql, params as initSqlJs.BindParams);
+  db.run(sql, params as unknown[]);
   return db.getRowsModified();
 }
 
@@ -243,6 +303,7 @@ export interface EventRow {
   token_input: number | null;
   token_output: number | null;
   duration_ms: number | null;
+  model: string | null;
   vendor: string | null;
   cwd: string | null;
   raw_payload: string;
@@ -266,6 +327,7 @@ export function insertEvent(params: {
   token_input?: number | null;
   token_output?: number | null;
   duration_ms?: number | null;
+  model?: string | null;
   vendor?: string | null;
   cwd?: string | null;
   raw_payload: string;
@@ -277,8 +339,8 @@ export function insertEvent(params: {
       agent_id, agent_type, parent_agent_id,
       tool_name, tool_use_id, tool_input, tool_response,
       status, error, token_input, token_output, duration_ms,
-      vendor, cwd, raw_payload, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      model, vendor, cwd, raw_payload, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     params.event_id,
     params.session_id,
@@ -296,6 +358,7 @@ export function insertEvent(params: {
     params.token_input ?? null,
     params.token_output ?? null,
     params.duration_ms ?? null,
+    params.model ?? null,
     params.vendor ?? null,
     params.cwd ?? null,
     params.raw_payload,
@@ -304,17 +367,17 @@ export function insertEvent(params: {
   scheduleSave();
 }
 
-export function getEventsBySession(sessionId: string): EventRow[] {
+export function getEventsBySession(sessionId: string, limit = 10_000): EventRow[] {
   return queryAll(
-    'SELECT * FROM events WHERE session_id = ? ORDER BY created_at ASC',
-    [sessionId],
+    'SELECT * FROM events WHERE session_id = ? ORDER BY created_at ASC LIMIT ?',
+    [sessionId, limit],
   ) as unknown as EventRow[];
 }
 
-export function getEventsByAgent(agentId: string): EventRow[] {
+export function getEventsByAgent(agentId: string, limit = 10_000): EventRow[] {
   return queryAll(
-    'SELECT * FROM events WHERE agent_id = ? ORDER BY created_at ASC',
-    [agentId],
+    'SELECT * FROM events WHERE agent_id = ? ORDER BY created_at ASC LIMIT ?',
+    [agentId, limit],
   ) as unknown as EventRow[];
 }
 
@@ -380,10 +443,11 @@ export interface SessionSummary {
   event_count: number;
 }
 
-export function listSessions(): SessionSummary[] {
+export function listSessions(limit = 500): SessionSummary[] {
   return queryAll(
     `SELECT session_id, MIN(created_at) as first_event, MAX(created_at) as last_event, COUNT(*) as event_count
-     FROM events GROUP BY session_id ORDER BY last_event DESC`,
+     FROM events GROUP BY session_id ORDER BY last_event DESC LIMIT ?`,
+    [limit],
   ) as unknown as SessionSummary[];
 }
 
@@ -618,6 +682,190 @@ export function getEventsBySessionIds(sessionIds: string[]): Map<string, EventRo
     else grouped.set(row.session_id, [row]);
   }
   return grouped;
+}
+
+// ─── Coaching: Report Card Helpers ────────────────────────────────────
+
+export interface ReportCardRow {
+  id: number;
+  session_id: string;
+  computed_at: number;
+  overall_score: number;
+  dimension_scores: string;
+  detector_results: string;
+  summary: string;
+}
+
+export function getCachedReportCard(sessionId: string): ReportCardRow | undefined {
+  return queryGet(
+    'SELECT * FROM coaching_report_cards WHERE session_id = ?',
+    [sessionId],
+  ) as unknown as ReportCardRow | undefined;
+}
+
+export function upsertReportCard(params: {
+  session_id: string;
+  computed_at: number;
+  overall_score: number;
+  dimension_scores: string;
+  detector_results: string;
+  summary: string;
+}): void {
+  execute(`
+    INSERT INTO coaching_report_cards (session_id, computed_at, overall_score, dimension_scores, detector_results, summary)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT (session_id) DO UPDATE SET
+      computed_at = excluded.computed_at,
+      overall_score = excluded.overall_score,
+      dimension_scores = excluded.dimension_scores,
+      detector_results = excluded.detector_results,
+      summary = excluded.summary
+  `, [
+    params.session_id,
+    params.computed_at,
+    params.overall_score,
+    params.dimension_scores,
+    params.detector_results,
+    params.summary,
+  ]);
+  scheduleSave();
+}
+
+export function getReportCardsInRange(from: number, to: number): ReportCardRow[] {
+  return queryAll(
+    'SELECT * FROM coaching_report_cards WHERE computed_at >= ? AND computed_at <= ? ORDER BY computed_at DESC',
+    [from, to],
+  ) as unknown as ReportCardRow[];
+}
+
+// ─── Coaching: Nudge Helpers ─────────────────────────────────────────
+
+export interface NudgeRow {
+  id: number;
+  session_id: string;
+  nudge_id: string;
+  detector_id: string;
+  title: string;
+  message: string;
+  recommendation: string | null;
+  severity: string;
+  fired_at: number;
+  dismissed: number;
+}
+
+export function insertNudge(params: {
+  session_id: string;
+  nudge_id: string;
+  detector_id: string;
+  title: string;
+  message: string;
+  recommendation?: string;
+  severity: string;
+  fired_at: number;
+}): void {
+  execute(`
+    INSERT OR IGNORE INTO coaching_nudges (session_id, nudge_id, detector_id, title, message, recommendation, severity, fired_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `, [
+    params.session_id,
+    params.nudge_id,
+    params.detector_id,
+    params.title,
+    params.message,
+    params.recommendation ?? null,
+    params.severity,
+    params.fired_at,
+  ]);
+  scheduleSave();
+}
+
+export function getNudgesBySession(sessionId: string): NudgeRow[] {
+  return queryAll(
+    'SELECT * FROM coaching_nudges WHERE session_id = ? ORDER BY fired_at DESC',
+    [sessionId],
+  ) as unknown as NudgeRow[];
+}
+
+export function hasNudgeFired(sessionId: string, detectorId: string, sinceMs: number): boolean {
+  const cutoff = Date.now() - sinceMs;
+  const row = queryGet(
+    'SELECT id FROM coaching_nudges WHERE session_id = ? AND detector_id = ? AND fired_at > ?',
+    [sessionId, detectorId, cutoff],
+  );
+  return row !== undefined;
+}
+
+export function dismissNudge(sessionId: string, nudgeId: string): number {
+  const result = execute(
+    'UPDATE coaching_nudges SET dismissed = 1 WHERE session_id = ? AND nudge_id = ?',
+    [sessionId, nudgeId],
+  );
+  scheduleSave();
+  return result;
+}
+
+// ─── Coaching: Playbook Helpers ──────────────────────────────────────
+
+export interface PlaybookRow {
+  id: number;
+  name: string;
+  description: string;
+  category: string;
+  source_session_id: string | null;
+  pattern: string;
+  tags: string | null;
+  score: number | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export function getAllPlaybooks(): PlaybookRow[] {
+  return queryAll(
+    'SELECT * FROM coaching_playbooks ORDER BY updated_at DESC',
+  ) as unknown as PlaybookRow[];
+}
+
+export function getPlaybookById(id: number): PlaybookRow | undefined {
+  return queryGet(
+    'SELECT * FROM coaching_playbooks WHERE id = ?',
+    [id],
+  ) as unknown as PlaybookRow | undefined;
+}
+
+export function insertPlaybook(params: {
+  name: string;
+  description: string;
+  category: string;
+  source_session_id?: string;
+  pattern: string;
+  tags?: string;
+  score?: number;
+}): number {
+  const now = Date.now();
+  execute(`
+    INSERT INTO coaching_playbooks (name, description, category, source_session_id, pattern, tags, score, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [
+    params.name,
+    params.description,
+    params.category,
+    params.source_session_id ?? null,
+    params.pattern,
+    params.tags ?? null,
+    params.score ?? null,
+    now,
+    now,
+  ]);
+  scheduleSave();
+  // Return the last inserted ID
+  const row = queryGet('SELECT last_insert_rowid() as id');
+  return (row as { id: number } | undefined)?.id ?? 0;
+}
+
+export function deletePlaybook(id: number): number {
+  const result = execute('DELETE FROM coaching_playbooks WHERE id = ?', [id]);
+  scheduleSave();
+  return result;
 }
 
 // ─── Shutdown ─────────────────────────────────────────────────────────
