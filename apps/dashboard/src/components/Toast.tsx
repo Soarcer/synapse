@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { t } from '../i18n';
 
 interface ToastItem {
   id: number;
@@ -92,7 +93,7 @@ export function ToastContainer() {
         >
           {item.message}
           {item.nodeId && (
-            <span className="ml-2 text-xs opacity-60">click to focus</span>
+            <span className="ml-2 text-xs opacity-60">{t('toast.clickToFocus')}</span>
           )}
         </div>
       ))}

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { t } from '../i18n';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -35,7 +36,7 @@ export function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', 
             onClick={onCancel}
             className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-200 bg-transparent border border-gray-600 hover:border-gray-500 rounded transition-colors"
           >
-            Cancel
+            {t('dialog.confirm.cancel')}
           </button>
           <button
             onClick={onConfirm}

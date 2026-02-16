@@ -12,6 +12,7 @@ import type {
 import { PALETTES, normalizeCwd } from '@synapse-ai/core';
 import { wsClient } from './wsClient';
 import { toast } from '../components/Toast';
+import { t } from '../i18n';
 import { apiUrl } from '../utils/api';
 
 // Module-level empty array to avoid re-render loops (Zustand convention)
@@ -61,7 +62,7 @@ function insertEventSorted(events: AgentEvent[], event: AgentEvent, maxSize: num
   if (result.length > maxSize) {
     if (!eventCapToastFired) {
       eventCapToastFired = true;
-      toast('Event limit reached — oldest events are being dropped', 'warning');
+      toast(t('toast.eventLimit'), 'warning');
     }
     return result.slice(0, maxSize);
   }

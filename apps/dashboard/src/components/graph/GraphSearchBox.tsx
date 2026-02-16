@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { useAgentStore } from '../../store/agentStore';
+import { t } from '../../i18n';
 
 export function GraphSearchBox({ matchCount }: { matchCount: number | null }) {
   const setGraphSearchQuery = useAgentStore((s) => s.setGraphSearchQuery);
@@ -29,8 +30,8 @@ export function GraphSearchBox({ matchCount }: { matchCount: number | null }) {
               inputRef.current?.blur();
             }
           }}
-          placeholder="Search nodes... (/)"
-          aria-label="Search graph nodes"
+          placeholder={`${t('graph.search.placeholder')} (/)`}
+          aria-label={t('graph.search.label')}
           className="w-56 px-3 py-1.5 bg-gray-900/90 border border-gray-700 rounded-lg text-xs text-gray-200 placeholder-gray-500 backdrop-blur-sm focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/25"
         />
         {localQuery && (
