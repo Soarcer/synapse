@@ -42,9 +42,8 @@ export function createTranscriptRouter(): Router {
         res.status(404).json({ error: 'Transcript not found', sessionId: req.params.sessionId as string });
         return;
       }
-      const message = err instanceof Error ? err.message : 'Unknown error';
       logger.error({ err }, 'Transcript error');
-      res.status(500).json({ error: message });
+      res.status(500).json({ error: 'Transcript read failed' });
     }
   });
 
@@ -69,8 +68,8 @@ export function createTranscriptRouter(): Router {
 
       res.json(available);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      res.status(500).json({ error: message });
+      logger.error({ err }, 'Transcript list error');
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 

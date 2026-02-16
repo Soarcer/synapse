@@ -26,9 +26,8 @@ export function createEventsRouter(broadcaster: Broadcaster): Router {
       logger.info({ hookEvent: raw.hook_event_name || 'unknown', type: event.type, sessionId: event.sessionId }, 'Event received');
       res.status(200).json({ ok: true, eventId: event.id });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
       logger.error({ err }, 'Error processing event');
-      res.status(500).json({ error: message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -46,9 +45,8 @@ export function createEventsRouter(broadcaster: Broadcaster): Router {
       });
       res.json(events);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
       logger.error({ err }, 'Error querying events');
-      res.status(500).json({ error: message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -57,8 +55,8 @@ export function createEventsRouter(broadcaster: Broadcaster): Router {
     try {
       res.json(listSessions());
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      res.status(500).json({ error: message });
+      logger.error({ err }, 'Error listing sessions');
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -69,8 +67,8 @@ export function createEventsRouter(broadcaster: Broadcaster): Router {
       logger.info({ deleted }, 'Deleted all events');
       res.json({ ok: true, deleted });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      res.status(500).json({ error: message });
+      logger.error({ err }, 'Error deleting all events');
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -82,8 +80,8 @@ export function createEventsRouter(broadcaster: Broadcaster): Router {
       logger.info({ sessionId, deleted }, 'Deleted session events');
       res.json({ ok: true, deleted });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      res.status(500).json({ error: message });
+      logger.error({ err }, 'Error deleting session events');
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 

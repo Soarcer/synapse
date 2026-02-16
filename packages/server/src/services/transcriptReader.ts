@@ -8,6 +8,9 @@ import type {
 } from '@synapse-ai/core';
 import { MODEL_PRICING, DEFAULT_PRICING } from '@synapse-ai/core';
 
+/** Only allow safe session IDs (alphanumeric + dash + underscore) */
+const SESSION_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
 // ─── Path derivation ──────────────────────────────────────────────
 
 /** Derive the Claude projects directory hash from a project path */
@@ -33,11 +36,15 @@ export function findTranscriptPath(sessionId: string, projectDir?: string): stri
 }
 
 function findTranscriptPathUncached(sessionId: string, projectDir?: string): string | null {
+  // Reject unsafe session IDs to prevent path traversal
+  if (!SESSION_ID_PATTERN.test(sessionId)) return null;
+
   const claudeDir = path.join(os.homedir(), '.claude', 'projects');
 
   if (projectDir) {
     const hash = projectHash(projectDir);
     const direct = path.join(claudeDir, hash, `${sessionId}.jsonl`);
+    if (!path.resolve(direct).startsWith(path.resolve(claudeDir))) return null;
     if (fs.existsSync(direct)) return direct;
   }
 
@@ -46,10 +53,12 @@ function findTranscriptPathUncached(sessionId: string, projectDir?: string): str
 
   for (const dir of fs.readdirSync(claudeDir)) {
     const candidate = path.join(claudeDir, dir, `${sessionId}.jsonl`);
+    if (!path.resolve(candidate).startsWith(path.resolve(claudeDir))) return null;
     if (fs.existsSync(candidate)) return candidate;
 
     // Check subdirectory (session may have its own folder)
     const sub = path.join(claudeDir, dir, sessionId, `${sessionId}.jsonl`);
+    if (!path.resolve(sub).startsWith(path.resolve(claudeDir))) return null;
     if (fs.existsSync(sub)) return sub;
   }
 
@@ -85,6 +94,16 @@ interface RawRecord {
   };
 }
 
+/** Strip IDE context tags (ide_opened_file, ide_selection, system-reminder) to get actual user text */
+function stripIdeTags(text: string): string {
+  return text
+    .replace(/<ide_opened_file>[\s\S]*?<\/ide_opened_file>/g, '')
+    .replace(/<ide_selection>[\s\S]*?<\/ide_selection>/g, '')
+    .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '')
+    .replace(/<user-prompt-submit-hook>[\s\S]*?<\/user-prompt-submit-hook>/g, '')
+    .trim();
+}
+
 function parseTurn(record: RawRecord): TranscriptTurn | null {
   if (record.type !== 'user' && record.type !== 'assistant') return null;
   if (!record.message) return null;
@@ -99,8 +118,15 @@ function parseTurn(record: RawRecord): TranscriptTurn | null {
   let thinkingLength = 0;
   let toolUseCount = 0;
 
+  let promptText = '';
   for (const block of content) {
-    if (block.type === 'text' && block.text) textLength += block.text.length;
+    if (block.type === 'text' && block.text) {
+      textLength += block.text.length;
+      if (record.type === 'user' && !promptText) {
+        const cleaned = stripIdeTags(block.text);
+        if (cleaned) promptText = cleaned.slice(0, 500);
+      }
+    }
     if (block.type === 'thinking' && block.thinking) thinkingLength += block.thinking.length;
     if (block.type === 'tool_use') {
       toolUseCount++;
@@ -130,6 +156,7 @@ function parseTurn(record: RawRecord): TranscriptTurn | null {
     toolUseCount,
     textLength,
     thinkingLength,
+    promptText: promptText || undefined,
     totalInputTokens,
     cacheHitRate,
   };

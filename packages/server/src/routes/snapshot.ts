@@ -5,7 +5,7 @@ import { getEventsBySessionIds, listSessions, insertEvent } from '../db.js';
 import { rowToAgentEvent } from '../services/eventStore.js';
 import { findTranscriptPath, readTranscript } from '../services/transcriptReader.js';
 import type { TranscriptSummary } from '@synapse-ai/core';
-import { SnapshotImportSchema } from '@synapse-ai/core';
+import { SnapshotImportSchema, AgentEventSchema } from '@synapse-ai/core';
 import { validateBody } from '../lib/validate.js';
 
 // ─── Snapshot format ─────────────────────────────────────────
@@ -89,9 +89,8 @@ export function createSnapshotRouter(): Router {
       );
       res.json(snapshot);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
       logger.error({ err }, 'Export error');
-      res.status(500).json({ error: message });
+      res.status(500).json({ error: 'Export failed' });
     }
   });
 
@@ -110,6 +109,11 @@ export function createSnapshotRouter(): Router {
 
         for (const event of session.events) {
           try {
+            // Validate event structure and reject oversized events
+            const parsed = AgentEventSchema.safeParse(event);
+            if (!parsed.success) { skippedEvents++; continue; }
+            if (JSON.stringify(event).length > 100_000) { skippedEvents++; continue; }
+
             insertEvent({
               event_id: event.id,
               session_id: event.sessionId,
@@ -154,9 +158,8 @@ export function createSnapshotRouter(): Router {
           .map((s) => ({ sessionId: s.sessionId, transcript: s.transcript })),
       });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
       logger.error({ err }, 'Import error');
-      res.status(500).json({ error: message });
+      res.status(500).json({ error: 'Import failed' });
     }
   });
 

@@ -39,7 +39,9 @@ export const SpawnAgentRequestSchema = z.object({
     .optional(),
   cwd: z
     .string()
+    .max(500)
     .refine((s) => !s.includes('..'), 'Path traversal not allowed')
+    .refine((s) => !/^[a-zA-Z]:/.test(s) && !s.startsWith('/'), 'Absolute paths not allowed')
     .optional(),
   sessionId: z.string().optional(),
 });
@@ -54,7 +56,7 @@ export const EventQuerySchema = z.object({
   sessionId: z.string().optional(),
   agentId: z.string().optional(),
   type: z.string().optional(),
-  cwd: z.string().optional(),
+  cwd: z.string().max(500).optional(),
   limit: z.coerce.number().int().min(1).max(2000).optional(),
   offset: z.coerce.number().int().min(0).max(100_000).optional(),
 });
@@ -73,11 +75,36 @@ export const SnapshotImportSchema = z.object({
   ),
 });
 
+/** Validates coaching single-session queries (GET /api/analytics/coaching/report-card). */
+export const CoachingQuerySchema = z.object({
+  sessionId: z.string().min(1),
+});
+
+/** Validates coaching multi-session queries (GET /api/analytics/coaching/report-card/multi). */
+export const CoachingMultiQuerySchema = z.object({
+  sessionIds: z.string().min(1),
+});
+
+/** Validates POST /api/analytics/coaching/playbooks. */
+export const PlaybookCreateSchema = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string().max(2000),
+  category: z.enum(['feature', 'bugfix', 'refactor', 'test', 'review', 'debug', 'custom']),
+  sourceSessionId: z.string().optional(),
+  tags: z.array(z.string().max(50)).max(20).optional(),
+});
+
+/** Validates POST /api/analytics/coaching/nudges/dismiss. */
+export const NudgeDismissSchema = z.object({
+  nudgeId: z.string().min(1),
+  sessionId: z.string().min(1),
+});
+
 /** Validates GET /api/analytics/* query parameters. */
 export const AnalyticsQuerySchema = z.object({
   from: z.coerce.number().int().min(0).optional(),
   to: z.coerce.number().int().min(0).optional(),
-  cwd: z.string().optional(),
+  cwd: z.string().max(500).optional(),
   granularity: z.enum(['hour', 'day', 'week']).optional(),
   limit: z.coerce.number().int().min(1).max(500).optional(),
   offset: z.coerce.number().int().min(0).max(100_000).optional(),
