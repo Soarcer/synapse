@@ -4,13 +4,11 @@
   "description": "Synapse backend — Express + SQLite + WebSocket server",
   "type": "module",
   "main": "dist/index.js",
-  "types": "dist/index.d.ts",
   "bin": {
     "synapse-server": "dist/index.js"
   },
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }
   },

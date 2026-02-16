@@ -2,10 +2,10 @@ node_modules
 dist
 out
 .env
-*.db
-*.db-journal
-*.db-shm
-*.db-wal
+synapse.db
+synapse.db-journal
+synapse.db-shm
+synapse.db-wal
 *.tsbuildinfo
 hook_debug.log
 nul
