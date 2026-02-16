@@ -5,7 +5,7 @@ export function GraphSearchBox({ matchCount }: { matchCount: number | null }) {
   const setGraphSearchQuery = useAgentStore((s) => s.setGraphSearchQuery);
   const inputRef = useRef<HTMLInputElement>(null);
   const [localQuery, setLocalQuery] = useState('');
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     debounceRef.current = setTimeout(() => {
@@ -30,6 +30,7 @@ export function GraphSearchBox({ matchCount }: { matchCount: number | null }) {
             }
           }}
           placeholder="Search nodes... (/)"
+          aria-label="Search graph nodes"
           className="w-56 px-3 py-1.5 bg-gray-900/90 border border-gray-700 rounded-lg text-xs text-gray-200 placeholder-gray-500 backdrop-blur-sm focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/25"
         />
         {localQuery && (

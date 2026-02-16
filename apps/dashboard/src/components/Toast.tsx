@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 interface ToastItem {
   id: number;
   message: string;
-  type: 'info' | 'success' | 'error';
+  type: 'info' | 'success' | 'error' | 'warning';
   /** Optional node ID — clicking the toast selects and zooms to this node */
   nodeId?: string;
 }
@@ -51,7 +51,7 @@ export function toast(
     autoRemoveTimers.delete(item.id);
     toasts = toasts.filter((t) => t.id !== item.id);
     notify(toasts);
-  }, 3000);
+  }, 5000);
   autoRemoveTimers.set(item.id, timer);
 }
 
@@ -75,7 +75,7 @@ export function ToastContainer() {
   if (items.length === 0) return null;
 
   return (
-    <div className="fixed top-14 right-4 z-50 space-y-2 pointer-events-none" role="status" aria-live="polite">
+    <div className="fixed top-14 right-4 z-50 space-y-2 pointer-events-none" role="status" aria-live="polite" aria-atomic="true">
       {items.map((item) => (
         <div
           key={item.id}
@@ -85,6 +85,7 @@ export function ToastContainer() {
             ${item.nodeId ? 'cursor-pointer hover:brightness-125' : 'cursor-default'}
             ${item.type === 'success' ? 'bg-green-900/90 border-green-700/50 text-green-200' : ''}
             ${item.type === 'error' ? 'bg-red-900/90 border-red-700/50 text-red-200' : ''}
+            ${item.type === 'warning' ? 'bg-yellow-900/90 border-yellow-700/50 text-yellow-200' : ''}
             ${item.type === 'info' ? 'bg-gray-800/90 border-gray-700/50 text-gray-200' : ''}
           `}
           onClick={() => handleClick(item)}

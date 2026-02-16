@@ -27,7 +27,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       if (this.props.fallback) return this.props.fallback;
 
       return (
-        <div className="bg-gray-900 rounded-lg p-6 m-4 border border-red-900/50">
+        <div role="alert" aria-live="assertive" className="bg-gray-900 rounded-lg p-6 m-4 border border-red-900/50">
           <h3 className="text-red-400 text-sm font-medium mb-2">
             Something went wrong{this.props.name ? ` in ${this.props.name}` : ''}
           </h3>
