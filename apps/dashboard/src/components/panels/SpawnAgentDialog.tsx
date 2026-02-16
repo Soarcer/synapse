@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useAgentStore } from '../../store/agentStore';
 import { apiUrl } from '../../utils/api';
+import { toast } from '../Toast';
 
 const AVAILABLE_TOOLS = [
   'Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep', 'WebSearch', 'WebFetch', 'Task',
@@ -64,7 +65,7 @@ export function SpawnAgentDialog() {
       setSystemPrompt('');
       setCwd('');
     } catch {
-      // ignore
+      toast('Failed to spawn agent', 'error');
     } finally {
       setSpawning(false);
     }

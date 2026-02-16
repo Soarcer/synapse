@@ -7,11 +7,15 @@ import type {
   ToolCallSummary,
   UserPromptData,
   TranscriptSummary,
+  CoachingNudge,
 } from '@synapse-ai/core';
 import { PALETTES, normalizeCwd } from '@synapse-ai/core';
 import { wsClient } from './wsClient';
 import { toast } from '../components/Toast';
 import { apiUrl } from '../utils/api';
+
+// Module-level empty array to avoid re-render loops (Zustand convention)
+const EMPTY_NUDGES: CoachingNudge[] = [];
 
 // ── CWD filter ────────────────────────────────────────────────
 /** The project cwd from the URL (null when not embedded with ?cwd=). */
@@ -40,6 +44,7 @@ export const selectConnectionStatus = (s: AgentStore) => s.connectionStatus;
 export const selectIsPaused = (s: AgentStore) => s.paused;
 
 // ── Event cap tracking ───────────────────────────────────────
+export const MAX_EVENTS = 1000;
 let eventCapToastFired = false;
 
 // ── Binary-search insertion for event ordering ───────────────
@@ -98,6 +103,8 @@ interface AgentStore {
   prompts: Map<string, UserPromptData[]>;
   activeAgents: Map<string, string[]>;
   toolAgentMap: Map<string, string>;
+  pendingTaskTools: Map<string, string[]>;
+  taskToolAgentMap: Map<string, string>;
   events: AgentEvent[];
   pauseQueue: AgentEvent[];
   nodes: Node[];
@@ -119,6 +126,7 @@ interface AgentStore {
   graphSearchQuery: string;
   collapsedNodes: Set<string>;
   transcripts: Map<string, TranscriptSummary>;
+  liveNudges: CoachingNudge[];
   isLoading: boolean;
   loadError: string | null;
 
@@ -156,8 +164,11 @@ interface AgentStore {
   setTranscript: (sessionId: string, data: TranscriptSummary) => void;
   setLoading: (loading: boolean) => void;
   setLoadError: (error: string | null) => void;
+  updateNodeDimensions: (updates: Array<{ id: string; width: number; height: number }>) => void;
   removeNode: (nodeId: string) => void;
   removeSession: (sessionId: string) => void;
+  addNudge: (nudge: CoachingNudge) => void;
+  dismissNudge: (id: string) => void;
   clearEvents: () => void;
   loadEvents: (events: AgentEvent[]) => void;
 }
@@ -173,6 +184,8 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   prompts: new Map(),
   activeAgents: new Map(),
   toolAgentMap: new Map(),
+  pendingTaskTools: new Map(),
+  taskToolAgentMap: new Map(),
   events: [],
   pauseQueue: [],
   nodes: [{ ...SPAWN_NODE }],
@@ -194,6 +207,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   graphSearchQuery: '',
   collapsedNodes: new Set<string>(),
   transcripts: new Map(),
+  liveNudges: EMPTY_NUDGES,
   isLoading: true,
   loadError: null,
 
@@ -218,7 +232,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       if (event.type === 'text_delta') {
         const agentId = event.agentId ?? '';
         const agent = state.agents.get(agentId);
-        const events = insertEventSorted(state.events, event, 1000);
+        const events = insertEventSorted(state.events, event, MAX_EVENTS);
         if (!agent) {
           return { ...state, events };
         }
@@ -234,7 +248,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
         return { ...state, agents, nodes, events, ...buildDerivedMaps(agents) };
       }
 
-      const events = insertEventSorted(state.events, event, 1000);
+      const events = insertEventSorted(state.events, event, MAX_EVENTS);
 
       // Hidden hook events: store event, skip graph processing
       if (event.eventSource === 'hook' && !state.showHookEvents) {
@@ -325,6 +339,23 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     } else {
       set({ paused: true });
     }
+  },
+
+  // ── updateNodeDimensions (from React Flow measurement) ───
+
+  updateNodeDimensions: (updates) => {
+    set((state) => {
+      const updateMap = new Map(updates.map((u) => [u.id, u]));
+      let changed = false;
+      const nodes = state.nodes.map((node) => {
+        const u = updateMap.get(node.id);
+        if (!u) return node;
+        if (node.measured?.width === u.width && node.measured?.height === u.height) return node;
+        changed = true;
+        return { ...node, measured: { width: u.width, height: u.height } };
+      });
+      return changed ? { nodes } : {};
+    });
   },
 
   // ── removeNode (BFS with adjacency map) ──────────────────
@@ -428,9 +459,24 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     get().removeNode(nid.session(sessionId));
   },
 
+  // ── Coaching nudges ─────────────────────────────────────────
+
+  addNudge: (nudge) =>
+    set((s) => {
+      const updated = [...s.liveNudges, nudge];
+      // Cap at 50 nudges to prevent unbounded growth
+      return { liveNudges: updated.length > 50 ? updated.slice(-50) : updated };
+    }),
+
+  dismissNudge: (id) =>
+    set((s) => ({
+      liveNudges: s.liveNudges.map((n) => (n.id === id ? { ...n, dismissed: true } : n)),
+    })),
+
   // ── clearEvents / loadEvents (batched — single set()) ────
 
-  clearEvents: () =>
+  clearEvents: () => {
+    eventCapToastFired = false;
     set({
       sessions: new Map(),
       agents: new Map(),
@@ -440,6 +486,8 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       prompts: new Map(),
       activeAgents: new Map(),
       toolAgentMap: new Map(),
+      pendingTaskTools: new Map(),
+      taskToolAgentMap: new Map(),
       events: [],
       pauseQueue: [],
       nodes: [{ ...SPAWN_NODE }],
@@ -448,9 +496,12 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       highlightedNodeIds: null,
       multiHighlightIds: null,
       collapsedNodes: new Set(),
-    }),
+      liveNudges: EMPTY_NUDGES,
+    });
+  },
 
   loadEvents: (events) => {
+    eventCapToastFired = false;
     const { showHookEvents } = get();
     const draft = createFreshDraft();
     const sorted = [...events].sort((a, b) => a.timestamp - b.timestamp);
@@ -461,7 +512,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     set({
       ...draft,
       ...buildDerivedMaps(draft.agents),
-      events: sorted.reverse().slice(0, 1000),
+      events: sorted.reverse().slice(0, MAX_EVENTS),
       selectedNodeId: null,
       highlightedNodeIds: null,
       multiHighlightIds: null,
@@ -513,6 +564,9 @@ wsClient.setOnEvent((msg) => {
       text: msg.data.text,
       timestamp: Date.now(),
     });
+  } else if (msg.type === 'coaching_nudge') {
+    useAgentStore.getState().addNudge(msg.data);
+    toast(`Coach: ${msg.data.title}`, msg.data.severity === 'warning' ? 'warning' : 'info');
   } else if (msg.type === 'stale') {
     // Server signals missed events due to backpressure — do full reload
     reloadAllEvents();
