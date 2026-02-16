@@ -8,15 +8,16 @@ import {
   useReactFlow,
   ReactFlowProvider,
 } from '@xyflow/react';
+import type { NodeChange } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useAgentStore } from '../../store/agentStore';
-import { useAutoLayout } from '../../hooks/useAutoLayout';
+import { useAutoLayout, MAX_STACKED_PREVIEW } from '../../hooks/useAutoLayout';
 import { useGraphNavigation } from '../../hooks/useGraphNavigation';
 import { nodeTypes, edgeTypes } from './nodeTypes';
 import { GraphSearchBox } from './GraphSearchBox';
 import { EdgeCostLegend } from './EdgeCostLegend';
 import { registerToastNavigator, unregisterToastNavigator } from '../Toast';
-import { nodeMatchesSearch, buildParentMap, collectAncestors } from '../../utils/graphSearch';
+import { nodeMatchesSearch, buildParentMap, collectAncestors, buildChildrenMap } from '../../utils/graphSearch';
 import type { AgentNodeData } from '@synapse-ai/core';
 import { apiUrl } from '../../utils/api';
 
@@ -105,7 +106,6 @@ function AgentGraphInner() {
     }
 
     const hiddenIds = new Set<string>();
-    const MAX_STACKED_PREVIEW = 5;
     const leafToolsByParent = new Map<string, string[]>();
 
     if (!showAllTools) {
@@ -179,13 +179,8 @@ function AgentGraphInner() {
 
     // Manual collapse: BFS-hide all descendants of collapsed nodes
     if (collapsedNodes.size > 0) {
-      const allChildrenOf = new Map<string, string[]>();
-      for (const edge of rawEdges) {
-        if (hiddenIds.has(edge.target)) continue;
-        const kids = allChildrenOf.get(edge.source) ?? [];
-        kids.push(edge.target);
-        allChildrenOf.set(edge.source, kids);
-      }
+      const visibleEdgesForCollapse = rawEdges.filter((e) => !hiddenIds.has(e.target));
+      const allChildrenOf = buildChildrenMap(visibleEdgesForCollapse);
       for (const cid of collapsedNodes) {
         const queue = [...(allChildrenOf.get(cid) ?? [])];
         while (queue.length > 0) {
@@ -347,6 +342,17 @@ function AgentGraphInner() {
     prevNodeCountRef.current = rawNodes.length;
   }, [rawNodes.length, fitView, lockViewport]);
 
+  // One-time fitView after initial measurement pass — snaps layout into correct positions
+  const initialMeasureDoneRef = useRef(false);
+  useEffect(() => {
+    if (initialMeasureDoneRef.current) return;
+    const hasMeasured = layoutNodes.some((n) => n.measured?.width);
+    if (hasMeasured && layoutNodes.length > 1) {
+      initialMeasureDoneRef.current = true;
+      setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 50);
+    }
+  }, [layoutNodes, fitView]);
+
   // Center on node when selected from lens panel
   useEffect(() => {
     if (selectSource === 'lens' && selectedNodeId) {
@@ -487,7 +493,19 @@ function AgentGraphInner() {
   const isLoading = useAgentStore((s) => s.isLoading);
   const loadError = useAgentStore((s) => s.loadError);
 
-  const onNodesChange = useCallback(() => {}, []);
+  const updateNodeDimensions = useAgentStore((s) => s.updateNodeDimensions);
+  const onNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      const dimUpdates: Array<{ id: string; width: number; height: number }> = [];
+      for (const c of changes) {
+        if (c.type === 'dimensions' && c.dimensions?.width && c.dimensions?.height) {
+          dimUpdates.push({ id: c.id, width: c.dimensions.width, height: c.dimensions.height });
+        }
+      }
+      if (dimUpdates.length > 0) updateNodeDimensions(dimUpdates);
+    },
+    [updateNodeDimensions],
+  );
   const onEdgesChange = useCallback(() => {}, []);
 
   // Show hint when graph has only the spawn node

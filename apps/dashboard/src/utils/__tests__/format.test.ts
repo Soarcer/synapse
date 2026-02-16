@@ -35,9 +35,16 @@ describe('formatTokens', () => {
     expect(formatTokens(999999)).toBe('1000k');
   });
 
-  it('returns one-decimal "M" for >= 1 000 000', () => {
+  it('returns one-decimal "M" for 1M..9.9M', () => {
     expect(formatTokens(1000000)).toBe('1.0M');
     expect(formatTokens(2500000)).toBe('2.5M');
+    expect(formatTokens(9999999)).toBe('10.0M');
+  });
+
+  it('returns rounded "M" for >= 10M', () => {
+    expect(formatTokens(10_000_000)).toBe('10M');
+    expect(formatTokens(15_000_000)).toBe('15M');
+    expect(formatTokens(150_000_000)).toBe('150M');
   });
 });
 

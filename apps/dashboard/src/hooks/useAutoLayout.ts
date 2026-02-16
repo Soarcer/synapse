@@ -4,25 +4,25 @@ import type { Node, Edge } from '@xyflow/react';
 // ── Fallback dimensions (used before DOM measurement) ────────
 
 const NODE_DEFAULTS: Record<string, { width: number; height: number }> = {
-  session: { width: 220, height: 80 },
-  userPrompt: { width: 240, height: 130 },
-  agent: { width: 200, height: 110 },
-  toolCall: { width: 150, height: 32 },
+  session: { width: 220, height: 65 },
+  userPrompt: { width: 240, height: 95 },
+  agent: { width: 200, height: 80 },
+  toolCall: { width: 150, height: 28 },
   spawnAgent: { width: 50, height: 50 },
 };
 
 // ── Spacing constants ────────────────────────────────────────
 
-const GAP_X = 50; // horizontal gap between parent right edge and child left edge
-const GAP_Y = 14; // vertical gap between sibling nodes
-const GAP_Y_TOOL = 6; // tighter gap between tool call nodes
-const ROOT_GAP = 40; // extra vertical gap between independent root trees
-const MARGIN = 30; // canvas margin
+const GAP_X = 40; // horizontal gap between parent right edge and child left edge
+const GAP_Y = 6; // vertical gap between sibling nodes
+const GAP_Y_TOOL = 3; // tighter gap between tool call nodes
+const ROOT_GAP = 18; // extra vertical gap between independent root trees
+const MARGIN = 20; // canvas margin
 
 // ── Tool layout constants ────────────────────────────────────
 
-const STACK_OFFSET_Y = 14; // vertical offset between stacked cards
-const MAX_STACKED_PREVIEW = 5; // max visible tools in stacked mode (must match AgentGraph.tsx)
+const STACK_OFFSET_Y = 8; // vertical offset between stacked cards
+export const MAX_STACKED_PREVIEW = 5; // max visible tools in stacked mode
 const MAX_GRID_ROWS = 10; // max tools per column before adding another column
 const GRID_GAP_X = 20; // horizontal gap between grid columns
 const GRID_GAP_Y = 6; // vertical gap between grid rows
@@ -41,7 +41,8 @@ function nodeDims(node: Node): { width: number; height: number } {
 // - Leaf tools (stacked): overlapping cards for compact preview
 // - Leaf tools (expanded): 2-column grid for scannable access
 
-function computeGraphLayout(
+/** @internal Exported for testing */
+export function computeGraphLayout(
   graphNodes: Node[],
   edges: Edge[],
   expandedParentId: string | null,
@@ -81,10 +82,17 @@ function computeGraphLayout(
     return { tools, others };
   }
 
-  // Height of tool children based on layout mode
+  // Height of tool children based on layout mode (uses measured dims when available)
   function toolsHeight(tools: string[], parentId: string): number {
     if (tools.length === 0) return 0;
-    const toolH = NODE_DEFAULTS.toolCall.height;
+
+    // Compute max tool height from measured dimensions (fallback to defaults)
+    let maxToolH = 0;
+    for (const tid of tools) {
+      const toolNode = nodeById.get(tid);
+      if (toolNode) maxToolH = Math.max(maxToolH, nodeDims(toolNode).height);
+    }
+    const toolH = maxToolH || NODE_DEFAULTS.toolCall.height;
 
     if (parentId === expandedParentId) {
       // Grid: max MAX_GRID_ROWS per column, each new column cascades lower
@@ -158,11 +166,11 @@ function computeGraphLayout(
     const stH = subtreeHeight(nodeId);
     const { tools, others } = classifyChildren(nodeId);
 
-    // Center this node vertically within its subtree band
-    const myY = yStart + (stH - dims.height) / 2;
-    positions.set(nodeId, { x, y: myY });
-
-    if (tools.length === 0 && others.length === 0) return;
+    // Leaf node — center in its band
+    if (tools.length === 0 && others.length === 0) {
+      positions.set(nodeId, { x, y: yStart + (stH - dims.height) / 2 });
+      return;
+    }
 
     // Compute combined children height for centering
     const oH = othersHeight(others);
@@ -175,7 +183,7 @@ function computeGraphLayout(
     const childX = x + dims.width + GAP_X;
     let childY = yStart + (stH - totalChildrenH) / 2;
 
-    // Position non-tool children normally
+    // Position non-tool children first (so we can align parent to them)
     for (let i = 0; i < others.length; i++) {
       if (i > 0) childY += gapBefore(others[i]);
       layout(others[i], childX, childY);
@@ -194,9 +202,20 @@ function computeGraphLayout(
 
       if (isExpanded) {
         // Dynamic columns — max MAX_GRID_ROWS per column, each column cascades lower
-        const toolW = NODE_DEFAULTS.toolCall.width;
+        // Use measured dimensions when available for accurate grid cells
+        let maxToolW = 0;
+        let maxToolH = 0;
+        for (const tid of tools) {
+          const tn = nodeById.get(tid);
+          if (tn) {
+            const d = nodeDims(tn);
+            maxToolW = Math.max(maxToolW, d.width);
+            maxToolH = Math.max(maxToolH, d.height);
+          }
+        }
+        const toolW = maxToolW || NODE_DEFAULTS.toolCall.width;
+        const toolH = maxToolH || NODE_DEFAULTS.toolCall.height;
         const colWidth = toolW + GRID_GAP_X;
-        const toolH = NODE_DEFAULTS.toolCall.height;
         const cascadeY = toolH / 2; // each column shifts down progressively
 
         for (let i = 0; i < tools.length; i++) {
@@ -218,6 +237,26 @@ function computeGraphLayout(
           zIndexMap.set(tools[i], i + 1);
         }
       }
+    }
+
+    // Position parent: align with the vertical center of its children
+    // instead of centering in the full subtree band. This keeps parents
+    // visually close to their children rather than floating in empty space.
+    if (others.length > 0) {
+      const firstPos = positions.get(others[0]);
+      const lastId = others[others.length - 1];
+      const lastPos = positions.get(lastId);
+      const lastNode = nodeById.get(lastId);
+      if (firstPos && lastPos && lastNode) {
+        const lastH = nodeDims(lastNode).height;
+        const childrenMidY = (firstPos.y + lastPos.y + lastH) / 2;
+        positions.set(nodeId, { x, y: Math.max(yStart, childrenMidY - dims.height / 2) });
+      } else {
+        positions.set(nodeId, { x, y: yStart + (stH - dims.height) / 2 });
+      }
+    } else {
+      // Only tool children — center in the subtree band
+      positions.set(nodeId, { x, y: yStart + (stH - dims.height) / 2 });
     }
   }
 
@@ -305,13 +344,18 @@ export function useAutoLayout(
 ): Node[] {
   // Fingerprint: recompute when structure or measurements change
   let idHash = 0;
+  let dimHash = 0;
   for (const n of nodes) {
     for (let i = 0; i < n.id.length; i++) {
       idHash = ((idHash << 5) - idHash + n.id.charCodeAt(i)) | 0;
     }
+    // Include measured dimensions so layout recomputes when React Flow measures nodes
+    if (n.measured?.width) {
+      dimHash = ((dimHash << 5) - dimHash + (n.measured.width | 0)) | 0;
+      dimHash = ((dimHash << 5) - dimHash + ((n.measured.height ?? 0) | 0)) | 0;
+    }
   }
-  const hasMeasured = nodes.some((n) => n.measured?.width);
-  const key = `${layoutMode}:${nodes.length}:${edges.length}:${idHash}:${hasMeasured}:${expandedParentId}`;
+  const key = `${layoutMode}:${nodes.length}:${edges.length}:${idHash}:${dimHash}:${expandedParentId}`;
 
   const { positions, zIndexMap } = useMemo(() => {
     const graphNodes = nodes.filter((n) => n.id !== '__spawn__');
@@ -360,7 +404,19 @@ export function useAutoLayout(
     () =>
       nodes.map((node) => {
         const pos = positions.get(node.id);
-        if (!pos) return node;
+        if (!pos) {
+          // Safety: if layout didn't assign a position but node is stuck offscreen,
+          // reveal it at (0,0) rather than leaving it invisible at (-9999,-9999)
+          if (node.position.x === -9999 && node.position.y === -9999) {
+            return {
+              ...node,
+              position: { x: 0, y: 0 },
+              style: { ...node.style, visibility: 'visible' as const },
+              zIndex: 1,
+            };
+          }
+          return node;
+        }
         const zIndex = zIndexMap.get(node.id) ?? 1;
         // Reveal nodes that were created hidden (visibility:'hidden' in eventHandlers)
         const style = node.style?.visibility === 'hidden'

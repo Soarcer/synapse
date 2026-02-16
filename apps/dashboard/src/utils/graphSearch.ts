@@ -55,3 +55,14 @@ export function collectAncestors(id: string, parentOf: Map<string, string>, into
     into.add(current);
   }
 }
+
+/** Build a parent->children map from edges */
+export function buildChildrenMap(edges: { source: string; target: string }[]): Map<string, string[]> {
+  const childrenOf = new Map<string, string[]>();
+  for (const edge of edges) {
+    const kids = childrenOf.get(edge.source) ?? [];
+    kids.push(edge.target);
+    childrenOf.set(edge.source, kids);
+  }
+  return childrenOf;
+}
