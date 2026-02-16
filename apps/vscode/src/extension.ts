@@ -8,6 +8,7 @@ import { HookManager } from './hookManager';
 import { SynapseTreeProvider } from './treeView';
 import { ExtensionWsClient } from './wsClient';
 import { SynapseSidebarProvider } from './sidebarProvider';
+import { SettingsPanel } from './settingsPanel';
 import { normalizeCwd } from '@synapse-ai/core';
 
 let serverManager: ServerManager | undefined;
@@ -17,6 +18,7 @@ let wsClient: ExtensionWsClient | undefined;
 let treeProvider: SynapseTreeProvider | undefined;
 let graphPanel: SynapsePanel | undefined;
 let sidebarProvider: SynapseSidebarProvider;
+let settingsPanel: SettingsPanel | undefined;
 let workspaceCwd: string | undefined;
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -49,7 +51,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
   // Re-hydrate iframes when they signal readiness (they may load after WS connects)
   sidebarProvider.onIframeReady(() => {
-    if (serverManager?.port) fetchAndHydrateIframes(serverManager.port);
+    if (serverManager?.port) debouncedHydrateIframes(serverManager.port);
   });
 
   // ── Status bar ─────────────────────────────────────────────────
@@ -79,6 +81,7 @@ export async function activate(context: vscode.ExtensionContext) {
   serverManager.onStopped(() => {
     vscode.commands.executeCommand('setContext', 'synapse.serverRunning', false);
     updateStatusBar(false);
+    treeProvider?.clear();
     wsClient?.dispose();
     wsClient = undefined;
   });
@@ -116,7 +119,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
       // Re-hydrate graph panel when its iframe is ready
       graphPanel.onIframeReady(() => {
-        if (serverManager?.port) fetchAndHydrateIframes(serverManager.port);
+        if (serverManager?.port) debouncedHydrateIframes(serverManager.port);
       });
     }),
 
@@ -165,21 +168,33 @@ export async function activate(context: vscode.ExtensionContext) {
       connectWsClient(context, serverManager.port);
       vscode.window.showInformationMessage('Reconnecting to Synapse server...');
     }),
+
+    vscode.commands.registerCommand('synapse.openSettings', () => {
+      settingsPanel = SettingsPanel.create(
+        context.extensionUri,
+        serverManager!,
+        hookManager!,
+      );
+    }),
   );
 
   context.subscriptions.push(outputChannel);
   context.subscriptions.push({
     dispose: () => {
       wsClient?.dispose();
+      settingsPanel?.dispose();
       serverManager?.dispose();
     },
   });
 
   // Auto-start server (hooks are configured in the onStarted callback once port is known)
+  // Fire-and-forget to avoid blocking extension activation
   const autoStart = vscode.workspace.getConfiguration('synapse').get('autoStart', true);
   if (autoStart) {
     outputChannel.appendLine('Auto-starting Synapse server...');
-    await serverManager.start();
+    serverManager.start().catch((err) => {
+      outputChannel.appendLine(`Server start error: ${err instanceof Error ? err.message : String(err)}`);
+    });
   } else {
     // Check if an external server is already running and auto-open
     const port = serverManager.port;
@@ -193,8 +208,16 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 }
 
-export function deactivate() {
+export async function deactivate() {
   wsClient?.dispose();
+  if (serverManager?.isRunning) {
+    serverManager.stop();
+    // Wait up to 5s for graceful shutdown
+    await Promise.race([
+      serverManager.waitForExit(),
+      new Promise((r) => setTimeout(r, 5000)),
+    ]);
+  }
   serverManager?.dispose();
   // Don't remove hooks on deactivate — they survive VS Code restarts.
   // Hooks are only removed via the explicit synapse.removeHooks command.
@@ -214,11 +237,17 @@ function connectWsClient(context: vscode.ExtensionContext, port: number): void {
 
   wsClient.onConnected(() => {
     updateStatusBarMetrics();
-    fetchAndHydrateIframes(port);
+    debouncedHydrateIframes(port);
   });
 
   context.subscriptions.push(wsClient);
   wsClient.connect();
+}
+
+let hydrateTimer: ReturnType<typeof setTimeout> | undefined;
+function debouncedHydrateIframes(port: number): void {
+  if (hydrateTimer) clearTimeout(hydrateTimer);
+  hydrateTimer = setTimeout(() => { fetchAndHydrateIframes(port); }, 2000);
 }
 
 async function fetchAndHydrateIframes(port: number): Promise<void> {

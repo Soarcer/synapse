@@ -76,6 +76,7 @@ export class SynapseTreeProvider implements vscode.TreeDataProvider<SynapseTreeI
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
   private sessions: Map<string, SessionItem> = new Map();
+  private rebuildTimer: ReturnType<typeof setTimeout> | undefined;
 
   // Accumulated state built from events
   private agentMap: Map<string, {
@@ -147,7 +148,19 @@ export class SynapseTreeProvider implements vscode.TreeDataProvider<SynapseTreeI
       }
     }
 
-    this.rebuildTree();
+    // Debounce rebuild: 250ms to avoid rebuilding per event in rapid bursts
+    if (this.rebuildTimer) clearTimeout(this.rebuildTimer);
+    this.rebuildTimer = setTimeout(() => {
+      this.rebuildTree();
+      this.refresh();
+    }, 250);
+  }
+
+  /** Reset all accumulated state and fire a tree change event. */
+  clear(): void {
+    this.sessions.clear();
+    this.agentMap.clear();
+    if (this.rebuildTimer) { clearTimeout(this.rebuildTimer); this.rebuildTimer = undefined; }
     this.refresh();
   }
 

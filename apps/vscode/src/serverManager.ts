@@ -10,6 +10,8 @@ export class ServerManager {
   private outputChannel: vscode.OutputChannel;
   private killTimer: ReturnType<typeof setTimeout> | null = null;
 
+  private _startTime: number | null = null;
+
   private _onStarted = new vscode.EventEmitter<void>();
   private _onStopped = new vscode.EventEmitter<void>();
   private _onError = new vscode.EventEmitter<string>();
@@ -30,6 +32,11 @@ export class ServerManager {
 
   get isRunning(): boolean {
     return this.process !== null && !this.process.killed;
+  }
+
+  get uptime(): number {
+    if (!this._startTime || !this.isRunning) return 0;
+    return Date.now() - this._startTime;
   }
 
   async start(): Promise<void> {
@@ -82,7 +89,13 @@ export class ServerManager {
     });
 
     this.process.stdout?.on('data', (data: Buffer) => {
-      this.outputChannel.append(data.toString());
+      const text = data.toString();
+      this.outputChannel.append(text);
+      // Detect actual port from server (may differ from preferred if port was busy)
+      const match = text.match(/SYNAPSE_PORT=(\d+)/);
+      if (match) {
+        this._port = parseInt(match[1], 10);
+      }
     });
 
     this.process.stderr?.on('data', (data: Buffer) => {
@@ -114,6 +127,7 @@ export class ServerManager {
     // Wait for server to be ready — rejects on timeout
     try {
       await this.waitForReady(10000);
+      this._startTime = Date.now();
       this._onStarted.fire();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Server startup failed';
@@ -137,9 +151,27 @@ export class ServerManager {
         }
         this.killTimer = null;
       }, 10_000);
+    } else {
+      // No process running — fire stopped immediately
+      this._onStopped.fire();
     }
-    this.process = null;
-    this._onStopped.fire();
+    // Note: _onStopped fires from the 'exit' handler when process is running
+    this._startTime = null;
+  }
+
+  /** Returns a promise that resolves when the server process exits (with 12s safety timeout). */
+  waitForExit(): Promise<void> {
+    if (!this.process || this.process.killed) return Promise.resolve();
+    return new Promise((resolve) => {
+      const timer = setTimeout(resolve, 12_000);
+      this.process?.on('exit', () => { clearTimeout(timer); resolve(); });
+    });
+  }
+
+  async restart(): Promise<void> {
+    this.stop();
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    await this.start();
   }
 
   private hasNode(): boolean {
