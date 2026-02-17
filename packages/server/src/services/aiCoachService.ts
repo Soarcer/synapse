@@ -150,7 +150,8 @@ Respond with JSON: { "summary": "3 sentences...", "roiMetrics": { "timeSaved": "
   });
 
   try {
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const cleaned = text.replace(/```(?:json)?\s*/g, '').trim();
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
     const result = JSON.parse(jsonMatch?.[0] ?? '{}') as SessionSummary;
     if (result.summary) {
       setAiCacheEntry({ cacheKey, method: 'summarize', sessionId: context.sessionId, contentHash: hash, response: JSON.stringify(result) });
@@ -207,7 +208,8 @@ Respond with JSON: { "score": 1-10, "explanation": "why this score", "rewrite": 
   });
 
   try {
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const cleaned = text.replace(/```(?:json)?\s*/g, '').trim();
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
     const result = JSON.parse(jsonMatch?.[0] ?? '{}') as PromptAnalysis;
     if (result.score) {
       setAiCacheEntry({ cacheKey, method: 'prompt', contentHash: hash, response: JSON.stringify(result) });
@@ -228,20 +230,20 @@ export async function generateRecommendations(context: {
   modelUsage: { model: string; cost: number; sessions: number }[];
   avgPromptLength: number;
   compactionRate: number;
-}): Promise<{ title: string; description: string; impact: string }[]> {
+}): Promise<{ title: string; description: string; impact: string; howTo: string[] }[]> {
   const hash = contentHash(context);
   const cacheKey = `recommendations:${hash}`;
 
   const cached = getAiCacheEntry(cacheKey);
-  if (cached) return JSON.parse(cached) as { title: string; description: string; impact: string }[];
+  if (cached) return JSON.parse(cached) as { title: string; description: string; impact: string; howTo: string[] }[];
 
   if (!isAvailable()) return [];
 
   const model = getAiCoachModel();
   const text = await callAnthropic({
     model,
-    system: 'You are an AI coding efficiency expert. Provide 3-5 specific, actionable recommendations. Respond in JSON format.',
-    userMessage: `Based on this usage data, provide actionable recommendations:
+    system: 'You are an AI coding efficiency expert. Provide exactly 3 recommendations. Each MUST include a "howTo" array with 2-3 short, concrete examples. Keep each howTo step under 30 words. Respond with a raw JSON array only — no markdown, no code fences, no extra text.',
+    userMessage: `Based on this usage data, provide 3 actionable recommendations:
 
 - Total cost: $${context.totalCost.toFixed(2)}
 - Cache hit rate: ${(context.cacheHitRate * 100).toFixed(0)}%
@@ -250,18 +252,28 @@ export async function generateRecommendations(context: {
 - Avg prompt length: ${context.avgPromptLength} words
 - Compaction rate: ${(context.compactionRate * 100).toFixed(0)}%
 
-Respond with JSON array: [{ "title": "...", "description": "...", "impact": "..." }]`,
-    maxTokens: 1024,
+Respond with ONLY a JSON array (no markdown): [{ "title": "short title", "description": "1 sentence", "impact": "estimated savings", "howTo": ["Concrete step with exact command or example", "Another specific step"] }]
+
+howTo must be specific: "Type /fast to switch to Haiku" not "use a cheaper model". "Add a CLAUDE.md with your project structure" not "document your project".`,
+    maxTokens: 2048,
   });
 
   try {
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    const result = JSON.parse(jsonMatch?.[0] ?? '[]') as { title: string; description: string; impact: string }[];
+    // Strip markdown code fences if present
+    const cleaned = text.replace(/```(?:json)?\s*/g, '').trim();
+    const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) {
+      logger.warn({ textPreview: cleaned.slice(0, 200) }, 'AI recommendations: no JSON array found in response');
+      return [];
+    }
+    const result = JSON.parse(jsonMatch[0]) as { title: string; description: string; impact: string; howTo: string[] }[];
     if (result.length > 0) {
       setAiCacheEntry({ cacheKey, method: 'recommendations', contentHash: hash, response: JSON.stringify(result) });
       return result;
     }
-  } catch { /* parse error */ }
+  } catch (err) {
+    logger.warn({ err, textPreview: text.slice(0, 200) }, 'AI recommendations: failed to parse response');
+  }
 
   return [];
 }

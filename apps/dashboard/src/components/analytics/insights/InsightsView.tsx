@@ -536,7 +536,7 @@ const EMPTY_IDS: string[] = [];
 export function InsightsView({ data, sessions }: InsightsViewProps) {
   const [expandedInsight, setExpandedInsight] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<Category | null>(null);
-  const [aiInsights, setAiInsights] = useState<{ title: string; description: string; impact: string }[]>([]);
+  const [aiInsights, setAiInsights] = useState<{ title: string; description: string; impact: string; howTo?: string[] }[]>([]);
   const [aiInsightsLoading, setAiInsightsLoading] = useState(false);
 
   const insights = useMemo(() => generateInsights(data), [data]);
@@ -689,6 +689,18 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
                   )}
                 </div>
                 <p className="text-[11px] text-gray-400 leading-relaxed">{insight.description}</p>
+                {insight.howTo && insight.howTo.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-gray-800/50">
+                    <span className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider">How do I do this?</span>
+                    <ul className="mt-1.5 space-y-1.5">
+                      {insight.howTo.map((step, si) => (
+                        <li key={si} className="text-[11px] text-gray-300 leading-relaxed pl-3 border-l-2 border-purple-500/30">
+                          {step}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             ))}
           </div>

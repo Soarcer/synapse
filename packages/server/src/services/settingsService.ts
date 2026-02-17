@@ -23,12 +23,19 @@ const DEFAULT_TOKEN_BUDGET = '0.10'; // $0.10 per session
  */
 export function resolveApiKey(): { key: string | undefined; source: 'env' | 'settings' | 'none' } {
   const envKey = process.env.ANTHROPIC_API_KEY;
-  if (envKey) return { key: envKey, source: 'env' };
+  if (envKey) return { key: extractApiKey(envKey), source: 'env' };
 
   const dbKey = getSetting(SETTINGS_KEYS.ANTHROPIC_API_KEY);
-  if (dbKey) return { key: dbKey, source: 'settings' };
+  if (dbKey) return { key: extractApiKey(dbKey), source: 'settings' };
 
   return { key: undefined, source: 'none' };
+}
+
+/** Extract the actual API key from a value that may contain labels/newlines. */
+function extractApiKey(raw: string): string {
+  // Some env managers store "Label\nactual-key" — extract the sk-ant-* line
+  const match = raw.match(/sk-ant-[\w-]+/);
+  return match ? match[0] : raw.trim();
 }
 
 export function maskApiKey(key: string): string {

@@ -62,7 +62,7 @@ const DIMENSION_DESCRIPTIONS: Record<string, string> = {
 export function ReportCardPanel({ reportCard, isLoading }: ReportCardPanelProps) {
   const [expandedDim, setExpandedDim] = useState<string | null>(null);
   const [expandedDetector, setExpandedDetector] = useState<string | null>(null);
-  const [aiRecs, setAiRecs] = useState<{ title: string; description: string; impact: string }[]>([]);
+  const [aiRecs, setAiRecs] = useState<{ title: string; description: string; impact: string; howTo?: string[] }[]>([]);
   const [aiRecsLoading, setAiRecsLoading] = useState(false);
 
   const fetchAiRecs = useCallback(() => {
@@ -226,6 +226,18 @@ export function ReportCardPanel({ reportCard, isLoading }: ReportCardPanelProps)
                   {rec.impact && <span className="text-[10px] text-emerald-400">{rec.impact}</span>}
                 </div>
                 <p className="text-[11px] text-gray-400 leading-relaxed">{rec.description}</p>
+                {rec.howTo && rec.howTo.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-gray-800/50">
+                    <span className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider">How do I do this?</span>
+                    <ul className="mt-1.5 space-y-1.5">
+                      {rec.howTo.map((step, si) => (
+                        <li key={si} className="text-[11px] text-gray-300 leading-relaxed pl-3 border-l-2 border-purple-500/30">
+                          {step}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             ))}
           </div>
