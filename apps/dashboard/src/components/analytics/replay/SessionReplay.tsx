@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, ReferenceLine, BarChart, Bar, Cell,
@@ -7,6 +7,8 @@ import { ChartCard } from '../shared/ChartCard';
 import { TokenBreakdownBar } from '../shared/TokenBreakdownBar';
 import { ToolBadges } from '../shared/ToolBadges';
 import { ModelBadge } from '../shared/ModelBadge';
+import { MiniTimeline } from './MiniTimeline';
+import { ArtifactPanel } from './ArtifactPanel';
 import { MODEL_COLORS, MODEL_LABELS, TOOL_COLORS, fmtTokens } from '../shared/constants';
 import type { MockData, MockTurn, MockSession } from '../mockData';
 
@@ -140,6 +142,24 @@ export function SessionReplay({ data }: Props) {
   const [expandedTurn, setExpandedTurn] = useState<number | null>(null);
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortAsc, setSortAsc] = useState(false);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
+
+  const fetchSessionSummary = useCallback((sessionId: string) => {
+    setAiSummaryLoading(true);
+    setAiSummary(null);
+    const now = Date.now();
+    fetch(`/api/analytics/ai-summary?from=${now - 30 * 86_400_000}&to=${now}`)
+      .then((r) => r.json())
+      .then((d) => { if (d.data?.summary) setAiSummary(d.data.summary); })
+      .catch(() => {})
+      .finally(() => setAiSummaryLoading(false));
+  }, []);
+
+  // Fetch AI summary when session changes
+  useEffect(() => {
+    if (selectedSession) fetchSessionSummary(selectedSession);
+  }, [selectedSession, fetchSessionSummary]);
 
   // Sort sessions
   const sortedSessions = useMemo(() => {
@@ -324,6 +344,13 @@ export function SessionReplay({ data }: Props) {
           </div>
         </div>
 
+        {/* Mini timeline */}
+        <MiniTimeline
+          turns={sessionTurns}
+          onClickTurn={(turnIndex) => setExpandedTurn(turnIndex)}
+          selectedTurn={expandedTurn}
+        />
+
         {/* Timeline */}
         <div className="flex-1 overflow-y-auto p-3 space-y-0">
           {sessionTurns.map((turn, i) => (
@@ -340,6 +367,27 @@ export function SessionReplay({ data }: Props) {
 
       {/* Right: Charts */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {/* AI Summary Banner */}
+        {(aiSummary || aiSummaryLoading) && (
+          <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-xl p-3">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-[10px] font-medium text-blue-400 uppercase tracking-wider">AI Summary</span>
+              <span className="px-1.5 py-0.5 text-[8px] font-medium rounded bg-blue-500/20 text-blue-300">AI</span>
+            </div>
+            {aiSummaryLoading ? (
+              <div className="space-y-1.5 animate-pulse">
+                <div className="h-2.5 bg-gray-700/50 rounded w-3/4" />
+                <div className="h-2.5 bg-gray-700/50 rounded w-1/2" />
+              </div>
+            ) : (
+              <p className="text-[11px] text-gray-300 leading-relaxed">{aiSummary}</p>
+            )}
+          </div>
+        )}
+
+        {/* Artifact Panel */}
+        <ArtifactPanel turns={sessionTurns} />
+
         {/* Cumulative cost chart */}
         <ChartCard title="Cumulative Cost" subtitle={`Total: ${fmtUsd(session.totalCost)}`} height={200}>
           <ResponsiveContainer width="100%" height="100%">
