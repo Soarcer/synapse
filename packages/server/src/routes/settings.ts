@@ -31,7 +31,7 @@ export function createSettingsRouter(): Router {
         return;
       }
 
-      const allowedKeys = new Set(Object.values(SETTINGS_KEYS));
+      const allowedKeys: Set<string> = new Set(Object.values(SETTINGS_KEYS));
       const updated: string[] = [];
 
       for (const [key, value] of Object.entries(body)) {

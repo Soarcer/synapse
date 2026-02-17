@@ -5,11 +5,12 @@ import { generateMockData } from './mockData';
 // ─── Types ──────────────────────────────────────────────────────────
 
 export interface AnalyticsFilters {
-  timeRange: string;         // '24h' | '7d' | '30d' | 'all' | custom
+  timeRange: string;         // '1h' | '6h' | '24h' | '7d' | '30d' | 'all'
   cwd?: string;
   model?: string;
   vendor?: string;
   sessionId?: string;
+  sessionIds?: string[];
 }
 
 interface OverviewData {
@@ -66,6 +67,8 @@ function getTimeRangeMs(range: string): { from: number; to: number } {
   const now = Date.now();
   const DAY = 86_400_000;
   switch (range) {
+    case '1h':  return { from: now - 3_600_000, to: now };
+    case '6h':  return { from: now - 6 * 3_600_000, to: now };
     case '24h': return { from: now - DAY, to: now };
     case '7d':  return { from: now - 7 * DAY, to: now };
     case '30d': return { from: now - 30 * DAY, to: now };
@@ -190,6 +193,9 @@ export function useAnalyticsData(filters: AnalyticsFilters): AnalyticsData {
     params.set('from', String(from));
     params.set('to', String(to));
     if (filters.cwd) params.set('cwd', filters.cwd);
+    if (filters.sessionIds && filters.sessionIds.length > 0) {
+      params.set('sessionIds', filters.sessionIds.join(','));
+    }
 
     try {
       // Parallel fetches for independent endpoints
@@ -293,7 +299,8 @@ export function useAnalyticsData(filters: AnalyticsFilters): AnalyticsData {
       setError(null); // Don't show error when gracefully falling back
       setIsLoading(false);
     }
-  }, [filters.timeRange, filters.cwd, filters.sessionId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- sessionIds is an array, serialized for stability
+  }, [filters.timeRange, filters.cwd, filters.sessionId, filters.sessionIds?.join(',')]);
 
   useEffect(() => {
     fetchData();

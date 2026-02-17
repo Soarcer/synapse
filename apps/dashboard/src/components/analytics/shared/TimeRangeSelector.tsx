@@ -4,6 +4,8 @@ interface TimeRangeSelectorProps {
 }
 
 const RANGES = [
+  { label: '1h', value: '1h' },
+  { label: '6h', value: '6h' },
   { label: '24h', value: '24h' },
   { label: '7d', value: '7d' },
   { label: '30d', value: '30d' },
@@ -18,7 +20,7 @@ export function TimeRangeSelector({ value, onChange }: TimeRangeSelectorProps) {
           key={r.value}
           onClick={() => onChange(r.value)}
           className={`
-            px-3 py-1 text-xs font-medium rounded-md transition-all
+            px-2.5 py-1 text-xs font-medium rounded-md transition-all
             ${value === r.value
               ? 'bg-gray-700 text-gray-100 shadow-sm'
               : 'text-gray-500 hover:text-gray-300'}

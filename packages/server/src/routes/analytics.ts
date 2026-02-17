@@ -865,5 +865,19 @@ export function createAnalyticsRouter(): Router {
     }
   });
 
+  // GET /api/analytics/projects — distinct CWD values for project filtering
+  router.get('/projects', (_req: Request, res: Response) => {
+    try {
+      const rows = analyticsQueryAll(
+        `SELECT DISTINCT cwd FROM events WHERE cwd IS NOT NULL AND cwd != '' ORDER BY cwd`,
+        [],
+      ) as { cwd: string }[];
+      res.json({ data: rows.map((r) => r.cwd) });
+    } catch (err: unknown) {
+      logger.error({ err }, 'Error fetching projects');
+      res.status(500).json({ error: 'Failed to fetch projects' });
+    }
+  });
+
   return router;
 }

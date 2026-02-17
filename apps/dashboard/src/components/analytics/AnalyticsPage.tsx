@@ -8,6 +8,8 @@ import { InsightsView } from './insights/InsightsView';
 import { LiveNudgesView } from './nudges/LiveNudgesView';
 import { ExportDialog } from './export/ExportDialog';
 import { TimeRangeSelector } from './shared/TimeRangeSelector';
+import { ProjectFilter } from './shared/ProjectFilter';
+import { SessionFilter } from './shared/SessionFilter';
 import { SettingsPanel } from './shared/SettingsPanel';
 
 type AnalyticsTab = 'executive' | 'replay' | 'prompts' | 'insights' | 'nudges';
@@ -23,10 +25,16 @@ const TABS: { id: AnalyticsTab; label: string; description: string }[] = [
 export function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('executive');
   const [timeRange, setTimeRange] = useState('7d');
+  const [selectedCwd, setSelectedCwd] = useState<string | undefined>();
+  const [selectedSessionIds, setSelectedSessionIds] = useState<string[]>([]);
   const [showExport, setShowExport] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
-  const filters: AnalyticsFilters = useMemo(() => ({ timeRange }), [timeRange]);
+  const filters: AnalyticsFilters = useMemo(() => ({
+    timeRange,
+    cwd: selectedCwd,
+    sessionIds: selectedSessionIds.length > 0 ? selectedSessionIds : undefined,
+  }), [timeRange, selectedCwd, selectedSessionIds]);
   const analytics = useAnalyticsData(filters);
 
   // Adapt analytics data to MockData shape for existing prototype components
@@ -53,6 +61,8 @@ export function AnalyticsPage() {
             </div>
             <div className="flex items-center gap-3">
               <TimeRangeSelector value={timeRange} onChange={setTimeRange} />
+              <ProjectFilter value={selectedCwd} onChange={setSelectedCwd} />
+              <SessionFilter sessions={analytics.sessions} value={selectedSessionIds} onChange={setSelectedSessionIds} />
               <button
                 onClick={() => setShowSettings(true)}
                 className="px-3 py-1.5 bg-[#161b22] border border-gray-700 rounded-lg text-xs text-gray-300 hover:text-gray-100 hover:border-gray-600 transition-colors"
