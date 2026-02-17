@@ -2,31 +2,21 @@ import { useState, useMemo } from 'react';
 import { useAnalyticsData, type AnalyticsFilters } from './useAnalyticsData';
 import type { MockData } from './mockData';
 import { ExecutiveOverview } from './executive/ExecutiveOverview';
-import { DeepDiveExplorer } from './explorer/DeepDiveExplorer';
 import { SessionReplay } from './replay/SessionReplay';
-import { ComparisonLab } from './comparison/ComparisonLab';
-import { WhatIfCalculator } from './whatif/WhatIfCalculator';
-import { TokenVelocityView } from './velocity/TokenVelocityView';
 import { PromptAnalyzer } from './prompts/PromptAnalyzer';
-import { ToolChainView } from './tools/ToolChainView';
 import { InsightsView } from './insights/InsightsView';
-import { CoachingView } from './coaching/CoachingView';
+import { LiveNudgesView } from './nudges/LiveNudgesView';
 import { ExportDialog } from './export/ExportDialog';
 import { TimeRangeSelector } from './shared/TimeRangeSelector';
 
-type AnalyticsTab = 'executive' | 'explorer' | 'replay' | 'comparison' | 'whatif' | 'velocity' | 'prompts' | 'tools' | 'insights' | 'coach';
+type AnalyticsTab = 'executive' | 'replay' | 'prompts' | 'insights' | 'nudges';
 
 const TABS: { id: AnalyticsTab; label: string; description: string }[] = [
   { id: 'executive', label: 'Executive', description: 'KPI overview with sparklines' },
-  { id: 'explorer', label: 'Deep Dive', description: 'Dense data explorer with filters' },
   { id: 'replay', label: 'Session Replay', description: 'Per-session timeline narrative' },
-  { id: 'comparison', label: 'Compare', description: 'Side-by-side session analysis' },
-  { id: 'whatif', label: 'What-If', description: 'Model cost comparison calculator' },
-  { id: 'velocity', label: 'Velocity', description: 'Token throughput & efficiency' },
   { id: 'prompts', label: 'Prompts', description: 'Prompt complexity analysis' },
-  { id: 'tools', label: 'Tool Chains', description: 'Tool co-occurrence & sequences' },
   { id: 'insights', label: 'Insights', description: 'AI coach, badges & budget' },
-  { id: 'coach', label: 'Coach', description: 'Session coaching & playbooks' },
+  { id: 'nudges', label: 'Live Nudges', description: 'Real-time coaching & nudge config' },
 ];
 
 export function AnalyticsPage() {
@@ -115,15 +105,10 @@ export function AnalyticsPage() {
       {/* Tab content */}
       <div className="flex-1 overflow-auto">
         {activeTab === 'executive' && <ExecutiveOverview data={mockData} />}
-        {activeTab === 'explorer' && <DeepDiveExplorer data={mockData} />}
         {activeTab === 'replay' && <SessionReplay data={mockData} />}
-        {activeTab === 'comparison' && <ComparisonLab data={mockData} />}
-        {activeTab === 'whatif' && <WhatIfCalculator sessions={mockData.sessions} />}
-        {activeTab === 'velocity' && <TokenVelocityView data={mockData} />}
         {activeTab === 'prompts' && <PromptAnalyzer data={mockData} />}
-        {activeTab === 'tools' && <ToolChainView data={mockData} />}
-        {activeTab === 'insights' && <InsightsView data={mockData} />}
-        {activeTab === 'coach' && <CoachingView sessions={analytics.sessions} />}
+        {activeTab === 'insights' && <InsightsView data={mockData} sessions={analytics.sessions} />}
+        {activeTab === 'nudges' && <LiveNudgesView />}
       </div>
 
       {/* Export Dialog */}

@@ -6,43 +6,47 @@ test.describe('Analytics Tab Navigation', () => {
     await page.waitForTimeout(3000); // Allow page to fully load with mock data fallback
   });
 
-  test('can click through all tabs without errors', async ({ page }) => {
-    // Find all tab-like buttons on the analytics page
-    const tabButtons = page.locator('button[role="tab"], [class*="tab"] button, button:has-text("Overview"), button:has-text("Explorer"), button:has-text("Replay"), button:has-text("Compare")');
-    const tabCount = await tabButtons.count();
+  const EXPECTED_TABS = ['Executive', 'Session Replay', 'Prompts', 'Insights', 'Live Nudges'];
+  const REMOVED_TABS = ['Deep Dive', 'Compare', 'What-If', 'Velocity', 'Tool Chains', 'Coach'];
 
-    // Click each tab and verify no console errors
+  test('shows exactly 5 tabs', async ({ page }) => {
+    for (const tab of EXPECTED_TABS) {
+      await expect(page.locator(`button:has-text("${tab}")`).first()).toBeVisible();
+    }
+  });
+
+  test('removed tabs are gone', async ({ page }) => {
+    for (const tab of REMOVED_TABS) {
+      await expect(page.locator(`button:has-text("${tab}")`)).toHaveCount(0);
+    }
+  });
+
+  test('can click through all tabs without errors', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (err) => errors.push(err.message));
 
-    for (let i = 0; i < Math.min(tabCount, 9); i++) {
-      const tab = tabButtons.nth(i);
-      if (await tab.isVisible()) {
-        await tab.click();
+    for (const tab of EXPECTED_TABS) {
+      const btn = page.locator(`button:has-text("${tab}")`).first();
+      if (await btn.isVisible()) {
+        await btn.click();
         await page.waitForTimeout(500);
       }
     }
 
-    // No unhandled JS errors should have occurred
     expect(errors.length).toBe(0);
   });
 
   test('tab content changes when switching tabs', async ({ page }) => {
-    // Verify the page has content initially
-    const bodyLength = await page.evaluate(() => document.body.innerHTML.length);
-    expect(bodyLength).toBeGreaterThan(0);
+    const initialContent = await page.evaluate(() => document.body.innerHTML);
 
-    // Try to click a different tab
-    const tabs = page.locator('button[role="tab"], button:has-text("Explorer"), button:has-text("Deep Dive")');
-    const tabCount = await tabs.count();
-
-    if (tabCount > 0) {
-      await tabs.first().click();
+    // Click Session Replay tab
+    const replayTab = page.locator('button:has-text("Session Replay")').first();
+    if (await replayTab.isVisible()) {
+      await replayTab.click();
       await page.waitForTimeout(1000);
 
-      // Verify the page still has content (didn't crash)
-      const newLength = await page.evaluate(() => document.body.innerHTML.length);
-      expect(newLength).toBeGreaterThan(0);
+      const newContent = await page.evaluate(() => document.body.innerHTML);
+      expect(newContent).not.toBe(initialContent);
     }
   });
 });

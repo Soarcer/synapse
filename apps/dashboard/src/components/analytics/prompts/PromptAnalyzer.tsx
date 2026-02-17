@@ -3,6 +3,10 @@ import {
   ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ZAxis,
   PieChart, Pie, Cell,
 } from 'recharts';
+import { TokenBreakdownBar } from '../shared/TokenBreakdownBar';
+import { ToolBadges } from '../shared/ToolBadges';
+import { ModelBadge } from '../shared/ModelBadge';
+import { TOOL_COLORS, fmtTokens } from '../shared/constants';
 import type { MockData } from '../mockData';
 
 interface PromptAnalyzerProps {
@@ -44,34 +48,6 @@ function computeComplexity(text: string, outputTokens: number, toolCount: number
   score += Math.min(25, outputTokens / 200);
   score += Math.min(25, toolCount * 5);
   return Math.min(100, Math.max(0, Math.round(score)));
-}
-
-const TOOL_COLORS: Record<string, string> = {
-  Read: '#3b82f6', Write: '#22c55e', Edit: '#a855f7', Bash: '#f97316',
-  Grep: '#06b6d4', Glob: '#eab308', Task: '#ef4444', WebFetch: '#ec4899',
-  WebSearch: '#8b5cf6', TodoWrite: '#14b8a6', NotebookEdit: '#f43f5e',
-};
-
-const MODEL_LABELS: Record<string, string> = {
-  'claude-opus-4-6': 'Opus 4.6',
-  'claude-sonnet-4-5': 'Sonnet 4.5',
-  'claude-sonnet-4-5-20250929': 'Sonnet 4.5',
-  'claude-haiku-4-5': 'Haiku 4.5',
-  'claude-haiku-4-5-20251001': 'Haiku 4.5',
-};
-
-const MODEL_COLORS: Record<string, string> = {
-  'claude-opus-4-6': '#e8956a',
-  'claude-sonnet-4-5': '#3b82f6',
-  'claude-sonnet-4-5-20250929': '#3b82f6',
-  'claude-haiku-4-5': '#22d3ee',
-  'claude-haiku-4-5-20251001': '#22d3ee',
-};
-
-function fmtTokens(n: number): string {
-  if (n < 1000) return String(n);
-  if (n < 1_000_000) return `${(n / 1000).toFixed(1)}k`;
-  return `${(n / 1_000_000).toFixed(2)}M`;
 }
 
 export function PromptAnalyzer({ data }: PromptAnalyzerProps) {
@@ -319,79 +295,25 @@ export function PromptAnalyzer({ data }: PromptAnalyzerProps) {
 
                           {/* Token breakdown bar */}
                           <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
-                            <div className="text-[10px] text-gray-500 mb-1.5">Token Breakdown</div>
-                            <div className="flex h-3 rounded-full overflow-hidden bg-gray-800">
-                              {a.cacheReadTokens > 0 && (
-                                <div
-                                  className="h-full"
-                                  style={{ width: `${(a.cacheReadTokens / totalTokens) * 100}%`, backgroundColor: '#8b5cf6' }}
-                                  title={`Cached: ${fmtTokens(a.cacheReadTokens)}`}
-                                />
-                              )}
-                              <div
-                                className="h-full"
-                                style={{ width: `${(a.inputTokens / totalTokens) * 100}%`, backgroundColor: '#3b82f6' }}
-                                title={`Input: ${fmtTokens(a.inputTokens)}`}
-                              />
-                              <div
-                                className="h-full"
-                                style={{ width: `${(a.outputTokens / totalTokens) * 100}%`, backgroundColor: '#10b981' }}
-                                title={`Output: ${fmtTokens(a.outputTokens)}`}
-                              />
-                            </div>
-                            <div className="flex items-center gap-4 mt-1.5">
-                              <span className="text-[9px] text-purple-400 flex items-center gap-1">
-                                <span className="inline-block w-2 h-2 rounded-sm bg-purple-500" /> cached {fmtTokens(a.cacheReadTokens)}
-                              </span>
-                              <span className="text-[9px] text-blue-400 flex items-center gap-1">
-                                <span className="inline-block w-2 h-2 rounded-sm bg-blue-500" /> input {fmtTokens(a.inputTokens)}
-                              </span>
-                              <span className="text-[9px] text-emerald-400 flex items-center gap-1">
-                                <span className="inline-block w-2 h-2 rounded-sm bg-emerald-500" /> output {fmtTokens(a.outputTokens)}
-                              </span>
-                              {a.thinkingTokens > 0 && (
-                                <span className="text-[9px] text-pink-400 flex items-center gap-1">
-                                  <span className="inline-block w-2 h-2 rounded-sm bg-pink-500" /> thinking {fmtTokens(a.thinkingTokens)}
-                                </span>
-                              )}
-                            </div>
+                            <TokenBreakdownBar
+                              cacheReadTokens={a.cacheReadTokens}
+                              inputTokens={a.inputTokens}
+                              outputTokens={a.outputTokens}
+                              thinkingTokens={a.thinkingTokens}
+                            />
                           </div>
 
                           {/* Tools + Model row */}
                           <div className="flex items-start gap-3 flex-wrap">
-                            {/* Tools */}
                             {a.toolNames.length > 0 && (
                               <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2 flex-1 min-w-[200px]">
-                                <div className="text-[10px] text-gray-500 mb-1.5">Tools Used ({a.toolCount})</div>
-                                <div className="flex flex-wrap gap-1">
-                                  {a.toolNames.map((name, ti) => (
-                                    <span
-                                      key={ti}
-                                      className="px-2 py-0.5 rounded text-[10px] font-medium"
-                                      style={{
-                                        backgroundColor: `${TOOL_COLORS[name] ?? '#6b7280'}20`,
-                                        color: TOOL_COLORS[name] ?? '#6b7280',
-                                      }}
-                                    >
-                                      {name}
-                                    </span>
-                                  ))}
-                                </div>
+                                <ToolBadges toolNames={a.toolNames} label={`Tools Used (${a.toolCount})`} />
                               </div>
                             )}
 
-                            {/* Model + Category */}
                             <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
                               <div className="text-[10px] text-gray-500 mb-1.5">Model</div>
-                              <span
-                                className="px-2 py-0.5 rounded text-[10px] font-medium"
-                                style={{
-                                  backgroundColor: `${MODEL_COLORS[a.model] ?? '#6b7280'}20`,
-                                  color: MODEL_COLORS[a.model] ?? '#6b7280',
-                                }}
-                              >
-                                {MODEL_LABELS[a.model] ?? a.model}
-                              </span>
+                              <ModelBadge model={a.model} />
                             </div>
 
                             <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">

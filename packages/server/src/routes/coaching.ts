@@ -8,7 +8,7 @@ import {
   NudgeDismissSchema,
   AnalyticsQuerySchema,
 } from '@synapse-ai/core';
-import { getNudgesBySession, dismissNudge as dbDismissNudge } from '../db.js';
+import { getNudgesBySession, dismissNudge as dbDismissNudge, getNudgeStats } from '../db.js';
 import { computeReportCard, computeMultiReportCard, getReportCardHistory } from '../services/reportCardEngine.js';
 import {
   getAllPlaybooks,
@@ -115,6 +115,17 @@ export function createCoachingRouter(): Router {
     } catch (err: unknown) {
       logger.error({ err }, 'Error dismissing nudge');
       res.status(500).json({ error: 'Failed to dismiss nudge' });
+    }
+  });
+
+  // GET /nudges/stats — aggregate nudge statistics
+  router.get('/nudges/stats', (_req: Request, res: Response) => {
+    try {
+      const stats = getNudgeStats();
+      res.json(envelope(stats));
+    } catch (err: unknown) {
+      logger.error({ err }, 'Error fetching nudge stats');
+      res.status(500).json({ error: 'Failed to fetch nudge stats' });
     }
   });
 

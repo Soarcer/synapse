@@ -4,6 +4,10 @@ import {
   CartesianGrid, ReferenceLine, BarChart, Bar, Cell,
 } from 'recharts';
 import { ChartCard } from '../shared/ChartCard';
+import { TokenBreakdownBar } from '../shared/TokenBreakdownBar';
+import { ToolBadges } from '../shared/ToolBadges';
+import { ModelBadge } from '../shared/ModelBadge';
+import { MODEL_COLORS, MODEL_LABELS, TOOL_COLORS, fmtTokens } from '../shared/constants';
 import type { MockData, MockTurn, MockSession } from '../mockData';
 
 interface Props {
@@ -12,32 +16,8 @@ interface Props {
 
 type SortField = 'date' | 'cost' | 'tokens' | 'turns';
 
-const MODEL_COLORS: Record<string, string> = {
-  'claude-opus-4-6': '#e8956a',
-  'claude-sonnet-4-5': '#3b82f6',
-  'claude-haiku-4-5': '#22d3ee',
-};
-
-const MODEL_LABELS: Record<string, string> = {
-  'claude-opus-4-6': 'Opus 4.6',
-  'claude-sonnet-4-5': 'Sonnet 4.5',
-  'claude-haiku-4-5': 'Haiku 4.5',
-};
-
-const TOOL_COLORS: Record<string, string> = {
-  Read: '#3b82f6', Grep: '#8b5cf6', Glob: '#a78bfa', Edit: '#ec4899',
-  Write: '#f59e0b', Bash: '#f97316', Task: '#10b981', WebFetch: '#06b6d4',
-  WebSearch: '#14b8a6', TodoWrite: '#84cc16', NotebookEdit: '#e879f9',
-};
-
 function fmtUsd(n: number): string {
   return n < 0.01 ? '<$0.01' : n < 1 ? `$${n.toFixed(3)}` : `$${n.toFixed(2)}`;
-}
-
-function fmtTokens(n: number): string {
-  if (n < 1000) return String(n);
-  if (n < 1_000_000) return `${(n / 1000).toFixed(1)}k`;
-  return `${(n / 1_000_000).toFixed(2)}M`;
 }
 
 function fmtMs(n: number): string {
@@ -136,77 +116,16 @@ function TurnCard({
 
           {/* Expanded details */}
           {expanded && (
-            <div className="mt-3 pt-3 border-t border-gray-800">
-              {/* Token breakdown bar */}
-              <div className="mb-3">
-                <div className="text-[10px] text-gray-500 mb-1">Token breakdown</div>
-                <div className="flex h-3 rounded-full overflow-hidden bg-gray-800">
-                  {turn.cacheReadTokens > 0 && (
-                    <div
-                      className="h-full"
-                      style={{
-                        width: `${(turn.cacheReadTokens / (turn.inputTokens + turn.outputTokens)) * 100}%`,
-                        backgroundColor: '#8b5cf6',
-                      }}
-                      title={`Cached: ${fmtTokens(turn.cacheReadTokens)}`}
-                    />
-                  )}
-                  <div
-                    className="h-full"
-                    style={{
-                      width: `${((turn.inputTokens - turn.cacheReadTokens) / (turn.inputTokens + turn.outputTokens)) * 100}%`,
-                      backgroundColor: '#3b82f6',
-                    }}
-                    title={`Fresh input: ${fmtTokens(turn.inputTokens - turn.cacheReadTokens)}`}
-                  />
-                  <div
-                    className="h-full"
-                    style={{
-                      width: `${(turn.outputTokens / (turn.inputTokens + turn.outputTokens)) * 100}%`,
-                      backgroundColor: '#10b981',
-                    }}
-                    title={`Output: ${fmtTokens(turn.outputTokens)}`}
-                  />
-                </div>
-                <div className="flex justify-between mt-1">
-                  <span className="text-[9px] text-purple-400">cached {fmtTokens(turn.cacheReadTokens)}</span>
-                  <span className="text-[9px] text-blue-400">input {fmtTokens(turn.inputTokens - turn.cacheReadTokens)}</span>
-                  <span className="text-[9px] text-emerald-400">output {fmtTokens(turn.outputTokens)}</span>
-                </div>
-              </div>
-
-              {/* Tools used */}
-              {turn.toolNames.length > 0 && (
-                <div>
-                  <div className="text-[10px] text-gray-500 mb-1">Tools used</div>
-                  <div className="flex flex-wrap gap-1">
-                    {turn.toolNames.map((name, i) => (
-                      <span
-                        key={i}
-                        className="px-1.5 py-0.5 rounded text-[10px] font-medium"
-                        style={{
-                          backgroundColor: `${TOOL_COLORS[name] ?? '#6b7280'}20`,
-                          color: TOOL_COLORS[name] ?? '#6b7280',
-                        }}
-                      >
-                        {name}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Model badge */}
-              <div className="mt-2 flex items-center gap-2">
-                <span
-                  className="px-2 py-0.5 rounded text-[10px] font-medium"
-                  style={{
-                    backgroundColor: `${MODEL_COLORS[turn.model] ?? '#6b7280'}20`,
-                    color: MODEL_COLORS[turn.model] ?? '#6b7280',
-                  }}
-                >
-                  {MODEL_LABELS[turn.model] ?? turn.model}
-                </span>
+            <div className="mt-3 pt-3 border-t border-gray-800 space-y-2">
+              <TokenBreakdownBar
+                cacheReadTokens={turn.cacheReadTokens}
+                inputTokens={turn.inputTokens}
+                outputTokens={turn.outputTokens}
+                thinkingTokens={turn.thinkingTokens}
+              />
+              <ToolBadges toolNames={turn.toolNames} label="Tools used" />
+              <div className="flex items-center gap-2">
+                <ModelBadge model={turn.model} />
               </div>
             </div>
           )}

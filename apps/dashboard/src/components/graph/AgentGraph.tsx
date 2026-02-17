@@ -16,6 +16,7 @@ import { useGraphNavigation } from '../../hooks/useGraphNavigation';
 import { nodeTypes, edgeTypes } from './nodeTypes';
 import { GraphSearchBox } from './GraphSearchBox';
 import { EdgeCostLegend } from './EdgeCostLegend';
+import { NudgeBadge } from './NudgeBadge';
 import { registerToastNavigator, unregisterToastNavigator } from '../Toast';
 import { nodeMatchesSearch, buildParentMap, collectAncestors, buildChildrenMap } from '../../utils/graphSearch';
 import type { AgentNodeData } from '@synapse-ai/core';
@@ -618,6 +619,7 @@ function AgentGraphInner() {
         />
       </ReactFlow>
       <EdgeCostLegend />
+      <NudgeBadge />
     </>
   );
 }

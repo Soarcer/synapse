@@ -1,8 +1,12 @@
-import { useState, useMemo } from 'react';
-import type { MockData } from '../mockData';
+import { useState, useMemo, useCallback } from 'react';
+import { useCoachingData } from '../coaching/useCoachingData';
+import { ReportCardPanel } from '../coaching/ReportCardPanel';
+import { PlaybookPanel } from '../coaching/PlaybookPanel';
+import type { MockData, MockSession } from '../mockData';
 
 interface InsightsViewProps {
   data: MockData;
+  sessions: MockSession[];
 }
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -53,6 +57,14 @@ const MODEL_LABELS: Record<string, string> = {
   'claude-sonnet-4-5': 'Sonnet 4.5',
   'claude-haiku-4-5': 'Haiku 4.5',
 };
+
+// ─── Model Pricing (from WhatIfCalculator) ──────────────────────────
+
+const MODEL_PRICING = [
+  { id: 'claude-opus-4-6', name: 'Opus 4.6', inputPer1M: 15, cachedPer1M: 1.5, outputPer1M: 75 },
+  { id: 'claude-sonnet-4-5', name: 'Sonnet 4.5', inputPer1M: 3, cachedPer1M: 0.3, outputPer1M: 15 },
+  { id: 'claude-haiku-4-5', name: 'Haiku 4.5', inputPer1M: 0.8, cachedPer1M: 0.08, outputPer1M: 4 },
+];
 
 // ─── Insight Generator ──────────────────────────────────────────────
 
@@ -312,7 +324,7 @@ function classifyPromptBasic(text: string): string {
   return 'other';
 }
 
-// ─── Budget Status (computed from real data) ─────────────────────────
+// ─── Budget Status ─────────────────────────────────────────────
 
 interface BudgetStatus {
   daily: { spent: number; limit: number; pct: number };
@@ -335,7 +347,6 @@ function computeBudget(data: MockData): BudgetStatus {
 
   const totalSpent = data.sessions.reduce((s, sess) => s + sess.totalCost, 0);
 
-  // Trend from daily rollups
   const rollups = data.dailyRollups;
   let trend: 'rising' | 'stable' | 'falling' = 'stable';
   if (rollups.length >= 3) {
@@ -359,7 +370,58 @@ function computeBudget(data: MockData): BudgetStatus {
   };
 }
 
-// ─── Budget Gauge ───────────────────────────────────────────────────
+// ─── Model Optimization Card ──────────────────────────────────
+
+function computeModelOptimization(sessions: MockSession[]) {
+  if (sessions.length === 0) return null;
+
+  const currentCost = sessions.reduce((sum, s) => sum + s.totalCost, 0);
+  const totalInput = sessions.reduce((sum, s) => sum + s.totalInputTokens, 0);
+  const totalOutput = sessions.reduce((sum, s) => sum + s.totalOutputTokens, 0);
+  const totalCacheRead = sessions.reduce((sum, s) => sum + s.totalCacheReadTokens, 0);
+
+  // Compute hypothetical cost with each model
+  const freshInput = Math.max(0, totalInput - totalCacheRead);
+  const alternatives = MODEL_PRICING.map((m) => {
+    const cost =
+      (freshInput / 1_000_000) * m.inputPer1M +
+      (totalCacheRead / 1_000_000) * m.cachedPer1M +
+      (totalOutput / 1_000_000) * m.outputPer1M;
+    return { ...m, cost, savings: currentCost - cost, savingsPct: currentCost > 0 ? ((currentCost - cost) / currentCost) * 100 : 0 };
+  });
+
+  const bestSaving = alternatives.filter((a) => a.savings > 0).sort((a, b) => b.savings - a.savings)[0];
+
+  return { currentCost, alternatives, bestSaving };
+}
+
+// ─── Collapsible Section ──────────────────────────────────────
+
+function CollapsibleSection({
+  title,
+  defaultOpen = true,
+  children,
+}: {
+  title: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="border border-gray-800 rounded-xl overflow-hidden">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-2 px-4 py-3 bg-[#161b22] hover:bg-gray-800/40 transition-colors text-left"
+      >
+        <span className={`text-[10px] text-gray-500 transition-transform ${open ? 'rotate-90' : ''}`}>&#9654;</span>
+        <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider">{title}</span>
+      </button>
+      {open && <div className="p-4 bg-[#0d1117]">{children}</div>}
+    </div>
+  );
+}
+
+// ─── Budget Gauge ───────────────────────────────────────────────
 
 function BudgetGauge({ label, spent, limit, pct }: { label: string; spent: number; limit: number; pct: number }) {
   const color = pct > 1 ? '#ef4444' : pct > 0.75 ? '#f97316' : pct > 0.5 ? '#eab308' : '#22c55e';
@@ -379,14 +441,27 @@ function BudgetGauge({ label, spent, limit, pct }: { label: string; spent: numbe
   );
 }
 
+// ─── Empty IDs constant (Zustand safe) ──────────────────────────
+
+const EMPTY_IDS: string[] = [];
+
 // ─── Component ──────────────────────────────────────────────────────
 
-export function InsightsView({ data }: InsightsViewProps) {
+export function InsightsView({ data, sessions }: InsightsViewProps) {
   const [expandedInsight, setExpandedInsight] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<Category | null>(null);
 
   const insights = useMemo(() => generateInsights(data), [data]);
   const budget = useMemo(() => computeBudget(data), [data]);
+  const modelOpt = useMemo(() => computeModelOptimization(data.sessions), [data.sessions]);
+
+  // Report card: use all session IDs for an aggregate view
+  const sessionIds = useMemo(() => {
+    const ids = sessions.map((s) => s.id);
+    return ids.length > 0 ? ids.slice(0, 20) : EMPTY_IDS; // API caps at 20
+  }, [sessions]);
+
+  const { reportCard, playbooks, isLoading: coachingLoading, refetchPlaybooks } = useCoachingData(sessionIds);
 
   const filteredInsights = useMemo(() => {
     if (!categoryFilter) return insights;
@@ -431,6 +506,10 @@ export function InsightsView({ data }: InsightsViewProps) {
     return lines.join(' ');
   }, [data.sessions, data.turns, severityCounts, budget]);
 
+  const handlePlaybookRefresh = useCallback(() => {
+    refetchPlaybooks();
+  }, [refetchPlaybooks]);
+
   return (
     <div className="max-w-[1400px] mx-auto p-4 space-y-4">
       {/* Executive Summary Banner */}
@@ -458,38 +537,38 @@ export function InsightsView({ data }: InsightsViewProps) {
         <p className="text-xs text-gray-400 leading-relaxed">{summary}</p>
       </div>
 
-      {/* Category filter pills */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <button
-          onClick={() => setCategoryFilter(null)}
-          className={`px-3 py-1 text-[11px] rounded-lg transition-all ${
-            !categoryFilter ? 'bg-blue-500/20 text-blue-400 font-medium' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
-          }`}
-        >
-          All ({insights.length})
-        </button>
-        {(['cost', 'models', 'prompts', 'efficiency', 'tools', 'patterns'] as Category[]).map((cat) => {
-          const count = categoryCounts.get(cat) ?? 0;
-          if (count === 0) return null;
-          return (
-            <button
-              key={cat}
-              onClick={() => setCategoryFilter(categoryFilter === cat ? null : cat)}
-              className={`px-3 py-1 text-[11px] rounded-lg transition-all ${
-                categoryFilter === cat ? 'bg-blue-500/20 text-blue-400 font-medium' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
-              }`}
-            >
-              {CATEGORY_ICONS[cat]} {CATEGORY_LABELS[cat]} ({count})
-            </button>
-          );
-        })}
-      </div>
+      {/* ── Section 1: Insight Cards ────────────────────────────── */}
+      <CollapsibleSection title="Insight Cards">
+        {/* Category filter pills */}
+        <div className="flex items-center gap-2 flex-wrap mb-3">
+          <button
+            onClick={() => setCategoryFilter(null)}
+            className={`px-3 py-1 text-[11px] rounded-lg transition-all ${
+              !categoryFilter ? 'bg-blue-500/20 text-blue-400 font-medium' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+            }`}
+          >
+            All ({insights.length})
+          </button>
+          {(['cost', 'models', 'prompts', 'efficiency', 'tools', 'patterns'] as Category[]).map((cat) => {
+            const count = categoryCounts.get(cat) ?? 0;
+            if (count === 0) return null;
+            return (
+              <button
+                key={cat}
+                onClick={() => setCategoryFilter(categoryFilter === cat ? null : cat)}
+                className={`px-3 py-1 text-[11px] rounded-lg transition-all ${
+                  categoryFilter === cat ? 'bg-blue-500/20 text-blue-400 font-medium' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+                }`}
+              >
+                {CATEGORY_ICONS[cat]} {CATEGORY_LABELS[cat]} ({count})
+              </button>
+            );
+          })}
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Insight Cards */}
-        <div className="lg:col-span-2 space-y-3">
+        <div className="space-y-3">
           {filteredInsights.length === 0 && (
-            <div className="text-center text-gray-500 py-12 text-sm">
+            <div className="text-center text-gray-500 py-8 text-sm">
               No insights to show. Need more session data for analysis.
             </div>
           )}
@@ -518,7 +597,6 @@ export function InsightsView({ data }: InsightsViewProps) {
                     </div>
                     <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">{insight.description}</p>
 
-                    {/* Expanded coaching */}
                     {isExpanded && (
                       <div className="mt-3 pt-3 border-t border-gray-700/50">
                         <div className="flex items-center gap-1.5 mb-1.5">
@@ -534,7 +612,6 @@ export function InsightsView({ data }: InsightsViewProps) {
                       </div>
                     )}
 
-                    {/* Expand indicator */}
                     <div className="mt-2 text-[10px] text-gray-600">
                       {isExpanded ? 'Click to collapse' : 'Click for recommendation'}
                     </div>
@@ -544,12 +621,72 @@ export function InsightsView({ data }: InsightsViewProps) {
             );
           })}
         </div>
+      </CollapsibleSection>
 
-        {/* Right sidebar */}
-        <div className="space-y-4">
-          {/* Budget tracker */}
-          <div className="bg-[#161b22] border border-gray-800 rounded-xl p-4 space-y-4">
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Budget</h3>
+      {/* ── Section 2: Report Card ──────────────────────────────── */}
+      <CollapsibleSection title="Report Card" defaultOpen={false}>
+        {sessions.length === 0 ? (
+          <div className="text-center py-8">
+            <div className="text-gray-600 text-2xl mb-2">&#x1f4ca;</div>
+            <p className="text-sm text-gray-400">Transcript unavailable</p>
+            <p className="text-xs text-gray-600 mt-1">Session data needed to generate report card</p>
+          </div>
+        ) : (
+          <ReportCardPanel reportCard={reportCard} isLoading={coachingLoading} />
+        )}
+      </CollapsibleSection>
+
+      {/* ── Section 3: Playbook Management ──────────────────────── */}
+      <CollapsibleSection title="Playbooks" defaultOpen={false}>
+        <PlaybookPanel
+          playbooks={playbooks}
+          sessionId={sessionIds.length > 0 ? sessionIds[0] : null}
+          onRefresh={handlePlaybookRefresh}
+        />
+      </CollapsibleSection>
+
+      {/* ── Section 4: Model Optimization + Budget ─────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Model Optimization Card */}
+        <CollapsibleSection title="Model Optimization">
+          {modelOpt && modelOpt.bestSaving ? (
+            <div className="space-y-3">
+              <div className={`p-3 rounded-lg border ${modelOpt.bestSaving.savings >= 0 ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
+                <div className={`text-lg font-bold ${modelOpt.bestSaving.savings >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  Save ~${modelOpt.bestSaving.savings.toFixed(2)} ({modelOpt.bestSaving.savingsPct.toFixed(0)}%)
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  By switching to <span className="text-gray-200 font-medium">{modelOpt.bestSaving.name}</span> for
+                  tasks currently using more expensive models
+                </p>
+              </div>
+              <div className="space-y-2">
+                {modelOpt.alternatives.map((alt) => (
+                  <div key={alt.id} className="flex items-center justify-between px-3 py-2 bg-[#161b22] border border-gray-800 rounded-lg">
+                    <span className="text-xs text-gray-300">{alt.name}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-gray-400">${alt.cost.toFixed(2)}</span>
+                      <span className={`text-[10px] font-medium ${alt.savings > 0 ? 'text-emerald-400' : alt.savings < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                        {alt.savings > 0 ? '-' : alt.savings < 0 ? '+' : ''}${Math.abs(alt.savings).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-gray-600">
+                Current total spend: ${modelOpt.currentCost.toFixed(2)}. Estimates assume same token volume.
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-gray-500 text-center py-4">
+              Not enough session data for model optimization analysis
+            </p>
+          )}
+        </CollapsibleSection>
+
+        {/* Budget Tracker */}
+        <CollapsibleSection title="Budget Tracker">
+          <div className="space-y-4">
             <BudgetGauge label="Daily" spent={budget.daily.spent} limit={budget.daily.limit} pct={budget.daily.pct} />
             <BudgetGauge label="Weekly" spent={budget.weekly.spent} limit={budget.weekly.limit} pct={budget.weekly.pct} />
             <BudgetGauge label="Monthly" spent={budget.monthly.spent} limit={budget.monthly.limit} pct={budget.monthly.pct} />
@@ -570,24 +707,24 @@ export function InsightsView({ data }: InsightsViewProps) {
               </div>
             </div>
           </div>
+        </CollapsibleSection>
+      </div>
 
-          {/* Quick tips */}
-          <div className="bg-[#161b22] border border-gray-800 rounded-xl p-4">
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Quick Tips</h3>
-            <div className="space-y-3">
-              <div className="text-[11px] text-gray-400 leading-relaxed">
-                <span className="text-blue-400 font-medium">CLAUDE.md</span> - Document your project architecture, conventions, and common patterns. Claude reads this first, reducing exploration time and token cost.
-              </div>
-              <div className="text-[11px] text-gray-400 leading-relaxed">
-                <span className="text-blue-400 font-medium">/compact</span> - Manually trigger context compaction before it happens automatically. This preserves the most important context.
-              </div>
-              <div className="text-[11px] text-gray-400 leading-relaxed">
-                <span className="text-blue-400 font-medium">/fast</span> - Toggle fast mode (Haiku) for simple tasks. 4x cheaper than Sonnet for formatting, boilerplate, and basic edits.
-              </div>
-              <div className="text-[11px] text-gray-400 leading-relaxed">
-                <span className="text-blue-400 font-medium">New sessions</span> - Start a fresh session for each distinct task. Mixing unrelated work in one session wastes context and increases compaction risk.
-              </div>
-            </div>
+      {/* Quick tips */}
+      <div className="bg-[#161b22] border border-gray-800 rounded-xl p-4">
+        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Quick Tips</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="text-[11px] text-gray-400 leading-relaxed">
+            <span className="text-blue-400 font-medium">CLAUDE.md</span> - Document your project architecture, conventions, and common patterns. Claude reads this first, reducing exploration time and token cost.
+          </div>
+          <div className="text-[11px] text-gray-400 leading-relaxed">
+            <span className="text-blue-400 font-medium">/compact</span> - Manually trigger context compaction before it happens automatically. This preserves the most important context.
+          </div>
+          <div className="text-[11px] text-gray-400 leading-relaxed">
+            <span className="text-blue-400 font-medium">/fast</span> - Toggle fast mode (Haiku) for simple tasks. 4x cheaper than Sonnet for formatting, boilerplate, and basic edits.
+          </div>
+          <div className="text-[11px] text-gray-400 leading-relaxed">
+            <span className="text-blue-400 font-medium">New sessions</span> - Start a fresh session for each distinct task. Mixing unrelated work in one session wastes context and increases compaction risk.
           </div>
         </div>
       </div>

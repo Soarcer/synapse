@@ -804,6 +804,35 @@ export function dismissNudge(sessionId: string, nudgeId: string): number {
   return result;
 }
 
+export interface NudgeStatsRow {
+  detector_id: string;
+  fire_count: number;
+  dismiss_count: number;
+}
+
+export function getNudgeStats(): { byDetector: NudgeStatsRow[]; totalFired: number; totalDismissed: number } {
+  const byDetector = queryAll(`
+    SELECT detector_id,
+           COUNT(*) as fire_count,
+           SUM(CASE WHEN dismissed = 1 THEN 1 ELSE 0 END) as dismiss_count
+    FROM coaching_nudges
+    GROUP BY detector_id
+    ORDER BY fire_count DESC
+  `) as unknown as NudgeStatsRow[];
+
+  const totals = queryGet(`
+    SELECT COUNT(*) as total_fired,
+           SUM(CASE WHEN dismissed = 1 THEN 1 ELSE 0 END) as total_dismissed
+    FROM coaching_nudges
+  `) as { total_fired: number; total_dismissed: number } | undefined;
+
+  return {
+    byDetector,
+    totalFired: totals?.total_fired ?? 0,
+    totalDismissed: totals?.total_dismissed ?? 0,
+  };
+}
+
 // ─── Coaching: Playbook Helpers ──────────────────────────────────────
 
 export interface PlaybookRow {
