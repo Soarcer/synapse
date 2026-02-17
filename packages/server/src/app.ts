@@ -10,6 +10,7 @@ import { createTranscriptRouter } from './routes/transcript.js';
 import { createSnapshotRouter } from './routes/snapshot.js';
 import { createAnalyticsRouter } from './routes/analytics.js';
 import { createCoachingRouter } from './routes/coaching.js';
+import { createSettingsRouter } from './routes/settings.js';
 import { getDbStats } from './db.js';
 import { logger } from './lib/logger.js';
 
@@ -76,6 +77,7 @@ export function createApp(deps: AppDeps) {
   app.use('/api/snapshot', createSnapshotRouter());
   app.use('/api/analytics', createAnalyticsRouter());
   app.use('/api/analytics/coaching', createCoachingRouter());
+  app.use('/api/settings', createSettingsRouter());
 
   // Health check
   app.get('/api/health', (_req, res) => {

@@ -92,3 +92,36 @@ export interface Playbook {
   createdAt: number;
   updatedAt: number;
 }
+
+// ─── AI Coaching Types ─────────────────────────────────────────────
+
+export interface PromptAnalysis {
+  score: number;           // 1-10
+  explanation: string;
+  rewrite: string;
+  estimatedSavings: string;
+  historyComparison: string;
+}
+
+export interface SessionSummary {
+  summary: string;
+  roiMetrics: {
+    timeSaved: string;
+    costPerTask: string;
+    successRate: string;
+  };
+}
+
+export interface EnrichedNudge {
+  originalNudge: CoachingNudge;
+  aiAnalysis: string;
+  actionItems: string[];
+  source: 'rule' | 'ai-escalation' | 'ai-periodic' | 'ai-trigger';
+}
+
+export interface AiCoachStatus {
+  available: boolean;
+  source: 'env' | 'settings' | 'none';
+  model: string;
+  maskedKey: string;
+}

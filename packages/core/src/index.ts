@@ -31,6 +31,10 @@ export type {
   PlaybookCategory,
   PlaybookPattern,
   Playbook,
+  PromptAnalysis,
+  SessionSummary,
+  EnrichedNudge,
+  AiCoachStatus,
 } from './types/coaching.js';
 
 // Transcript constants

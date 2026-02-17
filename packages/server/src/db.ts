@@ -257,6 +257,29 @@ export async function initDb(): Promise<void> {
     )
   `);
 
+  // ── Settings table ──────────────────────────────────────────────────
+  db.run(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+
+  // ── AI coaching cache table ────────────────────────────────────────
+  db.run(`
+    CREATE TABLE IF NOT EXISTS ai_coaching_cache (
+      cache_key TEXT PRIMARY KEY,
+      method TEXT NOT NULL,
+      session_id TEXT,
+      content_hash TEXT NOT NULL,
+      response TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL
+    )
+  `);
+  db.run('CREATE INDEX IF NOT EXISTS idx_ai_cache_expires ON ai_coaching_cache(expires_at)');
+
   logger.info({ path: DB_PATH }, 'Database initialized');
 }
 
@@ -895,6 +918,70 @@ export function deletePlaybook(id: number): number {
   const result = execute('DELETE FROM coaching_playbooks WHERE id = ?', [id]);
   scheduleSave();
   return result;
+}
+
+// ─── Settings Helpers ─────────────────────────────────────────────────
+
+export function getSetting(key: string): string | undefined {
+  const row = queryGet('SELECT value FROM settings WHERE key = ?', [key]) as { value: string } | undefined;
+  return row?.value;
+}
+
+export function setSetting(key: string, value: string): void {
+  execute(
+    'INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at',
+    [key, value, Date.now()],
+  );
+  scheduleSave();
+}
+
+export function getAllSettings(): Record<string, string> {
+  const rows = queryAll('SELECT key, value FROM settings') as { key: string; value: string }[];
+  const result: Record<string, string> = {};
+  for (const row of rows) result[row.key] = row.value;
+  return result;
+}
+
+export function deleteSetting(key: string): number {
+  const result = execute('DELETE FROM settings WHERE key = ?', [key]);
+  scheduleSave();
+  return result;
+}
+
+// ─── AI Coaching Cache Helpers ────────────────────────────────────────
+
+export function getAiCacheEntry(cacheKey: string): string | undefined {
+  const now = Date.now();
+  const row = queryGet(
+    'SELECT response FROM ai_coaching_cache WHERE cache_key = ? AND expires_at > ?',
+    [cacheKey, now],
+  ) as { response: string } | undefined;
+  return row?.response;
+}
+
+export function setAiCacheEntry(params: {
+  cacheKey: string;
+  method: string;
+  sessionId?: string;
+  contentHash: string;
+  response: string;
+  ttlMs?: number;
+}): void {
+  const now = Date.now();
+  const ttl = params.ttlMs ?? 3_600_000; // 1 hour default
+  execute(
+    `INSERT INTO ai_coaching_cache (cache_key, method, session_id, content_hash, response, created_at, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(cache_key) DO UPDATE SET response = excluded.response, created_at = excluded.created_at, expires_at = excluded.expires_at`,
+    [params.cacheKey, params.method, params.sessionId ?? null, params.contentHash, params.response, now, now + ttl],
+  );
+  scheduleSave();
+}
+
+export function pruneAiCache(): number {
+  const changes = execute('DELETE FROM ai_coaching_cache WHERE expires_at < ?', [Date.now()]);
+  if (changes > 0) scheduleSave();
+  return changes;
 }
 
 // ─── Shutdown ─────────────────────────────────────────────────────────
