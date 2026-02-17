@@ -3,6 +3,7 @@ import { logger } from '../lib/logger.js';
 import { hasNudgeFired, insertNudge } from '../db.js';
 import type { Broadcaster } from './broadcaster.js';
 import type { AgentEvent, CoachingNudge, NudgeSeverity } from '@synapse-ai/core';
+import { incrementToolCallCount, shouldRunPeriodicCheck, tryEscalateNudge } from './aiNudgeEscalator.js';
 
 // ─── In-Memory Event Buffer ─────────────────────────────────────────
 
@@ -246,6 +247,11 @@ export function checkNudges(event: AgentEvent, broadcaster: Broadcaster): void {
   // Skip detector loop for irrelevant event types
   if (!NUDGE_RELEVANT_TYPES.has(event.type)) return;
 
+  // Track tool calls for periodic AI checks
+  if (event.type === 'tool_start' || event.type === 'tool_end') {
+    incrementToolCallCount(event.sessionId);
+  }
+
   const buf = sessionBuffers.get(event.sessionId);
   if (!buf || buf.events.length < 3) return;
 
@@ -284,5 +290,31 @@ export function checkNudges(event: AgentEvent, broadcaster: Broadcaster): void {
     broadcaster.broadcastNudge(nudge);
 
     logger.info({ sessionId: event.sessionId, detectorId: detector.id, severity: nudge.severity }, 'Coaching nudge fired');
+
+    // Try AI escalation for warning+ severity (fire-and-forget)
+    if (nudge.severity === 'warning') {
+      const recentEventStrings = buf.events.slice(-5).map((e) => {
+        const detail = e.toolName ?? e.text?.slice(0, 80) ?? e.error ?? '';
+        return `[${e.type}] ${detail}`;
+      });
+      tryEscalateNudge(nudge, recentEventStrings)
+        .then((enriched) => {
+          if (enriched) {
+            // Broadcast the enriched version as an update
+            broadcaster.broadcastNudge({
+              ...nudge,
+              recommendation: `${nudge.recommendation}\n\nAI Analysis: ${enriched.aiAnalysis}\n\nAction Items:\n${enriched.actionItems.map((a) => `• ${a}`).join('\n')}`,
+            });
+          }
+        })
+        .catch(() => {}); // Non-blocking
+    }
+  }
+
+  // Periodic AI coaching check (every N tool calls)
+  if (shouldRunPeriodicCheck(event.sessionId)) {
+    logger.debug({ sessionId: event.sessionId }, 'Periodic AI coaching check triggered');
+    // Periodic checks happen via the existing detector loop — the escalator
+    // rate-limits to prevent spam. No extra nudge creation here.
   }
 }

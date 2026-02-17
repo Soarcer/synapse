@@ -10,6 +10,7 @@ import {
 } from '@synapse-ai/core';
 import { getNudgesBySession, dismissNudge as dbDismissNudge, getNudgeStats } from '../db.js';
 import { computeReportCard, computeMultiReportCard, getReportCardHistory } from '../services/reportCardEngine.js';
+import { getSensitivity, setSensitivity, type Sensitivity } from '../services/aiNudgeEscalator.js';
 import {
   getAllPlaybooks,
   getPlaybookById,
@@ -203,6 +204,34 @@ export function createCoachingRouter(): Router {
     } catch (err: unknown) {
       logger.error({ err }, 'Error deleting playbook');
       res.status(500).json({ error: 'Failed to delete playbook' });
+    }
+  });
+
+  // ─── Sensitivity Config ──────────────────────────────────────────
+
+  // GET /api/analytics/coaching/sensitivity
+  router.get('/sensitivity', (_req: Request, res: Response) => {
+    try {
+      res.json({ data: { level: getSensitivity() } });
+    } catch (err: unknown) {
+      logger.error({ err }, 'Error fetching sensitivity');
+      res.status(500).json({ error: 'Failed to fetch sensitivity' });
+    }
+  });
+
+  // PUT /api/analytics/coaching/sensitivity
+  router.put('/sensitivity', (req: Request, res: Response) => {
+    try {
+      const { level } = req.body as { level: string };
+      if (!['low', 'medium', 'high'].includes(level)) {
+        res.status(400).json({ error: 'Invalid level. Must be: low, medium, high' });
+        return;
+      }
+      setSensitivity(level as Sensitivity);
+      res.json({ data: { level } });
+    } catch (err: unknown) {
+      logger.error({ err }, 'Error updating sensitivity');
+      res.status(500).json({ error: 'Failed to update sensitivity' });
     }
   });
 

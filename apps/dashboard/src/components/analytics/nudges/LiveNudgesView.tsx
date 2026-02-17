@@ -1,7 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAgentStore } from '../../../store/agentStore';
 import { apiUrl } from '../../../utils/api';
 import type { CoachingNudge, NudgeSeverity } from '@synapse-ai/core';
+
+type Sensitivity = 'low' | 'medium' | 'high';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -54,8 +56,10 @@ export function LiveNudgesView() {
   const [stats, setStats] = useState<NudgeStats>(EMPTY_STATS);
   const [rules, setRules] = useState<NudgeRuleConfig[]>(DEFAULT_RULES);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [sensitivity, setSensitivity] = useState<Sensitivity>('medium');
+  const [sensitivitySaving, setSensitivitySaving] = useState(false);
 
-  // Fetch stats on mount
+  // Fetch stats + sensitivity on mount
   useEffect(() => {
     let cancelled = false;
     fetch(apiUrl('/api/analytics/coaching/nudges/stats'))
@@ -65,7 +69,25 @@ export function LiveNudgesView() {
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setStatsLoading(false); });
+    fetch(apiUrl('/api/analytics/coaching/sensitivity'))
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled && d.data?.level) setSensitivity(d.data.level);
+      })
+      .catch(() => {});
     return () => { cancelled = true; };
+  }, []);
+
+  const updateSensitivity = useCallback((level: Sensitivity) => {
+    setSensitivity(level);
+    setSensitivitySaving(true);
+    fetch(apiUrl('/api/analytics/coaching/sensitivity'), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ level }),
+    })
+      .catch(() => {})
+      .finally(() => setSensitivitySaving(false));
   }, []);
 
   // Load rules from localStorage
@@ -202,6 +224,41 @@ export function LiveNudgesView() {
 
         {/* Right: Configuration */}
         <div className="space-y-4">
+          {/* AI Coaching Sensitivity */}
+          <div className="bg-[#161b22] border border-gray-800 rounded-xl p-4">
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+              AI Coaching Sensitivity
+            </h3>
+            <p className="text-[10px] text-gray-600 mb-3">
+              Controls how aggressively AI analyzes tool patterns and escalates nudges.
+            </p>
+            <div className="flex gap-1.5">
+              {(['low', 'medium', 'high'] as const).map((level) => (
+                <button
+                  key={level}
+                  onClick={() => updateSensitivity(level)}
+                  disabled={sensitivitySaving}
+                  className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    sensitivity === level
+                      ? level === 'low'
+                        ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                        : level === 'medium'
+                          ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                          : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                      : 'bg-gray-800/50 text-gray-500 border border-gray-800 hover:text-gray-400'
+                  }`}
+                >
+                  {level.charAt(0).toUpperCase() + level.slice(1)}
+                </button>
+              ))}
+            </div>
+            <div className="mt-2 text-[10px] text-gray-600">
+              {sensitivity === 'low' && 'Checks every 20 tool calls. Fewer interruptions.'}
+              {sensitivity === 'medium' && 'Checks every 10 tool calls. Balanced coverage.'}
+              {sensitivity === 'high' && 'Checks every 5 tool calls. Maximum oversight.'}
+            </div>
+          </div>
+
           <div className="bg-[#161b22] border border-gray-800 rounded-xl p-4">
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
               Nudge Rules
@@ -284,6 +341,14 @@ function NudgeCard({
 }) {
   const styles = SEVERITY_STYLES[nudge.severity];
   const icon = SEVERITY_ICONS[nudge.severity];
+  const isAiEnriched = nudge.recommendation?.includes('AI Analysis:');
+
+  // Split recommendation into base + AI parts if enriched
+  const recParts = isAiEnriched
+    ? nudge.recommendation.split('\n\nAI Analysis:')
+    : [nudge.recommendation];
+  const baseRec = recParts[0];
+  const aiAnalysis = recParts.length > 1 ? recParts[1] : null;
 
   return (
     <div className={`rounded-lg border ${styles.border} ${styles.bg} p-3 ${dismissed ? 'opacity-50' : ''}`}>
@@ -293,14 +358,25 @@ function NudgeCard({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h4 className={`text-xs font-medium ${styles.text}`}>{nudge.title}</h4>
+              {isAiEnriched && (
+                <span className="px-1.5 py-0.5 bg-purple-500/20 border border-purple-500/30 rounded text-[9px] font-medium text-purple-400">
+                  &#x2728; AI
+                </span>
+              )}
               <span className="text-[10px] text-gray-600">
                 {new Date(nudge.firedAt).toLocaleTimeString()}
               </span>
             </div>
             <p className="text-xs text-gray-400 mt-1">{nudge.message}</p>
-            {nudge.recommendation && (
+            {baseRec && (
               <div className="mt-2 px-2 py-1.5 bg-[#0d1117] border-l-2 border-blue-500/50 rounded-r text-[11px] text-blue-300">
-                {nudge.recommendation}
+                {baseRec}
+              </div>
+            )}
+            {aiAnalysis && (
+              <div className="mt-1.5 px-2 py-1.5 bg-purple-500/5 border-l-2 border-purple-500/40 rounded-r text-[11px] text-purple-300">
+                <span className="text-[9px] text-purple-500 uppercase tracking-wider font-medium">AI Analysis</span>
+                <div className="mt-0.5 whitespace-pre-line">{aiAnalysis.trim()}</div>
               </div>
             )}
           </div>
