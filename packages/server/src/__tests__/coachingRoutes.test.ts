@@ -9,7 +9,7 @@ process.env.SYNAPSE_DB_PATH = path.join(
 import request from 'supertest';
 import type { Express } from 'express';
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest';
-import { initDb, deleteAllEvents, insertEvent } from '../db.js';
+import { initDb, deleteAllEvents, deleteAllPlaybooks, insertEvent } from '../db.js';
 import { createApp } from '../app.js';
 import { Broadcaster } from '../services/broadcaster.js';
 import { AgentManager } from '../services/agentManager.js';
@@ -22,6 +22,7 @@ let agentManager: AgentManager;
 
 beforeAll(async () => {
   await initDb();
+  deleteAllPlaybooks(); // Clear any pre-existing data
   broadcaster = new Broadcaster();
   agentManager = new AgentManager();
   app = createApp({ broadcaster, agentManager, disableRateLimiting: true });
@@ -29,6 +30,7 @@ beforeAll(async () => {
 
 afterEach(() => {
   deleteAllEvents();
+  deleteAllPlaybooks();
 });
 
 afterAll(() => {

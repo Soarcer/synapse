@@ -315,5 +315,5 @@ Respond with JSON: { "aiAnalysis": "deeper analysis of what's happening", "actio
   }
 }
 
-// Prune expired cache on startup
-pruneAiCache();
+// Prune expired cache on startup (guarded — db may not be ready in tests)
+try { pruneAiCache(); } catch { /* db not initialized yet */ }

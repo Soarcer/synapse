@@ -459,6 +459,12 @@ export function deleteAllEvents(): number {
   return changes;
 }
 
+export function deleteAllPlaybooks(): number {
+  const changes = execute('DELETE FROM coaching_playbooks');
+  scheduleSave();
+  return changes;
+}
+
 export interface SessionSummary {
   session_id: string;
   first_event: number;
