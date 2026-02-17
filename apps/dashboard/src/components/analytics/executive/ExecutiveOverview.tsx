@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   BarChart, Bar, PieChart, Pie, Cell, CartesianGrid, ComposedChart,
@@ -11,6 +11,11 @@ import {
   totalCost, totalTokens, totalToolCalls,
   toolBreakdown, modelBreakdown, latencyPercentiles, avgCacheHitRate,
 } from '../mockData';
+
+interface AiSummary {
+  summary: string;
+  roiMetrics: { timeSaved: string; costPerTask: string; successRate: string };
+}
 
 interface Props {
   data: MockData;
@@ -52,6 +57,24 @@ function formatMs(n: number): string {
 }
 
 export function ExecutiveOverview({ data }: Props) {
+  const [aiSummary, setAiSummary] = useState<AiSummary | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+
+  const fetchAiSummary = useCallback(() => {
+    setAiLoading(true);
+    const { start, end } = data.timeRange;
+    fetch(`/api/analytics/ai-summary?from=${start}&to=${end}`)
+      .then((r) => r.json())
+      .then((d) => { if (d.data) setAiSummary(d.data); })
+      .catch(() => {})
+      .finally(() => setAiLoading(false));
+  }, [data.timeRange]);
+
+  useEffect(() => {
+    // Auto-fetch only if we have sessions
+    if (data.sessions.length > 0) fetchAiSummary();
+  }, [fetchAiSummary, data.sessions.length]);
+
   const cost = useMemo(() => totalCost(data), [data]);
   const tokens = useMemo(() => totalTokens(data), [data]);
   const tools = useMemo(() => totalToolCalls(data), [data]);
@@ -166,6 +189,49 @@ export function ExecutiveOverview({ data }: Props) {
           color="#06b6d4"
         />
       </div>
+
+      {/* AI Summary Banner */}
+      {(aiSummary || aiLoading) && (
+        <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-200">AI Summary</span>
+              <span className="px-1.5 py-0.5 text-[9px] font-medium rounded bg-blue-500/20 text-blue-400">AI</span>
+            </div>
+            <button
+              onClick={fetchAiSummary}
+              disabled={aiLoading}
+              className="text-[10px] text-gray-500 hover:text-gray-300 transition-colors disabled:opacity-50"
+            >
+              {aiLoading ? 'Analyzing...' : 'Refresh'}
+            </button>
+          </div>
+          {aiLoading && !aiSummary ? (
+            <div className="space-y-2 animate-pulse">
+              <div className="h-3 bg-gray-700/50 rounded w-3/4" />
+              <div className="h-3 bg-gray-700/50 rounded w-1/2" />
+            </div>
+          ) : aiSummary ? (
+            <>
+              <p className="text-xs text-gray-300 leading-relaxed mb-3">{aiSummary.summary}</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-[#0d1117]/50 rounded-lg p-2.5 text-center">
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wider">Time Saved</div>
+                  <div className="text-sm font-semibold text-emerald-400 mt-0.5">{aiSummary.roiMetrics.timeSaved}</div>
+                </div>
+                <div className="bg-[#0d1117]/50 rounded-lg p-2.5 text-center">
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wider">Cost/Task</div>
+                  <div className="text-sm font-semibold text-amber-400 mt-0.5">{aiSummary.roiMetrics.costPerTask}</div>
+                </div>
+                <div className="bg-[#0d1117]/50 rounded-lg p-2.5 text-center">
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wider">Success Rate</div>
+                  <div className="text-sm font-semibold text-blue-400 mt-0.5">{aiSummary.roiMetrics.successRate}</div>
+                </div>
+              </div>
+            </>
+          ) : null}
+        </div>
+      )}
 
       {/* Primary chart: Cost Over Time — bars for daily, area for cumulative */}
       <ChartCard title="Cost Over Time" subtitle={`Cumulative: ${formatUsd(cost)}`} height={280}>

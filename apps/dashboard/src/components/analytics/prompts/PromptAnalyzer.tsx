@@ -56,7 +56,24 @@ export function PromptAnalyzer({ data }: PromptAnalyzerProps) {
   const [sortAsc, setSortAsc] = useState(false);
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   const [selectedScatterIdx, setSelectedScatterIdx] = useState<number | null>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<Record<number, {
+    score: number; explanation: string; rewrite: string; estimatedSavings: string; historyComparison: string;
+  }>>({});
+  const [aiAnalyzing, setAiAnalyzing] = useState<Record<number, boolean>>({});
   const tableRef = useRef<HTMLTableSectionElement>(null);
+
+  const analyzeWithAi = useCallback((idx: number, promptText: string, model: string, toolCount: number, category: string, cost: number) => {
+    setAiAnalyzing((prev) => ({ ...prev, [idx]: true }));
+    fetch('/api/analytics/ai-analyze-prompt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ promptText, sessionContext: { model, toolCount, category, cost } }),
+    })
+      .then((r) => r.json())
+      .then((d) => { if (d.data) setAiAnalysis((prev) => ({ ...prev, [idx]: d.data })); })
+      .catch(() => {})
+      .finally(() => setAiAnalyzing((prev) => ({ ...prev, [idx]: false })));
+  }, []);
 
   const analyses = useMemo(() => {
     // Group turns by sessionId + promptText to aggregate work from one user prompt
@@ -355,6 +372,52 @@ export function PromptAnalyzer({ data }: PromptAnalyzerProps) {
                               </span>
                             </div>
                           </div>
+
+                          {/* AI Analysis Section */}
+                          {aiAnalysis[i] ? (
+                            <div className="mt-3 bg-gradient-to-r from-blue-500/5 to-purple-500/5 border border-blue-500/15 rounded-lg p-3 space-y-2">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-[10px] font-medium text-blue-400 uppercase tracking-wider">AI Analysis</span>
+                                <span className="px-1.5 py-0.5 text-[8px] font-medium rounded bg-blue-500/20 text-blue-300">AI</span>
+                                <span className={`ml-auto text-xs font-semibold ${
+                                  aiAnalysis[i].score >= 8 ? 'text-emerald-400' : aiAnalysis[i].score >= 5 ? 'text-yellow-400' : 'text-red-400'
+                                }`}>
+                                  Score: {aiAnalysis[i].score}/10
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-gray-300 leading-relaxed">{aiAnalysis[i].explanation}</p>
+                              {aiAnalysis[i].rewrite && (
+                                <div className="mt-2">
+                                  <div className="text-[10px] text-gray-500 mb-1">Suggested Rewrite</div>
+                                  <div className="bg-[#0d1117] border border-gray-800 rounded p-2 text-[11px] text-gray-300 italic">
+                                    {aiAnalysis[i].rewrite}
+                                  </div>
+                                </div>
+                              )}
+                              <div className="flex items-center gap-4 mt-2">
+                                {aiAnalysis[i].estimatedSavings && (
+                                  <div className="text-[10px]">
+                                    <span className="text-gray-500">Savings: </span>
+                                    <span className="text-emerald-400">{aiAnalysis[i].estimatedSavings}</span>
+                                  </div>
+                                )}
+                                {aiAnalysis[i].historyComparison && (
+                                  <div className="text-[10px]">
+                                    <span className="text-gray-500">Comparison: </span>
+                                    <span className="text-gray-300">{aiAnalysis[i].historyComparison}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); analyzeWithAi(i, a.promptText, a.model, a.toolCount, a.category, a.costUsd); }}
+                              disabled={aiAnalyzing[i]}
+                              className="mt-3 px-3 py-1.5 text-[10px] font-medium bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/20 transition-colors disabled:opacity-50"
+                            >
+                              {aiAnalyzing[i] ? 'Analyzing...' : 'Analyze with AI'}
+                            </button>
+                          )}
                         </div>
                       )}
                     </td>

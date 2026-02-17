@@ -19,6 +19,7 @@ import { getBudgetStatus, setBudget, getBudget } from '../services/budgetService
 import { getEarnedBadges, getAllBadgeDefinitions, checkAndAwardBadges } from '../services/badgeService.js';
 import { importCsv, importJson } from '../services/importService.js';
 import { detectPlan, setPlan, getPlanLabels, getPlanLimits } from '../services/planDetector.js';
+import { summarizeSession, analyzePrompt, generateRecommendations, isAvailable as isAiAvailable } from '../services/aiCoachService.js';
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -905,6 +906,131 @@ export function createAnalyticsRouter(): Router {
     } catch (err: unknown) {
       logger.error({ err }, 'Error fetching projects');
       res.status(500).json({ error: 'Failed to fetch projects' });
+    }
+  });
+
+  // ─── AI-Enhanced Endpoints ──────────────────────────────────────
+
+  // GET /api/analytics/ai-summary — AI summary of time period
+  router.get('/ai-summary', validateQuery(AnalyticsQuerySchema), async (req: Request, res: Response) => {
+    try {
+      if (!isAiAvailable()) {
+        res.json({ data: null, meta: { reason: 'AI features require an API key' } });
+        return;
+      }
+
+      const { from, to } = parseTimeRange(req.query);
+      const cwd = req.query.cwd as string | undefined;
+      const { clause, params } = buildWhereClause(from, to, cwd);
+
+      const sessionRows = analyticsQueryAll(
+        `SELECT DISTINCT session_id FROM events WHERE ${clause} LIMIT 500`,
+        params,
+      ) as { session_id: string }[];
+      const sessionIds = sessionRows.map((r) => r.session_id);
+
+      if (sessionIds.length === 0) {
+        res.json({ data: null, meta: { reason: 'No sessions in range' } });
+        return;
+      }
+
+      const transcripts = getTranscriptSummaries(sessionIds, cwd);
+      const agg = aggregateTranscripts(transcripts);
+
+      // Get event-level metrics for tool calls and top tools
+      const eventStats = analyticsQueryGet(`
+        SELECT
+          SUM(CASE WHEN event_type IN ('tool_start','tool_end','tool_error') THEN 1 ELSE 0 END) as toolCalls,
+          SUM(CASE WHEN event_type = 'prompt_submit' THEN 1 ELSE 0 END) as promptCount
+        FROM events WHERE ${clause}
+      `, params) as { toolCalls: number; promptCount: number } | undefined;
+
+      // Find top model from modelBreakdown map
+      let topModel = 'unknown';
+      let topModelCost = 0;
+      for (const [model, data] of agg.modelBreakdown) {
+        if (data.cost > topModelCost) { topModel = model; topModelCost = data.cost; }
+      }
+
+      // Top tools
+      const toolRows = analyticsQueryAll(`
+        SELECT json_extract(data, '$.tool_name') as toolName, COUNT(*) as cnt
+        FROM events WHERE ${clause} AND event_type = 'tool_start'
+        GROUP BY toolName ORDER BY cnt DESC LIMIT 5
+      `, params) as { toolName: string; cnt: number }[];
+
+      const summary = await summarizeSession({
+        sessionId: `aggregate-${from}-${to}`,
+        totalCost: agg.totalCost,
+        totalTokens: agg.totalInputTokens + agg.totalOutputTokens,
+        promptCount: eventStats?.promptCount ?? 0,
+        toolCalls: eventStats?.toolCalls ?? 0,
+        model: topModel,
+        topTools: toolRows.map((r) => r.toolName).filter(Boolean),
+        durationMinutes: Math.round((to - from) / 60_000),
+      });
+      res.json({ data: summary });
+    } catch (err: unknown) {
+      logger.error({ err }, 'Error generating AI summary');
+      res.status(500).json({ error: 'Failed to generate AI summary' });
+    }
+  });
+
+  // POST /api/analytics/ai-analyze-prompt — AI prompt analysis
+  router.post('/ai-analyze-prompt', async (req: Request, res: Response) => {
+    try {
+      if (!isAiAvailable()) {
+        res.json({ data: null, meta: { reason: 'AI features require an API key' } });
+        return;
+      }
+
+      const { promptText, sessionContext } = req.body as {
+        promptText: string;
+        sessionContext?: { model?: string; toolCount?: number; category?: string; cost?: number };
+      };
+
+      if (!promptText || typeof promptText !== 'string') {
+        res.status(400).json({ error: 'Missing promptText' });
+        return;
+      }
+
+      const analysis = await analyzePrompt({
+        promptText: promptText.slice(0, 4000), // Cap at 4K chars
+        sessionContext: {
+          model: sessionContext?.model ?? 'unknown',
+          toolCount: sessionContext?.toolCount ?? 0,
+          category: sessionContext?.category ?? 'general',
+          cost: sessionContext?.cost ?? 0,
+        },
+      });
+      res.json({ data: analysis });
+    } catch (err: unknown) {
+      logger.error({ err }, 'Error analyzing prompt');
+      res.status(500).json({ error: 'Failed to analyze prompt' });
+    }
+  });
+
+  // POST /api/analytics/ai-insights — AI-generated recommendations
+  router.post('/ai-insights', async (req: Request, res: Response) => {
+    try {
+      if (!isAiAvailable()) {
+        res.json({ data: [], meta: { reason: 'AI features require an API key' } });
+        return;
+      }
+
+      const body = req.body as Record<string, unknown>;
+      const recommendations = await generateRecommendations({
+        totalCost: Number(body.totalCost) || 0,
+        cacheHitRate: Number(body.cacheHitRate) || 0,
+        topTools: Array.isArray(body.topTools) ? body.topTools as { name: string; count: number; errorRate: number }[] : [],
+        modelUsage: Array.isArray(body.modelUsage) ? body.modelUsage as { model: string; cost: number; sessions: number }[] : [],
+        avgPromptLength: Number(body.avgPromptLength) || 0,
+        compactionRate: Number(body.compactionRate) || 0,
+      });
+      res.json({ data: recommendations });
+    } catch (err: unknown) {
+      logger.error({ err }, 'Error generating AI insights');
+      res.status(500).json({ error: 'Failed to generate AI insights' });
     }
   });
 

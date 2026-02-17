@@ -536,10 +536,44 @@ const EMPTY_IDS: string[] = [];
 export function InsightsView({ data, sessions }: InsightsViewProps) {
   const [expandedInsight, setExpandedInsight] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<Category | null>(null);
+  const [aiInsights, setAiInsights] = useState<{ title: string; description: string; impact: string }[]>([]);
+  const [aiInsightsLoading, setAiInsightsLoading] = useState(false);
 
   const insights = useMemo(() => generateInsights(data), [data]);
   const { budget, setPlanOverride } = useBudgetData(data);
   const modelOpt = useMemo(() => computeModelOptimization(data.sessions), [data.sessions]);
+
+  const fetchAiInsights = useCallback(() => {
+    setAiInsightsLoading(true);
+    const totalCostVal = data.sessions.reduce((s, sess) => s + sess.totalCost, 0);
+    const toolMap = new Map<string, { count: number; errors: number }>();
+    for (const tc of data.toolCalls) {
+      const existing = toolMap.get(tc.toolName) ?? { count: 0, errors: 0 };
+      existing.count++;
+      if (tc.status === 'error') existing.errors++;
+      toolMap.set(tc.toolName, existing);
+    }
+    const topTools = Array.from(toolMap.entries()).slice(0, 5).map(([name, d]) => ({
+      name, count: d.count, errorRate: d.count > 0 ? d.errors / d.count : 0,
+    }));
+
+    fetch('/api/analytics/ai-insights', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        totalCost: totalCostVal,
+        cacheHitRate: 0,
+        topTools,
+        modelUsage: [],
+        avgPromptLength: 0,
+        compactionRate: 0,
+      }),
+    })
+      .then((r) => r.json())
+      .then((d) => { if (Array.isArray(d.data)) setAiInsights(d.data); })
+      .catch(() => {})
+      .finally(() => setAiInsightsLoading(false));
+  }, [data.sessions, data.toolCalls]);
 
   // Report card: use all session IDs for an aggregate view
   const sessionIds = useMemo(() => {
@@ -621,6 +655,48 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
           </div>
         </div>
         <p className="text-xs text-gray-400 leading-relaxed">{summary}</p>
+      </div>
+
+      {/* ── AI-Generated Insights ────────────────────────────────── */}
+      <div className="bg-[#161b22] border border-gray-800 rounded-xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">AI Insights</h3>
+            <span className="px-1.5 py-0.5 text-[8px] font-medium rounded bg-blue-500/20 text-blue-400">AI</span>
+          </div>
+          <button
+            onClick={fetchAiInsights}
+            disabled={aiInsightsLoading}
+            className="px-3 py-1 text-[10px] font-medium bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/20 transition-colors disabled:opacity-50"
+          >
+            {aiInsightsLoading ? 'Generating...' : aiInsights.length > 0 ? 'Refresh' : 'Generate AI Insights'}
+          </button>
+        </div>
+        {aiInsightsLoading && aiInsights.length === 0 ? (
+          <div className="space-y-2 animate-pulse">
+            <div className="h-3 bg-gray-700/50 rounded w-3/4" />
+            <div className="h-3 bg-gray-700/50 rounded w-1/2" />
+            <div className="h-3 bg-gray-700/50 rounded w-2/3" />
+          </div>
+        ) : aiInsights.length > 0 ? (
+          <div className="space-y-2">
+            {aiInsights.map((insight, idx) => (
+              <div key={idx} className="bg-[#0d1117] border border-blue-500/10 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-medium text-gray-200">{insight.title}</span>
+                  {insight.impact && (
+                    <span className="text-[10px] text-emerald-400">{insight.impact}</span>
+                  )}
+                </div>
+                <p className="text-[11px] text-gray-400 leading-relaxed">{insight.description}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[11px] text-gray-500 text-center py-3">
+            Click "Generate AI Insights" to get personalized recommendations based on your usage patterns.
+          </p>
+        )}
       </div>
 
       {/* ── Section 1: Insight Cards ────────────────────────────── */}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
 import type { ReportCard, DimensionScore, DetectorResult } from '@synapse-ai/core';
 import { InfoTooltip } from '../shared/InfoTooltip';
@@ -62,6 +62,30 @@ const DIMENSION_DESCRIPTIONS: Record<string, string> = {
 export function ReportCardPanel({ reportCard, isLoading }: ReportCardPanelProps) {
   const [expandedDim, setExpandedDim] = useState<string | null>(null);
   const [expandedDetector, setExpandedDetector] = useState<string | null>(null);
+  const [aiRecs, setAiRecs] = useState<{ title: string; description: string; impact: string }[]>([]);
+  const [aiRecsLoading, setAiRecsLoading] = useState(false);
+
+  const fetchAiRecs = useCallback(() => {
+    if (!reportCard) return;
+    setAiRecsLoading(true);
+    const weakDims = reportCard.dimensions.filter((d) => d.score < 70);
+    fetch('/api/analytics/ai-insights', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        totalCost: 0,
+        cacheHitRate: 0,
+        topTools: weakDims.map((d) => ({ name: d.dimension, count: d.detectors.length, errorRate: 1 - d.score / 100 })),
+        modelUsage: [],
+        avgPromptLength: 0,
+        compactionRate: 0,
+      }),
+    })
+      .then((r) => r.json())
+      .then((d) => { if (Array.isArray(d.data)) setAiRecs(d.data); })
+      .catch(() => {})
+      .finally(() => setAiRecsLoading(false));
+  }, [reportCard]);
 
   if (isLoading) {
     return (
@@ -185,6 +209,35 @@ export function ReportCardPanel({ reportCard, isLoading }: ReportCardPanelProps)
             onToggleDetector={(id) => setExpandedDetector(expandedDetector === id ? null : id)}
           />
         ))}
+      </div>
+
+      {/* AI Recommendations */}
+      <div className="pt-2">
+        {aiRecs.length > 0 ? (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 mb-2">
+              <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider">AI Recommendations</h3>
+              <span className="px-1.5 py-0.5 text-[8px] font-medium rounded bg-blue-500/20 text-blue-400">AI</span>
+            </div>
+            {aiRecs.map((rec, idx) => (
+              <div key={idx} className="bg-[#0d1117] border border-blue-500/10 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-medium text-gray-200">{rec.title}</span>
+                  {rec.impact && <span className="text-[10px] text-emerald-400">{rec.impact}</span>}
+                </div>
+                <p className="text-[11px] text-gray-400 leading-relaxed">{rec.description}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <button
+            onClick={fetchAiRecs}
+            disabled={aiRecsLoading}
+            className="w-full px-3 py-2 text-[11px] font-medium bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/20 transition-colors disabled:opacity-50"
+          >
+            {aiRecsLoading ? 'Generating AI recommendations...' : 'Get AI Recommendations'}
+          </button>
+        )}
       </div>
     </div>
   );
