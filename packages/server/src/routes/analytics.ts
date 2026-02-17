@@ -18,6 +18,7 @@ import { getInsightsForRange } from '../services/insightsEngine.js';
 import { getBudgetStatus, setBudget, getBudget } from '../services/budgetService.js';
 import { getEarnedBadges, getAllBadgeDefinitions, checkAndAwardBadges } from '../services/badgeService.js';
 import { importCsv, importJson } from '../services/importService.js';
+import { detectPlan, setPlan, getPlanLabels, getPlanLimits } from '../services/planDetector.js';
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -802,7 +803,8 @@ export function createAnalyticsRouter(): Router {
     try {
       const cwd = req.query.cwd as string | undefined;
       const status = getBudgetStatus(cwd);
-      res.json({ data: status });
+      const plan = detectPlan();
+      res.json({ data: { ...status, plan } });
     } catch (err: unknown) {
       logger.error({ err }, 'Error in budget status');
       res.status(500).json({ error: 'Failed to get budget status' });
@@ -817,6 +819,33 @@ export function createAnalyticsRouter(): Router {
     } catch (err: unknown) {
       logger.error({ err }, 'Error updating budget');
       res.status(500).json({ error: 'Failed to update budget' });
+    }
+  });
+
+  // PUT /api/analytics/budget/plan — manual plan override
+  router.put('/budget/plan', (req: Request, res: Response) => {
+    try {
+      const { plan: planName } = req.body as { plan: string };
+      if (!planName || typeof planName !== 'string') {
+        res.status(400).json({ error: 'Missing plan name' });
+        return;
+      }
+      const result = setPlan(planName);
+      res.json({ data: result });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      logger.error({ err }, 'Error setting plan');
+      res.status(400).json({ error: message });
+    }
+  });
+
+  // GET /api/analytics/budget/plans — available plan options
+  router.get('/budget/plans', (_req: Request, res: Response) => {
+    try {
+      res.json({ data: { labels: getPlanLabels(), limits: getPlanLimits() } });
+    } catch (err: unknown) {
+      logger.error({ err }, 'Error fetching plan options');
+      res.status(500).json({ error: 'Failed to fetch plan options' });
     }
   });
 

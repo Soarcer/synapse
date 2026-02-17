@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useCoachingData } from '../coaching/useCoachingData';
 import { ReportCardPanel } from '../coaching/ReportCardPanel';
 import { PlaybookPanel } from '../coaching/PlaybookPanel';
@@ -334,7 +334,14 @@ function classifyPromptBasic(text: string): string {
   return 'other';
 }
 
-// ─── Budget Status ─────────────────────────────────────────────
+// ─── Budget Status (API-backed with local fallback) ────────────
+
+interface PlanInfo {
+  plan: string;
+  monthlyLimit: number | null;
+  detected: boolean;
+  source: 'auto' | 'manual';
+}
 
 interface BudgetStatus {
   daily: { spent: number; limit: number; pct: number };
@@ -343,9 +350,19 @@ interface BudgetStatus {
   trend: 'rising' | 'stable' | 'falling';
   dailyAvg: number;
   projectedMonthly: number;
+  plan?: PlanInfo;
 }
 
-function computeBudget(data: MockData): BudgetStatus {
+const PLAN_LABELS: Record<string, string> = {
+  free: 'Free',
+  pro: 'Pro',
+  max_5x: 'Max 5x',
+  max_20x: 'Max 20x',
+  team: 'Team',
+  api: 'API',
+};
+
+function computeBudgetFallback(data: MockData): BudgetStatus {
   const now = Date.now();
   const DAY = 86_400_000;
 
@@ -378,6 +395,65 @@ function computeBudget(data: MockData): BudgetStatus {
     dailyAvg,
     projectedMonthly,
   };
+}
+
+function useBudgetData(fallbackData: MockData): { budget: BudgetStatus; setPlanOverride: (plan: string) => void } {
+  const fallback = useMemo(() => computeBudgetFallback(fallbackData), [fallbackData]);
+  const [budget, setBudget] = useState<BudgetStatus>(fallback);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/analytics/budget')
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled || !d.data) return;
+        const api = d.data;
+        // Normalize API response to our BudgetStatus shape
+        setBudget({
+          daily: {
+            spent: api.daily?.spent ?? 0,
+            limit: api.daily?.limit ?? 50,
+            pct: api.daily?.percentUsed ?? 0,
+          },
+          weekly: {
+            spent: api.weekly?.spent ?? 0,
+            limit: api.weekly?.limit ?? 250,
+            pct: api.weekly?.percentUsed ?? 0,
+          },
+          monthly: {
+            spent: api.monthly?.spent ?? 0,
+            limit: api.monthly?.limit ?? 1000,
+            pct: api.monthly?.percentUsed ?? 0,
+          },
+          trend: api.forecast?.trend ?? 'stable',
+          dailyAvg: api.forecast?.predictedDailyCost ?? 0,
+          projectedMonthly: api.forecast?.predictedMonthlyCost ?? 0,
+          plan: api.plan,
+        });
+      })
+      .catch(() => {
+        // Silently fall back to local computation
+        setBudget(fallback);
+      });
+    return () => { cancelled = true; };
+  }, [fallback]);
+
+  const setPlanOverride = useCallback((plan: string) => {
+    fetch('/api/analytics/budget/plan', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.data) {
+          setBudget((prev) => ({ ...prev, plan: d.data }));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  return { budget, setPlanOverride };
 }
 
 // ─── Model Optimization Card ──────────────────────────────────
@@ -462,7 +538,7 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
   const [categoryFilter, setCategoryFilter] = useState<Category | null>(null);
 
   const insights = useMemo(() => generateInsights(data), [data]);
-  const budget = useMemo(() => computeBudget(data), [data]);
+  const { budget, setPlanOverride } = useBudgetData(data);
   const modelOpt = useMemo(() => computeModelOptimization(data.sessions), [data.sessions]);
 
   // Report card: use all session IDs for an aggregate view
@@ -708,9 +784,52 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
         {/* Budget Tracker */}
         <CollapsibleSection title="Budget Tracker">
           <div className="space-y-4">
+            {/* Plan Badge + Selector */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-gray-500 uppercase tracking-wider">Plan</span>
+                {budget.plan ? (
+                  <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full ${
+                    budget.plan.source === 'auto'
+                      ? 'bg-blue-500/15 text-blue-400 border border-blue-500/20'
+                      : 'bg-purple-500/15 text-purple-400 border border-purple-500/20'
+                  }`}>
+                    {PLAN_LABELS[budget.plan.plan] ?? budget.plan.plan}
+                    {budget.plan.source === 'auto' && !budget.plan.detected && ' (assumed)'}
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 text-[10px] text-gray-500 bg-gray-800 rounded-full">Unknown</span>
+                )}
+                {budget.plan?.monthlyLimit != null && (
+                  <span className="text-[10px] text-gray-600">${budget.plan.monthlyLimit}/mo</span>
+                )}
+              </div>
+              <select
+                className="bg-[#0d1117] border border-gray-700 rounded px-2 py-0.5 text-[10px] text-gray-400 focus:border-blue-500 focus:outline-none"
+                value={budget.plan?.plan ?? 'pro'}
+                onChange={(e) => setPlanOverride(e.target.value)}
+              >
+                {Object.entries(PLAN_LABELS).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Budget Gauges */}
             <BudgetGauge label="Daily" spent={budget.daily.spent} limit={budget.daily.limit} pct={budget.daily.pct} />
             <BudgetGauge label="Weekly" spent={budget.weekly.spent} limit={budget.weekly.limit} pct={budget.weekly.pct} />
             <BudgetGauge label="Monthly" spent={budget.monthly.spent} limit={budget.monthly.limit} pct={budget.monthly.pct} />
+
+            {/* API-equivalent cost note for subscription users */}
+            {budget.plan && budget.plan.plan !== 'api' && budget.plan.plan !== 'free' && (
+              <div className="px-3 py-2 bg-blue-500/5 border border-blue-500/10 rounded-lg">
+                <span className="text-[10px] text-blue-400">
+                  Subscription users: costs shown are API-equivalent estimates based on token usage. Your actual bill is your plan price.
+                </span>
+              </div>
+            )}
+
+            {/* Forecast */}
             <div className="pt-2 border-t border-gray-800">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-gray-500">Daily Average</span>
@@ -720,6 +839,18 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
                 <span className="text-[10px] text-gray-500">Projected Monthly</span>
                 <span className="text-xs text-gray-300">${budget.projectedMonthly.toFixed(0)}</span>
               </div>
+              {budget.plan?.monthlyLimit != null && budget.plan.monthlyLimit > 0 && budget.projectedMonthly > 0 && (
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-[10px] text-gray-500">% of Plan Limit</span>
+                  <span className={`text-xs ${
+                    budget.projectedMonthly / budget.plan.monthlyLimit > 0.9 ? 'text-red-400'
+                    : budget.projectedMonthly / budget.plan.monthlyLimit > 0.5 ? 'text-yellow-400'
+                    : 'text-emerald-400'
+                  }`}>
+                    {Math.round((budget.projectedMonthly / budget.plan.monthlyLimit) * 100)}%
+                  </span>
+                </div>
+              )}
               <div className="flex items-center justify-between mt-1">
                 <span className="text-[10px] text-gray-500">Trend</span>
                 <span className={`text-xs ${budget.trend === 'rising' ? 'text-red-400' : budget.trend === 'falling' ? 'text-emerald-400' : 'text-gray-400'}`}>
