@@ -20,6 +20,7 @@ import { getEarnedBadges, getAllBadgeDefinitions, checkAndAwardBadges } from '..
 import { importCsv, importJson } from '../services/importService.js';
 import { detectPlan, setPlan, getPlanLabels, getPlanLimits } from '../services/planDetector.js';
 import { summarizeSession, analyzePrompt, generateRecommendations, isAvailable as isAiAvailable } from '../services/aiCoachService.js';
+import { computeModelOptimization } from '../services/modelOptimizationService.js';
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -906,6 +907,21 @@ export function createAnalyticsRouter(): Router {
     } catch (err: unknown) {
       logger.error({ err }, 'Error fetching projects');
       res.status(500).json({ error: 'Failed to fetch projects' });
+    }
+  });
+
+  // ─── Model Optimization ────────────────────────────────────────
+
+  // GET /api/analytics/model-optimization — what-if model switching
+  router.get('/model-optimization', validateQuery(AnalyticsQuerySchema), (req: Request, res: Response) => {
+    try {
+      const { from, to } = parseTimeRange(req.query);
+      const cwd = req.query.cwd as string | undefined;
+      const result = computeModelOptimization(from, to, cwd);
+      res.json({ data: result });
+    } catch (err: unknown) {
+      logger.error({ err }, 'Error computing model optimization');
+      res.status(500).json({ error: 'Failed to compute model optimization' });
     }
   });
 

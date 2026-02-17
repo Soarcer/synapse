@@ -833,7 +833,10 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
                   tasks currently using more expensive models
                 </p>
               </div>
+
+              {/* What-If Calculator — model alternatives */}
               <div className="space-y-2">
+                <div className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">What-If Calculator</div>
                 {modelOpt.alternatives.map((alt) => (
                   <div key={alt.id} className="flex items-center justify-between px-3 py-2 bg-[#161b22] border border-gray-800 rounded-lg">
                     <span className="text-xs text-gray-300">{alt.name}</span>
@@ -846,6 +849,32 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
                   </div>
                 ))}
               </div>
+
+              {/* Complexity breakdown */}
+              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-800">
+                <div className="text-center">
+                  <div className="text-[10px] text-gray-600">Simple Turns</div>
+                  <div className="text-xs font-medium text-emerald-400">
+                    {data.turns.filter((t) => t.toolCount <= 1 && t.outputTokens < 2000).length}
+                  </div>
+                  <div className="text-[9px] text-gray-600">Haiku-ready</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[10px] text-gray-600">Moderate</div>
+                  <div className="text-xs font-medium text-blue-400">
+                    {data.turns.filter((t) => t.toolCount > 1 && t.toolCount <= 5 && t.outputTokens < 10000).length}
+                  </div>
+                  <div className="text-[9px] text-gray-600">Sonnet-suited</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[10px] text-gray-600">Complex</div>
+                  <div className="text-xs font-medium text-orange-400">
+                    {data.turns.filter((t) => t.toolCount > 5 || t.outputTokens >= 10000 || t.thinkingTokens > 5000).length}
+                  </div>
+                  <div className="text-[9px] text-gray-600">Opus-required</div>
+                </div>
+              </div>
+
               <p className="text-[10px] text-gray-600">
                 Current total spend: ${modelOpt.currentCost.toFixed(2)}. Estimates assume same token volume.
               </p>
