@@ -96,6 +96,81 @@ export function removePlaybook(id: number): number {
   return result;
 }
 
+// ─── Built-In Session Templates ──────────────────────────────────────
+
+const BUILT_IN_TEMPLATES: {
+  name: string;
+  description: string;
+  category: PlaybookCategory;
+  tags: string[];
+  pattern: PlaybookPattern;
+}[] = [
+  {
+    name: 'Feature Development',
+    description: 'Ideal pattern for building new features: read existing code first, implement incrementally, then verify with tests.',
+    category: 'feature',
+    tags: ['best-practice', 'built-in', 'recommended'],
+    pattern: {
+      toolSequence: ['Glob', 'Read', 'Read', 'Read', 'Edit', 'Edit', 'Write', 'Bash', 'Edit', 'Bash'],
+      modelStrategy: 'claude-sonnet-4-5',
+      avgTurns: 8,
+      avgDurationMinutes: 25,
+      readBeforeEdit: true,
+      testAfterEdit: true,
+      usedSubagents: false,
+      compactionCount: 0,
+    },
+  },
+  {
+    name: 'Bug Investigation',
+    description: 'Efficient debugging workflow: search for the issue, read surrounding code, apply a targeted fix, verify the fix works.',
+    category: 'bugfix',
+    tags: ['best-practice', 'built-in', 'debugging'],
+    pattern: {
+      toolSequence: ['Grep', 'Read', 'Read', 'Grep', 'Read', 'Edit', 'Bash'],
+      modelStrategy: 'claude-sonnet-4-5',
+      avgTurns: 5,
+      avgDurationMinutes: 15,
+      readBeforeEdit: true,
+      testAfterEdit: true,
+      usedSubagents: false,
+      compactionCount: 0,
+    },
+  },
+  {
+    name: 'Code Review',
+    description: 'Thorough code review: explore changed files, read implementations, check for issues, provide structured feedback.',
+    category: 'review',
+    tags: ['best-practice', 'built-in', 'quality'],
+    pattern: {
+      toolSequence: ['Glob', 'Read', 'Read', 'Grep', 'Read', 'Read', 'Read'],
+      modelStrategy: 'claude-opus-4-6',
+      avgTurns: 4,
+      avgDurationMinutes: 20,
+      readBeforeEdit: true,
+      testAfterEdit: false,
+      usedSubagents: true,
+      compactionCount: 0,
+    },
+  },
+];
+
+export function seedBuiltInTemplates(): void {
+  const existing = dbGetAllPlaybooks();
+  if (existing.length > 0) return; // Don't seed if any templates exist
+
+  for (const tmpl of BUILT_IN_TEMPLATES) {
+    dbInsertPlaybook({
+      name: tmpl.name,
+      description: tmpl.description,
+      category: tmpl.category,
+      pattern: JSON.stringify(tmpl.pattern),
+      tags: JSON.stringify(tmpl.tags),
+    });
+  }
+  logger.info({ count: BUILT_IN_TEMPLATES.length }, 'Seeded built-in session templates');
+}
+
 // ─── Pattern Generation ──────────────────────────────────────────────
 
 export function generatePlaybookFromSession(sessionId: string): PlaybookPattern {

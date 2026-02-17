@@ -315,6 +315,16 @@ function generateInsights(data: MockData): Insight[] {
   return insights;
 }
 
+/** Split coaching text into individual points. Handles "(1) ... (2) ..." and "sentence. Sentence" patterns. */
+function splitCoaching(text: string): string[] {
+  // Try numbered format: (1) ... (2) ...
+  const numbered = text.split(/\(\d+\)\s*/).filter(Boolean).map(s => s.trim());
+  if (numbered.length > 1) return numbered;
+  // Fall back to sentence splitting — split on ". " followed by a capital letter
+  const sentences = text.split(/\.\s+(?=[A-Z])/).map(s => s.trim().replace(/\.$/, '')).filter(Boolean);
+  return sentences.length > 1 ? sentences : [text];
+}
+
 function classifyPromptBasic(text: string): string {
   if (/\b(fix|bug|broken|error|crash|failing|not working)\b/i.test(text)) return 'bugfix';
   if (/\b(debug|log|trace|inspect|investigate|why)\b/i.test(text)) return 'debug';
@@ -599,10 +609,21 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
 
                     {isExpanded && (
                       <div className="mt-3 pt-3 border-t border-gray-700/50">
-                        <div className="flex items-center gap-1.5 mb-1.5">
+                        <div className="flex items-center gap-1.5 mb-2">
                           <span className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider">Recommendation</span>
                         </div>
-                        <p className="text-[11px] text-gray-300 leading-relaxed">{insight.coaching}</p>
+                        <ul className="space-y-1.5">
+                          {splitCoaching(insight.coaching).map((point, pi) => {
+                            const accentColor = insight.severity === 'critical' ? '#ef4444'
+                              : insight.severity === 'warning' ? '#f59e0b'
+                              : insight.severity === 'success' ? '#10b981' : '#3b82f6';
+                            return (
+                              <li key={pi} className="text-[11px] text-gray-300 leading-relaxed pl-3 border-l-2" style={{ borderColor: `${accentColor}40` }}>
+                                {point}
+                              </li>
+                            );
+                          })}
+                        </ul>
                         {insight.impact && (
                           <div className="mt-2 flex items-center gap-1.5">
                             <span className="text-[10px] text-emerald-400 font-medium">Potential impact:</span>
@@ -636,8 +657,8 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
         )}
       </CollapsibleSection>
 
-      {/* ── Section 3: Playbook Management ──────────────────────── */}
-      <CollapsibleSection title="Playbooks" defaultOpen={false}>
+      {/* ── Section 3: Session Templates ──────────────────────── */}
+      <CollapsibleSection title="Session Templates" defaultOpen={false}>
         <PlaybookPanel
           playbooks={playbooks}
           sessionId={sessionIds.length > 0 ? sessionIds[0] : null}

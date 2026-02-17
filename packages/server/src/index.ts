@@ -11,11 +11,15 @@ import { Broadcaster } from './services/broadcaster.js';
 import { AgentManager } from './services/agentManager.js';
 import { createApp } from './app.js';
 import { initDb, closeDb, startPruneTimer, getDbStats } from './db.js';
+import { seedBuiltInTemplates } from './services/playbookService.js';
 
 const PORT = parseInt(process.env.PORT || '4000', 10);
 
 // --- Initialize database (async — sql.js requires WASM init) ---
 await initDb();
+
+// Seed built-in session templates if none exist
+seedBuiltInTemplates();
 
 // Start periodic DB pruning
 const pruneTimer = startPruneTimer();

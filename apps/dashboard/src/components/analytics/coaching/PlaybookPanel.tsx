@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { apiUrl } from '../../../utils/api';
 import type { Playbook, PlaybookCategory } from '@synapse-ai/core';
 
@@ -7,6 +7,8 @@ interface PlaybookPanelProps {
   sessionId: string | null;
   onRefresh: () => void;
 }
+
+const ONBOARDING_KEY = 'synapse-templates-onboarding-dismissed';
 
 const CATEGORY_COLORS: Record<PlaybookCategory, string> = {
   feature: 'bg-blue-500/20 text-blue-400',
@@ -25,6 +27,15 @@ export function PlaybookPanel({ playbooks, sessionId, onRefresh }: PlaybookPanel
   const [selectedCategory, setSelectedCategory] = useState<PlaybookCategory | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem(ONBOARDING_KEY) && playbooks.length === 0) {
+        setShowOnboarding(true);
+      }
+    } catch { /* ignore */ }
+  }, [playbooks.length]);
 
   const filtered = playbooks.filter(p => {
     if (selectedCategory && p.category !== selectedCategory) return false;
@@ -64,7 +75,7 @@ export function PlaybookPanel({ playbooks, sessionId, onRefresh }: PlaybookPanel
       <div className="flex items-center gap-3 flex-wrap">
         <input
           type="text"
-          placeholder="Search playbooks..."
+          placeholder="Search templates..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="bg-[#161b22] border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-300 focus:border-blue-500 focus:outline-none flex-1 min-w-[200px]"
@@ -102,21 +113,50 @@ export function PlaybookPanel({ playbooks, sessionId, onRefresh }: PlaybookPanel
             disabled={isSaving}
             className="px-3 py-1.5 bg-blue-500/20 border border-blue-500/30 rounded-lg text-xs text-blue-400 hover:bg-blue-500/30 transition-colors disabled:opacity-50"
           >
-            {isSaving ? 'Saving...' : 'Save Session as Playbook'}
+            {isSaving ? 'Saving...' : 'Save Session as Template'}
           </button>
         )}
       </div>
 
-      {/* Playbook cards */}
-      {filtered.length === 0 ? (
+      {/* Onboarding card */}
+      {showOnboarding && (
+        <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-xl p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h4 className="text-sm font-medium text-gray-200 mb-1">What are Session Templates?</h4>
+              <p className="text-xs text-gray-400 leading-relaxed mb-2">
+                Session Templates capture the patterns of your best coding sessions — which tools were used, in what order,
+                how many turns it took, and whether tests were run after edits. Use them as benchmarks to replicate successful workflows.
+              </p>
+              <ul className="space-y-1 text-xs text-gray-400">
+                <li className="flex items-center gap-1.5"><span className="text-blue-400">1.</span> Complete a coding session with Claude</li>
+                <li className="flex items-center gap-1.5"><span className="text-blue-400">2.</span> Click "Save Session as Template" to capture the pattern</li>
+                <li className="flex items-center gap-1.5"><span className="text-blue-400">3.</span> Compare future sessions against your best templates</li>
+              </ul>
+            </div>
+            <button
+              onClick={() => {
+                setShowOnboarding(false);
+                try { localStorage.setItem(ONBOARDING_KEY, '1'); } catch { /* ignore */ }
+              }}
+              className="text-gray-600 hover:text-gray-400 transition-colors text-xs flex-shrink-0"
+            >
+              &#x2715;
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Template cards */}
+      {filtered.length === 0 && !showOnboarding ? (
         <div className="flex items-center justify-center h-48">
           <div className="text-center">
             <div className="text-gray-600 text-3xl mb-3">&#x1f4d6;</div>
-            <p className="text-sm text-gray-400">No playbooks yet</p>
-            <p className="text-xs text-gray-600 mt-1">Save a session as a playbook to build your collection</p>
+            <p className="text-sm text-gray-400">No session templates yet</p>
+            <p className="text-xs text-gray-600 mt-1">Save a session as a template to build your collection</p>
           </div>
         </div>
-      ) : (
+      ) : filtered.length === 0 ? null : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {filtered.map((playbook) => (
             <PlaybookCard
@@ -215,7 +255,7 @@ function PlaybookCard({
           {/* Source + actions */}
           <div className="flex items-center justify-between pt-2 border-t border-gray-800/50">
             <span className="text-[10px] text-gray-600">
-              {playbook.sourceSessionId ? `From session ${playbook.sourceSessionId.slice(0, 8)}` : 'Manual playbook'}
+              {playbook.sourceSessionId ? `From session ${playbook.sourceSessionId.slice(0, 8)}` : 'Manual template'}
               {' \u00b7 '}
               {new Date(playbook.createdAt).toLocaleDateString()}
             </span>

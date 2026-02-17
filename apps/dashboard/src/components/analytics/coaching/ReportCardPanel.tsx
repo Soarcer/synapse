@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
 import type { ReportCard, DimensionScore, DetectorResult } from '@synapse-ai/core';
+import { InfoTooltip } from '../shared/InfoTooltip';
 
 interface ReportCardPanelProps {
   reportCard: ReportCard | null;
@@ -43,6 +44,17 @@ const SHORT_LABELS: Record<string, string> = {
   'Verification & Quality': 'Verify',
   'Session Strategy': 'Strategy',
   'Configuration': 'Config',
+};
+
+const DIMENSION_DESCRIPTIONS: Record<string, string> = {
+  'Planning & Preparation': 'How well you read and understand code before making changes. Measures read-before-edit ratio, context front-loading, and prompt specificity.',
+  'Prompt Precision': 'Quality and clarity of your prompts. Checks for single-concern prompts, file references, verification instructions, and clear success criteria.',
+  'Tool Craft': 'Effective use of Claude\'s tools. Measures dedicated tool usage over Bash, Edit over Write, subagent delegation, and error rates.',
+  'Context Management': 'How efficiently you manage the context window. Tracks compaction avoidance, file re-reads, scope focus, and context utilization.',
+  'Cost Efficiency': 'Spending optimization across models and tokens. Evaluates model matching to task complexity, cache utilization, and output control.',
+  'Verification & Quality': 'Testing and quality assurance habits. Checks for test-after-edit, review subagent usage, quality gates, and build verification.',
+  'Session Strategy': 'Session structure and workflow patterns. Measures session length, task focus, frustration signals, and effective use of /continue.',
+  'Configuration': 'Project setup for optimal Claude performance. Checks for CLAUDE.md presence, active hooks, custom commands, and permission modes.',
 };
 
 // ─── Component ───────────────────────────────────────────────────────
@@ -206,7 +218,12 @@ function DimensionCard({
         <span className={`text-xs transition-transform ${isExpanded ? 'rotate-90' : ''}`}>&#9654;</span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-gray-200">{dimension.label}</span>
+            <span className="text-xs font-medium text-gray-200">
+                {dimension.label}
+                {DIMENSION_DESCRIPTIONS[dimension.label] && (
+                  <InfoTooltip text={DIMENSION_DESCRIPTIONS[dimension.label]} />
+                )}
+              </span>
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-gray-500">{passCount}/{totalCount} passed</span>
               <span className="text-xs font-mono text-gray-300">{dimension.score}</span>

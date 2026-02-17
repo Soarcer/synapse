@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import {
   ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ZAxis,
   PieChart, Pie, Cell,
@@ -6,6 +6,7 @@ import {
 import { TokenBreakdownBar } from '../shared/TokenBreakdownBar';
 import { ToolBadges } from '../shared/ToolBadges';
 import { ModelBadge } from '../shared/ModelBadge';
+import { InfoTooltip } from '../shared/InfoTooltip';
 import { TOOL_COLORS, fmtTokens } from '../shared/constants';
 import type { MockData } from '../mockData';
 
@@ -54,6 +55,8 @@ export function PromptAnalyzer({ data }: PromptAnalyzerProps) {
   const [sortField, setSortField] = useState<'complexity' | 'cost' | 'tokens'>('cost');
   const [sortAsc, setSortAsc] = useState(false);
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
+  const [selectedScatterIdx, setSelectedScatterIdx] = useState<number | null>(null);
+  const tableRef = useRef<HTMLTableSectionElement>(null);
 
   const analyses = useMemo(() => {
     // Group turns by sessionId + promptText to aggregate work from one user prompt
@@ -130,14 +133,33 @@ export function PromptAnalyzer({ data }: PromptAnalyzerProps) {
 
   // Scatter plot data: complexity vs cost
   const scatterData = useMemo(() => {
-    return analyses.map((a) => ({
+    return analyses.map((a, i) => ({
       complexity: a.complexity,
       cost: a.costUsd,
       tokens: a.inputTokens + a.outputTokens,
       category: a.category,
       fill: CATEGORY_COLORS[a.category],
+      idx: i,
     }));
   }, [analyses]);
+
+  // Handle scatter dot click — highlight in table
+  const handleScatterClick = useCallback((entry: Record<string, unknown>) => {
+    const idx = entry.idx as number;
+    // Find this analysis in the sorted array
+    const analysis = analyses[idx];
+    if (!analysis) return;
+    const sortedIdx = sorted.findIndex((s) => s === analysis);
+    if (sortedIdx >= 0 && sortedIdx < 50) {
+      setSelectedScatterIdx(idx);
+      setExpandedRow(sortedIdx);
+      // Scroll to the row
+      if (tableRef.current) {
+        const row = tableRef.current.children[sortedIdx] as HTMLElement | undefined;
+        row?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [analyses, sorted]);
 
   // Category pie
   const categoryData = useMemo(() => {
@@ -170,13 +192,19 @@ export function PromptAnalyzer({ data }: PromptAnalyzerProps) {
               <YAxis dataKey="cost" name="Cost" tick={{ fill: '#8b949e', fontSize: 10 }} tickFormatter={(v: number = 0) => `$${v.toFixed(3)}`} />
               <ZAxis dataKey="tokens" range={[20, 200]} />
               <Tooltip
-                contentStyle={{ backgroundColor: '#161b22', border: '1px solid #30363d', borderRadius: '8px', fontSize: '11px' }}
+                contentStyle={{ backgroundColor: '#161b22', border: '1px solid #374151', borderRadius: '8px', fontSize: '11px', color: '#e5e7eb' }}
+                labelStyle={{ color: '#9ca3af' }}
                 formatter={(v: number = 0, name: string = '') => {
                   if (name === 'Cost') return [`$${v.toFixed(4)}`, name];
                   return [v.toLocaleString(), name];
                 }}
               />
-              <Scatter data={scatterData} />
+              <Scatter
+                data={scatterData}
+                onClick={(data: Record<string, unknown>) => handleScatterClick(data)}
+                cursor="pointer"
+                activeShape={{ r: 8 }}
+              />
             </ScatterChart>
           </ResponsiveContainer>
         </div>
@@ -201,7 +229,8 @@ export function PromptAnalyzer({ data }: PromptAnalyzerProps) {
                 ))}
               </Pie>
               <Tooltip
-                contentStyle={{ backgroundColor: '#161b22', border: '1px solid #30363d', borderRadius: '8px', fontSize: '11px' }}
+                contentStyle={{ backgroundColor: '#161b22', border: '1px solid #374151', borderRadius: '8px', fontSize: '11px', color: '#e5e7eb' }}
+                labelStyle={{ color: '#9ca3af' }}
               />
             </PieChart>
           </ResponsiveContainer>
@@ -218,18 +247,18 @@ export function PromptAnalyzer({ data }: PromptAnalyzerProps) {
                 <th className="text-left p-3 text-gray-500 font-medium">Prompt</th>
                 <th className="text-left p-3 text-gray-500 font-medium">Category</th>
                 <th className="text-left p-3 text-gray-500 font-medium cursor-pointer hover:text-gray-300" onClick={() => handleSort('complexity')}>
-                  Complexity {sortField === 'complexity' ? (sortAsc ? '↑' : '↓') : ''}
+                  Complexity<InfoTooltip text="Composite score (0-100) based on prompt length, technical terms, output tokens, and tool count" /> {sortField === 'complexity' ? (sortAsc ? '↑' : '↓') : ''}
                 </th>
                 <th className="text-left p-3 text-gray-500 font-medium cursor-pointer hover:text-gray-300" onClick={() => handleSort('cost')}>
-                  Cost {sortField === 'cost' ? (sortAsc ? '↑' : '↓') : ''}
+                  Cost<InfoTooltip text="Total API cost including input, output, and cached tokens at model-specific rates" /> {sortField === 'cost' ? (sortAsc ? '↑' : '↓') : ''}
                 </th>
                 <th className="text-left p-3 text-gray-500 font-medium cursor-pointer hover:text-gray-300" onClick={() => handleSort('tokens')}>
-                  Tokens {sortField === 'tokens' ? (sortAsc ? '↑' : '↓') : ''}
+                  Tokens<InfoTooltip text="Sum of input + output tokens. Cache hits reduce effective cost but still count toward total" /> {sortField === 'tokens' ? (sortAsc ? '↑' : '↓') : ''}
                 </th>
                 <th className="text-left p-3 text-gray-500 font-medium">Tools</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody ref={tableRef}>
               {sorted.slice(0, 50).map((a, i) => {
                 const isExpanded = expandedRow === i;
                 const cacheRate = (a.inputTokens + a.cacheReadTokens) > 0
