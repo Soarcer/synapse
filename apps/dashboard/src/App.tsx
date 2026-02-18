@@ -7,9 +7,8 @@ import { useBreakpoint } from './hooks/useBreakpoint';
 const AnalyticsPage = lazy(() => import('./components/analytics/AnalyticsPageLazy'));
 import { ToastContainer } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { useAgentStore } from './store/agentStore';
+import { useAgentStore, reloadAllEvents } from './store/agentStore';
 import { wsClient } from './store/wsClient';
-import { apiUrl } from './utils/api';
 
 /** Layout modes: full (browser), lens (VS Code sidebar), graph (VS Code editor), analytics (reporting dashboard) */
 type ViewMode = 'full' | 'lens' | 'graph' | 'analytics';
@@ -31,38 +30,18 @@ function isEditableTarget(event: KeyboardEvent) {
 
 export default function App() {
   const viewMode = useMemo(getViewMode, []);
-  const loadEvents = useAgentStore((s) => s.loadEvents);
-
   // Connect WebSocket and load existing events on mount
   // In VS Code mode (lens/graph), events arrive via postMessage from the extension — skip direct WS/fetch
   useEffect(() => {
     if (viewMode !== 'full') return; // VS Code relay handles data delivery
 
     wsClient.connect();
-
-    const { setLoading, setLoadError } = useAgentStore.getState();
-    setLoading(true);
-    setLoadError(null);
-
-    fetch(apiUrl('/api/events?limit=2000'))
-      .then((r) => r.json())
-      .then((data) => {
-        const events = Array.isArray(data) ? data : data?.events;
-        if (Array.isArray(events)) {
-          loadEvents(events);
-        }
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.warn('[App] Server not running:', err.message);
-        setLoadError(err.message || 'Failed to connect to server');
-        setLoading(false);
-      });
+    reloadAllEvents({ showLoading: true });
 
     return () => {
       wsClient.disconnect();
     };
-  }, [loadEvents, viewMode]);
+  }, [viewMode]);
 
   // Listen for messages from VS Code extension (cross-panel sync + event relay)
   useEffect(() => {

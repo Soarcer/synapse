@@ -10,7 +10,7 @@ import {
 } from '@xyflow/react';
 import type { NodeChange } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useAgentStore } from '../../store/agentStore';
+import { useAgentStore, reloadAllEvents } from '../../store/agentStore';
 import { useAutoLayout, MAX_STACKED_PREVIEW } from '../../hooks/useAutoLayout';
 import { useGraphNavigation } from '../../hooks/useGraphNavigation';
 import { nodeTypes, edgeTypes } from './nodeTypes';
@@ -20,7 +20,7 @@ import { NudgeBadge } from './NudgeBadge';
 import { registerToastNavigator, unregisterToastNavigator } from '../Toast';
 import { nodeMatchesSearch, buildParentMap, collectAncestors, buildChildrenMap } from '../../utils/graphSearch';
 import type { AgentNodeData } from '@synapse-ai/core';
-import { apiUrl } from '../../utils/api';
+
 
 // ── Main graph component ─────────────────────────────────────
 
@@ -532,20 +532,7 @@ function AgentGraphInner() {
             <p className="text-red-400 text-sm mb-2">Failed to connect to server</p>
             <p className="text-gray-500 text-xs mb-4">{loadError}</p>
             <button
-              onClick={() => {
-                useAgentStore.getState().setLoadError(null);
-                useAgentStore.getState().setLoading(true);
-                fetch(apiUrl('/api/events?limit=2000'))
-                  .then((r) => r.json())
-                  .then((events) => {
-                    useAgentStore.getState().loadEvents(events);
-                    useAgentStore.getState().setLoading(false);
-                  })
-                  .catch((err) => {
-                    useAgentStore.getState().setLoadError(err.message);
-                    useAgentStore.getState().setLoading(false);
-                  });
-              }}
+              onClick={() => reloadAllEvents({ showLoading: true })}
               className="px-4 py-2 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-700"
             >
               Retry
