@@ -497,6 +497,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       highlightedNodeIds: null,
       multiHighlightIds: null,
       collapsedNodes: new Set(),
+      transcripts: new Map(),
       liveNudges: EMPTY_NUDGES,
     });
   },
