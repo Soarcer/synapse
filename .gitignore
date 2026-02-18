@@ -11,6 +11,8 @@ synapse.db-wal
 hook_debug.log
 nul
 c:temp*
+*synapse_stop.json
+*tmp_events.json
 test-results/
 .claude/settings.local.json
 

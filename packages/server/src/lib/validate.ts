@@ -1,6 +1,14 @@
 import { z } from 'zod';
 import type { Request, Response, NextFunction } from 'express';
 
+/** Flatten Zod errors into user-friendly field messages without exposing schema internals. */
+function flattenErrors(error: z.ZodError): string[] {
+  return error.issues.map((issue) => {
+    const path = issue.path.length > 0 ? `${issue.path.join('.')}: ` : '';
+    return `${path}${issue.message}`;
+  });
+}
+
 /** Returns Express middleware that validates `req.body` against the schema. */
 export function validateBody(schema: z.ZodSchema) {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -8,7 +16,7 @@ export function validateBody(schema: z.ZodSchema) {
     if (!result.success) {
       res.status(400).json({
         error: 'Validation failed',
-        details: result.error.format(),
+        details: flattenErrors(result.error),
       });
       return;
     }
@@ -24,7 +32,7 @@ export function validateQuery(schema: z.ZodSchema) {
     if (!result.success) {
       res.status(400).json({
         error: 'Invalid query parameters',
-        details: result.error.format(),
+        details: flattenErrors(result.error),
       });
       return;
     }

@@ -1,4 +1,5 @@
 import express, { type Request, type Response, type NextFunction } from 'express';
+import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { apiKeyAuth } from './lib/auth.js';
 import { requestIdMiddleware } from './lib/requestId.js';
@@ -26,6 +27,9 @@ export interface AppDeps {
 export function createApp(deps: AppDeps) {
   const { broadcaster, agentManager } = deps;
   const app = express();
+
+  // Security headers
+  app.use(helmet({ contentSecurityPolicy: false })); // CSP disabled — frontend served separately
 
   // Request ID middleware
   app.use(requestIdMiddleware);
@@ -75,7 +79,7 @@ export function createApp(deps: AppDeps) {
   app.use('/api/transcript', createTranscriptRouter());
   app.use('/api/snapshot/import', express.json({ limit: '50mb' }));
   app.use('/api/snapshot', createSnapshotRouter());
-  app.use('/api/analytics', createAnalyticsRouter());
+  app.use('/api/analytics', createAnalyticsRouter(broadcaster));
   app.use('/api/analytics/coaching', createCoachingRouter());
   app.use('/api/settings', createSettingsRouter());
 

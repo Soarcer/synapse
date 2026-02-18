@@ -31,7 +31,9 @@ export function createSnapshotRouter(): Router {
   // GET /api/snapshot/export — export all sessions (or one via ?sessionId=...)
   router.get('/export', (req: Request, res: Response) => {
     try {
-      const filterSessionId = req.query.sessionId as string | undefined;
+      const rawSessionId = req.query.sessionId as string | undefined;
+      const SESSION_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
+      const filterSessionId = rawSessionId && SESSION_ID_PATTERN.test(rawSessionId) ? rawSessionId : undefined;
       const allSessions = listSessions();
       const sessions = filterSessionId
         ? allSessions.filter((s) => s.session_id === filterSessionId)

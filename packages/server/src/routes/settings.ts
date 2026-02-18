@@ -37,6 +37,7 @@ export function createSettingsRouter(): Router {
       for (const [key, value] of Object.entries(body)) {
         if (!allowedKeys.has(key)) continue;
         if (typeof value !== 'string') continue;
+        if (value.length > 10_000) continue; // reject oversized values
 
         if (value === '') {
           removeSettingValue(key);
