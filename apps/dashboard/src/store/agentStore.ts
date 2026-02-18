@@ -35,6 +35,43 @@ import {
   buildDerivedMaps,
 } from './eventHandlers';
 
+// ── Time filter persistence ──────────────────────────────────
+const TIME_FILTER_KEY = 'synapse-time-filter';
+
+/** Recompute a fresh time range from a preset label (ranges are relative to "now"). */
+function computeTimeRange(label: string): { from: number; to: number } | null {
+  const now = Date.now();
+  switch (label) {
+    case 'Last hour':
+      return { from: now - 3_600_000, to: now };
+    case 'Last 4 hours':
+      return { from: now - 14_400_000, to: now };
+    case 'Today': {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      return { from: d.getTime(), to: now };
+    }
+    case 'This week': {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - d.getDay());
+      return { from: d.getTime(), to: now };
+    }
+    case 'Last 30 days':
+      return { from: now - 30 * 86_400_000, to: now };
+    default:
+      return null;
+  }
+}
+
+const savedTimeLabel = (() => {
+  try {
+    return localStorage.getItem(TIME_FILTER_KEY) ?? 'All time';
+  } catch {
+    return 'All time';
+  }
+})();
+
 // ── Stable selectors (defined outside functions to avoid re-creation) ────
 
 export const selectEvents = (s: AgentStore) => s.events;
@@ -223,8 +260,8 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   lockViewport: true,
   autoClosePrompts: false,
   cwdFilter: projectCwd,
-  timeRange: null,
-  timePresetLabel: 'All time',
+  timeRange: computeTimeRange(savedTimeLabel),
+  timePresetLabel: savedTimeLabel,
   graphSearchQuery: '',
   collapsedNodes: new Set<string>(),
   transcripts: new Map(),
@@ -350,6 +387,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   setLockViewport: (lockViewport) => set({ lockViewport }),
 
   setTimeRange: (range, label) => {
+    try { localStorage.setItem(TIME_FILTER_KEY, label); } catch { /* quota exceeded */ }
     set({ timeRange: range, timePresetLabel: label });
     reloadAllEvents();
   },
