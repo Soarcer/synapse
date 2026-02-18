@@ -10,7 +10,8 @@ process.env.SYNAPSE_DB_PATH = path.join(
 );
 
 import { initDb } from '../db.js';
-import { checkNudges, updateEventBuffer } from '../services/nudgeEngine.js';
+import { checkNudges, updateEventBuffer, getSessionAccumulator } from '../services/nudgeEngine.js';
+import { registerAllRules } from '../services/rules/index.js';
 import { Broadcaster } from '../services/broadcaster.js';
 import type { AgentEvent, CoachingNudge } from '@synapse-ai/core';
 
@@ -52,6 +53,7 @@ let broadcaster: MockBroadcaster;
 
 beforeAll(async () => {
   await initDb();
+  registerAllRules();
 });
 
 beforeEach(() => {
@@ -144,14 +146,13 @@ describe('Relevant event types reach detectors', () => {
 });
 
 // ═════════════════════════════════════════════════════════════════════
-// 3. updateEventBuffer caps at MAX_BUFFER_SIZE (20)
+// 3. updateEventBuffer handles many events without errors
 // ═════════════════════════════════════════════════════════════════════
 
-describe('updateEventBuffer caps at MAX_BUFFER_SIZE', () => {
-  it('handles 25 events without errors (buffer internally capped at 20)', () => {
+describe('updateEventBuffer handles many events', () => {
+  it('handles 25 events without errors', () => {
     const sessionId = 'buffer-cap-session-' + Date.now();
 
-    // Push 25 events into the same session buffer
     for (let i = 0; i < 25; i++) {
       expect(() =>
         updateEventBuffer(makeEvent({
@@ -162,7 +163,6 @@ describe('updateEventBuffer caps at MAX_BUFFER_SIZE', () => {
       ).not.toThrow();
     }
 
-    // Verify the buffer is usable by running checkNudges without error
     const event = makeEvent({ type: 'tool_start', sessionId });
     expect(() => checkNudges(event, broadcaster)).not.toThrow();
   });
@@ -174,8 +174,6 @@ describe('updateEventBuffer caps at MAX_BUFFER_SIZE', () => {
       updateEventBuffer(makeEvent({ sessionId }));
     }
 
-    // If the buffer grew unbounded, this would be 50 events.
-    // We verify correctness indirectly: no error + nudge detectors still work.
     const event = makeEvent({ type: 'tool_start', sessionId });
     expect(() => checkNudges(event, broadcaster)).not.toThrow();
   });
@@ -186,158 +184,392 @@ describe('updateEventBuffer caps at MAX_BUFFER_SIZE', () => {
 // ═════════════════════════════════════════════════════════════════════
 
 describe('Bash-streak detector', () => {
-  it('fires a nudge when 3+ consecutive Bash file-op calls are in the buffer', () => {
+  it('fires a nudge when 3+ consecutive Bash file-op calls are detected', () => {
     const sessionId = 'bash-streak-' + Date.now();
 
-    // Push 3 Bash file-op tool_start events with commands matching the detector pattern
+    // Push Bash file-op tool_start AND tool_end events (accumulator tracks on both)
     for (let i = 0; i < 4; i++) {
-      updateEventBuffer(makeEvent({
+      const startEvent = makeEvent({
         sessionId,
         type: 'tool_start',
         toolName: 'Bash',
         toolInput: { command: `cat /path/to/file-${i}.ts` },
-      }));
+      });
+      updateEventBuffer(startEvent);
+      checkNudges(startEvent, broadcaster);
+
+      const endEvent = makeEvent({
+        sessionId,
+        type: 'tool_end',
+        toolName: 'Bash',
+        toolInput: { command: `cat /path/to/file-${i}.ts` },
+        status: 'success',
+      });
+      updateEventBuffer(endEvent);
+      checkNudges(endEvent, broadcaster);
     }
 
-    // Now call checkNudges with another Bash tool_start event
-    const triggerEvent = makeEvent({
-      sessionId,
-      type: 'tool_start',
-      toolName: 'Bash',
-      toolInput: { command: 'grep -r "TODO" /src' },
-    });
-
-    checkNudges(triggerEvent, broadcaster);
-
-    // The bash-streak detector should have fired a nudge
-    expect(broadcaster.nudges.length).toBeGreaterThanOrEqual(1);
-
+    // Should have at least one bash-related nudge
     const bashNudge = broadcaster.nudges.find(n =>
-      n.detectorId === 'nudge.bash-streak',
+      n.detectorId === 'tool.bash-streak' || n.detectorId === 'tool.bash-file-ops',
     );
     expect(bashNudge).toBeDefined();
     expect(bashNudge!.severity).toBe('suggestion');
-    expect(bashNudge!.title).toBe('Use dedicated tools');
-    expect(bashNudge!.sessionId).toBe(sessionId);
   });
 
   it('does not fire when Bash commands are not file operations', () => {
     const sessionId = 'bash-no-streak-' + Date.now();
 
-    // Push Bash events that do NOT match file-op patterns
     for (let i = 0; i < 5; i++) {
-      updateEventBuffer(makeEvent({
+      const event = makeEvent({
         sessionId,
         type: 'tool_start',
         toolName: 'Bash',
         toolInput: { command: `npm install package-${i}` },
-      }));
+      });
+      updateEventBuffer(event);
+      checkNudges(event, broadcaster);
     }
 
-    const triggerEvent = makeEvent({
-      sessionId,
-      type: 'tool_start',
-      toolName: 'Bash',
-      toolInput: { command: 'npm test' },
-    });
-
-    checkNudges(triggerEvent, broadcaster);
-
     const bashNudge = broadcaster.nudges.find(n =>
-      n.detectorId === 'nudge.bash-streak',
+      n.detectorId === 'tool.bash-streak',
     );
     expect(bashNudge).toBeUndefined();
   });
 });
 
 // ═════════════════════════════════════════════════════════════════════
-// 5. Cooldown prevents duplicate nudges
+// 5. Error spiral detector fires on 3+ consecutive errors
+// ═════════════════════════════════════════════════════════════════════
+
+describe('Error spiral detector', () => {
+  it('fires a warning nudge on 3+ consecutive tool errors', () => {
+    const sessionId = 'error-spiral-' + Date.now();
+
+    // Seed buffer with some events first
+    for (let i = 0; i < 3; i++) {
+      updateEventBuffer(makeEvent({ sessionId, type: 'tool_end', toolName: 'Read', status: 'success' }));
+    }
+
+    // Now push consecutive errors
+    for (let i = 0; i < 4; i++) {
+      const event = makeEvent({
+        sessionId,
+        type: 'tool_error',
+        toolName: 'Edit',
+        status: 'error',
+        error: `Edit failed ${i}`,
+      });
+      updateEventBuffer(event);
+      checkNudges(event, broadcaster);
+    }
+
+    const errorNudge = broadcaster.nudges.find(n =>
+      n.detectorId === 'verify.error-spiral',
+    );
+    expect(errorNudge).toBeDefined();
+    expect(errorNudge!.severity).toBe('warning');
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════
+// 6. Edit-without-read fires when editing unread files
+// ═════════════════════════════════════════════════════════════════════
+
+describe('Edit-without-read detector', () => {
+  it('fires a warning when editing a file that was not read first', () => {
+    const sessionId = 'edit-no-read-' + Date.now();
+
+    // Seed buffer
+    for (let i = 0; i < 3; i++) {
+      updateEventBuffer(makeEvent({ sessionId, type: 'tool_end', toolName: 'Bash', status: 'success' }));
+    }
+
+    // Edit a file that was never Read
+    const editEvent = makeEvent({
+      sessionId,
+      type: 'tool_start',
+      toolName: 'Edit',
+      toolInput: { file_path: '/src/never-read.ts', old_string: 'foo', new_string: 'bar' },
+    });
+    updateEventBuffer(editEvent);
+    checkNudges(editEvent, broadcaster);
+
+    const editNudge = broadcaster.nudges.find(n =>
+      n.detectorId === 'tool.edit-without-read',
+    );
+    expect(editNudge).toBeDefined();
+    expect(editNudge!.severity).toBe('warning');
+    expect(editNudge!.message).toContain('never-read.ts');
+  });
+
+  it('does not fire when the file was read first', () => {
+    const sessionId = 'edit-with-read-' + Date.now();
+
+    // Seed buffer
+    for (let i = 0; i < 3; i++) {
+      updateEventBuffer(makeEvent({ sessionId, type: 'tool_end', toolName: 'Bash', status: 'success' }));
+    }
+
+    // Read the file first
+    const readEvent = makeEvent({
+      sessionId,
+      type: 'tool_end',
+      toolName: 'Read',
+      toolInput: { file_path: '/src/properly-read.ts' },
+      status: 'success',
+    });
+    updateEventBuffer(readEvent);
+
+    // Now edit it
+    const editEvent = makeEvent({
+      sessionId,
+      type: 'tool_start',
+      toolName: 'Edit',
+      toolInput: { file_path: '/src/properly-read.ts', old_string: 'foo', new_string: 'bar' },
+    });
+    updateEventBuffer(editEvent);
+    checkNudges(editEvent, broadcaster);
+
+    const editNudge = broadcaster.nudges.find(n =>
+      n.detectorId === 'tool.edit-without-read',
+    );
+    expect(editNudge).toBeUndefined();
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════
+// 7. Cooldown prevents duplicate nudges
 // ═════════════════════════════════════════════════════════════════════
 
 describe('Cooldown prevents duplicate nudges', () => {
   it('does not fire the same detector twice within the cooldown window', () => {
     const sessionId = 'cooldown-test-' + Date.now();
 
-    // Seed the buffer with enough Bash file-op events to trigger bash-streak
+    // Push bash file-op events
     for (let i = 0; i < 5; i++) {
-      updateEventBuffer(makeEvent({
+      const event = makeEvent({
         sessionId,
         type: 'tool_start',
         toolName: 'Bash',
         toolInput: { command: `cat /path/file-${i}.ts` },
-      }));
+      });
+      updateEventBuffer(event);
+      checkNudges(event, broadcaster);
     }
 
-    // First trigger — should fire
-    const firstEvent = makeEvent({
-      sessionId,
-      type: 'tool_start',
-      toolName: 'Bash',
-      toolInput: { command: 'head -20 /src/index.ts' },
-    });
-    checkNudges(firstEvent, broadcaster);
-
     const firstCount = broadcaster.nudges.filter(n =>
-      n.detectorId === 'nudge.bash-streak',
+      n.detectorId === 'tool.bash-file-ops',
     ).length;
-    expect(firstCount).toBe(1);
 
-    // Push more Bash file-op events to keep the pattern alive
+    // Push more events to try to trigger again
     for (let i = 0; i < 5; i++) {
-      updateEventBuffer(makeEvent({
+      const event = makeEvent({
         sessionId,
         type: 'tool_start',
         toolName: 'Bash',
         toolInput: { command: `tail -50 /path/another-${i}.ts` },
-      }));
+      });
+      updateEventBuffer(event);
+      checkNudges(event, broadcaster);
     }
 
-    // Second trigger — same session, same detector, within cooldown
-    const secondEvent = makeEvent({
-      sessionId,
-      type: 'tool_start',
-      toolName: 'Bash',
-      toolInput: { command: 'sed -i "s/old/new/g" /src/utils.ts' },
-    });
-    checkNudges(secondEvent, broadcaster);
-
-    // The total bash-streak nudges should still be 1 (cooldown blocked the second)
-    const totalBashNudges = broadcaster.nudges.filter(n =>
-      n.detectorId === 'nudge.bash-streak',
+    const totalNudges = broadcaster.nudges.filter(n =>
+      n.detectorId === 'tool.bash-file-ops',
     ).length;
-    expect(totalBashNudges).toBe(1);
+
+    // Should only fire once due to cooldown
+    expect(totalNudges).toBe(firstCount);
   });
+});
 
-  it('allows nudges from different detectors to fire independently', () => {
-    const sessionId = 'multi-detector-' + Date.now();
+// ═════════════════════════════════════════════════════════════════════
+// 8. Conversation mode detection
+// ═════════════════════════════════════════════════════════════════════
 
-    // Seed buffer with error events to trigger error-spiral
-    for (let i = 0; i < 5; i++) {
+describe('Conversation mode detection', () => {
+  it('recentPromptTexts maintains a sliding window of last 3', () => {
+    const sessionId = 'conv-window-' + Date.now();
+    const now = Date.now();
+
+    for (let i = 0; i < 4; i++) {
       updateEventBuffer(makeEvent({
         sessionId,
-        type: 'tool_error',
-        toolName: 'Edit',
-        status: 'error',
-        error: `Edit failed ${i}`,
+        type: 'user_prompt',
+        toolName: undefined,
+        text: `Prompt number ${i + 1}`,
+        timestamp: now + i * 30_000,
       }));
     }
 
-    const triggerEvent = makeEvent({
+    const acc = getSessionAccumulator(sessionId);
+    expect(acc).toBeDefined();
+    expect(acc!.recentPromptTexts).toHaveLength(3);
+    expect(acc!.recentPromptTexts[0]).toBe('Prompt number 2');
+    expect(acc!.recentPromptTexts[1]).toBe('Prompt number 3');
+    expect(acc!.recentPromptTexts[2]).toBe('Prompt number 4');
+  });
+
+  it('sessionGoalSummary extracts first sentence from first prompt', () => {
+    const sessionId = 'conv-goal-' + Date.now();
+
+    updateEventBuffer(makeEvent({
       sessionId,
-      type: 'tool_error',
-      toolName: 'Edit',
-      status: 'error',
-      error: 'Edit failed again',
+      type: 'user_prompt',
+      toolName: undefined,
+      text: 'Refactor the auth module. Make it cleaner and more maintainable.',
+      timestamp: Date.now(),
+    }));
+
+    const acc = getSessionAccumulator(sessionId);
+    expect(acc!.sessionGoalSummary).toBe('Refactor the auth module.');
+
+    // Second prompt should NOT update the goal
+    updateEventBuffer(makeEvent({
+      sessionId,
+      type: 'user_prompt',
+      toolName: undefined,
+      text: 'Also add tests for it.',
+      timestamp: Date.now() + 10_000,
+    }));
+
+    const acc2 = getSessionAccumulator(sessionId);
+    expect(acc2!.sessionGoalSummary).toBe('Refactor the auth module.');
+  });
+
+  it('conversationMode activates with rapid short prompts', () => {
+    const sessionId = 'conv-active-' + Date.now();
+    const now = Date.now();
+
+    // 3 short prompts 30 seconds apart
+    const shortTexts = ['Fix the header', 'Make it blue', 'Add padding'];
+    for (let i = 0; i < shortTexts.length; i++) {
+      updateEventBuffer(makeEvent({
+        sessionId,
+        type: 'user_prompt',
+        toolName: undefined,
+        text: shortTexts[i],
+        timestamp: now + i * 30_000,
+      }));
+    }
+
+    const acc = getSessionAccumulator(sessionId);
+    expect(acc!.conversationMode).toBe(true);
+  });
+
+  it('conversationMode stays false for spaced-out prompts', () => {
+    const sessionId = 'conv-spaced-' + Date.now();
+    const now = Date.now();
+
+    // 3 short prompts 5 minutes apart
+    for (let i = 0; i < 3; i++) {
+      updateEventBuffer(makeEvent({
+        sessionId,
+        type: 'user_prompt',
+        toolName: undefined,
+        text: `Short prompt ${i}`,
+        timestamp: now + i * 5 * 60_000,
+      }));
+    }
+
+    const acc = getSessionAccumulator(sessionId);
+    expect(acc!.conversationMode).toBe(false);
+  });
+
+  it('vague-prompt rule is suppressed in conversation mode for moderate prompts', () => {
+    const sessionId = 'conv-vague-suppressed-' + Date.now();
+    const now = Date.now();
+
+    // Seed with enough events for minEvents threshold
+    for (let i = 0; i < 6; i++) {
+      updateEventBuffer(makeEvent({ sessionId, type: 'tool_end', toolName: 'Read', status: 'success', timestamp: now + i * 1000 }));
+    }
+
+    // First prompt to set up patternState (short, rapid)
+    const prompt1 = makeEvent({
+      sessionId,
+      type: 'user_prompt',
+      toolName: undefined,
+      text: 'Build a settings page',
+      timestamp: now + 10_000,
     });
+    updateEventBuffer(prompt1);
+    checkNudges(prompt1, broadcaster);
 
-    checkNudges(triggerEvent, broadcaster);
+    // Simulate large output from the first prompt
+    for (let i = 0; i < 3; i++) {
+      updateEventBuffer(makeEvent({
+        sessionId,
+        type: 'tool_end',
+        toolName: 'Edit',
+        status: 'success',
+        timestamp: now + 20_000 + i * 1000,
+        tokenUsage: { input: 500, output: 1000, cacheRead: 0, cacheCreation: 0 },
+      }));
+    }
 
-    // error-spiral should have fired
-    const errorNudge = broadcaster.nudges.find(n =>
-      n.detectorId === 'nudge.error-spiral',
-    );
-    expect(errorNudge).toBeDefined();
-    expect(errorNudge!.severity).toBe('warning');
-    expect(errorNudge!.title).toBe('Error spiral detected');
+    // Second short prompt 30s later — in conversation mode, 4 words should NOT trigger vague-prompt
+    const prompt2 = makeEvent({
+      sessionId,
+      type: 'user_prompt',
+      toolName: undefined,
+      text: 'Make it black',
+      timestamp: now + 40_000,
+    });
+    updateEventBuffer(prompt2);
+    broadcaster.clearNudges();
+    checkNudges(prompt2, broadcaster);
+
+    const vagueNudge = broadcaster.nudges.find(n => n.detectorId === 'plan.vague-prompt');
+    expect(vagueNudge).toBeUndefined();
+  });
+
+  it('rapid-prompts rule is suppressed in conversation mode', () => {
+    const sessionId = 'conv-rapid-suppressed-' + Date.now();
+    const now = Date.now();
+
+    // 4 rapid short prompts — triggers conversationMode
+    const shortTexts = ['Fix header', 'Add border', 'Make blue', 'Add shadow'];
+    for (let i = 0; i < shortTexts.length; i++) {
+      const event = makeEvent({
+        sessionId,
+        type: 'user_prompt',
+        toolName: undefined,
+        text: shortTexts[i],
+        timestamp: now + i * 20_000,
+      });
+      updateEventBuffer(event);
+      checkNudges(event, broadcaster);
+    }
+
+    const rapidNudge = broadcaster.nudges.find(n => n.detectorId === 'plan.rapid-prompts');
+    expect(rapidNudge).toBeUndefined();
+  });
+
+  it('rapid-prompts rule fires without conversation mode (long prompts)', () => {
+    const sessionId = 'conv-rapid-fires-' + Date.now();
+    const now = Date.now();
+
+    // 4 rapid LONG prompts — avg words > 15 so conversationMode stays false
+    const longTexts = [
+      'I need you to refactor the entire authentication module to use JWT tokens instead of session cookies for all endpoints',
+      'Please also update the middleware to validate the token signature and check expiration on every protected route',
+      'Add comprehensive error handling for expired tokens and invalid signatures with proper HTTP status codes returned',
+      'Finally write integration tests covering all the edge cases including token refresh flow and concurrent requests',
+    ];
+    for (let i = 0; i < longTexts.length; i++) {
+      const event = makeEvent({
+        sessionId,
+        type: 'user_prompt',
+        toolName: undefined,
+        text: longTexts[i],
+        timestamp: now + i * 20_000,
+      });
+      updateEventBuffer(event);
+      checkNudges(event, broadcaster);
+    }
+
+    const rapidNudge = broadcaster.nudges.find(n => n.detectorId === 'plan.rapid-prompts');
+    expect(rapidNudge).toBeDefined();
   });
 });

@@ -46,6 +46,27 @@ export interface ReportCard {
 
 export type NudgeSeverity = 'info' | 'suggestion' | 'warning';
 
+export type NudgeRuleCategory =
+  | 'tool-usage'
+  | 'planning'
+  | 'verification'
+  | 'git'
+  | 'security'
+  | 'efficiency'
+  | 'orchestration';
+
+export interface NudgeRuleMeta {
+  id: string;                          // e.g., "tool.bash-file-ops"
+  name: string;                        // "Bash for File Operations"
+  description: string;                 // User-facing explanation
+  dimension: CoachingDimension;        // Links to report card dimension
+  defaultSeverity: NudgeSeverity;
+  defaultCooldownMs: number;
+  category: NudgeRuleCategory;
+  tags: string[];
+  minEvents?: number;                  // Minimum events before rule can fire
+}
+
 export interface CoachingNudge {
   id: string;
   sessionId: string;
@@ -56,6 +77,93 @@ export interface CoachingNudge {
   recommendation: string;
   firedAt: number;
   dismissed: boolean;
+  triggerPrompt?: string;              // Prompt text that caused this nudge (for display)
+}
+
+export interface NudgeCandidate {
+  severity: NudgeSeverity;
+  title: string;
+  message: string;
+  recommendation: string;
+}
+
+// ─── Session Accumulator ─────────────────────────────────────────
+
+export interface SessionAccumulator {
+  sessionId: string;
+  startTime: number;
+  lastEventTime: number;
+  eventCount: number;
+
+  // Tool tracking
+  toolCounts: Map<string, number>;
+  toolErrors: Map<string, number>;
+  consecutiveBashFileOps: number;
+  consecutiveErrors: number;
+  lastToolName: string | null;
+
+  // File tracking
+  filesRead: Set<string>;
+  filesEdited: Set<string>;
+  readBeforeEdit: Set<string>;
+  editWithoutRead: Set<string>;
+  fileReadCounts: Map<string, number>;
+
+  // Prompt tracking
+  promptCount: number;
+  promptTimestamps: number[];
+  lastPromptTime: number;
+  lastPromptText: string;              // Last user prompt (first 500 chars) for attribution
+  recentPromptTexts: string[];         // Sliding window: last 3 prompts (500 chars each)
+  sessionGoalSummary: string;          // First sentence / first 100 chars of prompt 1
+  conversationMode: boolean;           // True when prompts <2min apart AND avg word count <15
+  totalPromptTokens: number;
+
+  // Token/cost tracking
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCostUsd: number;
+  turnCosts: number[];                 // cost per tool call, for averaging
+
+  // Agent tracking
+  subagentCount: number;
+  activeSubagents: Set<string>;
+  subagentFiles: Map<string, Set<string>>;  // agentId → files accessed
+
+  // Planning signals
+  usedPlanMode: boolean;
+  usedTodoWrite: boolean;
+  usedSubagents: boolean;
+  distinctFilesModified: number;
+
+  // Verification signals
+  testRunCount: number;
+  editsSinceLastTest: number;
+  lastTestTime: number;
+
+  // Git signals
+  commitCount: number;
+  editsSinceLastCommit: number;
+  usedGitAddAll: boolean;
+  usedForceOps: boolean;
+  currentBranch: string | null;
+  lastGitDiffTime: number;
+
+  // Compaction
+  compactionCount: number;
+
+  // Permission mode
+  permissionMode: string | null;
+}
+
+// ─── Delivery Manager Config ─────────────────────────────────────
+
+export interface DeliveryConfig {
+  maxNudgesPerSession: number;
+  cooldownBackoffMultiplier: number;
+  maxConsecutiveFiresBeforeSuppress: number;
+  dismissalsBeforeAutoSuppress: number;
+  warningBypassesRateLimit: boolean;
 }
 
 // ─── Playbooks ──────────────────────────────────────────────────────

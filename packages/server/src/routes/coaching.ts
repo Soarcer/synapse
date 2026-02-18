@@ -8,9 +8,11 @@ import {
   NudgeDismissSchema,
   AnalyticsQuerySchema,
 } from '@synapse-ai/core';
-import { getNudgesBySession, dismissNudge as dbDismissNudge, getNudgeStats } from '../db.js';
+import { getNudgesBySession, dismissNudge as dbDismissNudge, getNudgeStats, getAllRuleConfigs, upsertRuleConfig, resetAllRuleConfigs } from '../db.js';
 import { computeReportCard, computeMultiReportCard, getReportCardHistory } from '../services/reportCardEngine.js';
 import { getSensitivity, setSensitivity, type Sensitivity } from '../services/aiNudgeEscalator.js';
+import { getRegisteredRules } from '../services/nudgeEngine.js';
+import { analyzeCrossSessions } from '../services/crossSessionAnalyzer.js';
 import {
   getAllPlaybooks,
   getPlaybookById,
@@ -204,6 +206,102 @@ export function createCoachingRouter(): Router {
     } catch (err: unknown) {
       logger.error({ err }, 'Error deleting playbook');
       res.status(500).json({ error: 'Failed to delete playbook' });
+    }
+  });
+
+  // ─── Rule Configuration ─────────────────────────────────────────
+
+  // GET /rules — list all rules with metadata + config overrides
+  router.get('/rules', (_req: Request, res: Response) => {
+    try {
+      const rules = getRegisteredRules();
+      const configs = getAllRuleConfigs();
+      const configMap = new Map(configs.map(c => [c.rule_id, c]));
+
+      const result = rules.map(rule => {
+        const config = configMap.get(rule.meta.id);
+        return {
+          ...rule.meta,
+          subscribes: rule.subscribes(),
+          // Config overrides (null = use default)
+          enabled: config ? config.enabled === 1 : true,
+          severityOverride: config?.severity ?? null,
+          cooldownOverride: config?.cooldown_ms ?? null,
+          suppressed: config ? config.suppressed === 1 : false,
+          options: config?.options ? JSON.parse(config.options) : null,
+        };
+      });
+
+      res.json(envelope(result, { totalRules: result.length }));
+    } catch (err: unknown) {
+      logger.error({ err }, 'Error fetching rules');
+      res.status(500).json({ error: 'Failed to fetch rules' });
+    }
+  });
+
+  // PUT /rules/:id — update rule configuration
+  router.put('/rules/:id', (req: Request, res: Response) => {
+    try {
+      const ruleId = req.params.id as string;
+
+      // Verify rule exists
+      const rules = getRegisteredRules();
+      const rule = rules.find(r => r.meta.id === ruleId);
+      if (!rule) {
+        res.status(404).json({ error: `Rule "${ruleId}" not found` });
+        return;
+      }
+
+      const { enabled, severity, cooldownMs, options } = req.body as {
+        enabled?: boolean;
+        severity?: string;
+        cooldownMs?: number;
+        options?: Record<string, unknown>;
+      };
+
+      // Validate severity if provided
+      if (severity !== undefined && !['info', 'suggestion', 'warning', null].includes(severity)) {
+        res.status(400).json({ error: 'Invalid severity. Must be: info, suggestion, warning, or null' });
+        return;
+      }
+
+      upsertRuleConfig({
+        rule_id: ruleId,
+        enabled: enabled !== undefined ? (enabled ? 1 : 0) : undefined,
+        severity: severity !== undefined ? severity : undefined,
+        cooldown_ms: cooldownMs !== undefined ? cooldownMs : undefined,
+        options: options !== undefined ? JSON.stringify(options) : undefined,
+      });
+
+      res.json({ ok: true, ruleId });
+    } catch (err: unknown) {
+      logger.error({ err }, 'Error updating rule config');
+      res.status(500).json({ error: 'Failed to update rule config' });
+    }
+  });
+
+  // POST /rules/reset — reset all rule configs to defaults
+  router.post('/rules/reset', (_req: Request, res: Response) => {
+    try {
+      resetAllRuleConfigs();
+      res.json({ ok: true });
+    } catch (err: unknown) {
+      logger.error({ err }, 'Error resetting rule configs');
+      res.status(500).json({ error: 'Failed to reset rule configs' });
+    }
+  });
+
+  // ─── Cross-Session Analysis ────────────────────────────────────────
+
+  // GET /cross-session — analyze patterns across recent sessions
+  router.get('/cross-session', (req: Request, res: Response) => {
+    try {
+      const limit = parseInt(String(req.query.limit ?? '10'), 10);
+      const insights = analyzeCrossSessions(Math.min(limit, 50));
+      res.json(envelope(insights, { totalInsights: insights.length }));
+    } catch (err: unknown) {
+      logger.error({ err }, 'Error analyzing cross-session patterns');
+      res.status(500).json({ error: 'Failed to analyze cross-session patterns' });
     }
   });
 

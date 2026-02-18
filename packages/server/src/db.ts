@@ -257,6 +257,19 @@ export async function initDb(): Promise<void> {
     )
   `);
 
+  // ── Nudge rule configuration table ─────────────────────────────────
+  db.run(`
+    CREATE TABLE IF NOT EXISTS nudge_rule_config (
+      rule_id TEXT PRIMARY KEY,
+      enabled INTEGER DEFAULT 1,
+      severity TEXT,
+      cooldown_ms INTEGER,
+      options TEXT,
+      suppressed INTEGER DEFAULT 0,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+
   // ── Settings table ──────────────────────────────────────────────────
   db.run(`
     CREATE TABLE IF NOT EXISTS settings (
@@ -780,6 +793,13 @@ export function getReportCardsInRange(from: number, to: number): ReportCardRow[]
   ) as unknown as ReportCardRow[];
 }
 
+export function getRecentReportCards(limit: number): ReportCardRow[] {
+  return queryAll(
+    'SELECT session_id, computed_at, overall_score, dimension_scores FROM coaching_report_cards ORDER BY computed_at DESC LIMIT ?',
+    [limit],
+  ) as unknown as ReportCardRow[];
+}
+
 // ─── Coaching: Nudge Helpers ─────────────────────────────────────────
 
 export interface NudgeRow {
@@ -873,6 +893,76 @@ export function getNudgeStats(): { byDetector: NudgeStatsRow[]; totalFired: numb
     totalFired: totals?.total_fired ?? 0,
     totalDismissed: totals?.total_dismissed ?? 0,
   };
+}
+
+// ─── Coaching: Rule Config Helpers ───────────────────────────────────
+
+export interface RuleConfigRow {
+  rule_id: string;
+  enabled: number;
+  severity: string | null;
+  cooldown_ms: number | null;
+  options: string | null;
+  suppressed: number;
+  updated_at: number;
+}
+
+export function getAllRuleConfigs(): RuleConfigRow[] {
+  return queryAll('SELECT * FROM nudge_rule_config') as unknown as RuleConfigRow[];
+}
+
+export function getRuleConfig(ruleId: string): RuleConfigRow | undefined {
+  return queryGet('SELECT * FROM nudge_rule_config WHERE rule_id = ?', [ruleId]) as RuleConfigRow | undefined;
+}
+
+export function upsertRuleConfig(params: {
+  rule_id: string;
+  enabled?: number;
+  severity?: string | null;
+  cooldown_ms?: number | null;
+  options?: string | null;
+  suppressed?: number;
+}): void {
+  const existing = getRuleConfig(params.rule_id);
+  const now = Date.now();
+
+  if (existing) {
+    const fields: string[] = [];
+    const values: unknown[] = [];
+
+    if (params.enabled !== undefined) { fields.push('enabled = ?'); values.push(params.enabled); }
+    if (params.severity !== undefined) { fields.push('severity = ?'); values.push(params.severity); }
+    if (params.cooldown_ms !== undefined) { fields.push('cooldown_ms = ?'); values.push(params.cooldown_ms); }
+    if (params.options !== undefined) { fields.push('options = ?'); values.push(params.options); }
+    if (params.suppressed !== undefined) { fields.push('suppressed = ?'); values.push(params.suppressed); }
+
+    if (fields.length > 0) {
+      fields.push('updated_at = ?');
+      values.push(now);
+      values.push(params.rule_id);
+      execute(`UPDATE nudge_rule_config SET ${fields.join(', ')} WHERE rule_id = ?`, values);
+    }
+  } else {
+    execute(
+      `INSERT INTO nudge_rule_config (rule_id, enabled, severity, cooldown_ms, options, suppressed, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        params.rule_id,
+        params.enabled ?? 1,
+        params.severity ?? null,
+        params.cooldown_ms ?? null,
+        params.options ?? null,
+        params.suppressed ?? 0,
+        now,
+      ],
+    );
+  }
+  scheduleSave();
+}
+
+export function resetAllRuleConfigs(): void {
+  execute('DELETE FROM nudge_rule_config', []);
+  scheduleSave();
 }
 
 // ─── Coaching: Playbook Helpers ──────────────────────────────────────
