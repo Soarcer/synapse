@@ -188,7 +188,18 @@ function handleSessionEnd(event: AgentEvent, draft: StateDraft): void {
 
 function handleUserPrompt(event: AgentEvent, draft: StateDraft): void {
   ensureSession(event.sessionId, event.timestamp, draft, event);
+
+  // Guard: skip if this prompt node already exists (dedup safety net)
+  if (draft.nodes.some((n) => n.id === nid.prompt(event.id))) return;
+
+  // Content-based dedup: two hook sources can produce the same prompt with different
+  // event IDs. Skip if a prompt with identical text already exists in this session
+  // within a 3-second window.
   const sessionPrompts = draft.prompts.get(event.sessionId) ?? [];
+  const promptText = event.text ?? '';
+  if (sessionPrompts.some(
+    (p) => p.text === promptText && Math.abs(p.timestamp - event.timestamp) < 3000,
+  )) return;
   const prompt: UserPromptData = {
     id: event.id,
     sessionId: event.sessionId,

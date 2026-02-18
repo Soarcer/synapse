@@ -15,6 +15,7 @@ import { initDb, deleteAllEvents } from '../db.js';
 import { createApp } from '../app.js';
 import { Broadcaster } from '../services/broadcaster.js';
 import { AgentManager } from '../services/agentManager.js';
+import { clearDedupeCache } from '../services/eventStore.js';
 
 // ─── Fixtures ────────────────────────────────────────────────────────
 
@@ -55,6 +56,7 @@ beforeAll(async () => {
 
 afterEach(() => {
   deleteAllEvents();
+  clearDedupeCache();
 });
 
 afterAll(() => {
@@ -65,11 +67,12 @@ afterAll(() => {
 // ─── Seed helper ─────────────────────────────────────────────────────
 
 async function seedEvents(count: number, sessionPrefix = 'sess') {
+  const hookNames = ['SessionStart', 'Stop', 'Notification', 'SubagentStart', 'SubagentStop', 'PreToolUse', 'PostToolUse', 'UserPromptSubmit'];
   for (let i = 0; i < count; i++) {
     const sessionId = `${sessionPrefix}-${i % 3}`;
     await request(app)
       .post('/api/events')
-      .send(makeEvent({ session_id: sessionId }));
+      .send(makeEvent({ session_id: sessionId, hook_event_name: hookNames[i % hookNames.length] }));
   }
 }
 

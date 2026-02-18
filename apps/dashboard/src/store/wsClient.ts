@@ -52,11 +52,13 @@ class WSClient {
       this.ws.onopen = () => {
         this.reconnectDelay = 1000;
         this.reconnectCount = 0;
-        this.wasConnected = true;
         this.setStatus('connected');
 
-        // Fetch existing events on every connect (initial + reconnect)
-        this.onReconnect?.();
+        // Only reload events on REconnect (App.tsx handles the initial fetch)
+        if (this.wasConnected) {
+          this.onReconnect?.();
+        }
+        this.wasConnected = true;
       };
 
       this.ws.onmessage = (event) => {
@@ -84,12 +86,21 @@ class WSClient {
 
   disconnect() {
     this.shouldReconnect = false;
+    this.wasConnected = false;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
-    this.ws?.close();
-    this.ws = null;
+    if (this.ws) {
+      // Clear handlers BEFORE close to prevent stale onclose from triggering reconnect
+      // (important for React StrictMode mount→unmount→remount cycle)
+      this.ws.onopen = null;
+      this.ws.onmessage = null;
+      this.ws.onclose = null;
+      this.ws.onerror = null;
+      this.ws.close();
+      this.ws = null;
+    }
     this.setStatus('disconnected');
   }
 

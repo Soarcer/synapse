@@ -16,6 +16,7 @@ import { initDb, deleteAllEvents } from '../db.js';
 import { createApp } from '../app.js';
 import { Broadcaster } from '../services/broadcaster.js';
 import { AgentManager } from '../services/agentManager.js';
+import { clearDedupeCache } from '../services/eventStore.js';
 
 // ─── Shared Fixtures ──────────────────────────────────────────────────
 
@@ -68,6 +69,7 @@ beforeAll(async () => {
 
 afterEach(() => {
   deleteAllEvents();
+  clearDedupeCache();
 });
 
 afterAll(() => {
@@ -180,8 +182,8 @@ describe('GET /api/events/sessions', () => {
 
 describe('DELETE /api/events', () => {
   it('clears all events and returns deleted count', async () => {
-    await request(app).post('/api/events').send(VALID_HOOK_EVENT).expect(200);
-    await request(app).post('/api/events').send(VALID_HOOK_EVENT).expect(200);
+    await request(app).post('/api/events').send({ ...VALID_HOOK_EVENT, session_id: 'del-a' }).expect(200);
+    await request(app).post('/api/events').send({ ...VALID_HOOK_EVENT, session_id: 'del-b' }).expect(200);
 
     const delRes = await request(app).delete('/api/events').expect(200);
 

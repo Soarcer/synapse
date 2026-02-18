@@ -73,12 +73,16 @@ function insertEventSorted(events: AgentEvent[], event: AgentEvent, maxSize: num
 
 let reloadAbort: AbortController | null = null;
 
-function reloadAllEvents(): void {
+export function reloadAllEvents(options?: { showLoading?: boolean }): void {
   reloadAbort?.abort();
   reloadAbort = new AbortController();
   const signal = reloadAbort.signal;
 
   const { cwdFilter, timeRange } = useAgentStore.getState();
+  if (options?.showLoading) {
+    useAgentStore.getState().setLoading(true);
+    useAgentStore.getState().setLoadError(null);
+  }
   const params = new URLSearchParams({ limit: '2000' });
   if (cwdFilter) params.set('cwd', cwdFilter);
   if (timeRange) {
@@ -92,9 +96,18 @@ function reloadAllEvents(): void {
       if (Array.isArray(events)) {
         useAgentStore.getState().loadEvents(events);
       }
+      if (options?.showLoading) {
+        useAgentStore.getState().setLoading(false);
+      }
     })
     .catch((err: unknown) => {
       if (err instanceof Error && err.name === 'AbortError') return;
+      if (options?.showLoading) {
+        useAgentStore.getState().setLoadError(
+          err instanceof Error ? err.message : 'Failed to connect to server',
+        );
+        useAgentStore.getState().setLoading(false);
+      }
     });
 }
 
@@ -234,6 +247,12 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       // Queue events while paused (don't discard)
       if (state.paused) {
         return { ...state, pauseQueue: [...state.pauseQueue, event] };
+      }
+
+      // Dedup: skip events already in the store (protects against WS + HTTP load races
+      // and duplicate broadcasts from overlapping hook sources)
+      if (event.type !== 'text_delta' && state.events.some((e) => e.id === event.id)) {
+        return state;
       }
 
       // Fast path: text_delta — only copy agents Map + nodes array
@@ -513,21 +532,89 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     const { showHookEvents } = get();
     const draft = createFreshDraft();
     const sorted = [...events].sort((a, b) => a.timestamp - b.timestamp);
-    for (const event of sorted) {
+    // Content-based dedup: the DB may contain duplicate events from multiple hook
+    // sources (same logical event stored twice with different nanoid IDs).
+    const deduped = deduplicateEvents(sorted);
+    for (const event of deduped) {
       processEvent(event, draft, showHookEvents);
     }
     // Events stored newest-first for timeline display
     set({
       ...draft,
       ...buildDerivedMaps(draft.agents),
-      events: sorted.reverse().slice(0, MAX_EVENTS),
+      events: deduped.reverse().slice(0, MAX_EVENTS),
       selectedNodeId: null,
       highlightedNodeIds: null,
       multiHighlightIds: null,
       collapsedNodes: new Set(),
+      transcripts: new Map(),
+      liveNudges: EMPTY_NUDGES,
     });
   },
 }));
+
+// ── Content-based event fingerprint (shared by WS dedup + loadEvents dedup) ──
+
+function eventFingerprint(event: AgentEvent): string {
+  // Use the most specific stable identifier per event type.
+  // toolUseId and agentId are stable across hook sources (same stdin from Claude Code).
+  if (event.toolUseId) return `${event.sessionId}:${event.type}:${event.toolUseId}`;
+  if (event.agentId) return `${event.sessionId}:${event.type}:${event.agentId}`;
+  // For prompts, include text so two different rapid prompts aren't falsely deduped
+  if (event.type === 'user_prompt') return `${event.sessionId}:user_prompt:${(event.text ?? '').slice(0, 200)}`;
+  // Fallback: session-level events (session_start, session_end, compact, etc.)
+  return `${event.sessionId}:${event.type}`;
+}
+
+/** Filter duplicate events from a timestamp-sorted array (ascending).
+ *  Two events with the same fingerprint within 2s are considered duplicates. */
+const LOAD_DEDUPE_WINDOW_MS = 2000;
+function deduplicateEvents(sorted: AgentEvent[]): AgentEvent[] {
+  const seen = new Map<string, number>(); // fingerprint → timestamp
+  return sorted.filter((event) => {
+    const fp = eventFingerprint(event);
+    const prev = seen.get(fp);
+    if (prev !== undefined && event.timestamp - prev < LOAD_DEDUPE_WINDOW_MS) return false;
+    seen.set(fp, event.timestamp);
+    return true;
+  });
+}
+
+// ── Content-based dedup for live WS events ──────────────────
+// Two hook sources (settings.json + settings.local.json) can broadcast the same
+// logical event with different nanoid() IDs. Match on session + type + timestamp.
+const WS_DEDUPE_WINDOW_MS = 3000;
+const recentWsEvents = new Map<string, number>(); // fingerprint → timestamp
+
+function wsDedupeKey(event: AgentEvent): string {
+  const base = `${event.sessionId}:${event.type}:${event.toolUseId ?? ''}:${event.agentId ?? ''}`;
+  // For user_prompt, include text so two different rapid prompts aren't falsely deduped
+  // (toolUseId and agentId are both empty for prompts)
+  if (event.type === 'user_prompt') return `${base}:${(event.text ?? '').slice(0, 200)}`;
+  return base;
+}
+
+function isWsDuplicate(event: AgentEvent): boolean {
+  // text_delta events are high-frequency and already keyed by content
+  if (event.type === 'text_delta') return false;
+
+  const key = wsDedupeKey(event);
+  const now = Date.now();
+
+  // Prune stale entries
+  if (recentWsEvents.size > 200) {
+    for (const [k, ts] of recentWsEvents) {
+      if (now - ts > WS_DEDUPE_WINDOW_MS) recentWsEvents.delete(k);
+    }
+  }
+
+  const prev = recentWsEvents.get(key);
+  if (prev && now - prev < WS_DEDUPE_WINDOW_MS) {
+    return true;
+  }
+  recentWsEvents.set(key, now);
+  return false;
+}
 
 // ── Wire WebSocket to store ──────────────────────────────────
 
@@ -536,8 +623,14 @@ wsClient.setOnEvent((msg) => {
     const event = msg.data;
 
     // Skip events from other projects when cwd filter is active
-    const cwdFilter = useAgentStore.getState().cwdFilter;
+    const { cwdFilter, timeRange } = useAgentStore.getState();
     if (cwdFilter && event.cwd && normalizeCwd(event.cwd) !== cwdFilter) return;
+
+    // Skip events outside the active time range
+    if (timeRange && event.timestamp < timeRange.from) return;
+
+    // Content-based dedup: catch duplicate broadcasts with different event IDs
+    if (isWsDuplicate(event)) return;
 
     useAgentStore.getState().addEvent(event);
 

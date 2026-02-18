@@ -16,6 +16,7 @@ import { initDb, deleteAllEvents } from '../db.js';
 import { createApp } from '../app.js';
 import { Broadcaster } from '../services/broadcaster.js';
 import { AgentManager } from '../services/agentManager.js';
+import { clearDedupeCache } from '../services/eventStore.js';
 
 // ─── Setup ────────────────────────────────────────────────────────────
 
@@ -32,6 +33,7 @@ beforeAll(async () => {
 
 afterEach(() => {
   deleteAllEvents();
+  clearDedupeCache();
 });
 
 afterAll(() => {
@@ -75,9 +77,8 @@ describe('POST hook event → DB storage → GET retrieval', () => {
 // ═══════════════════════════════════════════════════════════════════════
 
 describe('Duplicate session_id creates separate events', () => {
-  it('stores two events when the same session_id is posted twice', async () => {
-    const payload = {
-      hook_event_name: 'SessionStart',
+  it('stores two events when the same session_id is posted with different hook names', async () => {
+    const base = {
       session_id: 'test-pipe-dup',
       model: 'claude-opus-4-6',
       cwd: '/test',
@@ -85,12 +86,12 @@ describe('Duplicate session_id creates separate events', () => {
 
     const res1 = await request(app)
       .post('/api/events')
-      .send(payload)
+      .send({ ...base, hook_event_name: 'SessionStart' })
       .expect(200);
 
     const res2 = await request(app)
       .post('/api/events')
-      .send(payload)
+      .send({ ...base, hook_event_name: 'Stop' })
       .expect(200);
 
     // Each POST generates a unique server-side event ID

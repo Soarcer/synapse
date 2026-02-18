@@ -5,6 +5,26 @@ import { normalizeCwd } from '@synapse-ai/core';
 import type { AgentEvent, AgentEventType } from '@synapse-ai/core';
 import { computeCostUsd } from './costService.js';
 import { checkNudges, updateEventBuffer } from './nudgeEngine.js';
+import { logger } from '../lib/logger.js';
+
+// ─── Extract text from prompt (may be string, content block, or array of blocks) ──
+
+function extractPromptText(prompt: unknown): string | undefined {
+  if (typeof prompt === 'string') return prompt;
+  if (Array.isArray(prompt)) {
+    return prompt
+      .map((block) =>
+        typeof block === 'string' ? block :
+        block && typeof block === 'object' && 'text' in block ? String(block.text) : '',
+      )
+      .filter(Boolean)
+      .join('\n');
+  }
+  if (prompt && typeof prompt === 'object' && 'text' in prompt) {
+    return String((prompt as { text: unknown }).text);
+  }
+  return undefined;
+}
 
 // ─── Hook Event Name → AgentEventType Mapping ──────────────────────
 
@@ -73,9 +93,11 @@ export function normalizeHookPayload(raw: Record<string, unknown>): AgentEvent {
       if (raw.reason) event.reason = raw.reason as string;
       break;
 
-    case 'UserPromptSubmit':
-      if (raw.prompt) event.text = raw.prompt as string;
+    case 'UserPromptSubmit': {
+      const promptText = extractPromptText(raw.prompt);
+      if (promptText) event.text = promptText;
       break;
+    }
 
     case 'Notification':
       if (raw.message) event.text = raw.message as string;
@@ -103,6 +125,52 @@ export function normalizeHookPayload(raw: Record<string, unknown>): AgentEvent {
   return event;
 }
 
+// ─── Deduplication (multiple hook sources can fire the same event) ──
+
+const DEDUPE_WINDOW_MS = 2000;
+const recentEvents = new Map<string, number>(); // fingerprint → timestamp
+
+/** Clear the dedup cache — exposed for test isolation. */
+export function clearDedupeCache(): void {
+  recentEvents.clear();
+}
+
+function dedupeFingerprint(raw: Record<string, unknown>): string {
+  const sessionId = raw.session_id ?? '';
+  const hookName = raw.hook_event_name ?? '';
+  const toolUseId = raw.tool_use_id ?? '';
+  const agentId = raw.agent_id ?? '';
+  // For UserPromptSubmit, include prompt text so two different rapid prompts
+  // aren't falsely deduped (toolUseId and agentId are both empty for prompts)
+  const promptText = hookName === 'UserPromptSubmit'
+    ? String(typeof raw.prompt === 'string' ? raw.prompt : '').slice(0, 200)
+    : '';
+  return `${sessionId}:${hookName}:${toolUseId}:${agentId}:${promptText}`;
+}
+
+function isDuplicate(raw: Record<string, unknown>): boolean {
+  const fp = dedupeFingerprint(raw);
+  const now = Date.now();
+
+  // Prune stale entries periodically
+  if (recentEvents.size > 500) {
+    for (const [key, ts] of recentEvents) {
+      if (now - ts > DEDUPE_WINDOW_MS) recentEvents.delete(key);
+    }
+  }
+
+  const prev = recentEvents.get(fp);
+  if (prev && now - prev < DEDUPE_WINDOW_MS) {
+    logger.info({ fp, deltaMs: now - prev }, 'Duplicate event dropped');
+    return true;
+  }
+  if (prev) {
+    logger.info({ fp, deltaMs: now - prev }, 'Dedup window expired — treating as new');
+  }
+  recentEvents.set(fp, now);
+  return false;
+}
+
 // ─── Store and Broadcast ────────────────────────────────────────────
 
 export function storeAndBroadcast(
@@ -111,6 +179,11 @@ export function storeAndBroadcast(
 ): AgentEvent {
   const event = normalizeHookPayload(raw);
   const hookEventName = (raw.hook_event_name as string) || 'unknown';
+
+  // Drop duplicate events from multiple hook sources (settings.json + settings.local.json)
+  if (isDuplicate(raw)) {
+    return event;
+  }
 
   const normalizedCwd = event.cwd ? normalizeCwd(event.cwd) : null;
 
@@ -215,7 +288,8 @@ export function rowToAgentEvent(row: EventRow): AgentEvent {
     if (raw.reason) event.reason = raw.reason;
     if (!event.cwd && raw.cwd) event.cwd = raw.cwd; // fallback for old rows
     if (raw.permission_mode) event.permissionMode = raw.permission_mode;
-    if (raw.prompt) event.text = raw.prompt;
+    const promptText = extractPromptText(raw.prompt);
+    if (promptText) event.text = promptText;
     if (raw.message && event.type === 'notification') event.text = raw.message;
     if (raw.notification_type) event.notificationType = raw.notification_type;
     if (raw.trigger) event.compactTrigger = raw.trigger;
