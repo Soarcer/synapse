@@ -21,6 +21,7 @@ import { importCsv, importJson } from '../services/importService.js';
 import { detectPlan, setPlan, getPlanLabels, getPlanLimits } from '../services/planDetector.js';
 import { summarizeSession, analyzePrompt, generateRecommendations, isAvailable as isAiAvailable } from '../services/aiCoachService.js';
 import { computeModelOptimization } from '../services/modelOptimizationService.js';
+import type { Broadcaster } from '../services/broadcaster.js';
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -72,7 +73,7 @@ function getISOWeek(d: Date): number {
 
 // ─── Router ─────────────────────────────────────────────────────────
 
-export function createAnalyticsRouter(): Router {
+export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
   const router = Router();
 
   // GET /api/analytics/overview
@@ -1000,9 +1001,18 @@ export function createAnalyticsRouter(): Router {
         return;
       }
 
-      const { promptText, sessionContext } = req.body as {
+      const { promptText, sessionContext, mode, skipCache, conversationContext, model: modelOverride } = req.body as {
         promptText: string;
+        mode?: 'developer' | 'vibe';
+        skipCache?: boolean;
+        model?: string;
         sessionContext?: { model?: string; toolCount?: number; category?: string; cost?: number };
+        conversationContext?: {
+          recentPrompts?: string[];
+          sessionGoal?: string;
+          turnNumber?: number;
+          isConversationalMode?: boolean;
+        };
       };
 
       if (!promptText || typeof promptText !== 'string') {
@@ -1012,12 +1022,25 @@ export function createAnalyticsRouter(): Router {
 
       const analysis = await analyzePrompt({
         promptText: promptText.slice(0, 4000), // Cap at 4K chars
+        mode: mode === 'vibe' ? 'vibe' : 'developer',
+        skipCache: !!skipCache,
+        modelOverride: typeof modelOverride === 'string' ? modelOverride : undefined,
         sessionContext: {
           model: sessionContext?.model ?? 'unknown',
           toolCount: sessionContext?.toolCount ?? 0,
           category: sessionContext?.category ?? 'general',
           cost: sessionContext?.cost ?? 0,
         },
+        conversationContext: conversationContext
+          ? {
+              recentPrompts: Array.isArray(conversationContext.recentPrompts)
+                ? conversationContext.recentPrompts.slice(0, 3).map((p) => String(p).slice(0, 500))
+                : [],
+              sessionGoal: String(conversationContext.sessionGoal ?? '').slice(0, 150),
+              turnNumber: Number(conversationContext.turnNumber) || 1,
+              isConversationalMode: Boolean(conversationContext.isConversationalMode),
+            }
+          : undefined,
       });
       res.json({ data: analysis });
     } catch (err: unknown) {
@@ -1048,6 +1071,26 @@ export function createAnalyticsRouter(): Router {
       logger.error({ err }, 'Error generating AI insights');
       res.status(500).json({ error: 'Failed to generate AI insights' });
     }
+  });
+
+  // ── Workshop: Send to Claude terminal via WS relay ─────────────────
+  router.post('/workshop/send-to-terminal', (req: Request, res: Response) => {
+    const { text } = req.body as { text?: string };
+    if (!text || typeof text !== 'string') {
+      res.status(400).json({ error: 'text is required' });
+      return;
+    }
+    if (!broadcaster) {
+      res.status(503).json({ sent: false, reason: 'broadcaster_unavailable' });
+      return;
+    }
+    const clientCount = broadcaster.clientCount;
+    if (clientCount === 0) {
+      res.json({ sent: false, clientCount: 0, reason: 'no_clients' });
+      return;
+    }
+    broadcaster.broadcastTerminalSend(text);
+    res.json({ sent: true, clientCount });
   });
 
   return router;

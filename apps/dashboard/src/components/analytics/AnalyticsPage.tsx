@@ -1,26 +1,38 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useAnalyticsData, type AnalyticsFilters } from './useAnalyticsData';
 import type { MockData } from './mockData';
 import { ExecutiveOverview } from './executive/ExecutiveOverview';
-import { SessionReplay } from './replay/SessionReplay';
-import { PromptAnalyzer } from './prompts/PromptAnalyzer';
+import { PromptAnalyzer, type AnalysisMode, loadAnalysisMode } from './prompts/PromptAnalyzer';
 import { InsightsView } from './insights/InsightsView';
 import { LiveNudgesView } from './nudges/LiveNudgesView';
+import { PromptWorkshop } from './workshop/PromptWorkshop';
 import { ExportDialog } from './export/ExportDialog';
 import { TimeRangeSelector } from './shared/TimeRangeSelector';
 import { ProjectFilter } from './shared/ProjectFilter';
 import { SessionFilter } from './shared/SessionFilter';
 import { SettingsPanel } from './shared/SettingsPanel';
 
-type AnalyticsTab = 'executive' | 'replay' | 'prompts' | 'insights' | 'nudges';
+type AnalyticsTab = 'executive' | 'prompts' | 'workshop' | 'insights' | 'nudges';
 
 const TABS: { id: AnalyticsTab; label: string; description: string }[] = [
   { id: 'executive', label: 'Executive', description: 'KPI overview with sparklines' },
-  { id: 'replay', label: 'Session Replay', description: 'Per-session timeline narrative' },
-  { id: 'prompts', label: 'Prompts', description: 'Prompt complexity analysis' },
+  { id: 'prompts', label: 'Prompts', description: 'Prompt analysis with session replay' },
+  { id: 'workshop', label: 'Workshop', description: 'Draft and improve prompts before sending' },
   { id: 'insights', label: 'Insights', description: 'AI coach, badges & budget' },
   { id: 'nudges', label: 'Live Nudges', description: 'Real-time coaching & nudge config' },
 ];
+
+const MODEL_OPTIONS: { id: string; label: string }[] = [
+  { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5' },
+  { id: 'claude-sonnet-4-5-20250929', label: 'Sonnet 4.5' },
+  { id: 'claude-opus-4-6', label: 'Opus 4.6' },
+];
+
+const MODEL_STORAGE_KEY = 'synapse-workshop-model';
+
+function loadSelectedModel(): string | undefined {
+  try { return localStorage.getItem(MODEL_STORAGE_KEY) ?? undefined; } catch { return undefined; }
+}
 
 export function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('executive');
@@ -29,6 +41,21 @@ export function AnalyticsPage() {
   const [selectedSessionIds, setSelectedSessionIds] = useState<string[]>([]);
   const [showExport, setShowExport] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [analysisMode, setAnalysisMode] = useState<AnalysisMode>(loadAnalysisMode);
+  const [selectedModel, setSelectedModel] = useState<string | undefined>(loadSelectedModel);
+
+  const handleModeChange = useCallback((mode: AnalysisMode) => {
+    setAnalysisMode(mode);
+    try { localStorage.setItem('synapse-ai-analysis-mode', mode); } catch { /* quota */ }
+  }, []);
+
+  const handleModelChange = useCallback((modelId: string | undefined) => {
+    setSelectedModel(modelId);
+    try {
+      if (modelId) localStorage.setItem(MODEL_STORAGE_KEY, modelId);
+      else localStorage.removeItem(MODEL_STORAGE_KEY);
+    } catch { /* quota */ }
+  }, []);
 
   const filters: AnalyticsFilters = useMemo(() => ({
     timeRange,
@@ -55,9 +82,20 @@ export function AnalyticsPage() {
       <div className="flex-shrink-0 border-b border-gray-800 bg-[#0d1117]/95 backdrop-blur-sm">
         <div className="max-w-[1400px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between mb-3">
-            <div>
-              <h1 className="text-lg font-semibold text-gray-100 tracking-tight">Analytics</h1>
-              <p className="text-xs text-gray-500 mt-0.5">AI coding assistant usage reporting</p>
+            <div className="flex items-center gap-3">
+              <a
+                href="?"
+                className="p-1.5 -ml-1.5 rounded-md text-gray-400 hover:text-gray-100 hover:bg-gray-800 transition-colors"
+                title="Back to Dashboard"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path d="M15 19l-7-7 7-7" />
+                </svg>
+              </a>
+              <div>
+                <h1 className="text-lg font-semibold text-gray-100 tracking-tight">Analytics</h1>
+                <p className="text-xs text-gray-500 mt-0.5">AI coding assistant usage reporting</p>
+              </div>
             </div>
             <div className="flex items-center gap-3">
               <TimeRangeSelector value={timeRange} onChange={setTimeRange} />
@@ -117,6 +155,51 @@ export function AnalyticsPage() {
                 </span>
               </button>
             ))}
+
+            {/* Analysis mode toggle — after tabs, on Prompts and Workshop tabs */}
+            {(activeTab === 'prompts' || activeTab === 'workshop') && (
+              <div className="ml-auto flex items-center gap-1 bg-[#161b22] border border-gray-700 rounded-lg p-0.5 flex-shrink-0">
+                <button
+                  onClick={() => handleModeChange('developer')}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                    analysisMode === 'developer'
+                      ? 'bg-blue-500/20 text-blue-400'
+                      : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  Developer
+                </button>
+                <button
+                  onClick={() => handleModeChange('vibe')}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                    analysisMode === 'vibe'
+                      ? 'bg-purple-500/20 text-purple-400'
+                      : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  Vibe
+                </button>
+              </div>
+            )}
+
+            {/* Model selection — right-aligned, Workshop tab only */}
+            {activeTab === 'workshop' && (
+              <div className="ml-auto flex items-center gap-1 bg-[#161b22] border border-gray-700 rounded-lg p-0.5 flex-shrink-0">
+                {MODEL_OPTIONS.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => handleModelChange(selectedModel === m.id ? undefined : m.id)}
+                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                      selectedModel === m.id
+                        ? 'bg-teal-500/20 text-teal-400'
+                        : 'text-gray-500 hover:text-gray-300'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -124,8 +207,8 @@ export function AnalyticsPage() {
       {/* Tab content */}
       <div className="flex-1 overflow-auto">
         {activeTab === 'executive' && <ExecutiveOverview data={mockData} />}
-        {activeTab === 'replay' && <SessionReplay data={mockData} />}
-        {activeTab === 'prompts' && <PromptAnalyzer data={mockData} />}
+        {activeTab === 'prompts' && <PromptAnalyzer data={mockData} analysisMode={analysisMode} />}
+        {activeTab === 'workshop' && <PromptWorkshop analysisMode={analysisMode} modelId={selectedModel} />}
         {activeTab === 'insights' && <InsightsView data={mockData} sessions={analytics.sessions} />}
         {activeTab === 'nudges' && <LiveNudgesView />}
       </div>

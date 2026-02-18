@@ -64,6 +64,15 @@ export class Broadcaster {
     }
   }
 
+  broadcastTerminalSend(text: string): void {
+    const msg: WsServerMessage = { type: 'terminal_send', data: { text } };
+    const payload = JSON.stringify(msg);
+
+    for (const client of this.clients) {
+      this.safeSend(client, payload);
+    }
+  }
+
   broadcastText(agentId: string, text: string, isPartial: boolean): void {
     const msg: WsServerMessage = {
       type: 'agent_text',
