@@ -293,6 +293,8 @@ export function getStoredEvents(params: {
   agentId?: string;
   type?: string;
   cwd?: string;
+  from?: number;
+  to?: number;
   limit?: number;
   offset?: number;
 }): AgentEvent[] {

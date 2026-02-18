@@ -409,39 +409,31 @@ export function queryEvents(params: {
   agentId?: string;
   type?: string;
   cwd?: string;
+  from?: number;
+  to?: number;
   limit?: number;
   offset?: number;
 }): EventRow[] {
   const limit = Math.min(Math.max(params.limit ?? 100, 1), 2000);
   const offset = Math.min(Math.max(params.offset ?? 0, 0), 100000);
 
-  if (params.cwd) {
-    return queryAll(
-      'SELECT * FROM events WHERE cwd = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
-      [params.cwd, limit, offset],
-    ) as unknown as EventRow[];
-  }
-  if (params.sessionId) {
-    return queryAll(
-      'SELECT * FROM events WHERE session_id = ? ORDER BY created_at ASC LIMIT ? OFFSET ?',
-      [params.sessionId, limit, offset],
-    ) as unknown as EventRow[];
-  }
-  if (params.agentId) {
-    return queryAll(
-      'SELECT * FROM events WHERE agent_id = ? ORDER BY created_at ASC LIMIT ? OFFSET ?',
-      [params.agentId, limit, offset],
-    ) as unknown as EventRow[];
-  }
-  if (params.type) {
-    return queryAll(
-      'SELECT * FROM events WHERE event_type = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
-      [params.type, limit, offset],
-    ) as unknown as EventRow[];
-  }
+  const clauses: string[] = [];
+  const values: unknown[] = [];
+
+  if (params.cwd) { clauses.push('cwd = ?'); values.push(params.cwd); }
+  if (params.sessionId) { clauses.push('session_id = ?'); values.push(params.sessionId); }
+  if (params.agentId) { clauses.push('agent_id = ?'); values.push(params.agentId); }
+  if (params.type) { clauses.push('event_type = ?'); values.push(params.type); }
+  if (params.from != null) { clauses.push('created_at >= ?'); values.push(params.from); }
+  if (params.to != null) { clauses.push('created_at <= ?'); values.push(params.to); }
+
+  const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+  const order = params.sessionId || params.agentId ? 'ASC' : 'DESC';
+
+  values.push(limit, offset);
   return queryAll(
-    'SELECT * FROM events ORDER BY created_at DESC LIMIT ? OFFSET ?',
-    [limit, offset],
+    `SELECT * FROM events ${where} ORDER BY created_at ${order} LIMIT ? OFFSET ?`,
+    values,
   ) as unknown as EventRow[];
 }
 
@@ -470,13 +462,34 @@ export interface SessionSummary {
   first_event: number;
   last_event: number;
   event_count: number;
+  tool_count: number;
+  total_tokens: number;
+  model: string | null;
+  cwd: string | null;
+  has_ended: number; // 0 or 1 (SQLite boolean)
 }
 
-export function listSessions(limit = 500): SessionSummary[] {
+export function listSessions(limit = 500, cwd?: string): SessionSummary[] {
+  const clauses: string[] = [];
+  const values: unknown[] = [];
+
+  if (cwd) { clauses.push('cwd = ?'); values.push(cwd); }
+
+  const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+  values.push(limit);
+
   return queryAll(
-    `SELECT session_id, MIN(created_at) as first_event, MAX(created_at) as last_event, COUNT(*) as event_count
-     FROM events GROUP BY session_id ORDER BY last_event DESC LIMIT ?`,
-    [limit],
+    `SELECT session_id,
+      MIN(created_at) as first_event,
+      MAX(created_at) as last_event,
+      COUNT(*) as event_count,
+      SUM(CASE WHEN event_type IN ('tool_start','tool_end','tool_error') THEN 1 ELSE 0 END) as tool_count,
+      COALESCE(SUM(COALESCE(token_input,0) + COALESCE(token_output,0)), 0) as total_tokens,
+      MAX(model) as model,
+      MAX(cwd) as cwd,
+      MAX(CASE WHEN event_type = 'session_end' THEN 1 ELSE 0 END) as has_ended
+     FROM events ${where} GROUP BY session_id ORDER BY last_event DESC LIMIT ?`,
+    values,
   ) as unknown as SessionSummary[];
 }
 

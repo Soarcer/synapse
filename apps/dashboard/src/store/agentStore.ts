@@ -78,9 +78,14 @@ function reloadAllEvents(): void {
   reloadAbort = new AbortController();
   const signal = reloadAbort.signal;
 
-  const cwdFilter = useAgentStore.getState().cwdFilter;
-  const cwdParam = cwdFilter ? `&cwd=${encodeURIComponent(cwdFilter)}` : '';
-  fetch(apiUrl(`/api/events?limit=2000${cwdParam}`), { signal })
+  const { cwdFilter, timeRange } = useAgentStore.getState();
+  const params = new URLSearchParams({ limit: '2000' });
+  if (cwdFilter) params.set('cwd', cwdFilter);
+  if (timeRange) {
+    params.set('from', String(timeRange.from));
+    params.set('to', String(timeRange.to));
+  }
+  fetch(apiUrl(`/api/events?${params}`), { signal })
     .then((r) => r.json())
     .then((data) => {
       const events = Array.isArray(data) ? data : data?.events;
@@ -122,8 +127,9 @@ interface AgentStore {
   showAllTools: boolean;
   lockViewport: boolean;
   autoClosePrompts: boolean;
-  cwdFilterActive: boolean;
   cwdFilter: string | null;
+  timeRange: { from: number; to: number } | null;
+  timePresetLabel: string;
   graphSearchQuery: string;
   collapsedNodes: Set<string>;
   transcripts: Map<string, TranscriptSummary>;
@@ -151,7 +157,7 @@ interface AgentStore {
   setShowAllTools: (show: boolean) => void;
   setLockViewport: (lock: boolean) => void;
   setAutoClosePrompts: (v: boolean) => void;
-  setCwdFilterActive: (active: boolean) => void;
+  setTimeRange: (range: { from: number; to: number } | null, label: string) => void;
   setGraphSearchQuery: (query: string) => void;
   toggleCollapsed: (nodeId: string) => void;
   expandNode: (nodeId: string) => void;
@@ -203,8 +209,9 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   showAllTools: false,
   lockViewport: true,
   autoClosePrompts: false,
-  cwdFilterActive: projectCwd !== null,
   cwdFilter: projectCwd,
+  timeRange: null,
+  timePresetLabel: 'All time',
   graphSearchQuery: '',
   collapsedNodes: new Set<string>(),
   transcripts: new Map(),
@@ -323,9 +330,8 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
   setLockViewport: (lockViewport) => set({ lockViewport }),
 
-  setCwdFilterActive: (active) => {
-    const newFilter = active ? projectCwd : null;
-    set({ cwdFilterActive: active, cwdFilter: newFilter });
+  setTimeRange: (range, label) => {
+    set({ timeRange: range, timePresetLabel: label });
     reloadAllEvents();
   },
 
