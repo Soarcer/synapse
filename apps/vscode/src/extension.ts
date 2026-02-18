@@ -176,6 +176,28 @@ export async function activate(context: vscode.ExtensionContext) {
         hookManager!,
       );
     }),
+
+    vscode.commands.registerCommand('synapse.sendToClaudeTerminal', (text: string) => {
+      if (!text || typeof text !== 'string') {
+        vscode.window.showWarningMessage('No text provided to send to Claude terminal.');
+        return;
+      }
+
+      const claudeTerminal = findClaudeTerminal();
+      if (!claudeTerminal) {
+        // Fallback: copy to clipboard and inform user
+        vscode.env.clipboard.writeText(text);
+        vscode.window.showInformationMessage(
+          'No Claude Code terminal found. The prompt has been copied to your clipboard.',
+        );
+        return;
+      }
+
+      claudeTerminal.show();
+      // sendText with false = types text WITHOUT pressing Enter, so user can review
+      claudeTerminal.sendText(text, false);
+      vscode.window.showInformationMessage('Prompt sent to Claude terminal. Press Enter to submit.');
+    }),
   );
 
   context.subscriptions.push(outputChannel);
@@ -240,6 +262,10 @@ function connectWsClient(context: vscode.ExtensionContext, port: number): void {
     debouncedHydrateIframes(port);
   });
 
+  wsClient.onTerminalSend((text) => {
+    vscode.commands.executeCommand('synapse.sendToClaudeTerminal', text);
+  });
+
   context.subscriptions.push(wsClient);
   wsClient.connect();
 }
@@ -297,6 +323,15 @@ function updateStatusBarMetrics() {
   } else {
     statusBarItem.text = `$(pulse) ${agentCount} agent${agentCount !== 1 ? 's' : ''} | ${toolCallCount} tools`;
   }
+}
+
+function findClaudeTerminal(): vscode.Terminal | undefined {
+  // Look for terminal named "Claude" (set by Claude Code VS Code extension)
+  for (const terminal of vscode.window.terminals) {
+    const name = terminal.name.toLowerCase();
+    if (name.includes('claude')) return terminal;
+  }
+  return undefined;
 }
 
 function checkServerHealth(port: number): Promise<boolean> {

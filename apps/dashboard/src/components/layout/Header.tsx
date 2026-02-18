@@ -140,6 +140,15 @@ export function Header() {
       {/* Session selector */}
       <SessionSelector />
 
+      {/* Prompt Lab button */}
+      <button
+        onClick={() => useAgentStore.getState().setShowWorkshop(true)}
+        className="px-2.5 py-1 text-xs text-purple-400 hover:text-purple-200 bg-purple-900/20 hover:bg-purple-800/30 border border-purple-700/30 rounded transition-colors"
+        title="Open Prompt Lab (W)"
+      >
+        Prompt Lab
+      </button>
+
       {/* Analytics link */}
       <a
         href="?view=analytics"

@@ -6,6 +6,7 @@ import { useBreakpoint } from './hooks/useBreakpoint';
 
 const AnalyticsPage = lazy(() => import('./components/analytics/AnalyticsPageLazy'));
 import { ToastContainer } from './components/Toast';
+import { WorkshopModal } from './components/WorkshopModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useAgentStore, reloadAllEvents } from './store/agentStore';
 import { wsClient } from './store/wsClient';
@@ -117,18 +118,20 @@ export default function App() {
       if (e.key === 'Escape') {
         useAgentStore.getState().selectNode(null);
         useAgentStore.getState().setShowSpawnDialog(false);
+        useAgentStore.getState().setShowWorkshop(false);
       }
       if (e.key === ' ') {
-        e.preventDefault();
         const store = useAgentStore.getState();
+        // Don't toggle pause when navigating tools inside an expanded group
+        if (store.selectedNodeId?.startsWith('tool-') && store.showAllTools) return;
+        e.preventDefault();
         store.setPaused(!store.paused);
       }
       if (e.key === 'n' && !e.ctrlKey && !e.metaKey) {
         useAgentStore.getState().setShowSpawnDialog(true);
       }
-      if (e.key === 'l' && !e.ctrlKey && !e.metaKey) {
-        const store = useAgentStore.getState();
-        store.setLayoutMode(store.layoutMode === 'graph' ? 'list' : 'graph');
+      if (e.key === 'w' && !e.ctrlKey && !e.metaKey) {
+        useAgentStore.getState().setShowWorkshop(true);
       }
       if (e.key === 'v' && !e.ctrlKey && !e.metaKey) {
         const store = useAgentStore.getState();
@@ -206,6 +209,7 @@ export default function App() {
         </ErrorBoundary>
 
         <GraphLayout />
+        <WorkshopModal />
         <ToastContainer />
       </div>
     );
@@ -243,6 +247,7 @@ function FullView() {
         </main>
       </div>
 
+      <WorkshopModal />
       <ToastContainer />
     </div>
   );

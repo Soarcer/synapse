@@ -66,7 +66,7 @@ class WSClient {
           const msg: WsServerMessage = JSON.parse(event.data);
           this.onEvent?.(msg);
         } catch {
-          // ignore malformed messages
+          console.warn('[wsClient] Malformed message:', String(event.data).slice(0, 80));
         }
       };
 

@@ -51,6 +51,10 @@
         "command": "synapse.openSettings",
         "title": "Synapse: Settings",
         "icon": "$(gear)"
+      },
+      {
+        "command": "synapse.sendToClaudeTerminal",
+        "title": "Synapse: Send Text to Claude Terminal"
       }
     ],
     "menus": {

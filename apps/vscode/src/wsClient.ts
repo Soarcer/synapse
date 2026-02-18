@@ -17,6 +17,9 @@ export class ExtensionWsClient implements vscode.Disposable {
   private _onDisconnected = new vscode.EventEmitter<void>();
   readonly onDisconnected = this._onDisconnected.event;
 
+  private _onTerminalSend = new vscode.EventEmitter<string>();
+  readonly onTerminalSend = this._onTerminalSend.event;
+
   constructor(private port: number) {}
 
   connect(): void {
@@ -38,6 +41,8 @@ export class ExtensionWsClient implements vscode.Disposable {
         // and { type: 'connected', data: { activeAgents: [...] } }
         if (message.type === 'event' && message.data) {
           this._onEvent.fire(message.data as Record<string, unknown>);
+        } else if (message.type === 'terminal_send' && typeof message.data?.text === 'string') {
+          this._onTerminalSend.fire(message.data.text);
         } else if (message.type === 'connected' && message.data?.activeAgents) {
           // Emit each active agent as a synthetic event for tree population
           for (const agent of message.data.activeAgents) {
@@ -108,5 +113,6 @@ export class ExtensionWsClient implements vscode.Disposable {
     this._onEvent.dispose();
     this._onConnected.dispose();
     this._onDisconnected.dispose();
+    this._onTerminalSend.dispose();
   }
 }

@@ -55,6 +55,8 @@ export function SessionSelector() {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
+        aria-label="Session selector"
+        aria-expanded={open}
         className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded transition-colors max-w-[200px] ${
           filter.sessionId
             ? 'text-cyan-300 bg-cyan-900/30 hover:bg-cyan-800/40 border border-cyan-700/30'
@@ -69,7 +71,7 @@ export function SessionSelector() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-64 bg-[#1c2128] border border-gray-700 rounded-lg shadow-xl z-30 py-1 max-h-64 overflow-auto">
+        <div role="listbox" aria-label="Available sessions" className="absolute right-0 top-full mt-1 w-64 bg-[#1c2128] border border-gray-700 rounded-lg shadow-xl z-30 py-1 max-h-64 overflow-auto">
           <button
             onClick={() => { setFilter({ ...filter, sessionId: undefined }); setOpen(false); }}
             className={`w-full px-3 py-2 text-xs text-left transition-colors ${
