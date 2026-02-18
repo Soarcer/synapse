@@ -219,7 +219,7 @@ export function TreeView() {
       {/* Tree list — plain render, no virtualization */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-auto focus:outline-none"
+        className="flex-1 min-h-0 overflow-auto focus:outline-none"
         onKeyDown={handleKeyDown}
         tabIndex={0}
       >

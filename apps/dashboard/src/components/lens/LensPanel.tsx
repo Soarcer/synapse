@@ -20,7 +20,7 @@ export function LensPanel({ width, onWidthChange, fillWidth }: LensPanelProps) {
 
   return (
     <aside
-      className={`bg-[#161b22] border-r border-gray-800 flex flex-col relative overflow-hidden ${fillWidth ? 'flex-1' : 'flex-shrink-0'}`}
+      className={`bg-[#161b22] border-r border-gray-800 h-full flex flex-col relative overflow-hidden ${fillWidth ? 'flex-1' : 'flex-shrink-0'}`}
       style={fillWidth ? undefined : { width }}
     >
       {!fillWidth && onWidthChange && (

@@ -419,10 +419,12 @@ export function TreemapView() {
       )}
 
       {/* Treemap */}
-      <div ref={containerRef} className="flex-1 overflow-auto p-1">
+      <div ref={containerRef} className="flex-1 min-h-0 overflow-auto p-1">
         <svg
           viewBox={`0 0 ${viewW} ${viewH}`}
-          style={{ width: `${100 * zoom}%`, height: `${100 * zoom}%` }}
+          width={viewW * zoom}
+          height={viewH * zoom}
+          className="block"
         >
           {nestedRects.map(renderRect)}
         </svg>

@@ -200,7 +200,7 @@ export function CompactionView() {
         <span className="text-[10px] text-gray-500 font-medium">Compaction & Context Growth</span>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-auto p-3 space-y-3">
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto p-3 space-y-3">
         {/* Stats grid */}
         <div className="grid grid-cols-2 gap-2">
           <StatCard label="Compactions" value={String(stats.totalCompactions)}

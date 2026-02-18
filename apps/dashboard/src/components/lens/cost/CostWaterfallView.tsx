@@ -182,7 +182,7 @@ export function CostWaterfallView() {
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-auto p-3">
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto p-3">
         {/* Bar chart with rotated context-size area behind */}
         <div className="relative" style={{ minHeight: totalH }}>
           {/* Area chart background (rotated: Y=time top→bottom, X=context size left→right) */}
