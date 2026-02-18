@@ -33,6 +33,10 @@ export function nodeMatchesSearch(node: Node, query: string): boolean {
         v?.toLowerCase().includes(query),
       );
     }
+    case 'toolGroup': {
+      const tools = d.tools as ToolCallSummary[] | undefined;
+      return tools?.some((t) => [t.toolName, t.inputPreview].some((v) => v?.toLowerCase().includes(query))) ?? false;
+    }
     default:
       return false;
   }

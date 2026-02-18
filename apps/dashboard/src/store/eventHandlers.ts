@@ -279,13 +279,24 @@ function handleAgentStart(event: AgentEvent, draft: StateDraft): void {
   if (!parentNodeId) {
     const pending = draft.pendingTaskTools.get(event.sessionId);
     if (pending && pending.length > 0) {
-      const taskToolUseId = pending.shift()!; // consume oldest pending Task
+      // Prefer explicit toolUseId match (hooks provide tool_use_id on SubagentStart)
+      // Fall back to FIFO only when toolUseId is unavailable
+      let taskToolUseId: string | undefined;
+      if (event.toolUseId && pending.includes(event.toolUseId)) {
+        taskToolUseId = event.toolUseId;
+        const idx = pending.indexOf(event.toolUseId);
+        pending.splice(idx, 1);
+      } else {
+        taskToolUseId = pending.shift();
+      }
       if (pending.length === 0) draft.pendingTaskTools.delete(event.sessionId);
-      const taskToolNodeId = nid.tool(taskToolUseId);
-      if (draft.nodes.some((n) => n.id === taskToolNodeId)) {
-        parentNodeId = taskToolNodeId;
-        // Record mapping so handleToolEnd can also do re-pointing for SDK events
-        draft.taskToolAgentMap.set(taskToolUseId, agentId);
+      if (taskToolUseId) {
+        const taskToolNodeId = nid.tool(taskToolUseId);
+        if (draft.nodes.some((n) => n.id === taskToolNodeId)) {
+          parentNodeId = taskToolNodeId;
+          // Record mapping so handleToolEnd can also do re-pointing for SDK events
+          draft.taskToolAgentMap.set(taskToolUseId, agentId);
+        }
       }
     }
   }

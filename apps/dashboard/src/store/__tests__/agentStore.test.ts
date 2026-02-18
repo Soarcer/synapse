@@ -50,8 +50,8 @@ function resetStore() {
     connectionStatus: 'disconnected',
     filter: {},
     showSpawnDialog: false,
+    showWorkshop: false,
     paused: false,
-    layoutMode: 'graph',
     showHookEvents: true,
     showAllTools: false,
     lockViewport: true,
@@ -119,7 +119,6 @@ describe('agentStore', () => {
     expect(state.filter).toEqual({});
     expect(state.showSpawnDialog).toBe(false);
     expect(state.paused).toBe(false);
-    expect(state.layoutMode).toBe('graph');
     expect(state.showHookEvents).toBe(true);
     expect(state.lockViewport).toBe(true);
     expect(state.paletteIndex).toBe(0);

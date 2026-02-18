@@ -3,12 +3,13 @@ import { useState } from 'react';
 const SHORTCUTS = [
   { key: 'Space', action: 'Pause / Resume' },
   { key: 'T', action: 'Tool log' },
-  { key: 'L', action: 'Layout mode' },
+
   { key: 'V', action: 'Lock viewport' },
   { key: 'F', action: 'Show all tools' },
   { key: 'H', action: 'Hook events' },
   { key: 'C', action: 'Collapse prompts' },
   { key: 'N', action: 'Spawn agent' },
+  { key: 'W', action: 'Prompt Lab' },
   { key: 'E', action: 'Export snapshot' },
   { key: 'I', action: 'Import snapshot' },
   { key: '/', action: 'Focus search' },

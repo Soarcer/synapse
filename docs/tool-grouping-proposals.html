@@ -1,0 +1,1746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Synapse — Tool Call Grouping Proposals</title>
+<style>
+  /* ── Reset & Base ────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg-page: #0f1117;
+    --bg-card: #1a1d27;
+    --bg-card-hover: #1e2130;
+    --bg-node: #1f2937;
+    --bg-node-inner: #111827;
+    --border: #374151;
+    --border-light: #4b5563;
+    --text-primary: #f3f4f6;
+    --text-secondary: #9ca3af;
+    --text-muted: #6b7280;
+    --accent-green: #34d399;
+    --accent-green-dim: rgba(52, 211, 153, 0.15);
+    --accent-purple: #a78bfa;
+    --accent-purple-dim: rgba(167, 139, 250, 0.15);
+    --accent-teal: #2dd4bf;
+    --accent-teal-dim: rgba(45, 212, 191, 0.15);
+    --accent-orange: #fb923c;
+    --accent-orange-dim: rgba(251, 146, 60, 0.15);
+    --accent-red: #f87171;
+    --accent-red-dim: rgba(248, 113, 113, 0.15);
+    --accent-cyan: #22d3ee;
+    --accent-blue: #60a5fa;
+    --accent-yellow: #fbbf24;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --radius: 10px;
+    --radius-sm: 6px;
+    --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg-page);
+    color: var(--text-primary);
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+
+  /* ── Layout ──────────────────────────────────────────── */
+  .page-header {
+    text-align: center;
+    padding: 48px 24px 24px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(167, 139, 250, 0.06) 0%, transparent 100%);
+  }
+  .page-header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    background: linear-gradient(135deg, var(--accent-purple), var(--accent-teal));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .page-header p {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-top: 8px;
+    max-width: 700px;
+    margin-inline: auto;
+  }
+
+  /* Tab navigation */
+  .tab-nav {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    padding: 16px 24px;
+    background: rgba(0,0,0,0.2);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(12px);
+  }
+  .tab-btn {
+    padding: 10px 20px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .tab-btn:hover { background: rgba(255,255,255,0.04); color: var(--text-primary); }
+  .tab-btn.active {
+    background: var(--accent-purple-dim);
+    color: var(--accent-purple);
+    border-color: rgba(167, 139, 250, 0.3);
+  }
+  .tab-btn .tab-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.06);
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .tab-btn.active .tab-num {
+    background: rgba(167, 139, 250, 0.25);
+  }
+
+  /* Sections */
+  .proposal-section {
+    display: none;
+    padding: 32px 24px 48px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .proposal-section.active { display: block; }
+
+  .proposal-header {
+    margin-bottom: 32px;
+  }
+  .proposal-header h2 {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .proposal-header .subtitle {
+    color: var(--text-secondary);
+    font-size: 13px;
+  }
+  .proposal-header .tags {
+    display: flex;
+    gap: 6px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+  .tag {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .tag-green { background: var(--accent-green-dim); color: var(--accent-green); }
+  .tag-purple { background: var(--accent-purple-dim); color: var(--accent-purple); }
+  .tag-orange { background: var(--accent-orange-dim); color: var(--accent-orange); }
+  .tag-teal { background: var(--accent-teal-dim); color: var(--accent-teal); }
+
+  /* ── Shared Demo Canvas ──────────────────────────────── */
+  .demo-canvas {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 32px;
+    min-height: 400px;
+    position: relative;
+    overflow: hidden;
+  }
+  .demo-canvas::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0);
+    background-size: 24px 24px;
+    pointer-events: none;
+  }
+
+  /* Controls bar above demo */
+  .demo-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .demo-controls label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .demo-controls select, .demo-controls button {
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg-node);
+    color: var(--text-primary);
+    font-size: 12px;
+    cursor: pointer;
+    transition: var(--transition);
+  }
+  .demo-controls select:hover, .demo-controls button:hover {
+    border-color: var(--border-light);
+    background: var(--bg-card-hover);
+  }
+
+  /* ── Agent Node (shared) ─────────────────────────────── */
+  .agent-node {
+    display: inline-block;
+    background: var(--bg-node);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent-green);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    min-width: 220px;
+    position: relative;
+  }
+  .agent-node .node-header {
+    padding: 10px 14px 4px;
+  }
+  .agent-node .node-label {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: rgba(52, 211, 153, 0.5);
+  }
+  .agent-node .node-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-top: 2px;
+  }
+  .agent-node .node-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 14px 4px;
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+  .agent-node .node-meta .tokens-in { color: rgba(34, 211, 238, 0.5); }
+  .agent-node .node-meta .tokens-out { color: rgba(251, 146, 60, 0.5); }
+
+  /* ── Tool Detail Panel (shared overlay) ──────────────── */
+  .detail-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px);
+    animation: fadeIn 0.15s ease;
+  }
+  .detail-overlay.active { display: flex; align-items: center; justify-content: center; }
+
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+  .detail-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 8px 48px rgba(0,0,0,0.6);
+    width: min(560px, 90vw);
+    max-height: 80vh;
+    overflow: auto;
+    animation: slideUp 0.2s ease;
+  }
+  .detail-panel .dp-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .detail-panel .dp-header h3 {
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .detail-panel .dp-close {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: none;
+    background: rgba(255,255,255,0.06);
+    color: var(--text-secondary);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+  }
+  .detail-panel .dp-close:hover { background: rgba(255,255,255,0.12); color: var(--text-primary); }
+
+  .detail-panel .dp-body { padding: 16px 20px; }
+  .detail-panel .dp-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .detail-panel .dp-field {
+    flex: 1;
+  }
+  .detail-panel .dp-field-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+  .detail-panel .dp-field-value {
+    font-size: 13px;
+    color: var(--text-primary);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 12px;
+  }
+  .dp-code {
+    background: var(--bg-node-inner);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 200px;
+    overflow: auto;
+    margin-top: 4px;
+  }
+  .status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+  .status-dot.success { background: var(--accent-teal); }
+  .status-dot.error { background: var(--accent-red); }
+  .status-dot.running { background: var(--accent-purple); }
+
+  /* ── Pros / Cons ─────────────────────────────────────── */
+  .pros-cons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 24px;
+  }
+  .pros-cons > div {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .pros-cons h4 {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+  }
+  .pros-cons .pro-title { color: var(--accent-green); }
+  .pros-cons .con-title { color: var(--accent-orange); }
+  .pros-cons ul {
+    list-style: none;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .pros-cons li {
+    padding: 4px 0;
+    padding-left: 16px;
+    position: relative;
+  }
+  .pros-cons li::before {
+    position: absolute;
+    left: 0;
+    font-size: 11px;
+  }
+  .pros-cons .pros li::before { content: '+'; color: var(--accent-green); font-weight: 700; }
+  .pros-cons .cons li::before { content: '-'; color: var(--accent-orange); font-weight: 700; }
+
+  /* ── How it would look note ──────────────────────────── */
+  .impl-note {
+    margin-top: 24px;
+    padding: 16px;
+    background: rgba(167, 139, 250, 0.05);
+    border: 1px solid rgba(167, 139, 250, 0.15);
+    border-radius: var(--radius);
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .impl-note strong { color: var(--accent-purple); }
+
+  /* ══════════════════════════════════════════════════════
+     PROPOSAL 1: PILL GRID
+     ══════════════════════════════════════════════════════ */
+  .pill-grid-wrapper {
+    display: flex;
+    align-items: flex-start;
+    gap: 24px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  /* Collapsed summary chip */
+  .tool-summary-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: var(--bg-node);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: var(--transition);
+    margin-top: 4px;
+  }
+  .tool-summary-chip:hover {
+    border-color: var(--accent-purple);
+    background: var(--bg-card-hover);
+  }
+  .tool-summary-chip .chip-count {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent-purple);
+  }
+  .tool-summary-chip .chip-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .tool-summary-chip .mini-dots {
+    display: flex;
+    gap: 3px;
+    flex-wrap: wrap;
+    max-width: 80px;
+  }
+  .mini-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 2px;
+  }
+  .mini-dot.success { background: var(--accent-teal); }
+  .mini-dot.error { background: var(--accent-red); }
+  .mini-dot.running { background: var(--accent-purple); }
+
+  /* Expanded pill grid */
+  .pill-grid-node {
+    background: var(--bg-node);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    transition: var(--transition);
+    min-width: 260px;
+  }
+  .pill-grid-node .pgn-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(167, 139, 250, 0.04);
+  }
+  .pill-grid-node .pgn-header span {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--accent-purple);
+  }
+  .pill-grid-node .pgn-stats {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: monospace;
+  }
+  .pill-grid-node .pgn-body {
+    padding: 10px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 6px;
+  }
+
+  /* Individual pill */
+  .tool-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: var(--transition);
+    border: 1px solid transparent;
+    position: relative;
+  }
+  .tool-pill:hover {
+    border-color: rgba(255,255,255,0.15);
+    transform: translateY(-1px);
+  }
+  .tool-pill.success { background: rgba(45, 212, 191, 0.08); }
+  .tool-pill.error { background: rgba(248, 113, 113, 0.08); }
+  .tool-pill.running { background: rgba(167, 139, 250, 0.08); }
+  .tool-pill .pill-icon {
+    font-size: 11px;
+    flex-shrink: 0;
+    width: 14px;
+    text-align: center;
+  }
+  .tool-pill.success .pill-icon { color: var(--accent-teal); }
+  .tool-pill.error .pill-icon { color: var(--accent-red); }
+  .tool-pill.running .pill-icon { color: var(--accent-purple); }
+  .tool-pill .pill-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tool-pill .pill-dur {
+    font-size: 9px;
+    color: var(--text-muted);
+    margin-left: auto;
+    font-family: monospace;
+    flex-shrink: 0;
+  }
+
+  /* Connection line (visual edge) */
+  .edge-line {
+    position: absolute;
+    background: var(--border);
+    z-index: 0;
+  }
+  .edge-line-h { height: 2px; width: 40px; top: 50%; transform: translateY(-1px); }
+
+  /* ══════════════════════════════════════════════════════
+     PROPOSAL 2: TIMELINE STRIP
+     ══════════════════════════════════════════════════════ */
+  .timeline-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .timeline-strip-node {
+    background: var(--bg-node);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    width: 100%;
+    max-width: 800px;
+    overflow: hidden;
+  }
+  .timeline-strip-node .tsn-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .timeline-strip-node .tsn-header .tsn-title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--accent-teal);
+  }
+  .timeline-strip-node .tsn-header .tsn-meta {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: monospace;
+  }
+
+  /* The actual timeline bar */
+  .timeline-bar {
+    padding: 12px 14px;
+    position: relative;
+  }
+  .timeline-track {
+    display: flex;
+    height: 36px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--bg-node-inner);
+    border: 1px solid var(--border);
+    position: relative;
+  }
+  .timeline-segment {
+    position: relative;
+    height: 100%;
+    cursor: pointer;
+    transition: filter 0.15s ease, transform 0.1s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-right: 1px solid rgba(0,0,0,0.3);
+  }
+  .timeline-segment:last-child { border-right: none; }
+  .timeline-segment:hover {
+    filter: brightness(1.3);
+    z-index: 2;
+  }
+  .timeline-segment .seg-label {
+    font-size: 9px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.85);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    padding: 0 4px;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    pointer-events: none;
+  }
+
+  /* Tooltip */
+  .timeline-segment .seg-tooltip {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1a1d27;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 11px;
+    white-space: nowrap;
+    z-index: 10;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+    pointer-events: none;
+  }
+  .timeline-segment:hover .seg-tooltip {
+    display: block;
+  }
+  .seg-tooltip .tt-name { font-weight: 700; color: var(--text-primary); }
+  .seg-tooltip .tt-dur { color: var(--text-secondary); margin-left: 6px; }
+  .seg-tooltip .tt-status { margin-left: 6px; }
+
+  /* Time axis */
+  .timeline-axis {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0 0;
+    font-size: 9px;
+    color: var(--text-muted);
+    font-family: monospace;
+  }
+
+  /* Legend */
+  .timeline-legend {
+    display: flex;
+    gap: 12px;
+    padding: 6px 14px 10px;
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    color: var(--text-secondary);
+  }
+  .legend-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+  }
+
+  /* Multi-row timeline for many tools */
+  .timeline-rows {
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .timeline-row-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+
+  /* ══════════════════════════════════════════════════════
+     PROPOSAL 3: HEATMAP MATRIX
+     ══════════════════════════════════════════════════════ */
+  .heatmap-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .heatmap-node {
+    background: var(--bg-node);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    min-width: 320px;
+  }
+  .heatmap-node .hm-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(34, 211, 238, 0.03);
+  }
+  .heatmap-node .hm-header .hm-title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--accent-cyan);
+  }
+  .heatmap-node .hm-stats {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: monospace;
+  }
+
+  .heatmap-grid {
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .hm-row {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .hm-row-label {
+    width: 56px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-align: right;
+    padding-right: 8px;
+    flex-shrink: 0;
+  }
+  .hm-cells {
+    display: flex;
+    gap: 3px;
+    flex-wrap: wrap;
+  }
+  .hm-cell {
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: var(--transition);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.5);
+  }
+  .hm-cell:hover {
+    transform: scale(1.2);
+    z-index: 2;
+    outline: 2px solid rgba(255,255,255,0.3);
+    outline-offset: 1px;
+  }
+  .hm-cell .hm-tooltip {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1a1d27;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 11px;
+    white-space: nowrap;
+    z-index: 20;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+    pointer-events: none;
+    color: var(--text-primary);
+    font-weight: 400;
+  }
+  .hm-cell:hover .hm-tooltip { display: block; }
+
+  /* Heatmap legend */
+  .hm-legend {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 14px 12px;
+    flex-wrap: wrap;
+  }
+  .hm-legend-scale {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+  .hm-legend-scale .scale-block {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+  }
+  .hm-legend-label {
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  /* ── Column index header ─────────────────────────────── */
+  .hm-col-header {
+    display: flex;
+    gap: 3px;
+    margin-left: 64px;
+    margin-bottom: 2px;
+  }
+  .hm-col-idx {
+    width: 28px;
+    text-align: center;
+    font-size: 9px;
+    color: var(--text-muted);
+    font-family: monospace;
+  }
+
+  /* ── Comparison section ──────────────────────────────── */
+  .comparison-section {
+    display: none;
+    padding: 32px 24px 64px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .comparison-section.active { display: block; }
+
+  .comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .comparison-table th {
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 2px solid var(--border);
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .comparison-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(55, 65, 81, 0.5);
+    color: var(--text-secondary);
+    vertical-align: top;
+  }
+  .comparison-table tr:hover td {
+    background: rgba(255,255,255,0.02);
+  }
+  .comparison-table .feature-name {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+  .check { color: var(--accent-green); }
+  .cross { color: var(--accent-red); opacity: 0.6; }
+  .partial { color: var(--accent-yellow); }
+
+  /* ── Responsive ──────────────────────────────────────── */
+  @media (max-width: 640px) {
+    .pros-cons { grid-template-columns: 1fr; }
+    .demo-canvas { padding: 16px; }
+    .tab-btn { padding: 8px 12px; font-size: 12px; }
+  }
+
+  /* ── Scrollbar ───────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border-light); }
+
+  /* ── State label ─────────────────────────────────────── */
+  .state-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    background: rgba(255,255,255,0.04);
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    transition: var(--transition);
+  }
+  .state-indicator:hover { border-color: var(--border-light); background: rgba(255,255,255,0.06); }
+  .state-indicator .si-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent-purple);
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .state-indicator.expanded .si-dot { background: var(--accent-green); animation: none; }
+</style>
+</head>
+<body>
+
+<!-- ────────────────── PAGE HEADER ────────────────── -->
+<div class="page-header">
+  <h1>Tool Call Grouping Proposals</h1>
+  <p>Three approaches to replace individual tool nodes with compact, interactive group visualizations. Click any tool in the demos below to see the detail panel.</p>
+</div>
+
+<!-- ────────────────── TAB NAVIGATION ────────────────── -->
+<nav class="tab-nav">
+  <button class="tab-btn active" onclick="showTab('pill-grid')">
+    <span class="tab-num">1</span> Pill Grid
+  </button>
+  <button class="tab-btn" onclick="showTab('timeline')">
+    <span class="tab-num">2</span> Timeline Strip
+  </button>
+  <button class="tab-btn" onclick="showTab('heatmap')">
+    <span class="tab-num">3</span> Heatmap Matrix
+  </button>
+  <button class="tab-btn" onclick="showTab('compare')">
+    <span class="tab-num">&harr;</span> Compare
+  </button>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════
+     PROPOSAL 1 — PILL GRID
+     ═══════════════════════════════════════════════════ -->
+<section id="pill-grid" class="proposal-section active">
+  <div class="proposal-header">
+    <h2>Proposal 1: Pill Grid</h2>
+    <p class="subtitle">
+      Replace individual tool nodes with a compact grid of interactive pills embedded in a summary node.
+      The parent agent node shows a collapsed chip; clicking expands into the full pill grid.
+    </p>
+    <div class="tags">
+      <span class="tag tag-green">Most compact</span>
+      <span class="tag tag-purple">Interactive</span>
+      <span class="tag tag-teal">Scalable</span>
+    </div>
+  </div>
+
+  <div class="demo-controls">
+    <label>State:</label>
+    <button class="state-indicator" id="pg-state-toggle" onclick="togglePillGridState()">
+      <span class="si-dot"></span>
+      <span id="pg-state-label">Collapsed</span>
+    </button>
+    <label style="margin-left: auto;">Tool count:</label>
+    <select id="pg-count" onchange="rebuildPillGrid()">
+      <option value="6">6 tools</option>
+      <option value="12" selected>12 tools</option>
+      <option value="24">24 tools</option>
+      <option value="48">48 tools</option>
+    </select>
+  </div>
+
+  <div class="demo-canvas">
+    <div class="pill-grid-wrapper">
+      <!-- Agent node -->
+      <div class="agent-node">
+        <div class="node-header">
+          <div class="node-label">Agent</div>
+          <div class="node-title">general-purpose</div>
+        </div>
+        <div class="node-meta">
+          <span class="tokens-in">12.4k&darr;</span>
+          <span class="tokens-out">8.2k&uarr;</span>
+        </div>
+        <div style="padding: 4px 14px 10px;">
+          <div class="tool-summary-chip" id="pg-chip" onclick="togglePillGridState()">
+            <span class="chip-count" id="pg-chip-count">12</span>
+            <span class="chip-label">tools</span>
+            <div class="mini-dots" id="pg-mini-dots"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrow connector -->
+      <div style="display: flex; align-items: center; color: var(--border-light); font-size: 20px; margin-top: 20px;">
+        &rarr;
+      </div>
+
+      <!-- Pill grid node (toggled) -->
+      <div class="pill-grid-node" id="pg-node" style="display: none;">
+        <div class="pgn-header">
+          <span>Tool Calls</span>
+          <span class="pgn-stats" id="pg-stats"></span>
+        </div>
+        <div class="pgn-body" id="pg-body"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pros-cons">
+    <div class="pros">
+      <h4 class="pro-title">Strengths</h4>
+      <ul>
+        <li>Extremely space-efficient &mdash; 48 tools in the area of ~4 old nodes</li>
+        <li>Status visible at a glance (color + icon)</li>
+        <li>Collapsed state shows summary chip with mini status dots</li>
+        <li>Natural grid scales: auto-fills columns as count grows</li>
+        <li>Click any pill for full detail panel</li>
+        <li>Familiar pattern (badges, chips) &mdash; low learning curve</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4 class="con-title">Trade-offs</h4>
+      <ul>
+        <li>Loses spatial relationship (edges) to the tool nodes</li>
+        <li>Duration only visible on hover or in detail &mdash; not in the pill itself at scale</li>
+        <li>Tool-to-child-agent edges need special handling (Task tool)</li>
+        <li>At 48+ tools, grid becomes tall; may need internal scroll</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="impl-note">
+    <strong>Implementation:</strong> In React Flow, the pill grid would be a single custom node type (<code>toolGridNode</code>) positioned
+    where the old stacked tools were. The agent node's tool count badge becomes clickable to expand/collapse. Clicking a pill dispatches
+    <code>setSelectedNodeId(toolUseId)</code> which opens the existing detail panel. The grid node's dimensions auto-size and dagre
+    accounts for it as one node instead of N.
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     PROPOSAL 2 — TIMELINE STRIP
+     ═══════════════════════════════════════════════════ -->
+<section id="timeline" class="proposal-section">
+  <div class="proposal-header">
+    <h2>Proposal 2: Timeline Strip</h2>
+    <p class="subtitle">
+      Replace tool nodes with a Gantt-style horizontal bar where each segment is proportional to
+      the tool's execution duration. Shows temporal flow, relative cost, and bottlenecks at a glance.
+    </p>
+    <div class="tags">
+      <span class="tag tag-orange">Duration-aware</span>
+      <span class="tag tag-teal">Temporal</span>
+      <span class="tag tag-purple">Bottleneck detection</span>
+    </div>
+  </div>
+
+  <div class="demo-controls">
+    <label>Variant:</label>
+    <select id="tl-variant" onchange="rebuildTimeline()">
+      <option value="single">Single bar</option>
+      <option value="multi">Grouped by type</option>
+    </select>
+    <label style="margin-left: auto;">Tool count:</label>
+    <select id="tl-count" onchange="rebuildTimeline()">
+      <option value="6">6 tools</option>
+      <option value="12" selected>12 tools</option>
+      <option value="24">24 tools</option>
+    </select>
+  </div>
+
+  <div class="demo-canvas">
+    <div class="timeline-wrapper">
+      <!-- Agent node at top -->
+      <div class="agent-node" style="align-self: flex-start;">
+        <div class="node-header">
+          <div class="node-label">Agent</div>
+          <div class="node-title">general-purpose</div>
+        </div>
+        <div class="node-meta">
+          <span class="tokens-in">18.7k&darr;</span>
+          <span class="tokens-out">11.3k&uarr;</span>
+        </div>
+      </div>
+
+      <!-- Timeline strip -->
+      <div class="timeline-strip-node" id="tl-node">
+        <div class="tsn-header">
+          <span class="tsn-title">Execution Timeline</span>
+          <span class="tsn-meta" id="tl-meta"></span>
+        </div>
+        <div id="tl-body"></div>
+        <div class="timeline-legend" id="tl-legend"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pros-cons">
+    <div class="pros">
+      <h4 class="pro-title">Strengths</h4>
+      <ul>
+        <li>Shows execution order and relative duration &mdash; immediately spot slow calls</li>
+        <li>Color-coded by tool type makes patterns obvious (all Reads, all Bashes)</li>
+        <li>Single compact bar replaces N nodes; fixed height regardless of tool count</li>
+        <li>Grouped-by-type variant shows parallel lanes like a Gantt chart</li>
+        <li>Hover tooltips and click-to-detail maintain full inspectability</li>
+        <li>Great for performance analysis &mdash; where is the agent spending time?</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4 class="con-title">Trade-offs</h4>
+      <ul>
+        <li>Very thin segments for fast tools (&lt;100ms) &mdash; hard to click</li>
+        <li>Duration isn't always meaningful (some tools are I/O bound)</li>
+        <li>Doesn't show success/error as clearly (need secondary indicator)</li>
+        <li>Grouped variant takes more vertical space than single bar</li>
+        <li>Minimum segment width needed for usability stretches time accuracy</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="impl-note">
+    <strong>Implementation:</strong> A custom React Flow node (<code>toolTimelineNode</code>) renders a flex-based bar.
+    Segment widths are <code>Math.max(duration / totalDuration * 100, 3)%</code> with a 3% minimum for clickability.
+    The node is attached via a single edge from the agent. Clicking a segment dispatches the same detail panel action.
+    The grouped variant uses <code>Object.groupBy(tools, t =&gt; t.toolName)</code> to create swim lanes.
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     PROPOSAL 3 — HEATMAP MATRIX
+     ═══════════════════════════════════════════════════ -->
+<section id="heatmap" class="proposal-section">
+  <div class="proposal-header">
+    <h2>Proposal 3: Heatmap Matrix</h2>
+    <p class="subtitle">
+      A matrix where rows are tool types and columns are sequential calls. Cell color encodes
+      status (success/error), cell opacity encodes duration (darker = longer). Reveals patterns
+      in tool usage and failure clustering.
+    </p>
+    <div class="tags">
+      <span class="tag tag-teal">Pattern discovery</span>
+      <span class="tag tag-green">Status overview</span>
+      <span class="tag tag-orange">Duration intensity</span>
+    </div>
+  </div>
+
+  <div class="demo-controls">
+    <label>Color mode:</label>
+    <select id="hm-mode" onchange="rebuildHeatmap()">
+      <option value="status">Status (success/error)</option>
+      <option value="duration">Duration (intensity)</option>
+      <option value="hybrid">Hybrid (color = status, opacity = duration)</option>
+    </select>
+    <label style="margin-left: auto;">Tool count:</label>
+    <select id="hm-count" onchange="rebuildHeatmap()">
+      <option value="8">8 tools</option>
+      <option value="16" selected>16 tools</option>
+      <option value="32">32 tools</option>
+    </select>
+  </div>
+
+  <div class="demo-canvas">
+    <div class="heatmap-wrapper">
+      <!-- Agent node -->
+      <div class="agent-node" style="align-self: flex-start;">
+        <div class="node-header">
+          <div class="node-label">Agent</div>
+          <div class="node-title">code-explorer</div>
+        </div>
+        <div class="node-meta">
+          <span class="tokens-in">24.1k&darr;</span>
+          <span class="tokens-out">15.8k&uarr;</span>
+        </div>
+      </div>
+
+      <!-- Heatmap node -->
+      <div class="heatmap-node" id="hm-node">
+        <div class="hm-header">
+          <span class="hm-title">Tool Activity Matrix</span>
+          <span class="hm-stats" id="hm-stats"></span>
+        </div>
+        <div id="hm-body"></div>
+        <div class="hm-legend" id="hm-legend"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pros-cons">
+    <div class="pros">
+      <h4 class="pro-title">Strengths</h4>
+      <ul>
+        <li>Reveals patterns: "Read always succeeds, Bash fails 40% of the time"</li>
+        <li>Duration intensity shows bottlenecks per tool type</li>
+        <li>Extremely dense &mdash; 32+ tools in a compact grid</li>
+        <li>Rows grouped by type give semantic structure</li>
+        <li>Color scales provide overview even without reading text</li>
+        <li>Hybrid mode encodes TWO dimensions (status + duration) simultaneously</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4 class="con-title">Trade-offs</h4>
+      <ul>
+        <li>Higher learning curve &mdash; users must understand the matrix encoding</li>
+        <li>Small cells (28px) limit label text; depends on hover tooltips</li>
+        <li>Empty cells when tool types have unequal call counts (sparse matrix)</li>
+        <li>Loses temporal ordering between different tool types</li>
+        <li>Color-blind users may struggle with status+intensity encoding</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="impl-note">
+    <strong>Implementation:</strong> A custom React Flow node (<code>toolHeatmapNode</code>) groups tool calls
+    by <code>toolName</code> and renders a CSS Grid. Cell background uses <code>hsla()</code> with hue from status
+    (160 = teal/success, 0 = red/error) and alpha from <code>duration / maxDuration</code>.
+    Clicking a cell dispatches <code>setSelectedNodeId</code>. The node width adapts to the max column count.
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     COMPARISON TABLE
+     ═══════════════════════════════════════════════════ -->
+<section id="compare" class="comparison-section">
+  <div class="proposal-header">
+    <h2>Side-by-Side Comparison</h2>
+    <p class="subtitle">How the three proposals stack up across key dimensions.</p>
+  </div>
+
+  <table class="comparison-table">
+    <thead>
+      <tr>
+        <th>Feature</th>
+        <th>Pill Grid</th>
+        <th>Timeline Strip</th>
+        <th>Heatmap Matrix</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="feature-name">Space reduction (vs. N nodes)</td>
+        <td><span class="check">&star;&star;&star;</span> Best &mdash; ultra compact</td>
+        <td><span class="check">&star;&star;&star;</span> Fixed height bar</td>
+        <td><span class="check">&star;&star;</span> Good, grows with types</td>
+      </tr>
+      <tr>
+        <td class="feature-name">Click-to-detail</td>
+        <td><span class="check">&check;</span> Click pill</td>
+        <td><span class="check">&check;</span> Click segment</td>
+        <td><span class="check">&check;</span> Click cell</td>
+      </tr>
+      <tr>
+        <td class="feature-name">Status visibility (success/error)</td>
+        <td><span class="check">&check;</span> Color + icon per pill</td>
+        <td><span class="partial">&sim;</span> Stripe or segment border</td>
+        <td><span class="check">&check;</span> Cell color = status</td>
+      </tr>
+      <tr>
+        <td class="feature-name">Duration visibility</td>
+        <td><span class="partial">&sim;</span> Text on hover</td>
+        <td><span class="check">&check;</span> Segment width = duration</td>
+        <td><span class="check">&check;</span> Cell opacity = duration</td>
+      </tr>
+      <tr>
+        <td class="feature-name">Temporal ordering</td>
+        <td><span class="cross">&times;</span> Grid order only</td>
+        <td><span class="check">&check;</span> Left-to-right = time</td>
+        <td><span class="partial">&sim;</span> Column index, not across types</td>
+      </tr>
+      <tr>
+        <td class="feature-name">Pattern discovery</td>
+        <td><span class="partial">&sim;</span> Limited</td>
+        <td><span class="check">&check;</span> Bottleneck/slow tools</td>
+        <td><span class="check">&check;</span> Type failure rates, clusters</td>
+      </tr>
+      <tr>
+        <td class="feature-name">Learning curve</td>
+        <td><span class="check">&check;</span> Familiar (badges/chips)</td>
+        <td><span class="check">&check;</span> Familiar (Gantt charts)</td>
+        <td><span class="partial">&sim;</span> Requires explanation</td>
+      </tr>
+      <tr>
+        <td class="feature-name">Collapse/expand support</td>
+        <td><span class="check">&check;</span> Chip &harr; Grid</td>
+        <td><span class="partial">&sim;</span> Always visible bar</td>
+        <td><span class="partial">&sim;</span> Always visible matrix</td>
+      </tr>
+      <tr>
+        <td class="feature-name">Tool type grouping</td>
+        <td><span class="cross">&times;</span> Flat list</td>
+        <td><span class="check">&check;</span> Swim lanes variant</td>
+        <td><span class="check">&check;</span> Rows = types</td>
+      </tr>
+      <tr>
+        <td class="feature-name">Task tool &rarr; child agent edge</td>
+        <td><span class="check">&check;</span> Special pill with arrow</td>
+        <td><span class="partial">&sim;</span> Segment with link icon</td>
+        <td><span class="partial">&sim;</span> Cell with link icon</td>
+      </tr>
+      <tr>
+        <td class="feature-name">Implementation complexity</td>
+        <td>Low &mdash; 1 custom node + CSS grid</td>
+        <td>Medium &mdash; flex sizing + min-width logic</td>
+        <td>Medium &mdash; matrix grouping + color math</td>
+      </tr>
+      <tr>
+        <td class="feature-name"><strong>Best for</strong></td>
+        <td><strong>General use, quick scanning</strong></td>
+        <td><strong>Performance analysis, timing</strong></td>
+        <td><strong>Pattern analysis, debugging</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="impl-note" style="margin-top: 32px;">
+    <strong>Recommendation:</strong> These three proposals are not mutually exclusive. The <strong>Pill Grid</strong> could serve as the
+    default collapsed view (replaces the current stacked tools), while <strong>Timeline Strip</strong> and <strong>Heatmap Matrix</strong>
+    could be available as alternate "lens" modes toggled via the existing keyboard shortcuts or a dropdown on the grid node header.
+    This gives users the quick overview (pills), the performance view (timeline), and the debugging view (heatmap) &mdash; all sharing
+    the same click-to-detail interaction.
+  </div>
+</section>
+
+<!-- ────────────────── DETAIL OVERLAY ────────────────── -->
+<div class="detail-overlay" id="detail-overlay" onclick="closeDetail(event)">
+  <div class="detail-panel" onclick="event.stopPropagation()">
+    <div class="dp-header">
+      <h3>
+        <span class="status-dot" id="dp-status-dot"></span>
+        <span id="dp-tool-name"></span>
+      </h3>
+      <button class="dp-close" onclick="closeDetail()">&times;</button>
+    </div>
+    <div class="dp-body">
+      <div class="dp-row">
+        <div class="dp-field">
+          <div class="dp-field-label">Status</div>
+          <div class="dp-field-value" id="dp-status"></div>
+        </div>
+        <div class="dp-field">
+          <div class="dp-field-label">Duration</div>
+          <div class="dp-field-value" id="dp-duration"></div>
+        </div>
+        <div class="dp-field">
+          <div class="dp-field-label">Started</div>
+          <div class="dp-field-value" id="dp-start"></div>
+        </div>
+      </div>
+      <div class="dp-field" style="margin-bottom: 12px;">
+        <div class="dp-field-label">Input</div>
+        <div class="dp-code" id="dp-input"></div>
+      </div>
+      <div class="dp-field">
+        <div class="dp-field-label">Output</div>
+        <div class="dp-code" id="dp-output"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+// MOCK DATA
+// ══════════════════════════════════════════════════════
+
+const TOOL_TYPES = ['Read', 'Edit', 'Bash', 'Grep', 'Glob', 'Write', 'Task', 'WebSearch'];
+const TOOL_COLORS = {
+  Read:      { bg: '#0d9488', border: '#14b8a6' },  // teal
+  Edit:      { bg: '#7c3aed', border: '#8b5cf6' },  // violet
+  Bash:      { bg: '#ea580c', border: '#f97316' },  // orange
+  Grep:      { bg: '#2563eb', border: '#3b82f6' },  // blue
+  Glob:      { bg: '#0891b2', border: '#06b6d4' },  // cyan
+  Write:     { bg: '#9333ea', border: '#a855f7' },  // purple
+  Task:      { bg: '#059669', border: '#10b981' },  // emerald
+  WebSearch: { bg: '#d97706', border: '#f59e0b' },  // amber
+};
+
+const SAMPLE_INPUTS = {
+  Read:  '{ "file_path": "/src/components/App.tsx", "offset": 0, "limit": 100 }',
+  Edit:  '{ "file_path": "/src/store.ts", "old_string": "const x = 1", "new_string": "const x = 2" }',
+  Bash:  '{ "command": "pnpm test -- --run", "timeout": 30000 }',
+  Grep:  '{ "pattern": "useAutoLayout", "path": "apps/dashboard/src", "output_mode": "files_with_matches" }',
+  Glob:  '{ "pattern": "**/*.test.ts", "path": "apps/dashboard/src" }',
+  Write: '{ "file_path": "/src/utils/helpers.ts", "content": "export function sum(a, b) { return a+b; }" }',
+  Task:  '{ "subagent_type": "Explore", "prompt": "Find all usages of formatTokens" }',
+  WebSearch: '{ "query": "react flow v12 custom nodes" }',
+};
+
+const SAMPLE_OUTPUTS = {
+  Read:  '     1→import { memo } from "react";\n     2→import { Handle } from "@xyflow/react";\n     3→...',
+  Edit:  '{ "success": true, "lines_changed": 1 }',
+  Bash:  'Test Suites: 12 passed, 12 total\nTests:       347 passed, 347 total\nTime:        4.2s',
+  Grep:  'apps/dashboard/src/hooks/useAutoLayout.ts\napps/dashboard/src/hooks/__tests__/useAutoLayout.test.ts',
+  Glob:  '["src/hooks/__tests__/useAutoLayout.test.ts", "src/store/__tests__/agentStore.test.ts"]',
+  Write: '{ "success": true, "bytes_written": 52 }',
+  Task:  '{ "result": "Found 8 usages across 5 files..." }',
+  WebSearch: '{ "results": [{ "title": "Custom Nodes - React Flow", "url": "https://reactflow.dev/..." }] }',
+};
+
+function generateTools(count) {
+  const tools = [];
+  let time = Date.now() - count * 2500;
+  for (let i = 0; i < count; i++) {
+    const name = TOOL_TYPES[Math.floor(Math.random() * TOOL_TYPES.length)];
+    const dur = Math.floor(Math.random() * 4500) + 100;
+    const isError = Math.random() < 0.12;
+    const isRunning = i === count - 1 && Math.random() < 0.3;
+    tools.push({
+      id: `tool-${i}-${Math.random().toString(36).slice(2, 8)}`,
+      name,
+      status: isRunning ? 'running' : isError ? 'error' : 'success',
+      duration: isRunning ? null : dur,
+      startTime: time,
+      endTime: isRunning ? null : time + dur,
+      input: SAMPLE_INPUTS[name],
+      output: isError
+        ? `Error: Command failed with exit code 1\n  at /src/${name.toLowerCase()}.ts:42`
+        : SAMPLE_OUTPUTS[name],
+    });
+    time += dur + Math.floor(Math.random() * 800);
+  }
+  return tools;
+}
+
+// ══════════════════════════════════════════════════════
+// DETAIL PANEL
+// ══════════════════════════════════════════════════════
+
+function showDetail(tool) {
+  const overlay = document.getElementById('detail-overlay');
+  const dot = document.getElementById('dp-status-dot');
+  dot.className = `status-dot ${tool.status}`;
+  document.getElementById('dp-tool-name').textContent = tool.name;
+  document.getElementById('dp-status').textContent = tool.status.charAt(0).toUpperCase() + tool.status.slice(1);
+  document.getElementById('dp-duration').textContent = tool.duration != null ? `${(tool.duration / 1000).toFixed(2)}s` : 'Running...';
+  document.getElementById('dp-start').textContent = new Date(tool.startTime).toLocaleTimeString();
+  document.getElementById('dp-input').textContent = tool.input;
+  document.getElementById('dp-output').textContent = tool.output;
+  overlay.classList.add('active');
+}
+
+function closeDetail(e) {
+  if (e && e.target !== e.currentTarget) return;
+  document.getElementById('detail-overlay').classList.remove('active');
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeDetail();
+});
+
+// ══════════════════════════════════════════════════════
+// TAB SWITCHING
+// ══════════════════════════════════════════════════════
+
+function showTab(id) {
+  document.querySelectorAll('.proposal-section, .comparison-section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  const section = document.getElementById(id);
+  if (section) section.classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+// ══════════════════════════════════════════════════════
+// PROPOSAL 1: PILL GRID
+// ══════════════════════════════════════════════════════
+
+let pgExpanded = false;
+let pgTools = [];
+
+function togglePillGridState() {
+  pgExpanded = !pgExpanded;
+  const node = document.getElementById('pg-node');
+  const toggle = document.getElementById('pg-state-toggle');
+  const label = document.getElementById('pg-state-label');
+  const chip = document.getElementById('pg-chip');
+
+  if (pgExpanded) {
+    node.style.display = 'block';
+    toggle.classList.add('expanded');
+    label.textContent = 'Expanded';
+    chip.style.background = 'var(--accent-purple-dim)';
+    chip.style.borderColor = 'rgba(167, 139, 250, 0.3)';
+  } else {
+    node.style.display = 'none';
+    toggle.classList.remove('expanded');
+    label.textContent = 'Collapsed';
+    chip.style.background = '';
+    chip.style.borderColor = '';
+  }
+}
+
+function rebuildPillGrid() {
+  const count = parseInt(document.getElementById('pg-count').value);
+  pgTools = generateTools(count);
+
+  // Update chip
+  document.getElementById('pg-chip-count').textContent = count;
+  const dotsEl = document.getElementById('pg-mini-dots');
+  const dotsHTML = pgTools.slice(0, 20).map(t =>
+    `<div class="mini-dot ${t.status}"></div>`
+  ).join('');
+  dotsEl.innerHTML = dotsHTML + (count > 20 ? '<span style="font-size:8px;color:var(--text-muted)">+' + (count - 20) + '</span>' : '');
+
+  // Update stats
+  const successes = pgTools.filter(t => t.status === 'success').length;
+  const errors = pgTools.filter(t => t.status === 'error').length;
+  const running = pgTools.filter(t => t.status === 'running').length;
+  document.getElementById('pg-stats').textContent =
+    `${successes} ok · ${errors} err` + (running ? ` · ${running} active` : '');
+
+  // Build pills
+  const body = document.getElementById('pg-body');
+  body.innerHTML = pgTools.map((t, i) => `
+    <div class="tool-pill ${t.status}" onclick='showDetail(pgTools[${i}])' title="${t.name} — ${t.duration ? (t.duration/1000).toFixed(1) + 's' : 'running'}">
+      <span class="pill-icon">${t.status === 'success' ? '✓' : t.status === 'error' ? '✗' : '⟳'}</span>
+      <span class="pill-name">${t.name}</span>
+      <span class="pill-dur">${t.duration ? (t.duration/1000).toFixed(1) + 's' : '...'}</span>
+    </div>
+  `).join('');
+}
+
+// ══════════════════════════════════════════════════════
+// PROPOSAL 2: TIMELINE STRIP
+// ══════════════════════════════════════════════════════
+
+let tlTools = [];
+
+function rebuildTimeline() {
+  const count = parseInt(document.getElementById('tl-count').value);
+  const variant = document.getElementById('tl-variant').value;
+  tlTools = generateTools(count);
+
+  const totalDur = tlTools.reduce((sum, t) => sum + (t.duration || 500), 0);
+  const meta = document.getElementById('tl-meta');
+  meta.textContent = `${count} calls · ${(totalDur / 1000).toFixed(1)}s total`;
+
+  const body = document.getElementById('tl-body');
+
+  if (variant === 'single') {
+    body.innerHTML = `
+      <div class="timeline-bar">
+        <div class="timeline-track">
+          ${tlTools.map((t, i) => {
+            const pct = Math.max(((t.duration || 500) / totalDur) * 100, 3);
+            const c = TOOL_COLORS[t.name];
+            const errStripe = t.status === 'error'
+              ? `background-image: repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(248,113,113,0.3) 3px, rgba(248,113,113,0.3) 6px);`
+              : '';
+            return `<div class="timeline-segment" style="width:${pct}%;background:${c.bg};${errStripe}" onclick="showDetail(tlTools[${i}])">
+              <span class="seg-label">${pct > 6 ? t.name : ''}</span>
+              <div class="seg-tooltip">
+                <span class="tt-name">${t.name}</span>
+                <span class="tt-dur">${t.duration ? (t.duration/1000).toFixed(2)+'s' : 'running'}</span>
+                <span class="tt-status">${t.status === 'success' ? '✓' : t.status === 'error' ? '✗' : '⟳'}</span>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+        <div class="timeline-axis">
+          <span>0s</span>
+          <span>${(totalDur / 4000).toFixed(1)}s</span>
+          <span>${(totalDur / 2000).toFixed(1)}s</span>
+          <span>${(totalDur * 3 / 4000).toFixed(1)}s</span>
+          <span>${(totalDur / 1000).toFixed(1)}s</span>
+        </div>
+      </div>
+    `;
+  } else {
+    // Group by type
+    const grouped = {};
+    tlTools.forEach((t, i) => {
+      if (!grouped[t.name]) grouped[t.name] = [];
+      grouped[t.name].push({ ...t, _idx: i });
+    });
+
+    body.innerHTML = `<div class="timeline-rows">
+      ${Object.entries(grouped).map(([name, calls]) => {
+        const groupDur = calls.reduce((s, c) => s + (c.duration || 500), 0);
+        return `
+          <div>
+            <div class="timeline-row-label" style="color:${TOOL_COLORS[name].border}">${name} <span style="opacity:0.5">(${calls.length})</span></div>
+            <div class="timeline-track" style="height:28px;">
+              ${calls.map(c => {
+                const pct = Math.max(((c.duration || 500) / totalDur) * 100, 3);
+                const col = TOOL_COLORS[c.name];
+                const errStripe = c.status === 'error'
+                  ? `background-image: repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(248,113,113,0.3) 3px, rgba(248,113,113,0.3) 6px);`
+                  : '';
+                return `<div class="timeline-segment" style="width:${pct}%;background:${col.bg};${errStripe}" onclick="showDetail(tlTools[${c._idx}])">
+                  <span class="seg-label">${pct > 8 ? (c.duration/1000).toFixed(1)+'s' : ''}</span>
+                  <div class="seg-tooltip">
+                    <span class="tt-name">${c.name}</span>
+                    <span class="tt-dur">${c.duration ? (c.duration/1000).toFixed(2)+'s' : 'running'}</span>
+                    <span class="tt-status">${c.status === 'success' ? '✓' : c.status === 'error' ? '✗' : '⟳'}</span>
+                  </div>
+                </div>`;
+              }).join('')}
+              <div style="flex:1;"></div>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>`;
+  }
+
+  // Legend
+  const usedTypes = [...new Set(tlTools.map(t => t.name))];
+  document.getElementById('tl-legend').innerHTML = usedTypes.map(name =>
+    `<div class="legend-item">
+      <div class="legend-swatch" style="background:${TOOL_COLORS[name].bg}"></div>
+      ${name}
+    </div>`
+  ).join('') + `<div class="legend-item">
+    <div class="legend-swatch" style="background-image: repeating-linear-gradient(45deg, #991b1b, #991b1b 3px, rgba(248,113,113,0.3) 3px, rgba(248,113,113,0.3) 6px);"></div>
+    Error
+  </div>`;
+}
+
+// ══════════════════════════════════════════════════════
+// PROPOSAL 3: HEATMAP MATRIX
+// ══════════════════════════════════════════════════════
+
+let hmTools = [];
+
+function rebuildHeatmap() {
+  const count = parseInt(document.getElementById('hm-count').value);
+  const mode = document.getElementById('hm-mode').value;
+  hmTools = generateTools(count);
+
+  // Group by type
+  const grouped = {};
+  hmTools.forEach((t, i) => {
+    if (!grouped[t.name]) grouped[t.name] = [];
+    grouped[t.name].push({ ...t, _idx: i });
+  });
+
+  const maxCols = Math.max(...Object.values(grouped).map(g => g.length));
+  const maxDur = Math.max(...hmTools.filter(t => t.duration).map(t => t.duration), 1);
+
+  // Stats
+  const successes = hmTools.filter(t => t.status === 'success').length;
+  const errors = hmTools.filter(t => t.status === 'error').length;
+  document.getElementById('hm-stats').textContent = `${count} calls · ${successes} ok · ${errors} err`;
+
+  // Build matrix
+  const bodyEl = document.getElementById('hm-body');
+  let html = '<div class="heatmap-grid">';
+
+  // Column headers
+  html += '<div class="hm-col-header">';
+  for (let c = 0; c < maxCols; c++) {
+    html += `<div class="hm-col-idx">#${c + 1}</div>`;
+  }
+  html += '</div>';
+
+  // Rows
+  for (const [name, calls] of Object.entries(grouped)) {
+    html += `<div class="hm-row">
+      <div class="hm-row-label" style="color:${TOOL_COLORS[name]?.border || '#999'}">${name}</div>
+      <div class="hm-cells">`;
+
+    for (let c = 0; c < maxCols; c++) {
+      if (c < calls.length) {
+        const t = calls[c];
+        const durNorm = t.duration ? t.duration / maxDur : 0.1;
+
+        let bgColor;
+        if (mode === 'status') {
+          bgColor = t.status === 'error'
+            ? `rgba(248, 113, 113, ${0.3 + durNorm * 0.5})`
+            : t.status === 'running'
+              ? `rgba(167, 139, 250, 0.4)`
+              : `rgba(45, 212, 191, ${0.15 + durNorm * 0.55})`;
+        } else if (mode === 'duration') {
+          const hue = 180; // cyan
+          bgColor = `hsla(${hue}, 70%, 50%, ${0.1 + durNorm * 0.7})`;
+        } else {
+          // hybrid
+          const hue = t.status === 'error' ? 0 : t.status === 'running' ? 270 : 160;
+          bgColor = `hsla(${hue}, 70%, 50%, ${0.15 + durNorm * 0.6})`;
+        }
+
+        const durText = t.duration ? `${(t.duration / 1000).toFixed(1)}s` : '...';
+        html += `<div class="hm-cell" style="background:${bgColor}" onclick="showDetail(hmTools[${t._idx}])">
+          <span>${t.status === 'error' ? '!' : t.status === 'running' ? '~' : ''}</span>
+          <div class="hm-tooltip">
+            <strong>${t.name}</strong> #${c + 1}<br>
+            Status: ${t.status} &nbsp; Duration: ${durText}
+          </div>
+        </div>`;
+      } else {
+        html += `<div class="hm-cell" style="background:rgba(255,255,255,0.02);cursor:default;"></div>`;
+      }
+    }
+
+    html += '</div></div>';
+  }
+  html += '</div>';
+  bodyEl.innerHTML = html;
+
+  // Legend
+  const legendEl = document.getElementById('hm-legend');
+  if (mode === 'status' || mode === 'hybrid') {
+    legendEl.innerHTML = `
+      <div class="hm-legend-scale">
+        <div class="scale-block" style="background:rgba(45, 212, 191, 0.6)"></div>
+        <span>Success</span>
+      </div>
+      <div class="hm-legend-scale">
+        <div class="scale-block" style="background:rgba(248, 113, 113, 0.6)"></div>
+        <span>Error</span>
+      </div>
+      <div class="hm-legend-scale">
+        <div class="scale-block" style="background:rgba(167, 139, 250, 0.5)"></div>
+        <span>Running</span>
+      </div>
+      <div class="hm-legend-label">&nbsp;|&nbsp; Opacity = duration (darker = longer)</div>
+    `;
+  } else {
+    legendEl.innerHTML = `
+      <div class="hm-legend-scale">
+        <div class="scale-block" style="background:hsla(180, 70%, 50%, 0.15)"></div>
+        <span>Fast</span>
+      </div>
+      <div class="hm-legend-scale">
+        <div class="scale-block" style="background:hsla(180, 70%, 50%, 0.45)"></div>
+        <span>Medium</span>
+      </div>
+      <div class="hm-legend-scale">
+        <div class="scale-block" style="background:hsla(180, 70%, 50%, 0.8)"></div>
+        <span>Slow</span>
+      </div>
+    `;
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════
+
+rebuildPillGrid();
+rebuildTimeline();
+rebuildHeatmap();
+</script>
+</body>
+</html>

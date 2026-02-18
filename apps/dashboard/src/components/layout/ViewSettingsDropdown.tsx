@@ -1,16 +1,22 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAgentStore } from '../../store/agentStore';
 
+const TOOL_VIEW_MODES = [
+  { value: 'pillGrid' as const, label: 'Pill Grid' },
+  { value: 'timeline' as const, label: 'Timeline' },
+  { value: 'heatmap' as const, label: 'Heatmap' },
+];
+
 export function ViewSettingsDropdown() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  const layoutMode = useAgentStore((s) => s.layoutMode);
-  const setLayoutMode = useAgentStore((s) => s.setLayoutMode);
   const lockViewport = useAgentStore((s) => s.lockViewport);
   const setLockViewport = useAgentStore((s) => s.setLockViewport);
   const showAllTools = useAgentStore((s) => s.showAllTools);
   const setShowAllTools = useAgentStore((s) => s.setShowAllTools);
+  const toolGroupMode = useAgentStore((s) => s.toolGroupMode);
+  const setToolGroupMode = useAgentStore((s) => s.setToolGroupMode);
   const autoClosePrompts = useAgentStore((s) => s.autoClosePrompts);
   const setAutoClosePrompts = useAgentStore((s) => s.setAutoClosePrompts);
   const showHookEvents = useAgentStore((s) => s.showHookEvents);
@@ -26,14 +32,8 @@ export function ViewSettingsDropdown() {
   }, [open]);
 
   const toggles = [
-    {
-      label: layoutMode === 'graph' ? 'Switch to List' : 'Switch to Graph',
-      key: 'L',
-      active: layoutMode === 'list',
-      onToggle: () => setLayoutMode(layoutMode === 'graph' ? 'list' : 'graph'),
-    },
     { label: 'Lock Viewport', key: 'V', active: lockViewport, onToggle: () => setLockViewport(!lockViewport) },
-    { label: 'Show All Tools', key: 'F', active: showAllTools, onToggle: () => setShowAllTools(!showAllTools) },
+    { label: 'Expand Tools', key: 'F', active: showAllTools, onToggle: () => setShowAllTools(!showAllTools) },
     { label: 'Collapse Prompts', key: 'C', active: autoClosePrompts, onToggle: () => setAutoClosePrompts(!autoClosePrompts) },
     { label: 'Show Hook Events', key: 'H', active: showHookEvents, onToggle: () => setShowHookEvents(!showHookEvents) },
   ];
@@ -76,6 +76,21 @@ export function ViewSettingsDropdown() {
               <kbd className="text-[10px] text-gray-600 bg-gray-800 px-1 rounded">{key}</kbd>
             </button>
           ))}
+
+          {/* Tool view mode selector */}
+          <div className="border-t border-gray-700/50 mt-1 pt-1">
+            <div className="px-2 py-1 text-[10px] text-gray-500 uppercase tracking-wider">Tool View</div>
+            {TOOL_VIEW_MODES.map(({ value, label }) => (
+              <button
+                key={value}
+                onClick={() => setToolGroupMode(value)}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-800/80 transition-colors text-left text-gray-300"
+              >
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${toolGroupMode === value ? 'bg-blue-400' : 'bg-gray-600'}`} />
+                <span className="flex-1">{label}</span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>

@@ -7,12 +7,13 @@ function makeNode(
   id: string,
   type: string,
   measured?: { width: number; height: number },
+  data?: Record<string, unknown>,
 ): Node {
   return {
     id,
     type,
     position: { x: -9999, y: -9999 },
-    data: {},
+    data: data ?? {},
     ...(measured ? { measured } : {}),
   };
 }
@@ -205,5 +206,98 @@ describe('computeGraphLayout', () => {
     const toolX = positions.get('tool-task')!.x;
     const childX = positions.get('agent-child')!.x;
     expect(childX).toBeGreaterThan(toolX);
+  });
+
+  it('prevents vertical overlap between sibling prompt nodes', () => {
+    // Two prompts as children of a session, measured at realistic heights
+    const nodes = [
+      makeNode('session-1', 'session'),
+      makeNode('prompt-1', 'userPrompt', { width: 240, height: 138 }),
+      makeNode('prompt-2', 'userPrompt', { width: 240, height: 138 }),
+    ];
+    const edges = [
+      makeEdge('session-1', 'prompt-1'),
+      makeEdge('session-1', 'prompt-2'),
+    ];
+
+    const { positions } = computeGraphLayout(nodes, edges, null);
+
+    const p1 = positions.get('prompt-1')!;
+    const p2 = positions.get('prompt-2')!;
+
+    // Sort by y to determine top and bottom
+    const [top, bottom] = p1.y <= p2.y ? [p1, p2] : [p2, p1];
+
+    // Bottom of top node should be above top of bottom node (no overlap)
+    expect(bottom.y).toBeGreaterThanOrEqual(top.y + 138);
+  });
+
+  it('prevents overlap even with fallback dimensions (no measurement)', () => {
+    // Three prompts without measured dimensions — relies on fallback heights
+    const nodes = [
+      makeNode('session-1', 'session'),
+      makeNode('prompt-1', 'userPrompt'),
+      makeNode('prompt-2', 'userPrompt'),
+      makeNode('prompt-3', 'userPrompt'),
+    ];
+    const edges = [
+      makeEdge('session-1', 'prompt-1'),
+      makeEdge('session-1', 'prompt-2'),
+      makeEdge('session-1', 'prompt-3'),
+    ];
+
+    const { positions } = computeGraphLayout(nodes, edges, null);
+
+    // Collect and sort prompt positions by y
+    const prompts = ['prompt-1', 'prompt-2', 'prompt-3']
+      .map((id) => ({ id, ...positions.get(id)! }))
+      .sort((a, b) => a.y - b.y);
+
+    // Each successive prompt must start below the previous one's bottom edge
+    // (fallback height for userPrompt is 150px)
+    for (let i = 1; i < prompts.length; i++) {
+      expect(prompts[i].y).toBeGreaterThanOrEqual(prompts[i - 1].y + 150);
+    }
+  });
+
+  it('orders sibling prompts chronologically (oldest on top)', () => {
+    // Prompts added in reverse timestamp order — layout should still sort oldest-on-top
+    const nodes = [
+      makeNode('session-1', 'session', undefined, { session: { startTime: 1000 } }),
+      makeNode('prompt-c', 'userPrompt', undefined, { prompt: { timestamp: 3000 } }),
+      makeNode('prompt-a', 'userPrompt', undefined, { prompt: { timestamp: 1000 } }),
+      makeNode('prompt-b', 'userPrompt', undefined, { prompt: { timestamp: 2000 } }),
+    ];
+    const edges = [
+      makeEdge('session-1', 'prompt-c'),
+      makeEdge('session-1', 'prompt-a'),
+      makeEdge('session-1', 'prompt-b'),
+    ];
+
+    const { positions } = computeGraphLayout(nodes, edges, null);
+
+    const yA = positions.get('prompt-a')!.y;
+    const yB = positions.get('prompt-b')!.y;
+    const yC = positions.get('prompt-c')!.y;
+
+    // Oldest (prompt-a, t=1000) should be on top (lowest y)
+    expect(yA).toBeLessThan(yB);
+    expect(yB).toBeLessThan(yC);
+  });
+
+  it('orders root sessions chronologically (oldest on top)', () => {
+    const nodes = [
+      makeNode('session-new', 'session', undefined, { session: { startTime: 5000 } }),
+      makeNode('session-old', 'session', undefined, { session: { startTime: 1000 } }),
+    ];
+    const edges: Edge[] = [];
+
+    const { positions } = computeGraphLayout(nodes, edges, null);
+
+    const yOld = positions.get('session-old')!.y;
+    const yNew = positions.get('session-new')!.y;
+
+    // Older session should be on top (lower y)
+    expect(yOld).toBeLessThan(yNew);
   });
 });

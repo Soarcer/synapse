@@ -35,6 +35,33 @@ import {
   buildDerivedMaps,
 } from './eventHandlers';
 
+// ── View settings persistence ────────────────────────────────
+const VIEW_SETTINGS_KEY = 'synapse-view-settings';
+
+interface PersistedViewSettings {
+  showHookEvents?: boolean;
+  showAllTools?: boolean;
+  toolGroupMode?: 'pillGrid' | 'timeline' | 'heatmap';
+  lockViewport?: boolean;
+  autoClosePrompts?: boolean;
+}
+
+const savedViewSettings: PersistedViewSettings = (() => {
+  try {
+    const raw = localStorage.getItem(VIEW_SETTINGS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+})();
+
+function persistViewSettings(partial: Partial<PersistedViewSettings>) {
+  try {
+    const current = JSON.parse(localStorage.getItem(VIEW_SETTINGS_KEY) ?? '{}');
+    localStorage.setItem(VIEW_SETTINGS_KEY, JSON.stringify({ ...current, ...partial }));
+  } catch { /* quota exceeded */ }
+}
+
 // ── Time filter persistence ──────────────────────────────────
 const TIME_FILTER_KEY = 'synapse-time-filter';
 
@@ -171,10 +198,11 @@ interface AgentStore {
   connectionStatus: 'connected' | 'disconnected' | 'reconnecting' | 'failed';
   filter: { sessionId?: string; agentType?: string };
   showSpawnDialog: boolean;
+  showWorkshop: boolean;
   paused: boolean;
-  layoutMode: 'graph' | 'list';
   showHookEvents: boolean;
   showAllTools: boolean;
+  toolGroupMode: 'pillGrid' | 'timeline' | 'heatmap';
   lockViewport: boolean;
   autoClosePrompts: boolean;
   cwdFilter: string | null;
@@ -201,10 +229,11 @@ interface AgentStore {
   setFilter: (filter: { sessionId?: string; agentType?: string }) => void;
   setConnectionStatus: (s: 'connected' | 'disconnected' | 'reconnecting' | 'failed') => void;
   setShowSpawnDialog: (show: boolean) => void;
+  setShowWorkshop: (show: boolean) => void;
   setPaused: (paused: boolean) => void;
-  setLayoutMode: (mode: 'graph' | 'list') => void;
   setShowHookEvents: (show: boolean) => void;
   setShowAllTools: (show: boolean) => void;
+  setToolGroupMode: (mode: 'pillGrid' | 'timeline' | 'heatmap') => void;
   setLockViewport: (lock: boolean) => void;
   setAutoClosePrompts: (v: boolean) => void;
   setTimeRange: (range: { from: number; to: number } | null, label: string) => void;
@@ -226,6 +255,7 @@ interface AgentStore {
   removeSession: (sessionId: string) => void;
   addNudge: (nudge: CoachingNudge) => void;
   dismissNudge: (id: string) => void;
+  undismissNudge: (id: string) => void;
   clearEvents: () => void;
   loadEvents: (events: AgentEvent[]) => void;
 }
@@ -253,12 +283,13 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   connectionStatus: 'disconnected',
   filter: {},
   showSpawnDialog: false,
+  showWorkshop: false,
   paused: false,
-  layoutMode: 'graph',
-  showHookEvents: true,
-  showAllTools: false,
-  lockViewport: true,
-  autoClosePrompts: false,
+  showHookEvents: savedViewSettings.showHookEvents ?? true,
+  showAllTools: savedViewSettings.showAllTools ?? false,
+  toolGroupMode: savedViewSettings.toolGroupMode ?? 'pillGrid',
+  lockViewport: savedViewSettings.lockViewport ?? true,
+  autoClosePrompts: savedViewSettings.autoClosePrompts ?? false,
   cwdFilter: projectCwd,
   timeRange: computeTimeRange(savedTimeLabel),
   timePresetLabel: savedTimeLabel,
@@ -339,13 +370,12 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   setConnectionStatus: (connectionStatus) => set({ connectionStatus }),
 
   setShowSpawnDialog: (showSpawnDialog) => set({ showSpawnDialog }),
-
-  setLayoutMode: (layoutMode) => set({ layoutMode }),
+  setShowWorkshop: (showWorkshop) => set({ showWorkshop }),
 
   setLoading: (loading) => set({ isLoading: loading }),
   setLoadError: (error) => set({ loadError: error }),
 
-  setAutoClosePrompts: (autoClosePrompts) => set({ autoClosePrompts }),
+  setAutoClosePrompts: (autoClosePrompts) => { persistViewSettings({ autoClosePrompts }); set({ autoClosePrompts }); },
   setGraphSearchQuery: (graphSearchQuery) => set({ graphSearchQuery }),
 
   toggleCollapsed: (nodeId) => {
@@ -378,13 +408,15 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   },
 
   setShowHookEvents: (showHookEvents) => {
+    persistViewSettings({ showHookEvents });
     set({ showHookEvents });
     reloadAllEvents();
   },
 
-  setShowAllTools: (showAllTools) => set({ showAllTools }),
+  setShowAllTools: (showAllTools) => { persistViewSettings({ showAllTools }); set({ showAllTools }); },
+  setToolGroupMode: (toolGroupMode) => { persistViewSettings({ toolGroupMode }); set({ toolGroupMode }); },
 
-  setLockViewport: (lockViewport) => set({ lockViewport }),
+  setLockViewport: (lockViewport) => { persistViewSettings({ lockViewport }); set({ lockViewport }); },
 
   setTimeRange: (range, label) => {
     try { localStorage.setItem(TIME_FILTER_KEY, label); } catch { /* quota exceeded */ }
@@ -535,6 +567,11 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   dismissNudge: (id) =>
     set((s) => ({
       liveNudges: s.liveNudges.map((n) => (n.id === id ? { ...n, dismissed: true } : n)),
+    })),
+
+  undismissNudge: (id) =>
+    set((s) => ({
+      liveNudges: s.liveNudges.map((n) => (n.id === id ? { ...n, dismissed: false } : n)),
     })),
 
   // ── clearEvents / loadEvents (batched — single set()) ────
@@ -708,6 +745,7 @@ wsClient.setOnEvent((msg) => {
     toast(`Coach: ${msg.data.title}`, msg.data.severity === 'warning' ? 'warning' : 'info');
   } else if (msg.type === 'stale') {
     // Server signals missed events due to backpressure — do full reload
+    toast('Catching up — some events were buffered', 'info');
     reloadAllEvents();
   }
 });

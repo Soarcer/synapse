@@ -127,7 +127,8 @@ export type WsServerMessage =
   | { type: 'connected'; data: { activeAgents: ActiveAgentInfo[] } }
   | { type: 'agent_text'; data: { agentId: string; text: string; isPartial: boolean } }
   | { type: 'stale'; data: Record<string, never> }
-  | { type: 'coaching_nudge'; data: import('./coaching.js').CoachingNudge };
+  | { type: 'coaching_nudge'; data: import('./coaching.js').CoachingNudge }
+  | { type: 'terminal_send'; data: { text: string } };
 
 export type WsClientMessage =
   | { type: 'subscribe'; sessionId: string }
