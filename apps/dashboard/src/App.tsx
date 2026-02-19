@@ -161,7 +161,7 @@ export default function App() {
       }
       // Number keys switch lens tabs only when no modifier is held
       if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-        const tabKeys = ['tree', 'heatmap', 'treemap', 'sankey', 'compaction', 'cost'];
+        const tabKeys = ['treemap', 'heatmap', 'compaction', 'cost', 'sankey', 'tree'];
         const tabIdx = parseInt(e.key, 10) - 1;
         if (tabIdx >= 0 && tabIdx < tabKeys.length) {
           useAgentStore.getState().setActiveLensTab(tabKeys[tabIdx]);
