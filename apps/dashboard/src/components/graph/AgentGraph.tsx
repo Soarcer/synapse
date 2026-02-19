@@ -46,11 +46,11 @@ function AgentGraphInner() {
   // Register toast click→node navigator so toasts can zoom to nodes
   useEffect(() => {
     registerToastNavigator((nodeId: string) => {
+      // Defer to the lens-sync effect which handles toolgroup resolution
       useAgentStore.getState().selectNode(nodeId, 'lens');
-      setTimeout(() => fitView({ nodes: [{ id: nodeId }], duration: 300, padding: 1 }), 50);
     });
     return unregisterToastNavigator;
-  }, [fitView]);
+  }, []);
 
   // ── Tool collapse: hide leaf tools, keep structural tools (Task→child agent) ──
 
@@ -376,19 +376,37 @@ function AgentGraphInner() {
     }
   }, [layoutNodes, fitView]);
 
+  // Resolve a node ID to a visible ID — if the node is a grouped tool,
+  // return its parent toolgroup ID instead so fitView can find it.
+  const resolveVisibleId = useCallback(
+    (nodeId: string): string | null => {
+      if (visibleNodes.some((n) => n.id === nodeId)) return nodeId;
+      if (nodeId.startsWith('tool-')) {
+        for (const edge of rawEdges) {
+          if (edge.target === nodeId) {
+            const tgId = `toolgroup-${edge.source}`;
+            if (visibleNodes.some((n) => n.id === tgId)) return tgId;
+          }
+        }
+      }
+      return null;
+    },
+    [visibleNodes, rawEdges],
+  );
+
   // Center on node when selected from lens panel
   useEffect(() => {
     if (selectSource === 'lens' && selectedNodeId) {
-      const targetNode = visibleNodes.find((n) => n.id === selectedNodeId);
-      if (targetNode) {
+      const zoomTarget = resolveVisibleId(selectedNodeId);
+      if (zoomTarget) {
         setTimeout(
-          () => fitView({ nodes: [{ id: selectedNodeId }], duration: 300, padding: 1 }),
+          () => fitView({ nodes: [{ id: zoomTarget }], duration: 300, padding: 1 }),
           50,
         );
       }
       useAgentStore.setState({ selectSource: null });
     }
-  }, [selectSource, selectedNodeId, visibleNodes, fitView]);
+  }, [selectSource, selectedNodeId, visibleNodes, fitView, resolveVisibleId]);
 
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: { id: string }) => {
