@@ -30,6 +30,11 @@ export const TOOL_COLORS: Record<string, string> = {
   NotebookEdit: '#e879f9',
 };
 
+export const CATEGORY_COLORS: Record<string, string> = {
+  feature: '#3b82f6', bugfix: '#ef4444', refactor: '#a855f7', test: '#22c55e',
+  docs: '#eab308', debug: '#f97316', review: '#06b6d4', config: '#6b7280', other: '#475569',
+};
+
 export function fmtTokens(n: number): string {
   if (n < 1000) return String(n);
   if (n < 1_000_000) return `${(n / 1000).toFixed(1)}k`;

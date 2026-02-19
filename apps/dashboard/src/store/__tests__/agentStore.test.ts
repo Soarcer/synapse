@@ -554,4 +554,128 @@ describe('agentStore', () => {
       expect(toolEdge!.source).toBe('agent-explore-1');
     });
   });
+
+  // ── Enriched token data & model propagation ──────────────────────
+
+  describe('enriched token data', () => {
+    it('extracts cache/thinking tokens from Task tool_end response', () => {
+      const events: AgentEvent[] = [
+        makeEvent({ id: 'e1', type: 'session_start', sessionId: 's1', timestamp: 1, model: 'claude-opus-4-6' }),
+        makeEvent({ id: 'e2', type: 'user_prompt', sessionId: 's1', timestamp: 2, text: 'go' }),
+        makeEvent({ id: 'e3', type: 'tool_start', sessionId: 's1', timestamp: 3, toolName: 'Task', toolUseId: 'task-1' }),
+        makeEvent({ id: 'e4', type: 'agent_start', sessionId: 's1', timestamp: 4, agentId: 'child-1', agentType: 'Explore' }),
+        makeEvent({ id: 'e5', type: 'agent_stop', sessionId: 's1', timestamp: 5, agentId: 'child-1' }),
+        makeEvent({
+          id: 'e6', type: 'tool_end', sessionId: 's1', timestamp: 6,
+          toolName: 'Task', toolUseId: 'task-1',
+          toolResponse: {
+            agentId: 'child-1',
+            usage: {
+              input_tokens: 1000,
+              output_tokens: 500,
+              cache_read_input_tokens: 200,
+              cache_creation_input_tokens: 50,
+              thinking_tokens: 100,
+            },
+          },
+        }),
+      ];
+
+      useAgentStore.getState().loadEvents(events);
+      const state = useAgentStore.getState();
+      const agent = state.agents.get('child-1');
+
+      expect(agent).toBeDefined();
+      expect(agent!.tokenUsage.cacheRead).toBe(200);
+      expect(agent!.tokenUsage.cacheCreation).toBe(50);
+      expect(agent!.tokenUsage.thinking).toBe(100);
+      // input = input_tokens + cache_read + cache_creation
+      expect(agent!.tokenUsage.input).toBe(1250);
+      expect(agent!.tokenUsage.output).toBe(500);
+    });
+
+    it('sets model on agent from session when not on event', () => {
+      const events: AgentEvent[] = [
+        makeEvent({ id: 'e1', type: 'session_start', sessionId: 's1', timestamp: 1, model: 'claude-sonnet-4-5' }),
+        makeEvent({ id: 'e2', type: 'agent_start', sessionId: 's1', timestamp: 2, agentId: 'a1', agentType: 'Main' }),
+      ];
+
+      useAgentStore.getState().loadEvents(events);
+      const state = useAgentStore.getState();
+      const agent = state.agents.get('a1');
+
+      expect(agent).toBeDefined();
+      expect(agent!.model).toBe('claude-sonnet-4-5');
+    });
+
+    it('backfills model on agents when session_start arrives after agent_start', () => {
+      // Simulate out-of-order events: agent_start arrives before session_start
+      const events: AgentEvent[] = [
+        makeEvent({ id: 'e1', type: 'agent_start', sessionId: 's1', timestamp: 1, agentId: 'a1', agentType: 'Main' }),
+        makeEvent({ id: 'e2', type: 'session_start', sessionId: 's1', timestamp: 2, model: 'claude-opus-4-6' }),
+      ];
+
+      useAgentStore.getState().loadEvents(events);
+      const state = useAgentStore.getState();
+      const agent = state.agents.get('a1');
+
+      expect(agent).toBeDefined();
+      expect(agent!.model).toBe('claude-opus-4-6');
+    });
+
+    it('preserves cache/thinking tokens when agent_stop updates tokenUsage', () => {
+      const events: AgentEvent[] = [
+        makeEvent({ id: 'e1', type: 'session_start', sessionId: 's1', timestamp: 1 }),
+        makeEvent({ id: 'e2', type: 'tool_start', sessionId: 's1', timestamp: 2, toolName: 'Task', toolUseId: 'task-1' }),
+        makeEvent({ id: 'e3', type: 'agent_start', sessionId: 's1', timestamp: 3, agentId: 'a1', agentType: 'Explore' }),
+        // Task tool_end sets cache/thinking tokens
+        makeEvent({
+          id: 'e4', type: 'tool_end', sessionId: 's1', timestamp: 4,
+          toolName: 'Task', toolUseId: 'task-1',
+          toolResponse: {
+            agentId: 'a1',
+            usage: {
+              input_tokens: 500,
+              output_tokens: 200,
+              cache_read_input_tokens: 100,
+              cache_creation_input_tokens: 0,
+              thinking_tokens: 50,
+            },
+          },
+        }),
+        // agent_stop arrives with basic tokenUsage (no cache breakdown)
+        makeEvent({
+          id: 'e5', type: 'agent_stop', sessionId: 's1', timestamp: 5,
+          agentId: 'a1',
+          tokenUsage: { input: 800, output: 300 },
+        }),
+      ];
+
+      useAgentStore.getState().loadEvents(events);
+      const state = useAgentStore.getState();
+      const agent = state.agents.get('a1');
+
+      expect(agent).toBeDefined();
+      // agent_stop token counts take precedence
+      expect(agent!.tokenUsage.input).toBe(800);
+      expect(agent!.tokenUsage.output).toBe(300);
+      // But cache/thinking from earlier Task tool_end are preserved
+      expect(agent!.tokenUsage.cacheRead).toBe(100);
+      expect(agent!.tokenUsage.thinking).toBe(50);
+    });
+
+    it('updates model from agent_stop event', () => {
+      const events: AgentEvent[] = [
+        makeEvent({ id: 'e1', type: 'session_start', sessionId: 's1', timestamp: 1 }),
+        makeEvent({ id: 'e2', type: 'agent_start', sessionId: 's1', timestamp: 2, agentId: 'a1', agentType: 'Main' }),
+        makeEvent({ id: 'e3', type: 'agent_stop', sessionId: 's1', timestamp: 3, agentId: 'a1', model: 'claude-haiku-4-5' }),
+      ];
+
+      useAgentStore.getState().loadEvents(events);
+      const state = useAgentStore.getState();
+      const agent = state.agents.get('a1');
+
+      expect(agent!.model).toBe('claude-haiku-4-5');
+    });
+  });
 });

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback, type ReactNode } from 'react';
 import { useAgentStore } from '../../store/agentStore';
 import { ConfirmDialog } from '../ConfirmDialog';
 import type { ToolCallSummary, PromptAnalysis } from '@synapse-ai/core';
@@ -7,6 +7,12 @@ import { apiUrl } from '../../utils/api';
 import { extractUserMessage } from '../../utils/promptText';
 import { toast } from '../Toast';
 import { ToolRenderer, ToolSummaryLine } from './ToolDetailRenderers';
+import { ToolGroupDetailView } from './ToolGroupDetailView';
+import { TokenBreakdownBar } from '../analytics/shared/TokenBreakdownBar';
+import { ToolBadges } from '../analytics/shared/ToolBadges';
+import { ModelBadge } from '../analytics/shared/ModelBadge';
+import { CATEGORY_COLORS, fmtTokens } from '../analytics/shared/constants';
+import { computeCostUsd, classifyPrompt, computeComplexity, computeCacheRate } from '../analytics/shared/promptUtils';
 
 // ── AI Analysis helpers ─────────────────────────────────────────
 
@@ -101,6 +107,7 @@ export function AgentDetailPanel() {
   const prompts = useAgentStore((s) => s.prompts);
   const toolCalls = useAgentStore((s) => s.toolCalls);
   const events = useAgentStore((s) => s.events);
+  const taskToolAgentMap = useAgentStore((s) => s.taskToolAgentMap);
   const selectNode = useAgentStore((s) => s.selectNode);
   const removeNode = useAgentStore((s) => s.removeNode);
   const [message, setMessage] = useState('');
@@ -124,6 +131,50 @@ export function AgentDetailPanel() {
   const runAiAnalysis = useCallback((promptText: string, skipCache = false) => {
     const key = panelCacheKey(promptText, analysisMode);
     if (!skipCache && aiCache[key]) return; // already cached
+
+    // Build conversation context from session prompts
+    let conversationContext: Record<string, unknown> | undefined;
+    let sessionContext = { model: 'unknown', toolCount: 0, category: classifyPrompt(promptText), cost: 0 };
+
+    // Find the session this prompt belongs to
+    for (const [sid, sessionPromptList] of prompts.entries()) {
+      const idx = sessionPromptList.findIndex((p) => extractUserMessage(p.text) === promptText);
+      if (idx < 0) continue;
+
+      const currentPrompt = sessionPromptList[idx];
+      const priorPrompts = sessionPromptList.slice(Math.max(0, idx - 3), idx);
+      const twoMinMs = 2 * 60 * 1000;
+      const recentInWindow = sessionPromptList
+        .slice(0, idx + 1)
+        .filter((p) => currentPrompt.timestamp - p.timestamp < twoMinMs);
+      const isConversationalMode = recentInWindow.length >= 2 &&
+        priorPrompts.length > 0 &&
+        priorPrompts.every((p) => extractUserMessage(p.text).split(/\s+/).filter(Boolean).length < 15);
+
+      const firstPrompt = sessionPromptList[0];
+      const firstText = firstPrompt ? extractUserMessage(firstPrompt.text) : '';
+      const goalEnd = firstText.search(/[.!?]/);
+      const sessionGoal = goalEnd > 0 && goalEnd < 100 ? firstText.slice(0, goalEnd + 1) : firstText.slice(0, 100);
+
+      const sess = sessions.get(sid);
+      sessionContext = {
+        model: sess?.model ?? 'unknown',
+        toolCount: 0,
+        category: classifyPrompt(promptText),
+        cost: 0,
+      };
+
+      if (priorPrompts.length > 0) {
+        conversationContext = {
+          recentPrompts: priorPrompts.map((p) => extractUserMessage(p.text).slice(0, 500)),
+          sessionGoal,
+          turnNumber: idx + 1,
+          isConversationalMode,
+        };
+      }
+      break;
+    }
+
     setAiLoading(true);
     fetch(apiUrl('/api/analytics/ai-analyze-prompt'), {
       method: 'POST',
@@ -132,7 +183,8 @@ export function AgentDetailPanel() {
         promptText,
         mode: analysisMode,
         skipCache,
-        sessionContext: { model: 'unknown', toolCount: 0, category: 'general', cost: 0 },
+        sessionContext,
+        conversationContext,
       }),
     })
       .then((r) => r.json())
@@ -142,7 +194,7 @@ export function AgentDetailPanel() {
       })
       .catch(() => toast('Failed to analyze prompt', 'error'))
       .finally(() => setAiLoading(false));
-  }, [analysisMode, aiCache]);
+  }, [analysisMode, aiCache, prompts, sessions]);
 
   // Determine what's selected
   const agentId = selectedNodeId?.startsWith('agent-')
@@ -156,6 +208,9 @@ export function AgentDetailPanel() {
     : null;
   const toolNodeId = selectedNodeId?.startsWith('tool-')
     ? selectedNodeId.slice(5)
+    : null;
+  const toolGroupAgentId = selectedNodeId?.startsWith('toolgroup-agent-')
+    ? selectedNodeId.slice('toolgroup-agent-'.length)
     : null;
 
   const agent = agentId ? agents.get(agentId) : null;
@@ -341,88 +396,36 @@ export function AgentDetailPanel() {
 
   // ── User prompt detail view ────────────────────────────────
   if (promptId) {
-    // Find the prompt across all session prompts
-    let foundPrompt = null;
-    for (const sessionPromptList of prompts.values()) {
-      const p = sessionPromptList.find((pp) => pp.id === promptId);
-      if (p) { foundPrompt = p; break; }
-    }
-    if (!foundPrompt) return null;
-
-    // Find agents belonging to this prompt (started after this prompt, before the next)
-    const sessionPromptList = prompts.get(foundPrompt.sessionId) ?? [];
-    const promptIdx = sessionPromptList.findIndex((p) => p.id === promptId);
-    const nextPrompt = sessionPromptList[promptIdx + 1];
-    const promptAgents = [...agents.values()].filter(
-      (a) =>
-        a.sessionId === foundPrompt!.sessionId &&
-        a.startTime >= foundPrompt!.timestamp &&
-        (!nextPrompt || a.startTime < nextPrompt.timestamp),
+    return (
+      <PromptDetailView
+        promptId={promptId}
+        prompts={prompts}
+        agents={agents}
+        sessions={sessions}
+        aiCache={aiCache}
+        aiLoading={aiLoading}
+        analysisMode={analysisMode}
+        onModeChange={handleModeChange}
+        onAnalyze={runAiAnalysis}
+        onClose={() => selectNode(null)}
+        onRemove={(nodeId) => setConfirmRemove({ nodeId, label: 'prompt' })}
+        dialogs={dialogs}
+      />
     );
-    const promptTokens = promptAgents.reduce(
-      (acc, a) => ({
-        input: acc.input + a.tokenUsage.input,
-        output: acc.output + a.tokenUsage.output,
-      }),
-      { input: 0, output: 0 },
-    );
+  }
 
-    const promptText = extractUserMessage(foundPrompt.text);
-
+  // ── Tool group detail view ────────────────────────────────
+  if (toolGroupAgentId) {
     return (
       <>
-        <PanelShell title="User Prompt" onClose={() => selectNode(null)}>
-          <div className="p-4 space-y-3 text-sm flex-1 overflow-auto">
-            <Detail label="Time" value={formatTime(foundPrompt.timestamp)} />
-            <Detail label="Session" value={foundPrompt.sessionId.slice(0, 12)} mono />
-
-            {/* Token rollup for agents under this prompt */}
-            {(promptTokens.input > 0 || promptTokens.output > 0) && (
-              <>
-                <Divider />
-                <div>
-                  <span className="text-gray-500 text-xs block mb-1">Tokens ({promptAgents.length} agent{promptAgents.length !== 1 ? 's' : ''})</span>
-                  <div className="flex gap-4">
-                    <Stat label="Input" value={promptTokens.input} format />
-                    <Stat label="Output" value={promptTokens.output} format />
-                    <Stat label="Total" value={promptTokens.input + promptTokens.output} format />
-                  </div>
-                </div>
-              </>
-            )}
-
-            <Divider />
-
-            <div>
-              <span className="text-gray-500 text-xs block mb-1.5">Prompt text</span>
-              <pre className="text-xs bg-gray-900 rounded p-3 text-gray-200 overflow-auto max-h-80 font-mono whitespace-pre-wrap leading-relaxed">
-                {promptText || '(empty)'}
-              </pre>
-            </div>
-
-            <Divider />
-
-            {/* AI Analysis Section */}
-            <PromptAiSection
-              promptText={promptText}
-              devAnalysis={aiCache[panelCacheKey(promptText, 'developer')] ?? null}
-              vibeAnalysis={aiCache[panelCacheKey(promptText, 'vibe')] ?? null}
-              loading={aiLoading}
-              mode={analysisMode}
-              onModeChange={handleModeChange}
-              onAnalyze={(skipCache) => runAiAnalysis(promptText, skipCache)}
-            />
-
-            <Divider />
-
-            <button
-              onClick={() => setConfirmRemove({ nodeId: `prompt-${promptId}`, label: 'prompt' })}
-              className="w-full px-3 py-1.5 bg-red-900/30 hover:bg-red-800/40 border border-red-700/40 rounded text-xs text-red-300 transition-colors"
-            >
-              Remove Prompt
-            </button>
-          </div>
-        </PanelShell>
+        <ToolGroupDetailView
+          agentId={toolGroupAgentId}
+          agents={agents}
+          toolCalls={toolCalls}
+          taskToolAgentMap={taskToolAgentMap}
+          selectNode={selectNode}
+          onClose={() => selectNode(null)}
+        />
         {dialogs}
       </>
     );
@@ -685,7 +688,7 @@ export function AgentDetailPanel() {
 
 // ── Reusable components ──────────────────────────────────────
 
-function PanelShell({
+export function PanelShell({
   title,
   titleRight,
   onClose,
@@ -715,7 +718,7 @@ function PanelShell({
   );
 }
 
-function Detail({
+export function Detail({
   label,
   value,
   mono,
@@ -749,11 +752,11 @@ function Detail({
   );
 }
 
-function Divider() {
+export function Divider() {
   return <hr className="border-gray-800" />;
 }
 
-function Stat({
+export function Stat({
   label,
   value,
   format,
@@ -772,7 +775,7 @@ function Stat({
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+export function StatusBadge({ status }: { status: string }) {
   const cls =
     status === 'success'
       ? 'bg-teal-900/50 text-teal-300'
@@ -785,6 +788,235 @@ function StatusBadge({ status }: { status: string }) {
     <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${cls}`}>
       {status}
     </span>
+  );
+}
+
+// ── Prompt Detail View (extracted for rich metrics) ─────────────
+
+function PromptDetailView({
+  promptId,
+  prompts,
+  agents,
+  sessions,
+  aiCache,
+  aiLoading,
+  analysisMode,
+  onModeChange,
+  onAnalyze,
+  onClose,
+  onRemove,
+  dialogs,
+}: {
+  promptId: string;
+  prompts: Map<string, import('@synapse-ai/core').UserPromptData[]>;
+  agents: Map<string, import('@synapse-ai/core').AgentNodeData>;
+  sessions: Map<string, import('@synapse-ai/core').SessionData>;
+  aiCache: Record<string, PromptAnalysis>;
+  aiLoading: boolean;
+  analysisMode: AnalysisMode;
+  onModeChange: (mode: AnalysisMode) => void;
+  onAnalyze: (promptText: string, skipCache?: boolean) => void;
+  onClose: () => void;
+  onRemove: (nodeId: string) => void;
+  dialogs: React.ReactNode;
+}) {
+  // Find the prompt across all session prompts
+  let foundPrompt = null;
+  for (const sessionPromptList of prompts.values()) {
+    const p = sessionPromptList.find((pp) => pp.id === promptId);
+    if (p) { foundPrompt = p; break; }
+  }
+  if (!foundPrompt) return null;
+
+  const promptText = extractUserMessage(foundPrompt.text);
+  const session = sessions.get(foundPrompt.sessionId);
+
+  // Find agents belonging to this prompt (started after this prompt, before the next)
+  const sessionPromptList = prompts.get(foundPrompt.sessionId) ?? [];
+  const promptIdx = sessionPromptList.findIndex((p) => p.id === promptId);
+  const nextPrompt = sessionPromptList[promptIdx + 1];
+
+  // Compute rich metrics from child agents
+  const metrics = useMemo(() => {
+    const promptAgents = [...agents.values()].filter(
+      (a) =>
+        a.sessionId === foundPrompt!.sessionId &&
+        a.startTime >= foundPrompt!.timestamp &&
+        (!nextPrompt || a.startTime < nextPrompt.timestamp),
+    );
+
+    const inputTokens = promptAgents.reduce((s, a) => s + a.tokenUsage.input, 0);
+    const outputTokens = promptAgents.reduce((s, a) => s + a.tokenUsage.output, 0);
+    const cacheReadTokens = promptAgents.reduce((s, a) => s + (a.tokenUsage.cacheRead ?? 0), 0);
+    const cacheCreationTokens = promptAgents.reduce((s, a) => s + (a.tokenUsage.cacheCreation ?? 0), 0);
+    const thinkingTokens = promptAgents.reduce((s, a) => s + (a.tokenUsage.thinking ?? 0), 0);
+
+    const model = promptAgents.find((a) => a.model)?.model ?? session?.model ?? 'unknown';
+
+    // Latency: time from prompt to last agent completion
+    const endTimes = promptAgents.filter((a) => a.endTime).map((a) => a.endTime!);
+    const latencyMs = endTimes.length > 0
+      ? Math.max(...endTimes) - foundPrompt!.timestamp
+      : 0;
+
+    // Tool summary — count per tool name
+    const toolCountMap = new Map<string, number>();
+    let toolCount = 0;
+    for (const a of promptAgents) {
+      for (const tc of a.toolCalls) {
+        toolCountMap.set(tc.toolName, (toolCountMap.get(tc.toolName) ?? 0) + 1);
+        toolCount++;
+      }
+    }
+
+    const costUsd = computeCostUsd(inputTokens, outputTokens, cacheReadTokens, model);
+    const cacheRate = computeCacheRate(inputTokens, cacheReadTokens);
+    const complexity = computeComplexity(promptText, outputTokens, toolCount);
+    const category = classifyPrompt(promptText);
+
+    return {
+      agentCount: promptAgents.length,
+      inputTokens,
+      outputTokens,
+      cacheReadTokens,
+      cacheCreationTokens,
+      thinkingTokens,
+      model,
+      latencyMs,
+      toolNames: [...toolCountMap.keys()],
+      toolCounts: Object.fromEntries(toolCountMap),
+      toolCount,
+      costUsd,
+      cacheRate,
+      complexity,
+      category,
+    };
+  }, [agents, foundPrompt, nextPrompt, session, promptText]);
+
+  const cacheColor = metrics.cacheRate > 50 ? 'text-emerald-400' : metrics.cacheRate > 20 ? 'text-yellow-400' : 'text-red-400';
+  const complexityColor = metrics.complexity > 70 ? 'text-red-400' : metrics.complexity > 40 ? 'text-yellow-400' : 'text-emerald-400';
+  const totalTokens = metrics.inputTokens + metrics.outputTokens + metrics.cacheReadTokens;
+  const hasTokens = totalTokens > 0;
+
+  return (
+    <>
+      <PanelShell
+        title="User Prompt"
+        titleRight={
+          <span
+            className="px-2 py-0.5 rounded-full text-[10px] font-medium"
+            style={{
+              backgroundColor: `${CATEGORY_COLORS[metrics.category] ?? CATEGORY_COLORS.other}20`,
+              color: CATEGORY_COLORS[metrics.category] ?? CATEGORY_COLORS.other,
+            }}
+          >
+            {metrics.category}
+          </span>
+        }
+        onClose={onClose}
+      >
+        <div className="p-4 space-y-3 text-sm flex-1 overflow-auto">
+          <Detail label="Time" value={formatTime(foundPrompt.timestamp)} />
+          <Detail label="Session" value={foundPrompt.sessionId.slice(0, 12)} mono />
+
+          {/* Metrics stat cards — 2-column grid for 320px panel */}
+          {hasTokens && (
+            <>
+              <Divider />
+              <div className="grid grid-cols-2 gap-2">
+                <MetricCard label="Cost" value={`$${metrics.costUsd.toFixed(4)}`} color="text-amber-400" />
+                <MetricCard label="Total Tokens" value={fmtTokens(totalTokens)} color="text-gray-200" />
+                <MetricCard label="Cache Hit" value={`${metrics.cacheRate.toFixed(0)}%`} color={cacheColor} />
+                <MetricCard
+                  label="Latency"
+                  value={metrics.latencyMs > 0
+                    ? (metrics.latencyMs < 1000 ? `${Math.round(metrics.latencyMs)}ms` : `${(metrics.latencyMs / 1000).toFixed(1)}s`)
+                    : '\u2014'}
+                  color="text-gray-200"
+                />
+                <MetricCard label="Complexity" value={`${metrics.complexity}/100`} color={complexityColor} />
+                <MetricCard
+                  label="Agents"
+                  value={String(metrics.agentCount)}
+                  color="text-gray-200"
+                />
+              </div>
+            </>
+          )}
+
+          {/* Token Breakdown Bar */}
+          {hasTokens && (
+            <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
+              <TokenBreakdownBar
+                cacheReadTokens={metrics.cacheReadTokens}
+                inputTokens={metrics.inputTokens}
+                outputTokens={metrics.outputTokens}
+                thinkingTokens={metrics.thinkingTokens}
+              />
+            </div>
+          )}
+
+          {/* Tool Badges + Model */}
+          {(metrics.toolNames.length > 0 || metrics.model !== 'unknown') && (
+            <div className="space-y-2">
+              {metrics.toolNames.length > 0 && (
+                <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
+                  <ToolBadges toolNames={metrics.toolNames} toolCounts={metrics.toolCounts} label={`Tools (${metrics.toolCount})`} />
+                </div>
+              )}
+              {metrics.model !== 'unknown' && (
+                <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
+                  <span className="text-xs text-gray-500 block mb-1">Model</span>
+                  <ModelBadge model={metrics.model} />
+                </div>
+              )}
+            </div>
+          )}
+
+          <Divider />
+
+          {/* Prompt text */}
+          <div>
+            <span className="text-gray-500 text-xs block mb-1.5">Prompt text</span>
+            <pre className="text-xs bg-gray-900 rounded p-3 text-gray-200 overflow-auto max-h-80 font-mono whitespace-pre-wrap leading-relaxed">
+              {promptText || '(empty)'}
+            </pre>
+          </div>
+
+          <Divider />
+
+          {/* AI Analysis Section */}
+          <PromptAiSection
+            promptText={promptText}
+            devAnalysis={aiCache[panelCacheKey(promptText, 'developer')] ?? null}
+            vibeAnalysis={aiCache[panelCacheKey(promptText, 'vibe')] ?? null}
+            loading={aiLoading}
+            mode={analysisMode}
+            onModeChange={onModeChange}
+            onAnalyze={(skipCache) => onAnalyze(promptText, skipCache)}
+          />
+
+          <Divider />
+
+          <button
+            onClick={() => onRemove(`prompt-${promptId}`)}
+            className="w-full px-3 py-1.5 bg-red-900/30 hover:bg-red-800/40 border border-red-700/40 rounded text-xs text-red-300 transition-colors"
+          >
+            Remove Prompt
+          </button>
+        </div>
+      </PanelShell>
+      {dialogs}
+    </>
+  );
+}
+
+function MetricCard({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
+      <div className="text-xs text-gray-500">{label}</div>
+      <div className={`text-sm font-semibold ${color}`}>{value}</div>
+    </div>
   );
 }
 

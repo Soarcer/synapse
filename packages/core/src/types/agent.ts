@@ -72,11 +72,18 @@ export interface AgentNodeData {
   status: 'running' | 'success' | 'error' | 'stopped';
   prompt?: string;
   toolCalls: ToolCallSummary[];
-  tokenUsage: { input: number; output: number };
+  tokenUsage: {
+    input: number;
+    output: number;
+    cacheRead?: number;
+    cacheCreation?: number;
+    thinking?: number;
+  };
   startTime: number;
   endTime?: number;
   streamingText?: string;        // Live text being generated
   vendor?: string;               // Inferred vendor (anthropic, openai, etc.)
+  model?: string;                // e.g. "claude-opus-4-6"
 }
 
 export interface ToolCallSummary {

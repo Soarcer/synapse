@@ -161,6 +161,17 @@ function handleSessionStart(event: AgentEvent, draft: StateDraft): void {
   };
   draft.sessions.set(event.sessionId, session);
 
+  // Backfill model on agents created before SessionStart arrived (out-of-order events)
+  if (event.model) {
+    for (const [agentId, agent] of draft.agents) {
+      if (agent.sessionId === event.sessionId && !agent.model) {
+        const updated = { ...agent, model: event.model };
+        draft.agents.set(agentId, updated);
+        updateNode(draft.nodes, nid.agent(agentId), { agent: updated });
+      }
+    }
+  }
+
   if (existing) {
     updateNode(draft.nodes, nid.session(event.sessionId), { session });
   } else {
@@ -237,6 +248,7 @@ function handleAgentStart(event: AgentEvent, draft: StateDraft): void {
     toolCalls: [],
     tokenUsage: { input: 0, output: 0 },
     startTime: event.timestamp,
+    model: event.model ?? draft.sessions.get(event.sessionId)?.model,
   };
   draft.agents.set(agentId, agent);
 
@@ -330,11 +342,23 @@ function handleAgentStop(event: AgentEvent, draft: StateDraft): void {
   const agent = draft.agents.get(agentId);
   if (!agent) return;
 
+  // Merge tokenUsage: event provides {input, output} but agent may already have
+  // richer cache/thinking data from Task tool_end — preserve those fields
+  const mergedTokenUsage = event.tokenUsage
+    ? {
+        ...event.tokenUsage,
+        cacheRead: agent.tokenUsage.cacheRead,
+        cacheCreation: agent.tokenUsage.cacheCreation,
+        thinking: agent.tokenUsage.thinking,
+      }
+    : agent.tokenUsage;
+
   const updated = {
     ...agent,
     status: (event.status ?? 'success') as AgentNodeData['status'],
     endTime: event.timestamp,
-    tokenUsage: event.tokenUsage ?? agent.tokenUsage,
+    tokenUsage: mergedTokenUsage,
+    model: event.model ?? agent.model,
   };
   draft.agents.set(agentId, updated);
   updateNode(draft.nodes, nid.agent(agentId), { agent: updated });
@@ -528,12 +552,14 @@ function handleToolEnd(event: AgentEvent, draft: StateDraft): void {
   if (!childAgent || childAgent.tokenUsage.input !== 0 || childAgent.tokenUsage.output !== 0)
     return;
 
+  const cacheRead = usage.cache_read_input_tokens ?? 0;
+  const cacheCreation = usage.cache_creation_input_tokens ?? 0;
   const tokenUsage = {
-    input:
-      (usage.input_tokens ?? 0) +
-      (usage.cache_read_input_tokens ?? 0) +
-      (usage.cache_creation_input_tokens ?? 0),
+    input: (usage.input_tokens ?? 0) + cacheRead + cacheCreation,
     output: usage.output_tokens ?? 0,
+    cacheRead,
+    cacheCreation,
+    thinking: usage.thinking_tokens ?? 0,
   };
   const updated = { ...childAgent, tokenUsage };
   draft.agents.set(childAgentId, updated);
@@ -549,11 +575,22 @@ function handleResult(event: AgentEvent, draft: StateDraft): void {
   const agent = draft.agents.get(agentId);
   if (!agent) return;
 
+  // Preserve cache/thinking data from earlier Task tool_end
+  const mergedTokenUsage = event.tokenUsage
+    ? {
+        ...event.tokenUsage,
+        cacheRead: agent.tokenUsage.cacheRead,
+        cacheCreation: agent.tokenUsage.cacheCreation,
+        thinking: agent.tokenUsage.thinking,
+      }
+    : agent.tokenUsage;
+
   const updated = {
     ...agent,
     status: (event.status ?? 'success') as AgentNodeData['status'],
     endTime: event.timestamp,
-    tokenUsage: event.tokenUsage ?? agent.tokenUsage,
+    tokenUsage: mergedTokenUsage,
+    model: event.model ?? agent.model,
   };
   draft.agents.set(agentId, updated);
   updateNode(draft.nodes, nid.agent(agentId), { agent: updated });
