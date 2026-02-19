@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useAgentStore } from '../../store/agentStore';
 import { formatRelativeTime, formatDuration } from '@synapse-ai/core';
+import { Tooltip } from '../ui/Tooltip';
 
 export function SessionSelector() {
   const [open, setOpen] = useState(false);
@@ -53,22 +54,23 @@ export function SessionSelector() {
 
   return (
     <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        aria-label="Session selector"
-        aria-expanded={open}
-        className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded transition-colors max-w-[200px] ${
-          filter.sessionId
-            ? 'text-cyan-300 bg-cyan-900/30 hover:bg-cyan-800/40 border border-cyan-700/30'
-            : 'text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700'
-        }`}
-        title={filter.sessionId ? `Session: ${filter.sessionId.slice(0, 8)}` : 'All sessions'}
-      >
-        <span className="truncate">{triggerLabel}</span>
-        <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
+      <Tooltip content={filter.sessionId ? `Session: ${filter.sessionId.slice(0, 8)}` : 'All sessions'}>
+        <button
+          onClick={() => setOpen(!open)}
+          aria-label="Session selector"
+          aria-expanded={open}
+          className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded transition-colors max-w-[200px] ${
+            filter.sessionId
+              ? 'text-cyan-300 bg-cyan-900/30 hover:bg-cyan-800/40 border border-cyan-700/30'
+              : 'text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700'
+          }`}
+        >
+          <span className="truncate">{triggerLabel}</span>
+          <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      </Tooltip>
 
       {open && (
         <div role="listbox" aria-label="Available sessions" className="absolute right-0 top-full mt-1 w-64 bg-[#1c2128] border border-gray-700 rounded-lg shadow-xl z-30 py-1 max-h-64 overflow-auto">

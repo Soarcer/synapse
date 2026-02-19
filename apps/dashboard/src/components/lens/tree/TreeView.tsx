@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect, useLayoutEffect } from 'react';
 import { useLens, type LensTreeNode } from '../LensContext';
 import { TreeRow } from './TreeRow';
+import { Tooltip } from '../../ui/Tooltip';
 
 export function TreeView() {
   const { treeRoots, selectedId, onSelect, searchQuery } = useLens();
@@ -196,21 +197,23 @@ export function TreeView() {
     <div className="h-full flex flex-col overflow-hidden">
       {/* Expand/Collapse toolbar */}
       <div className="flex items-center gap-1 px-2 py-1 border-b border-gray-800 flex-shrink-0">
-        <button
-          onClick={expandAll}
-          className="text-[10px] text-gray-500 hover:text-gray-300 transition-colors"
-          title="Expand all"
-        >
-          Expand all
-        </button>
+        <Tooltip content="Expand all tree nodes">
+          <button
+            onClick={expandAll}
+            className="text-[10px] text-gray-500 hover:text-gray-300 transition-colors"
+          >
+            Expand all
+          </button>
+        </Tooltip>
         <span className="text-gray-700 text-[10px]">|</span>
-        <button
-          onClick={collapseAll}
-          className="text-[10px] text-gray-500 hover:text-gray-300 transition-colors"
-          title="Collapse all"
-        >
-          Collapse all
-        </button>
+        <Tooltip content="Collapse all tree nodes">
+          <button
+            onClick={collapseAll}
+            className="text-[10px] text-gray-500 hover:text-gray-300 transition-colors"
+          >
+            Collapse all
+          </button>
+        </Tooltip>
         <span className="ml-auto text-[9px] text-gray-600 tabular-nums">
           {flatList.length} items
         </span>

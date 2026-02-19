@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useAgentStore } from '../../store/agentStore';
 import { apiUrl } from '../../utils/api';
 import type { CoachingNudge, NudgeSeverity } from '@synapse-ai/core';
+import { Tooltip } from '../ui/Tooltip';
 
 const SEVERITY_STYLES: Record<NudgeSeverity, { border: string; bg: string; text: string }> = {
   info: { border: 'border-blue-500/40', bg: 'bg-blue-500/10', text: 'text-blue-300' },
@@ -39,15 +40,17 @@ export function NudgeBadge() {
   return (
     <div className="absolute top-2 right-2 z-20">
       {/* Badge button */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg ${badgeColor}/20 border ${badgeColor}/40 backdrop-blur-sm hover:brightness-125 transition-all`}
-      >
-        <span className={`w-2 h-2 rounded-full ${badgeColor} animate-pulse`} />
-        <span className="text-xs text-gray-200 font-medium">
-          {activeNudges.length} nudge{activeNudges.length !== 1 ? 's' : ''}
-        </span>
-      </button>
+      <Tooltip content="Coaching nudges — click to view">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg ${badgeColor}/20 border ${badgeColor}/40 backdrop-blur-sm hover:brightness-125 transition-all`}
+        >
+          <span className={`w-2 h-2 rounded-full ${badgeColor} animate-pulse`} />
+          <span className="text-xs text-gray-200 font-medium">
+            {activeNudges.length} nudge{activeNudges.length !== 1 ? 's' : ''}
+          </span>
+        </button>
+      </Tooltip>
 
       {/* Expanded panel */}
       {expanded && (
@@ -61,12 +64,14 @@ export function NudgeBadge() {
                     <h4 className={`text-xs font-medium ${styles.text}`}>{nudge.title}</h4>
                     <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-2">{nudge.message}</p>
                   </div>
-                  <button
-                    onClick={() => handleDismiss(nudge)}
-                    className="text-gray-600 hover:text-gray-400 text-xs px-1 flex-shrink-0"
-                  >
-                    &#x2715;
-                  </button>
+                  <Tooltip content="Dismiss this nudge">
+                    <button
+                      onClick={() => handleDismiss(nudge)}
+                      className="text-gray-600 hover:text-gray-400 text-xs px-1 flex-shrink-0"
+                    >
+                      &#x2715;
+                    </button>
+                  </Tooltip>
                 </div>
               </div>
             );

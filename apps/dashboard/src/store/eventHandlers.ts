@@ -432,6 +432,15 @@ function finalizeToolCall(
   const agentId = event.agentId || draft.toolAgentMap.get(toolUseId) || '';
   const patch: Partial<ToolCallSummary> = { status, endTime: event.timestamp, ...extras };
 
+  // Compute duration from timestamps when the event doesn't provide it
+  // (Claude Code hooks never send event.duration)
+  if (patch.duration == null && patch.endTime != null) {
+    const existing = draft.toolCalls.get(agentId)?.find((tc) => tc.toolUseId === toolUseId);
+    if (existing?.startTime) {
+      patch.duration = patch.endTime - existing.startTime;
+    }
+  }
+
   // If tool_end arrived before tool_start (async hook race), create the tool
   // node now so the completion isn't silently lost.
   const toolNodeExists = draft.nodes.some((n) => n.id === nid.tool(toolUseId));

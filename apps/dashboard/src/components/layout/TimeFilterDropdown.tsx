@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAgentStore } from '../../store/agentStore';
+import { Tooltip } from '../ui/Tooltip';
 
 function startOfDay(): number {
   const d = new Date();
@@ -53,6 +54,7 @@ export function TimeFilterDropdown() {
 
   return (
     <div ref={ref} className="relative">
+      <Tooltip content="Time range filter">
       <button
         onClick={() => setOpen(!open)}
         className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded transition-colors ${
@@ -60,7 +62,6 @@ export function TimeFilterDropdown() {
             ? 'text-blue-300 bg-blue-900/40 hover:bg-blue-800/40 border border-blue-700/30'
             : 'text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700'
         }`}
-        title="Time range filter"
       >
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <circle cx="12" cy="12" r="10" />
@@ -68,6 +69,7 @@ export function TimeFilterDropdown() {
         </svg>
         {activeLabel}
       </button>
+      </Tooltip>
 
       {open && (
         <div className="absolute right-0 top-full mt-1 w-44 bg-[#1c2128] border border-gray-700 rounded-lg shadow-xl z-30 py-1">

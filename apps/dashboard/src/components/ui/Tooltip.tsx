@@ -19,7 +19,7 @@ export function Tooltip({
   children,
 }: TooltipProps) {
   const [visible, setVisible] = useState(false);
-  const [coords, setCoords] = useState({ x: 0, y: 0, placement: 'top' as const });
+  const [coords, setCoords] = useState({ x: 0, y: 0, placement: 'top' as 'top' | 'bottom' });
   const triggerRef = useRef<HTMLSpanElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const idRef = useRef(`tt-${++_counter}`);

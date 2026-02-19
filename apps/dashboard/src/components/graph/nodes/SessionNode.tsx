@@ -5,6 +5,7 @@ import { formatTokens, formatRelativeTime, formatTime, getVendorColor } from '@s
 import { useHandlePositions } from '../../../hooks/useHandlePositions';
 import { useAgentStore } from '../../../store/agentStore';
 import { CollapsibleSourceHandle } from '../CollapsibleSourceHandle';
+import { Tooltip } from '../../ui/Tooltip';
 
 const EMPTY_AGENTS: AgentNodeData[] = [];
 
@@ -123,9 +124,11 @@ function SessionNodeComponent({ data }: NodeProps) {
         <span className="text-[10px] text-gray-400">{formatTime(session.startTime)} <span className="text-gray-600">{formatRelativeTime(session.startTime)}</span></span>
       </div>
       <div className="flex items-center gap-2 mt-0.5">
-        <div
-          className={`w-2.5 h-2.5 rounded-full ${isEnded ? 'bg-gray-500' : 'bg-blue-400 animate-pulse'}`}
-        />
+        <Tooltip content={isEnded ? 'Session ended' : 'Session active'}>
+          <div
+            className={`w-2.5 h-2.5 rounded-full ${isEnded ? 'bg-gray-500' : 'bg-blue-400 animate-pulse'}`}
+          />
+        </Tooltip>
         <span className="text-sm font-semibold text-gray-100 font-mono">{shortId}</span>
       </div>
 
@@ -134,9 +137,13 @@ function SessionNodeComponent({ data }: NodeProps) {
         <div className="flex items-center gap-2">
           {(inputTokens > 0 || outputTokens > 0) && (
             <span className="text-[10px] font-mono">
-              <span className="text-cyan-400/60">{formatTokens(inputTokens)}{'\u2193'}</span>
+              <Tooltip content="Input tokens">
+                <span className="text-cyan-400/60">{formatTokens(inputTokens)}{'\u2193'}</span>
+              </Tooltip>
               {' '}
-              <span className="text-orange-400/60">{formatTokens(outputTokens)}{'\u2191'}</span>
+              <Tooltip content="Output tokens">
+                <span className="text-orange-400/60">{formatTokens(outputTokens)}{'\u2191'}</span>
+              </Tooltip>
             </span>
           )}
           {sparkData && (
@@ -158,14 +165,18 @@ function SessionNodeComponent({ data }: NodeProps) {
         </div>
         <div className="flex items-center gap-1">
           {session.agentCount > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-green-600/20 text-green-400">
-              {session.agentCount} agent{session.agentCount !== 1 ? 's' : ''}
-            </span>
+            <Tooltip content="Agents in this session">
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-green-600/20 text-green-400">
+                {session.agentCount} agent{session.agentCount !== 1 ? 's' : ''}
+              </span>
+            </Tooltip>
           )}
           {toolCount > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-purple-600/20 text-purple-400">
-              {toolCount} tool{toolCount !== 1 ? 's' : ''}
-            </span>
+            <Tooltip content="Tool calls in this session">
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-purple-600/20 text-purple-400">
+                {toolCount} tool{toolCount !== 1 ? 's' : ''}
+              </span>
+            </Tooltip>
           )}
         </div>
       </div>

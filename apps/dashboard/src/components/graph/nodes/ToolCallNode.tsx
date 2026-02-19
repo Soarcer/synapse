@@ -5,6 +5,7 @@ import { formatTime } from '@synapse-ai/core';
 import { useHandlePositions } from '../../../hooks/useHandlePositions';
 import { useAgentStore } from '../../../store/agentStore';
 import { CollapsibleSourceHandle } from '../CollapsibleSourceHandle';
+import { Tooltip } from '../../ui/Tooltip';
 
 const statusColors: Record<string, string> = {
   running: 'bg-purple-700/80 border-purple-500/50',
@@ -20,7 +21,8 @@ const statusIcon: Record<string, string> = {
 
 function ToolCallNodeComponent({ data }: NodeProps) {
   const tc = (data as { toolCall: ToolCallSummary }).toolCall;
-  const duration = tc.duration != null ? `${(tc.duration / 1000).toFixed(1)}s` : null;
+  const durationMs = tc.duration ?? (tc.endTime != null ? tc.endTime - tc.startTime : null);
+  const duration = durationMs != null ? `${(durationMs / 1000).toFixed(1)}s` : null;
   const { target, source, sourceStyle } = useHandlePositions();
   const selectedNodeId = useAgentStore((s) => s.selectedNodeId);
   const highlightedNodeIds = useAgentStore((s) => s.highlightedNodeIds);
@@ -48,7 +50,9 @@ function ToolCallNodeComponent({ data }: NodeProps) {
       </div>
       <div className="flex items-center gap-1.5 mt-0.5">
         <span className="text-white truncate">{tc.toolName}</span>
-        <span className="text-gray-400 text-[10px]">{statusIcon[tc.status]}</span>
+        <Tooltip content={`${tc.status}${duration ? ` · ${duration}` : ''}`}>
+          <span className="text-gray-400 text-[10px]">{statusIcon[tc.status]}</span>
+        </Tooltip>
       </div>
 
       {hasChildren && (

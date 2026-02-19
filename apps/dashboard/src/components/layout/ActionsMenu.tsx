@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { Tooltip } from '../ui/Tooltip';
 
 interface ActionsMenuProps {
   onExport: () => void;
@@ -21,19 +22,20 @@ export function ActionsMenu({ onExport, onImportClick, onClear }: ActionsMenuPro
 
   return (
     <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center justify-center w-7 h-7 text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700 rounded transition-colors"
-        aria-label="More actions"
-        aria-expanded={open}
-        title="Actions"
-      >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24">
-          <circle cx="12" cy="5" r="1.5" fill="currentColor" />
-          <circle cx="12" cy="12" r="1.5" fill="currentColor" />
-          <circle cx="12" cy="19" r="1.5" fill="currentColor" />
-        </svg>
-      </button>
+      <Tooltip content="Actions menu">
+        <button
+          onClick={() => setOpen(!open)}
+          className="flex items-center justify-center w-7 h-7 text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700 rounded transition-colors"
+          aria-label="More actions"
+          aria-expanded={open}
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24">
+            <circle cx="12" cy="5" r="1.5" fill="currentColor" />
+            <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+            <circle cx="12" cy="19" r="1.5" fill="currentColor" />
+          </svg>
+        </button>
+      </Tooltip>
 
       {open && (
         <div className="absolute right-0 top-full mt-1 w-48 bg-[#1c2128] border border-gray-700 rounded-lg shadow-xl z-30 py-1">

@@ -144,38 +144,49 @@ export function useGraphNavigation(
       // ── Scenario A: navigating within a tool group ─────────
       if (currentId.startsWith('tool-')) {
         const tg = findToolGroup(currentId, vNodes);
-        if (!tg) return;
 
-        const { toolGroupMode, showAllTools } = useAgentStore.getState();
-        if (!showAllTools) return;
+        if (tg) {
+          const { toolGroupMode, showAllTools } = useAgentStore.getState();
+          if (!showAllTools) return;
 
-        e.preventDefault();
-        e.stopImmediatePropagation(); // prevent App.tsx Space/pause handler
+          e.preventDefault();
+          e.stopImmediatePropagation(); // prevent App.tsx Space/pause handler
 
-        // Enter/Space: confirm selection (currently same as click)
-        if (e.key === 'Enter' || e.key === ' ') {
-          selectNode(currentId, 'graph');
-          return;
-        }
+          // Enter/Space: confirm selection (currently same as click)
+          if (e.key === 'Enter' || e.key === ' ') {
+            selectNode(currentId, 'graph');
+            return;
+          }
 
-        const nextIndex = getNextToolIndex(tg.tools, tg.index, e.key, toolGroupMode);
+          const nextIndex = getNextToolIndex(tg.tools, tg.index, e.key, toolGroupMode);
 
-        if (nextIndex === -1) {
-          // Navigate to parent agent node
-          const parentId = parentOf.get(tg.node.id) ?? null;
-          if (parentId) {
-            selectNode(parentId, 'graph');
-            setTimeout(() => {
-              fitView({ nodes: [{ id: parentId }], duration: 200, padding: 0.8 });
-            }, 50);
+          if (nextIndex === -1) {
+            // Navigate to parent agent node
+            const parentId = parentOf.get(tg.node.id) ?? null;
+            if (parentId) {
+              selectNode(parentId, 'graph');
+              setTimeout(() => {
+                fitView({ nodes: [{ id: parentId }], duration: 200, padding: 0.8 });
+              }, 50);
+            }
+            return;
+          }
+
+          if (nextIndex !== tg.index) {
+            selectNode(`tool-${tg.tools[nextIndex].toolUseId}`, 'graph');
           }
           return;
         }
 
-        if (nextIndex !== tg.index) {
-          selectNode(`tool-${tg.tools[nextIndex].toolUseId}`, 'graph');
+        // Standalone tool node (e.g. Task tool not in a group) —
+        // Enter/Space opens detail panel, arrow keys fall through
+        // to default graph navigation below
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          selectNode(currentId, 'graph');
+          return;
         }
-        return;
       }
 
       // ── Scenario B: entering a toolGroup from itself ───────

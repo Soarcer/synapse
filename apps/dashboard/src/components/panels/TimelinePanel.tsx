@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, useCallback, useEffect } from 'react';
 import { useAgentStore } from '../../store/agentStore';
 import { getTypeColor, formatDuration } from '@synapse-ai/core';
+import { Tooltip } from '../ui/Tooltip';
 
 export function TimelinePanel() {
   const agents = useAgentStore((s) => s.agents);
@@ -39,14 +40,16 @@ export function TimelinePanel() {
 
   return (
     <div className="border-t border-gray-800 bg-[#161b22]">
-      <button
-        onClick={() => setCollapsed(!collapsed)}
-        className="w-full flex items-center gap-2 px-4 py-2 text-xs text-gray-400 hover:text-gray-200 transition-colors"
-      >
-        <span>{collapsed ? '▸' : '▾'}</span>
-        <span>Timeline</span>
-        <span className="text-gray-600">({agentList.length} agents)</span>
-      </button>
+      <Tooltip content={collapsed ? 'Expand agent timeline' : 'Collapse agent timeline'}>
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="w-full flex items-center gap-2 px-4 py-2 text-xs text-gray-400 hover:text-gray-200 transition-colors"
+        >
+          <span>{collapsed ? '▸' : '▾'}</span>
+          <span>Timeline</span>
+          <span className="text-gray-600">({agentList.length} agents)</span>
+        </button>
+      </Tooltip>
 
       {!collapsed && (
         <div

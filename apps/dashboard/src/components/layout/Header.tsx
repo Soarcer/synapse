@@ -5,11 +5,13 @@ import { toast } from '../Toast';
 import { ConfirmDialog } from '../ConfirmDialog';
 import type { TranscriptSummary } from '@synapse-ai/core';
 import { apiUrl } from '../../utils/api';
+import { Tooltip } from '../ui/Tooltip';
 import { TimeFilterDropdown } from './TimeFilterDropdown';
 import { SessionSelector } from './SessionSelector';
 import { ViewSettingsDropdown } from './ViewSettingsDropdown';
 import { KeyboardShortcutsTooltip } from './KeyboardShortcutsTooltip';
 import { ActionsMenu } from './ActionsMenu';
+import { GraphStats } from './GraphStats';
 
 export function Header() {
   const connectionStatus = useAgentStore((s) => s.connectionStatus);
@@ -111,26 +113,35 @@ export function Header() {
       {/* Brand + connection dot */}
       <div className="flex items-center gap-2" role="status" aria-label={`Connection: ${statusLabel}`}>
         <span className="text-base font-bold text-gray-100 tracking-tight">Synapse</span>
-        <span className={`w-2 h-2 rounded-full ${statusDot}`} title={statusLabel} />
+        <Tooltip content={statusLabel}>
+          <span className={`w-2 h-2 rounded-full ${statusDot}`} />
+        </Tooltip>
         {connectionStatus === 'failed' && (
-          <button
-            onClick={() => wsClient.resetAndReconnect()}
-            className="px-2 py-0.5 text-[10px] bg-blue-600 hover:bg-blue-500 text-white rounded"
-          >
-            Reconnect
-          </button>
+          <Tooltip content="Reconnect to server">
+            <button
+              onClick={() => wsClient.resetAndReconnect()}
+              className="px-2 py-0.5 text-[10px] bg-blue-600 hover:bg-blue-500 text-white rounded"
+            >
+              Reconnect
+            </button>
+          </Tooltip>
         )}
       </div>
 
       {/* Paused badge */}
       {paused && (
-        <button
-          onClick={() => setPaused(false)}
-          className="px-2 py-0.5 bg-yellow-900/60 border border-yellow-600/40 rounded text-xs text-yellow-300 hover:bg-yellow-800/60 transition-colors"
-        >
-          Paused
-        </button>
+        <Tooltip content="Resume live updates" shortcut="Space">
+          <button
+            onClick={() => setPaused(false)}
+            className="px-2 py-0.5 bg-yellow-900/60 border border-yellow-600/40 rounded text-xs text-yellow-300 hover:bg-yellow-800/60 transition-colors"
+          >
+            Paused
+          </button>
+        </Tooltip>
       )}
+
+      {/* Graph stats */}
+      <GraphStats />
 
       <div className="flex-1" />
 
@@ -141,22 +152,24 @@ export function Header() {
       <SessionSelector />
 
       {/* Prompt Lab button */}
-      <button
-        onClick={() => useAgentStore.getState().setShowWorkshop(true)}
-        className="px-2.5 py-1 text-xs text-purple-400 hover:text-purple-200 bg-purple-900/20 hover:bg-purple-800/30 border border-purple-700/30 rounded transition-colors"
-        title="Open Prompt Lab (W)"
-      >
-        Prompt Lab
-      </button>
+      <Tooltip content="Open Prompt Lab" shortcut="W">
+        <button
+          onClick={() => useAgentStore.getState().setShowWorkshop(true)}
+          className="px-2.5 py-1 text-xs text-purple-400 hover:text-purple-200 bg-purple-900/20 hover:bg-purple-800/30 border border-purple-700/30 rounded transition-colors"
+        >
+          Prompt Lab
+        </button>
+      </Tooltip>
 
       {/* Analytics link */}
-      <a
-        href="?view=analytics"
-        className="px-2.5 py-1 text-xs text-amber-400 hover:text-amber-200 bg-amber-900/20 hover:bg-amber-800/30 border border-amber-700/30 rounded transition-colors"
-        title="Open Analytics Dashboard"
-      >
-        Analytics
-      </a>
+      <Tooltip content="Open Analytics Dashboard">
+        <a
+          href="?view=analytics"
+          className="px-2.5 py-1 text-xs text-amber-400 hover:text-amber-200 bg-amber-900/20 hover:bg-amber-800/30 border border-amber-700/30 rounded transition-colors"
+        >
+          Analytics
+        </a>
+      </Tooltip>
 
       {/* View settings */}
       <ViewSettingsDropdown />

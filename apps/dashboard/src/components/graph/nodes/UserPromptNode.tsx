@@ -6,6 +6,7 @@ import { useHandlePositions } from '../../../hooks/useHandlePositions';
 import { useAgentStore } from '../../../store/agentStore';
 import { CollapsibleSourceHandle } from '../CollapsibleSourceHandle';
 import { extractUserMessage } from '../../../utils/promptText';
+import { Tooltip } from '../../ui/Tooltip';
 
 const EMPTY_AGENTS: AgentNodeData[] = [];
 
@@ -79,7 +80,9 @@ function UserPromptNodeComponent({ data }: NodeProps) {
       {/* Compaction indicator */}
       {prompt.compactedAfter && (
         <div className="mt-1.5 pt-1 border-t border-dashed border-red-500/40 flex items-center gap-1">
-          <span className="text-red-400 text-[9px] compaction-pulse">{'\u2702'} compacted</span>
+          <Tooltip content="Context was compacted — earlier messages were summarized">
+            <span className="text-red-400 text-[9px] compaction-pulse">{'\u2702'} compacted</span>
+          </Tooltip>
         </div>
       )}
 
@@ -88,21 +91,29 @@ function UserPromptNodeComponent({ data }: NodeProps) {
         <div className="flex items-center justify-between mt-1.5">
           {(inputTokens > 0 || outputTokens > 0) ? (
             <span className="text-[10px] font-mono">
-              <span className="text-cyan-400/60">{formatTokens(inputTokens)}{'\u2193'}</span>
+              <Tooltip content="Input tokens">
+                <span className="text-cyan-400/60">{formatTokens(inputTokens)}{'\u2193'}</span>
+              </Tooltip>
               {' '}
-              <span className="text-orange-400/60">{formatTokens(outputTokens)}{'\u2191'}</span>
+              <Tooltip content="Output tokens">
+                <span className="text-orange-400/60">{formatTokens(outputTokens)}{'\u2191'}</span>
+              </Tooltip>
             </span>
           ) : <span />}
           <div className="flex items-center gap-1">
             {agentCount > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-green-600/20 text-green-400">
-                {agentCount} agent{agentCount !== 1 ? 's' : ''}
-              </span>
+              <Tooltip content="Agents spawned from this prompt">
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-green-600/20 text-green-400">
+                  {agentCount} agent{agentCount !== 1 ? 's' : ''}
+                </span>
+              </Tooltip>
             )}
             {toolCount > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-purple-600/20 text-purple-400">
-                {toolCount} tool{toolCount !== 1 ? 's' : ''}
-              </span>
+              <Tooltip content="Total tool calls">
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-purple-600/20 text-purple-400">
+                  {toolCount} tool{toolCount !== 1 ? 's' : ''}
+                </span>
+              </Tooltip>
             )}
           </div>
         </div>

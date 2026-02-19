@@ -11,6 +11,7 @@ import { TimeRangeSelector } from './shared/TimeRangeSelector';
 import { ProjectFilter } from './shared/ProjectFilter';
 import { SessionFilter } from './shared/SessionFilter';
 import { SettingsPanel } from './shared/SettingsPanel';
+import { Tooltip } from '../ui/Tooltip';
 
 type AnalyticsTab = 'executive' | 'prompts' | 'workshop' | 'insights' | 'nudges';
 
@@ -83,15 +84,16 @@ export function AnalyticsPage() {
         <div className="max-w-[1400px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
-              <a
-                href="?"
-                className="p-1.5 -ml-1.5 rounded-md text-gray-400 hover:text-gray-100 hover:bg-gray-800 transition-colors"
-                title="Back to Dashboard"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path d="M15 19l-7-7 7-7" />
-                </svg>
-              </a>
+              <Tooltip content="Back to Dashboard">
+                <a
+                  href="?"
+                  className="p-1.5 -ml-1.5 rounded-md text-gray-400 hover:text-gray-100 hover:bg-gray-800 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path d="M15 19l-7-7 7-7" />
+                  </svg>
+                </a>
+              </Tooltip>
               <div>
                 <h1 className="text-lg font-semibold text-gray-100 tracking-tight">Analytics</h1>
                 <p className="text-xs text-gray-500 mt-0.5">AI coding assistant usage reporting</p>
@@ -101,19 +103,22 @@ export function AnalyticsPage() {
               <TimeRangeSelector value={timeRange} onChange={setTimeRange} />
               <ProjectFilter value={selectedCwd} onChange={setSelectedCwd} />
               <SessionFilter sessions={analytics.sessions} value={selectedSessionIds} onChange={setSelectedSessionIds} />
-              <button
-                onClick={() => setShowSettings(true)}
-                className="px-3 py-1.5 bg-[#161b22] border border-gray-700 rounded-lg text-xs text-gray-300 hover:text-gray-100 hover:border-gray-600 transition-colors"
-                title="AI Coach Settings"
-              >
-                &#x2699;
-              </button>
-              <button
-                onClick={() => setShowExport(true)}
-                className="px-3 py-1.5 bg-[#161b22] border border-gray-700 rounded-lg text-xs text-gray-300 hover:text-gray-100 hover:border-gray-600 transition-colors"
-              >
-                Export
-              </button>
+              <Tooltip content="AI Coach Settings">
+                <button
+                  onClick={() => setShowSettings(true)}
+                  className="px-3 py-1.5 bg-[#161b22] border border-gray-700 rounded-lg text-xs text-gray-300 hover:text-gray-100 hover:border-gray-600 transition-colors"
+                >
+                  &#x2699;
+                </button>
+              </Tooltip>
+              <Tooltip content="Export analytics data">
+                <button
+                  onClick={() => setShowExport(true)}
+                  className="px-3 py-1.5 bg-[#161b22] border border-gray-700 rounded-lg text-xs text-gray-300 hover:text-gray-100 hover:border-gray-600 transition-colors"
+                >
+                  Export
+                </button>
+              </Tooltip>
               {analytics.isUsingMockData && (
                 <div className="px-2 py-1 bg-amber-500/10 border border-amber-500/20 rounded-lg">
                   <span className="text-[10px] text-amber-400 font-medium">MOCK DATA</span>
@@ -136,23 +141,20 @@ export function AnalyticsPage() {
           </div>
 
           {/* Tab bar */}
-          <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
+          <div className="flex items-center gap-1 overflow-x-auto overflow-y-hidden scrollbar-none">
             {TABS.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
+                title={tab.description}
                 className={`
-                  group relative px-3 py-2 text-xs font-medium rounded-t-lg transition-all whitespace-nowrap flex-shrink-0
+                  px-3 py-2 text-xs font-medium rounded-t-lg transition-all whitespace-nowrap flex-shrink-0
                   ${activeTab === tab.id
                     ? 'bg-[#161b22] text-gray-100 border-t border-x border-gray-800'
                     : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/30'}
                 `}
               >
                 {tab.label}
-                {/* Tooltip */}
-                <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-800 rounded text-[10px] text-gray-400 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
-                  {tab.description}
-                </span>
               </button>
             ))}
 

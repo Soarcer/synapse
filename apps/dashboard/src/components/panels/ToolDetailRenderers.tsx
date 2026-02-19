@@ -395,7 +395,16 @@ function TaskRenderer({ input, response, status }: ToolRendererProps) {
   const subagentType = input?.subagent_type as string | undefined;
   const description = input?.description as string | undefined;
   const prompt = input?.prompt as string | undefined;
-  const result = (response?.result ?? response?.content ?? response?.output) as string | undefined;
+  const rawResult = response?.result ?? response?.content ?? response?.output;
+  // Claude Code returns content blocks: [{type:"text", text:"..."}] — extract the text
+  const result: string | undefined =
+    typeof rawResult === 'string'
+      ? rawResult
+      : Array.isArray(rawResult)
+        ? rawResult.map((b: unknown) => (b && typeof b === 'object' && 'text' in b ? (b as { text: string }).text : String(b))).join('\n')
+        : rawResult != null
+          ? String(rawResult)
+          : undefined;
 
   return (
     <div className="space-y-2">

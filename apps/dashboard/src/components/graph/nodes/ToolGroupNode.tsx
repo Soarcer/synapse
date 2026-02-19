@@ -4,6 +4,7 @@ import type { ToolCallSummary } from '@synapse-ai/core';
 import { formatDuration, getToolIcon } from '@synapse-ai/core';
 import { useHandlePositions } from '../../../hooks/useHandlePositions';
 import { useAgentStore } from '../../../store/agentStore';
+import { Tooltip } from '../../ui/Tooltip';
 
 // ── Tool color map (shared across modes) ─────────────────────
 
@@ -115,7 +116,9 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
     return (
       <div className="relative bg-gray-800/80 border border-gray-700/50 rounded-lg px-3 py-1.5 flex items-center gap-2 text-xs shadow-sm" style={{ minWidth: 180 }}>
         <Handle type="target" position={target} className="!bg-purple-300 !w-2 !h-2 !border !border-gray-800" />
-        <span className="text-gray-400 font-medium">[{tools.length}] tools</span>
+        <Tooltip content={`${tools.length} tool calls — click or press F to expand`} shortcut="F">
+          <span className="text-gray-400 font-medium">[{tools.length}] tools</span>
+        </Tooltip>
         {stats.totalDuration > 0 && (
           <span className="text-gray-500 text-[9px] font-mono">Σ {formatDuration(stats.totalDuration)}</span>
         )}
@@ -155,9 +158,11 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
         {/* Row 2: total duration */}
         {stats.totalDuration > 0 && (
           <div className="flex items-center">
-            <span className="text-[10px] text-gray-400 font-mono" title="Sum of individual tool durations">
-              Σ {formatDuration(stats.totalDuration)}
-            </span>
+            <Tooltip content="Sum of individual durations (not wall-clock)">
+              <span className="text-[10px] text-gray-400 font-mono">
+                Σ {formatDuration(stats.totalDuration)}
+              </span>
+            </Tooltip>
           </div>
         )}
       </div>
@@ -291,7 +296,7 @@ function TimelineView({
                 e.stopPropagation();
                 selectNode(nodeId, 'graph');
               }}
-              title={`${tc.toolName} — ${tc.duration != null ? formatDuration(tc.duration) : '?'} — ${tc.status}`}
+              title={`${tc.toolName} · ${tc.status}${tc.duration != null ? ` · ${formatDuration(tc.duration)}` : ''}`}
               className={`relative transition-all cursor-pointer border-r border-gray-900/30 last:border-r-0 ${isSelected ? 'ring-1 ring-purple-400 z-10' : 'hover:brightness-125'}`}
               style={{
                 width: `${pct}%`,
@@ -380,7 +385,7 @@ function HeatmapView({
                     e.stopPropagation();
                     selectNode(nodeId, 'graph');
                   }}
-                  title={`#${chronoIndex.get(tc.toolUseId)} ${tc.toolName} — ${tc.duration != null ? formatDuration(tc.duration) : '?'} — ${tc.status}`}
+                  title={`#${chronoIndex.get(tc.toolUseId)} ${tc.toolName} · ${tc.status}${tc.duration != null ? ` · ${formatDuration(tc.duration)}` : ''}`}
                   className={`rounded-sm transition-all cursor-pointer flex items-center justify-center ${isSelected ? 'ring-1 ring-purple-400' : 'hover:brightness-125'}`}
                   style={{
                     width: 22,

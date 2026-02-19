@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAgentStore } from '../store/agentStore';
 import { PromptWorkshop } from './analytics/workshop/PromptWorkshop';
 import type { AnalysisMode } from './analytics/prompts/PromptAnalyzer';
+import { Tooltip } from './ui/Tooltip';
 
 const MODEL_OPTIONS = [
   { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5', desc: 'Fast & cheap' },
@@ -13,7 +14,7 @@ export function WorkshopModal() {
   const show = useAgentStore((s) => s.showWorkshop);
   const close = useAgentStore((s) => s.setShowWorkshop);
   const [mode, setMode] = useState<AnalysisMode>('developer');
-  const [modelId, setModelId] = useState(MODEL_OPTIONS[0].id);
+  const [modelId, setModelId] = useState<(typeof MODEL_OPTIONS)[number]['id']>(MODEL_OPTIONS[0].id);
 
   const handleClose = useCallback(() => close(false), [close]);
 
@@ -50,56 +51,62 @@ export function WorkshopModal() {
             <h2 className="text-sm font-semibold text-gray-100">Prompt Lab</h2>
             {/* Mode toggle */}
             <div className="flex rounded-lg border border-gray-700 overflow-hidden">
-              <button
-                onClick={() => setMode('developer')}
-                className={`px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                  mode === 'developer'
-                    ? 'bg-blue-500/15 text-blue-400 border-r border-blue-500/30'
-                    : 'text-gray-500 hover:text-gray-300 border-r border-gray-700'
-                }`}
-              >
-                Developer
-              </button>
-              <button
-                onClick={() => setMode('vibe')}
-                className={`px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                  mode === 'vibe'
-                    ? 'bg-purple-500/15 text-purple-400'
-                    : 'text-gray-500 hover:text-gray-300'
-                }`}
-              >
-                Vibe
-              </button>
+              <Tooltip content="Technical analysis — token metrics and structural critique">
+                <button
+                  onClick={() => setMode('developer')}
+                  className={`px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                    mode === 'developer'
+                      ? 'bg-blue-500/15 text-blue-400 border-r border-blue-500/30'
+                      : 'text-gray-500 hover:text-gray-300 border-r border-gray-700'
+                  }`}
+                >
+                  Developer
+                </button>
+              </Tooltip>
+              <Tooltip content="Plain-language feedback — conversational coaching">
+                <button
+                  onClick={() => setMode('vibe')}
+                  className={`px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                    mode === 'vibe'
+                      ? 'bg-purple-500/15 text-purple-400'
+                      : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  Vibe
+                </button>
+              </Tooltip>
             </div>
           </div>
           {/* Model selector — right-aligned */}
           <div className="ml-auto flex items-center gap-2">
             <div className="flex rounded-lg border border-gray-700 overflow-hidden">
               {MODEL_OPTIONS.map((m, i) => (
-                <button
-                  key={m.id}
-                  onClick={() => setModelId(m.id)}
-                  title={m.desc}
-                  className={`px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                    modelId === m.id
-                      ? 'bg-emerald-500/15 text-emerald-400'
-                      : 'text-gray-500 hover:text-gray-300'
-                  }${i < MODEL_OPTIONS.length - 1 ? (modelId === m.id ? ' border-r border-emerald-500/30' : ' border-r border-gray-700') : ''}`}
-                >
-                  {m.label}
-                </button>
+                <Tooltip key={m.id} content={m.desc}>
+                  <button
+                    onClick={() => setModelId(m.id)}
+                    className={`px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                      modelId === m.id
+                        ? 'bg-emerald-500/15 text-emerald-400'
+                        : 'text-gray-500 hover:text-gray-300'
+                    }${i < MODEL_OPTIONS.length - 1 ? (modelId === m.id ? ' border-r border-emerald-500/30' : ' border-r border-gray-700') : ''}`}
+                  >
+                    {m.label}
+                  </button>
+                </Tooltip>
               ))}
             </div>
-            <button
-              onClick={handleClose}
-              className="p-1 text-gray-500 hover:text-gray-200 transition-colors rounded"
-              aria-label="Close Prompt Lab"
-            >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+            <Tooltip content="Close Prompt Lab" shortcut="Esc">
+              <button
+                onClick={handleClose}
+                className="p-1 text-gray-500 hover:text-gray-200 transition-colors rounded"
+                aria-label="Close Prompt Lab"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </Tooltip>
+          </div>
         </div>
 
         {/* Body — scrollable */}
