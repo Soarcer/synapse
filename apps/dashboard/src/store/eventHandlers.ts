@@ -9,15 +9,6 @@ import type {
 
 // ── Constants ────────────────────────────────────────────────
 
-const SESSION_W = 220;
-const SESSION_H = 65;
-const PROMPT_W = 240;
-const PROMPT_H = 95;
-const AGENT_W = 200;
-const AGENT_H = 80;
-const TOOL_W = 150;
-const TOOL_H = 28;
-
 /** Offscreen position + hidden so new nodes aren't visible before layout runs */
 const OFFSCREEN = { x: -9999, y: -9999 };
 const HIDDEN_STYLE = { visibility: 'hidden' as const };
@@ -140,8 +131,6 @@ function ensureSession(
     position: OFFSCREEN,
     style: HIDDEN_STYLE,
     data: { session },
-    width: SESSION_W,
-    height: SESSION_H,
   });
 }
 
@@ -181,8 +170,6 @@ function handleSessionStart(event: AgentEvent, draft: StateDraft): void {
       position: OFFSCREEN,
       style: HIDDEN_STYLE,
       data: { session },
-      width: SESSION_W,
-      height: SESSION_H,
     });
   }
 }
@@ -225,8 +212,6 @@ function handleUserPrompt(event: AgentEvent, draft: StateDraft): void {
     position: OFFSCREEN,
     style: HIDDEN_STYLE,
     data: { prompt },
-    width: PROMPT_W,
-    height: PROMPT_H,
   });
   draft.edges.push({
     id: eid(nid.session(event.sessionId), nid.prompt(event.id)),
@@ -270,8 +255,6 @@ function handleAgentStart(event: AgentEvent, draft: StateDraft): void {
     position: OFFSCREEN,
     style: HIDDEN_STYLE,
     data: { agent },
-    width: AGENT_W,
-    height: AGENT_H,
   });
 
   // ── Determine parent node for the agent edge ──
@@ -414,8 +397,6 @@ function handleToolStart(event: AgentEvent, draft: StateDraft): void {
     position: OFFSCREEN,
     style: HIDDEN_STYLE,
     data: { toolCall: tc },
-    width: TOOL_W,
-    height: TOOL_H,
   });
 
   // Edge: agent → tool, or latest prompt, or session

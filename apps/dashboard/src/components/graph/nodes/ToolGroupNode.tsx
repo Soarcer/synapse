@@ -113,7 +113,7 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
 
   if (!showAllTools) {
     return (
-      <div className="bg-gray-800/80 border border-gray-700/50 rounded-lg px-3 py-1.5 flex items-center gap-2 text-xs shadow-sm" style={{ minWidth: 180 }}>
+      <div className="relative bg-gray-800/80 border border-gray-700/50 rounded-lg px-3 py-1.5 flex items-center gap-2 text-xs shadow-sm" style={{ minWidth: 180 }}>
         <Handle type="target" position={target} className="!bg-purple-300 !w-2 !h-2 !border !border-gray-800" />
         <span className="text-gray-400 font-medium">[{tools.length}] tools</span>
         {stats.totalDuration > 0 && (
@@ -132,7 +132,7 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
   // ── Expanded: render by mode ─────────────────────────────
 
   return (
-    <div className="bg-[#1a1d27] border border-gray-700/50 rounded-lg shadow-md" style={{ minWidth: 200 }}>
+    <div className="relative bg-[#1a1d27] border border-gray-700/50 rounded-lg shadow-md" style={{ minWidth: 200 }}>
       <Handle type="target" position={target} className="!bg-purple-300 !w-2 !h-2 !border !border-gray-800" />
 
       {/* Header */}

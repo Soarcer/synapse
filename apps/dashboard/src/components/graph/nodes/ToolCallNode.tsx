@@ -33,7 +33,7 @@ function ToolCallNodeComponent({ data }: NodeProps) {
   return (
     <div
       className={`
-        rounded-lg px-3 py-1.5 border text-xs font-medium shadow-sm min-w-[120px]
+        relative rounded-lg px-3 py-1.5 border text-xs font-medium shadow-sm min-w-[120px]
         ${statusColors[tc.status]}
         ${isSelected ? 'node-selected' : isHighlighted ? 'node-highlighted' : ''}
       `}
