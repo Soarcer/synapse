@@ -487,7 +487,11 @@ function AgentGraphInner() {
     if (!selectedNodeId || selectSource !== 'graph') return;
 
     const timer = setTimeout(() => {
-      if (expansionHappened && expandedParentId) {
+      const clickedToolGroup = selectedNodeId.startsWith('toolgroup-');
+      if (clickedToolGroup) {
+        // Zoom directly to the toolgroup container the user clicked
+        fitView({ nodes: [{ id: selectedNodeId }], duration: 400, padding: 0.3 });
+      } else if (expansionHappened && expandedParentId) {
         // Frame parent + its toolGroup child (or structural tool children)
         const nodeIds = [expandedParentId];
         for (const edge of visibleEdges) {
