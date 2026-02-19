@@ -700,7 +700,7 @@ export function PanelShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="w-80 bg-[#161b22] border-l border-gray-800 flex flex-col overflow-hidden">
+    <div className="w-80 h-full bg-[#161b22] border-l border-gray-800 flex flex-col overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
         <h3 className="text-sm font-semibold text-gray-200">{title}</h3>
         <div className="flex items-center gap-2">

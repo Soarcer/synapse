@@ -107,7 +107,7 @@ export function Header() {
 
   return (
     <>
-    <header role="banner" className="flex items-center h-12 bg-[#161b22] border-b border-gray-800 flex-shrink-0 gap-3 px-4">
+    <header role="banner" className="relative z-40 flex items-center h-12 bg-[#161b22] border-b border-gray-800 flex-shrink-0 gap-3 px-4">
       {/* Brand + connection dot */}
       <div className="flex items-center gap-2" role="status" aria-label={`Connection: ${statusLabel}`}>
         <span className="text-base font-bold text-gray-100 tracking-tight">Synapse</span>

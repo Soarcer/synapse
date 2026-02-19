@@ -32,10 +32,10 @@ export function ViewSettingsDropdown() {
   }, [open]);
 
   const toggles = [
-    { label: 'Lock Viewport', key: 'V', active: lockViewport, onToggle: () => setLockViewport(!lockViewport) },
-    { label: 'Expand Tools', key: 'F', active: showAllTools, onToggle: () => setShowAllTools(!showAllTools) },
-    { label: 'Collapse Prompts', key: 'C', active: autoClosePrompts, onToggle: () => setAutoClosePrompts(!autoClosePrompts) },
-    { label: 'Show Hook Events', key: 'H', active: showHookEvents, onToggle: () => setShowHookEvents(!showHookEvents) },
+    { label: 'Lock Viewport', key: 'V', active: lockViewport, onToggle: () => { setLockViewport(!lockViewport); setOpen(false); } },
+    { label: 'Expand Tools', key: 'F', active: showAllTools, onToggle: () => { setShowAllTools(!showAllTools); setOpen(false); } },
+    { label: 'Collapse Prompts', key: 'C', active: autoClosePrompts, onToggle: () => { setAutoClosePrompts(!autoClosePrompts); setOpen(false); } },
+    { label: 'Show Hook Events', key: 'H', active: showHookEvents, onToggle: () => { setShowHookEvents(!showHookEvents); setOpen(false); } },
   ];
 
   // Count active toggles (excluding layout which is always "active" in one mode)
@@ -83,7 +83,7 @@ export function ViewSettingsDropdown() {
             {TOOL_VIEW_MODES.map(({ value, label }) => (
               <button
                 key={value}
-                onClick={() => setToolGroupMode(value)}
+                onClick={() => { setToolGroupMode(value); setOpen(false); }}
                 className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-800/80 transition-colors text-left text-gray-300"
               >
                 <span className={`w-2 h-2 rounded-full flex-shrink-0 ${toolGroupMode === value ? 'bg-blue-400' : 'bg-gray-600'}`} />
