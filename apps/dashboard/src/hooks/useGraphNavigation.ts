@@ -31,15 +31,14 @@ export function getNextToolIndex(
     const col = Math.floor(currentIndex / numRows);
     const row = currentIndex % numRows;
 
+    // Up/Down: chronological (prev/next in flat array)
     if (key === 'ArrowUp') {
-      return row === 0 ? currentIndex : currentIndex - 1;
+      return currentIndex > 0 ? currentIndex - 1 : currentIndex;
     }
     if (key === 'ArrowDown') {
-      const next = currentIndex + 1;
-      // Clamp: don't overflow column or array
-      if (row >= numRows - 1 || next >= len) return currentIndex;
-      return next;
+      return currentIndex < len - 1 ? currentIndex + 1 : currentIndex;
     }
+    // Left/Right: grid-based (across columns)
     if (key === 'ArrowLeft') {
       if (col === 0) return -1; // go to parent
       const target = (col - 1) * numRows + row;
@@ -60,13 +59,12 @@ export function getNextToolIndex(
       list.push(i);
       byName.set(name, list);
     }
-    const rowNames = [...byName.keys()].sort();
 
     const currentName = tools[currentIndex].toolName;
-    const currentRow = rowNames.indexOf(currentName);
     const currentRowIndices = byName.get(currentName)!;
     const colInRow = currentRowIndices.indexOf(currentIndex);
 
+    // Left/Right: within same tool-name row
     if (key === 'ArrowLeft') {
       if (colInRow === 0) return -1; // go to parent
       return currentRowIndices[colInRow - 1];
@@ -75,15 +73,12 @@ export function getNextToolIndex(
       if (colInRow >= currentRowIndices.length - 1) return currentIndex;
       return currentRowIndices[colInRow + 1];
     }
+    // Up/Down: chronological (prev/next in flat array)
     if (key === 'ArrowUp') {
-      if (currentRow === 0) return currentIndex;
-      const prevRowIndices = byName.get(rowNames[currentRow - 1])!;
-      return prevRowIndices[Math.min(colInRow, prevRowIndices.length - 1)];
+      return currentIndex > 0 ? currentIndex - 1 : currentIndex;
     }
     if (key === 'ArrowDown') {
-      if (currentRow >= rowNames.length - 1) return currentIndex;
-      const nextRowIndices = byName.get(rowNames[currentRow + 1])!;
-      return nextRowIndices[Math.min(colInRow, nextRowIndices.length - 1)];
+      return currentIndex < len - 1 ? currentIndex + 1 : currentIndex;
     }
   }
 

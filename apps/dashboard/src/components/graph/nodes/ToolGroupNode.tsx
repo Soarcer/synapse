@@ -84,12 +84,29 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
     let ok = 0;
     let err = 0;
     let running = 0;
+    let totalDuration = 0;
+    let minStart = Infinity;
+    let maxEnd = 0;
+    const toolNames = new Set<string>();
     for (const t of tools) {
       if (t.status === 'success') ok++;
       else if (t.status === 'error') err++;
       else running++;
+      if (t.duration != null) totalDuration += t.duration;
+      if (t.startTime < minStart) minStart = t.startTime;
+      const end = t.endTime ?? t.startTime;
+      if (end > maxEnd) maxEnd = end;
+      toolNames.add(t.toolName);
     }
-    return { ok, err, running };
+    const wallClock = maxEnd > minStart ? maxEnd - minStart : 0;
+    return {
+      ok, err, running,
+      totalDuration,
+      wallClock,
+      startTime: minStart === Infinity ? 0 : minStart,
+      endTime: maxEnd,
+      distinctTools: toolNames.size,
+    };
   }, [tools]);
 
   // ── Collapsed state ──────────────────────────────────────
@@ -99,6 +116,9 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
       <div className="bg-gray-800/80 border border-gray-700/50 rounded-lg px-3 py-1.5 flex items-center gap-2 text-xs shadow-sm" style={{ minWidth: 180 }}>
         <Handle type="target" position={target} className="!bg-purple-300 !w-2 !h-2 !border !border-gray-800" />
         <span className="text-gray-400 font-medium">[{tools.length}] tools</span>
+        {stats.totalDuration > 0 && (
+          <span className="text-gray-500 text-[9px] font-mono">Σ {formatDuration(stats.totalDuration)}</span>
+        )}
         <span className="flex gap-0.5 ml-auto">
           {tools.slice(0, 8).map((t) => (
             <span key={t.toolUseId} className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[t.status]}`} />
@@ -116,13 +136,30 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
       <Handle type="target" position={target} className="!bg-purple-300 !w-2 !h-2 !border !border-gray-800" />
 
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-700/30">
-        <span className="text-[9px] font-semibold uppercase tracking-wider text-purple-400/70">Tool Calls</span>
-        <span className="text-[10px] text-gray-500">
-          {stats.ok > 0 && <span className="text-teal-400">{stats.ok} ok</span>}
-          {stats.err > 0 && <span className="text-red-400 ml-1.5">{stats.err} err</span>}
-          {stats.running > 0 && <span className="text-purple-400 ml-1.5">{stats.running} running</span>}
-        </span>
+      <div className="px-3 py-1.5 border-b border-gray-700/30 space-y-0.5">
+        {/* Row 1: title + count + types + status breakdown */}
+        <div className="flex items-center justify-between">
+          <span className="flex items-center gap-1.5">
+            <span className="text-[9px] font-semibold uppercase tracking-wider text-purple-400/70">Tool Calls</span>
+            <span className="text-[10px] text-gray-400 font-medium">{tools.length}</span>
+            {stats.distinctTools > 1 && (
+              <span className="text-[9px] text-gray-600">· {stats.distinctTools} types</span>
+            )}
+          </span>
+          <span className="text-[10px] text-gray-500">
+            {stats.ok > 0 && <span className="text-teal-400">{stats.ok} ok</span>}
+            {stats.err > 0 && <span className="text-red-400 ml-1.5">{stats.err} err</span>}
+            {stats.running > 0 && <span className="text-purple-400 ml-1.5">{stats.running} running</span>}
+          </span>
+        </div>
+        {/* Row 2: total duration */}
+        {stats.totalDuration > 0 && (
+          <div className="flex items-center">
+            <span className="text-[10px] text-gray-400 font-mono" title="Sum of individual tool durations">
+              Σ {formatDuration(stats.totalDuration)}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Mode content */}
@@ -164,7 +201,7 @@ function PillGridView({
         gridTemplateRows: `repeat(${Math.min(tools.length, PILL_MAX_ROWS)}, 1fr)`,
       }}
     >
-      {tools.map((tc) => {
+      {tools.map((tc, i) => {
         const nodeId = `tool-${tc.toolUseId}`;
         const isSelected = selectedNodeId === nodeId;
         const duration = tc.duration != null ? formatDuration(tc.duration) : null;
@@ -185,6 +222,7 @@ function PillGridView({
               ${isSelected ? 'ring-1 ring-purple-400 ring-offset-1 ring-offset-gray-900' : 'hover:brightness-125'}
             `}
           >
+            <span className="text-[8px] text-white/80 flex-shrink-0 font-mono w-3 text-right">{i + 1}</span>
             <span className="opacity-70 flex-shrink-0">{getToolIcon(tc.toolName)}</span>
             <span className="truncate">{tc.toolName}</span>
             {duration && <span className="text-[8px] opacity-60 flex-shrink-0">{duration}</span>}
@@ -297,7 +335,7 @@ function HeatmapView({
   selectedNodeId: string | null;
   selectNode: (id: string | null, source?: 'graph' | 'lens') => void;
 }) {
-  const { rows, maxDuration } = useMemo(() => {
+  const { rows, maxDuration, chronoIndex } = useMemo(() => {
     // Group by toolName, each invocation is a column
     const byName = new Map<string, ToolCallSummary[]>();
     for (const t of tools) {
@@ -307,10 +345,13 @@ function HeatmapView({
     }
     const sorted = [...byName.entries()].sort((a, b) => a[0].localeCompare(b[0]));
     let maxDur = 0;
-    for (const t of tools) {
-      if (t.duration != null && t.duration > maxDur) maxDur = t.duration;
+    // Build chronological index: toolUseId → 1-based position in flat array
+    const chrono = new Map<string, number>();
+    for (let i = 0; i < tools.length; i++) {
+      if (tools[i].duration != null && tools[i].duration! > maxDur) maxDur = tools[i].duration!;
+      chrono.set(tools[i].toolUseId, i + 1);
     }
-    return { rows: sorted, maxDuration: maxDur || 1 };
+    return { rows: sorted, maxDuration: maxDur || 1, chronoIndex: chrono };
   }, [tools]);
 
   return (
@@ -324,7 +365,11 @@ function HeatmapView({
             {calls.map((tc) => {
               const nodeId = `tool-${tc.toolUseId}`;
               const isSelected = selectedNodeId === nodeId;
-              const opacity = 0.3 + (tc.duration ?? 0) / maxDuration * 0.7;
+              const alpha = 0.3 + (tc.duration ?? 0) / maxDuration * 0.7;
+              const hex = STATUS_HEATMAP[tc.status] ?? STATUS_HEATMAP.success;
+              const r = parseInt(hex.slice(1, 3), 16);
+              const g = parseInt(hex.slice(3, 5), 16);
+              const b = parseInt(hex.slice(5, 7), 16);
               return (
                 <button
                   key={tc.toolUseId}
@@ -335,15 +380,16 @@ function HeatmapView({
                     e.stopPropagation();
                     selectNode(nodeId, 'graph');
                   }}
-                  title={`${tc.toolName} #${calls.indexOf(tc) + 1} — ${tc.duration != null ? formatDuration(tc.duration) : '?'} — ${tc.status}`}
-                  className={`rounded-sm transition-all cursor-pointer ${isSelected ? 'ring-1 ring-purple-400' : 'hover:brightness-125'}`}
+                  title={`#${chronoIndex.get(tc.toolUseId)} ${tc.toolName} — ${tc.duration != null ? formatDuration(tc.duration) : '?'} — ${tc.status}`}
+                  className={`rounded-sm transition-all cursor-pointer flex items-center justify-center ${isSelected ? 'ring-1 ring-purple-400' : 'hover:brightness-125'}`}
                   style={{
                     width: 22,
                     height: 22,
-                    backgroundColor: STATUS_HEATMAP[tc.status] ?? STATUS_HEATMAP.success,
-                    opacity,
+                    backgroundColor: `rgba(${r},${g},${b},${alpha})`,
                   }}
-                />
+                >
+                  <span className="text-[7px] font-mono leading-none text-white/90">{chronoIndex.get(tc.toolUseId)}</span>
+                </button>
               );
             })}
           </div>
