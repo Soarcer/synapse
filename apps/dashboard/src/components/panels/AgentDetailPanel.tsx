@@ -6,6 +6,7 @@ import { formatTime, formatDuration } from '@synapse-ai/core';
 import { apiUrl } from '../../utils/api';
 import { extractUserMessage } from '../../utils/promptText';
 import { toast } from '../Toast';
+import { Tooltip } from '../ui/Tooltip';
 import { ToolRenderer, ToolSummaryLine } from './ToolDetailRenderers';
 import { ToolGroupDetailView } from './ToolGroupDetailView';
 import { TokenBreakdownBar } from '../analytics/shared/TokenBreakdownBar';
@@ -108,6 +109,8 @@ export function AgentDetailPanel() {
   const toolCalls = useAgentStore((s) => s.toolCalls);
   const events = useAgentStore((s) => s.events);
   const taskToolAgentMap = useAgentStore((s) => s.taskToolAgentMap);
+  const toolAgentMap = useAgentStore((s) => s.toolAgentMap);
+  const storeEdges = useAgentStore((s) => s.edges);
   const selectNode = useAgentStore((s) => s.selectNode);
   const removeNode = useAgentStore((s) => s.removeNode);
   const [message, setMessage] = useState('');
@@ -215,6 +218,57 @@ export function AgentDetailPanel() {
 
   const agent = agentId ? agents.get(agentId) : null;
   const session = sessionId ? sessions.get(sessionId) : null;
+
+  // Compute rich metrics for agent panel (must be before conditional returns)
+  const agentMetrics = useMemo(() => {
+    if (!agent) return null;
+
+    const childAgents = [...agents.values()].filter((a) => a.parentAgentId === agent.agentId);
+
+    // Aggregate tokens: self + children
+    const selfTokens = agent.tokenUsage;
+    const childTokens = childAgents.reduce(
+      (acc, a) => ({
+        input: acc.input + a.tokenUsage.input,
+        output: acc.output + a.tokenUsage.output,
+        cacheRead: acc.cacheRead + (a.tokenUsage.cacheRead ?? 0),
+        cacheCreation: acc.cacheCreation + (a.tokenUsage.cacheCreation ?? 0),
+        thinking: acc.thinking + (a.tokenUsage.thinking ?? 0),
+      }),
+      { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, thinking: 0 },
+    );
+    const totalInput = selfTokens.input + childTokens.input;
+    const totalOutput = selfTokens.output + childTokens.output;
+    const totalCacheRead = (selfTokens.cacheRead ?? 0) + childTokens.cacheRead;
+    const totalCacheCreation = (selfTokens.cacheCreation ?? 0) + childTokens.cacheCreation;
+    const totalThinking = (selfTokens.thinking ?? 0) + childTokens.thinking;
+    const totalTokens = totalInput + totalOutput + totalCacheRead;
+
+    const model = agent.model ?? 'unknown';
+    const costUsd = computeCostUsd(totalInput, totalOutput, totalCacheRead, model);
+    const cacheRate = computeCacheRate(totalInput, totalCacheRead);
+
+    // Tool summary
+    const toolCountMap = new Map<string, number>();
+    for (const tc of agent.toolCalls) {
+      toolCountMap.set(tc.toolName, (toolCountMap.get(tc.toolName) ?? 0) + 1);
+    }
+
+    return {
+      childAgents,
+      totalInput,
+      totalOutput,
+      totalCacheRead,
+      totalCacheCreation,
+      totalThinking,
+      totalTokens,
+      model,
+      costUsd,
+      cacheRate,
+      toolNames: [...toolCountMap.keys()],
+      toolCounts: Object.fromEntries(toolCountMap),
+    };
+  }, [agent, agents]);
 
   // Auto-scroll streaming text
   useEffect(() => {
@@ -402,6 +456,7 @@ export function AgentDetailPanel() {
         prompts={prompts}
         agents={agents}
         sessions={sessions}
+        toolCalls={toolCalls}
         aiCache={aiCache}
         aiLoading={aiLoading}
         analysisMode={analysisMode}
@@ -416,13 +471,30 @@ export function AgentDetailPanel() {
 
   // ── Tool group detail view ────────────────────────────────
   if (toolGroupParentId) {
+    // Resolve the raw agentId that toolCalls is keyed by.
+    // For agent parents (agent-xxx) we strip the prefix. For prompt/session
+    // parents we walk edges → toolAgentMap to find the correct key (which
+    // may be '' when hooks don't send agent_id on tool events).
+    let resolvedAgentId: string | undefined;
+    if (toolGroupParentId.startsWith('agent-')) {
+      resolvedAgentId = toolGroupParentId.slice(6);
+    } else {
+      for (const edge of storeEdges) {
+        if (edge.source === toolGroupParentId && edge.target.startsWith('tool-')) {
+          resolvedAgentId = toolAgentMap.get(edge.target.slice(5));
+          if (resolvedAgentId !== undefined) break;
+        }
+      }
+    }
+    const tools = resolvedAgentId !== undefined
+      ? (toolCalls.get(resolvedAgentId) ?? [])
+      : [];
     return (
       <>
         <ToolGroupDetailView
           parentNodeId={toolGroupParentId}
+          tools={tools}
           agents={agents}
-          toolCalls={toolCalls}
-          taskToolAgentMap={taskToolAgentMap}
           selectNode={selectNode}
           onClose={() => selectNode(null)}
         />
@@ -530,14 +602,25 @@ export function AgentDetailPanel() {
   }
 
   // ── Agent detail view ──────────────────────────────────────
-  if (!agent) return null;
+  if (!agent || !agentMetrics) return null;
 
   const agentDuration = agent.endTime
     ? formatDuration(agent.endTime - agent.startTime)
     : formatDuration(Date.now() - agent.startTime);
+  const agentDurationMs = agent.endTime
+    ? agent.endTime - agent.startTime
+    : Date.now() - agent.startTime;
+
+  const hasAgentTokens = agentMetrics.totalTokens > 0;
+  const hasAgentMetrics = hasAgentTokens || agent.toolCalls.length > 0;
+  const agentCacheColor = agentMetrics.cacheRate > 50 ? 'text-emerald-400' : agentMetrics.cacheRate > 20 ? 'text-yellow-400' : 'text-red-400';
 
   return (
-    <PanelShell title={agent.agentType} onClose={() => selectNode(null)}>
+    <PanelShell
+      title={agent.agentType}
+      titleRight={<StatusBadge status={agent.status} />}
+      onClose={() => selectNode(null)}
+    >
       {/* Scrollable content */}
       <div className="flex-1 overflow-auto">
         <div className="p-4 space-y-3 text-sm">
@@ -559,40 +642,78 @@ export function AgentDetailPanel() {
             {agent.endTime && <Detail label="Ended" value={formatTime(agent.endTime)} />}
           </div>
 
-          <Divider />
+          {/* MetricCard grid */}
+          {hasAgentMetrics && (
+            <>
+              <Divider />
+              <div className="grid grid-cols-2 gap-2">
+                {hasAgentTokens && (
+                  <>
+                    <MetricCard label="Cost" value={`$${agentMetrics.costUsd.toFixed(4)}`} color="text-amber-400" />
+                    <MetricCard label="Total Tokens" value={fmtTokens(agentMetrics.totalTokens)} color="text-gray-200" />
+                    <MetricCard label="Cache Hit" value={`${agentMetrics.cacheRate.toFixed(0)}%`} color={agentCacheColor} />
+                  </>
+                )}
+                <MetricCard
+                  label="Duration"
+                  value={agentDurationMs < 1000 ? `${Math.round(agentDurationMs)}ms` : `${(agentDurationMs / 1000).toFixed(1)}s`}
+                  color="text-gray-200"
+                />
+                {agent.toolCalls.length > 0 && (
+                  <MetricCard label="Tools" value={String(agent.toolCalls.length)} color="text-gray-200" />
+                )}
+                {agentMetrics.childAgents.length > 0 && (
+                  <MetricCard label="Children" value={String(agentMetrics.childAgents.length)} color="text-gray-200" />
+                )}
+              </div>
+            </>
+          )}
 
-          {/* Token usage (self) */}
-          <div className="flex gap-4">
-            <Stat label="Input tokens" value={agent.tokenUsage.input} format />
-            <Stat label="Output tokens" value={agent.tokenUsage.output} format />
-          </div>
+          {/* Token Breakdown Bar */}
+          {hasAgentTokens && (
+            <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
+              <TokenBreakdownBar
+                cacheReadTokens={agentMetrics.totalCacheRead}
+                inputTokens={agentMetrics.totalInput}
+                outputTokens={agentMetrics.totalOutput}
+                thinkingTokens={agentMetrics.totalThinking}
+              />
+            </div>
+          )}
+
+          {/* Tool Badges + Model */}
+          {(agentMetrics.toolNames.length > 0 || agentMetrics.model !== 'unknown') && (
+            <div className="space-y-2">
+              {agentMetrics.toolNames.length > 0 && (
+                <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
+                  <ToolBadges toolNames={agentMetrics.toolNames} toolCounts={agentMetrics.toolCounts} label={`Tools (${agent.toolCalls.length})`} />
+                </div>
+              )}
+              {agentMetrics.model !== 'unknown' && (
+                <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
+                  <span className="text-xs text-gray-500 block mb-1">Model</span>
+                  <ModelBadge model={agentMetrics.model} />
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Children token rollup */}
-          {(() => {
-            const childAgents = [...agents.values()].filter((a) => a.parentAgentId === agent.agentId);
-            if (childAgents.length === 0) return null;
-            const childTokens = childAgents.reduce(
-              (acc, a) => ({
-                input: acc.input + a.tokenUsage.input,
-                output: acc.output + a.tokenUsage.output,
-              }),
-              { input: 0, output: 0 },
-            );
-            const total = {
-              input: agent.tokenUsage.input + childTokens.input,
-              output: agent.tokenUsage.output + childTokens.output,
-            };
-            return (total.input > 0 || total.output > 0) ? (
+          {agentMetrics.childAgents.length > 0 && hasAgentTokens && (
+            <>
+              <Divider />
               <div>
-                <span className="text-gray-500 text-xs block mb-1">Total (self + {childAgents.length} child{childAgents.length !== 1 ? 'ren' : ''})</span>
+                <span className="text-gray-500 text-xs block mb-1">Total (self + {agentMetrics.childAgents.length} child{agentMetrics.childAgents.length !== 1 ? 'ren' : ''})</span>
                 <div className="flex gap-4">
-                  <Stat label="Input" value={total.input} format />
-                  <Stat label="Output" value={total.output} format />
-                  <Stat label="Total" value={total.input + total.output} format />
+                  <Stat label="Input" value={agentMetrics.totalInput} format />
+                  <Stat label="Output" value={agentMetrics.totalOutput} format />
+                  <Stat label="Total" value={agentMetrics.totalTokens} format />
                 </div>
               </div>
-            ) : null;
-          })()}
+            </>
+          )}
+
+          <Divider />
 
           {/* Tool calls */}
           {agent.toolCalls.length > 0 && (
@@ -705,12 +826,14 @@ export function PanelShell({
         <h3 className="text-sm font-semibold text-gray-200">{title}</h3>
         <div className="flex items-center gap-2">
           {titleRight}
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-300 text-lg leading-none"
-          >
-            &times;
-          </button>
+          <Tooltip content="Close panel" shortcut="Esc">
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-300 text-lg leading-none"
+            >
+              &times;
+            </button>
+          </Tooltip>
         </div>
       </div>
       {children}
@@ -798,6 +921,7 @@ function PromptDetailView({
   prompts,
   agents,
   sessions,
+  toolCalls,
   aiCache,
   aiLoading,
   analysisMode,
@@ -811,6 +935,7 @@ function PromptDetailView({
   prompts: Map<string, import('@synapse-ai/core').UserPromptData[]>;
   agents: Map<string, import('@synapse-ai/core').AgentNodeData>;
   sessions: Map<string, import('@synapse-ai/core').SessionData>;
+  toolCalls: Map<string, ToolCallSummary[]>;
   aiCache: Record<string, PromptAnalysis>;
   aiLoading: boolean;
   analysisMode: AnalysisMode;
@@ -836,13 +961,17 @@ function PromptDetailView({
   const promptIdx = sessionPromptList.findIndex((p) => p.id === promptId);
   const nextPrompt = sessionPromptList[promptIdx + 1];
 
-  // Compute rich metrics from child agents
+  // Compute rich metrics from child agents AND direct tool calls
   const metrics = useMemo(() => {
+    const promptTs = foundPrompt!.timestamp;
+    const nextTs = nextPrompt?.timestamp ?? Infinity;
+
+    // ── Child agents in this prompt's time window ──────────────
     const promptAgents = [...agents.values()].filter(
       (a) =>
         a.sessionId === foundPrompt!.sessionId &&
-        a.startTime >= foundPrompt!.timestamp &&
-        (!nextPrompt || a.startTime < nextPrompt.timestamp),
+        a.startTime >= promptTs &&
+        a.startTime < nextTs,
     );
 
     const inputTokens = promptAgents.reduce((s, a) => s + a.tokenUsage.input, 0);
@@ -853,21 +982,39 @@ function PromptDetailView({
 
     const model = promptAgents.find((a) => a.model)?.model ?? session?.model ?? 'unknown';
 
-    // Latency: time from prompt to last agent completion
-    const endTimes = promptAgents.filter((a) => a.endTime).map((a) => a.endTime!);
-    const latencyMs = endTimes.length > 0
-      ? Math.max(...endTimes) - foundPrompt!.timestamp
-      : 0;
-
-    // Tool summary — count per tool name
+    // ── Tool summary: agents + direct tools ───────────────────
+    // Collect tool IDs already counted via agents
+    const agentToolIds = new Set<string>();
     const toolCountMap = new Map<string, number>();
     let toolCount = 0;
     for (const a of promptAgents) {
       for (const tc of a.toolCalls) {
+        agentToolIds.add(tc.toolUseId);
         toolCountMap.set(tc.toolName, (toolCountMap.get(tc.toolName) ?? 0) + 1);
         toolCount++;
       }
     }
+
+    // Find direct tools in the time window not already counted via agents.
+    // These are tools from the main conversation (hooks don't fire agent_start).
+    let latestToolEnd = 0;
+    for (const [, tcs] of toolCalls) {
+      for (const tc of tcs) {
+        if (tc.startTime >= promptTs && tc.startTime < nextTs && !agentToolIds.has(tc.toolUseId)) {
+          toolCountMap.set(tc.toolName, (toolCountMap.get(tc.toolName) ?? 0) + 1);
+          toolCount++;
+          const end = tc.endTime ?? (tc.status === 'running' ? Date.now() : tc.startTime);
+          if (end > latestToolEnd) latestToolEnd = end;
+        }
+      }
+    }
+
+    // Latency: time from prompt to last agent completion or last direct tool end
+    const endTimes = promptAgents.filter((a) => a.endTime).map((a) => a.endTime!);
+    if (latestToolEnd > 0) endTimes.push(latestToolEnd);
+    const latencyMs = endTimes.length > 0
+      ? Math.max(...endTimes) - promptTs
+      : 0;
 
     const costUsd = computeCostUsd(inputTokens, outputTokens, cacheReadTokens, model);
     const cacheRate = computeCacheRate(inputTokens, cacheReadTokens);
@@ -891,12 +1038,13 @@ function PromptDetailView({
       complexity,
       category,
     };
-  }, [agents, foundPrompt, nextPrompt, session, promptText]);
+  }, [agents, toolCalls, foundPrompt, nextPrompt, session, promptText]);
 
   const cacheColor = metrics.cacheRate > 50 ? 'text-emerald-400' : metrics.cacheRate > 20 ? 'text-yellow-400' : 'text-red-400';
   const complexityColor = metrics.complexity > 70 ? 'text-red-400' : metrics.complexity > 40 ? 'text-yellow-400' : 'text-emerald-400';
   const totalTokens = metrics.inputTokens + metrics.outputTokens + metrics.cacheReadTokens;
   const hasTokens = totalTokens > 0;
+  const hasMetrics = hasTokens || metrics.toolCount > 0;
 
   return (
     <>
@@ -920,13 +1068,17 @@ function PromptDetailView({
           <Detail label="Session" value={foundPrompt.sessionId.slice(0, 12)} mono />
 
           {/* Metrics stat cards — 2-column grid for 320px panel */}
-          {hasTokens && (
+          {hasMetrics && (
             <>
               <Divider />
               <div className="grid grid-cols-2 gap-2">
-                <MetricCard label="Cost" value={`$${metrics.costUsd.toFixed(4)}`} color="text-amber-400" />
-                <MetricCard label="Total Tokens" value={fmtTokens(totalTokens)} color="text-gray-200" />
-                <MetricCard label="Cache Hit" value={`${metrics.cacheRate.toFixed(0)}%`} color={cacheColor} />
+                {hasTokens && (
+                  <>
+                    <MetricCard label="Cost" value={`$${metrics.costUsd.toFixed(4)}`} color="text-amber-400" />
+                    <MetricCard label="Total Tokens" value={fmtTokens(totalTokens)} color="text-gray-200" />
+                    <MetricCard label="Cache Hit" value={`${metrics.cacheRate.toFixed(0)}%`} color={cacheColor} />
+                  </>
+                )}
                 <MetricCard
                   label="Latency"
                   value={metrics.latencyMs > 0
@@ -935,11 +1087,11 @@ function PromptDetailView({
                   color="text-gray-200"
                 />
                 <MetricCard label="Complexity" value={`${metrics.complexity}/100`} color={complexityColor} />
-                <MetricCard
-                  label="Agents"
-                  value={String(metrics.agentCount)}
-                  color="text-gray-200"
-                />
+                {metrics.agentCount > 0 ? (
+                  <MetricCard label="Agents" value={String(metrics.agentCount)} color="text-gray-200" />
+                ) : (
+                  <MetricCard label="Tools" value={String(metrics.toolCount)} color="text-gray-200" />
+                )}
               </div>
             </>
           )}
@@ -1047,26 +1199,30 @@ function PromptAiSection({
   // Mode toggle (always visible)
   const modeToggle = (
     <div className="flex items-center gap-0.5 bg-gray-900 border border-gray-700 rounded-md p-0.5">
-      <button
-        onClick={() => onModeChange('developer')}
-        className={`px-2 py-0.5 text-[10px] font-medium rounded transition-colors ${
-          mode === 'developer'
-            ? 'bg-blue-500/20 text-blue-400'
-            : 'text-gray-500 hover:text-gray-300'
-        }`}
-      >
-        Dev
-      </button>
-      <button
-        onClick={() => onModeChange('vibe')}
-        className={`px-2 py-0.5 text-[10px] font-medium rounded transition-colors ${
-          mode === 'vibe'
-            ? 'bg-purple-500/20 text-purple-400'
-            : 'text-gray-500 hover:text-gray-300'
-        }`}
-      >
-        Vibe
-      </button>
+      <Tooltip content="Technical analysis — token metrics and structural critique">
+        <button
+          onClick={() => onModeChange('developer')}
+          className={`px-2 py-0.5 text-[10px] font-medium rounded transition-colors ${
+            mode === 'developer'
+              ? 'bg-blue-500/20 text-blue-400'
+              : 'text-gray-500 hover:text-gray-300'
+          }`}
+        >
+          Dev
+        </button>
+      </Tooltip>
+      <Tooltip content="Plain-language feedback — conversational coaching">
+        <button
+          onClick={() => onModeChange('vibe')}
+          className={`px-2 py-0.5 text-[10px] font-medium rounded transition-colors ${
+            mode === 'vibe'
+              ? 'bg-purple-500/20 text-purple-400'
+              : 'text-gray-500 hover:text-gray-300'
+          }`}
+        >
+          Vibe
+        </button>
+      </Tooltip>
     </div>
   );
 
@@ -1122,20 +1278,21 @@ function PromptAiSection({
           {isVibe ? 'Vibe' : 'AI'}
         </span>
         {modeToggle}
-        <button
-          title="Re-analyze"
-          onClick={() => onAnalyze(true)}
-          disabled={loading}
-          className={`ml-auto p-0.5 rounded transition-colors disabled:opacity-40 ${
-            isVibe
-              ? 'text-purple-400/60 hover:text-purple-300 hover:bg-purple-500/10'
-              : 'text-blue-400/60 hover:text-blue-300 hover:bg-blue-500/10'
-          }`}
-        >
-          <svg className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-        </button>
+        <Tooltip content="Re-analyze this prompt">
+          <button
+            onClick={() => onAnalyze(true)}
+            disabled={loading}
+            className={`ml-auto p-0.5 rounded transition-colors disabled:opacity-40 ${
+              isVibe
+                ? 'text-purple-400/60 hover:text-purple-300 hover:bg-purple-500/10'
+                : 'text-blue-400/60 hover:text-blue-300 hover:bg-blue-500/10'
+            }`}
+          >
+            <svg className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
+        </Tooltip>
       </div>
 
       {/* Score */}

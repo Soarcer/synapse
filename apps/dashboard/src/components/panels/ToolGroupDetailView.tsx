@@ -3,15 +3,16 @@ import type { ToolCallSummary, AgentNodeData } from '@synapse-ai/core';
 import { formatDuration, getToolIcon } from '@synapse-ai/core';
 import { PanelShell, Detail, Stat, Divider, StatusBadge } from './AgentDetailPanel';
 import { TOOL_COLORS } from '../analytics/shared/constants';
+import { Tooltip } from '../ui/Tooltip';
 
 // ── Types ────────────────────────────────────────────────────────
 
 interface ToolGroupDetailViewProps {
   /** Parent node ID, e.g. 'agent-abc123' or 'prompt-xyz' */
   parentNodeId: string;
+  /** Pre-resolved leaf tools from the toolgroup node's data */
+  tools: ToolCallSummary[];
   agents: Map<string, AgentNodeData>;
-  toolCalls: Map<string, ToolCallSummary[]>;
-  taskToolAgentMap: Map<string, string>;
   selectNode: (id: string | null, source?: 'graph' | 'lens') => void;
   onClose: () => void;
 }
@@ -32,23 +33,14 @@ interface ConcurrencyInterval {
 
 export function ToolGroupDetailView({
   parentNodeId,
+  tools: leafTools,
   agents,
-  toolCalls,
-  taskToolAgentMap,
   selectNode,
   onClose,
 }: ToolGroupDetailViewProps) {
   // Extract the raw agent ID if parent is an agent node
   const agentId = parentNodeId.startsWith('agent-') ? parentNodeId.slice(6) : null;
   const parentAgent = agentId ? agents.get(agentId) : null;
-
-  // Derive leaf tools (exclude structural Task tools that spawned child agents)
-  const leafTools = useMemo(() => {
-    const allTools = agentId
-      ? (parentAgent?.toolCalls ?? toolCalls.get(agentId) ?? [])
-      : [];
-    return allTools.filter((tc) => !taskToolAgentMap.has(tc.toolUseId));
-  }, [agentId, parentAgent, toolCalls, taskToolAgentMap]);
 
   // Compute all stats in a single pass
   const stats = useMemo(() => {
@@ -232,12 +224,14 @@ function SummarySection({
 
       <div>
         <span className="text-gray-500 text-xs">Parent</span>
-        <button
-          onClick={() => selectNode(parentNodeId, 'graph')}
-          className="block text-xs text-blue-400 hover:text-blue-300 underline"
-        >
-          {parentAgent?.agentType ?? parentNodeId.slice(0, 18)}
-        </button>
+        <Tooltip content="Jump to parent agent">
+          <button
+            onClick={() => selectNode(parentNodeId, 'graph')}
+            className="block text-xs text-blue-400 hover:text-blue-300 underline"
+          >
+            {parentAgent?.agentType ?? parentNodeId.slice(0, 18)}
+          </button>
+        </Tooltip>
       </div>
     </div>
   );
@@ -259,26 +253,30 @@ function BreakdownTable({ breakdown }: { breakdown: Map<string, ToolTypeInfo> })
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-gray-500 text-xs">Breakdown</span>
         <div className="flex items-center gap-0.5 bg-gray-900 border border-gray-700 rounded-md p-0.5">
-          <button
-            onClick={() => setSortBy('count')}
-            className={`px-2 py-0.5 text-[10px] font-medium rounded transition-colors ${
-              sortBy === 'count'
-                ? 'bg-purple-500/20 text-purple-400'
-                : 'text-gray-500 hover:text-gray-300'
-            }`}
-          >
-            Count
-          </button>
-          <button
-            onClick={() => setSortBy('duration')}
-            className={`px-2 py-0.5 text-[10px] font-medium rounded transition-colors ${
-              sortBy === 'duration'
-                ? 'bg-purple-500/20 text-purple-400'
-                : 'text-gray-500 hover:text-gray-300'
-            }`}
-          >
-            Duration
-          </button>
+          <Tooltip content="Sort by call count">
+            <button
+              onClick={() => setSortBy('count')}
+              className={`px-2 py-0.5 text-[10px] font-medium rounded transition-colors ${
+                sortBy === 'count'
+                  ? 'bg-purple-500/20 text-purple-400'
+                  : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              Count
+            </button>
+          </Tooltip>
+          <Tooltip content="Sort by total duration">
+            <button
+              onClick={() => setSortBy('duration')}
+              className={`px-2 py-0.5 text-[10px] font-medium rounded transition-colors ${
+                sortBy === 'duration'
+                  ? 'bg-purple-500/20 text-purple-400'
+                  : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              Duration
+            </button>
+          </Tooltip>
         </div>
       </div>
       <div className="space-y-1">
@@ -437,6 +435,8 @@ function ExecutionPattern({
   stats,
 }: {
   stats: {
+    total: number;
+    totalDuration: number;
     peakConcurrency: number;
     wallClock: number;
     minStart: number;
@@ -444,6 +444,10 @@ function ExecutionPattern({
   };
 }) {
   const isParallel = stats.peakConcurrency > 1;
+  const speedup =
+    stats.wallClock > 0 && stats.totalDuration > 0
+      ? stats.totalDuration / stats.wallClock
+      : 0;
 
   const bins = useMemo(() => {
     if (stats.wallClock === 0 || stats.intervals.length === 0) return [];
@@ -461,6 +465,7 @@ function ExecutionPattern({
   }, [stats]);
 
   const maxBin = Math.max(...bins, 1);
+  const binWidth = bins.length > 0 ? stats.wallClock / bins.length : 0;
 
   return (
     <div>
@@ -478,19 +483,38 @@ function ExecutionPattern({
       </div>
 
       {bins.length > 0 && (
-        <div className="flex items-end gap-px h-8 bg-gray-900 rounded border border-gray-800 p-0.5">
-          {bins.map((val, i) => (
-            <div
-              key={i}
-              className="flex-1 rounded-sm transition-all"
-              style={{
-                height: `${(val / maxBin) * 100}%`,
-                backgroundColor: val > 1 ? '#a78bfa' : '#4b5563',
-                minHeight: val > 0 ? 2 : 0,
-                opacity: 0.8,
-              }}
-            />
-          ))}
+        <>
+          <div className="flex items-end gap-px h-8 bg-gray-900 rounded border border-gray-800 p-0.5">
+            {bins.map((val, i) => (
+              <div
+                key={i}
+                title={`${val} concurrent · ${formatDuration(i * binWidth)}–${formatDuration((i + 1) * binWidth)}`}
+                className="flex-1 rounded-sm cursor-default hover:brightness-150 transition-all"
+                style={{
+                  height: `${(val / maxBin) * 100}%`,
+                  backgroundColor: val > 1 ? '#a78bfa' : '#4b5563',
+                  minHeight: val > 0 ? 2 : 0,
+                  opacity: 0.8,
+                }}
+              />
+            ))}
+          </div>
+          <div className="flex justify-between text-[8px] text-gray-600 mt-0.5 px-0.5">
+            <span>0s</span>
+            <span>{formatDuration(stats.wallClock)}</span>
+          </div>
+        </>
+      )}
+
+      {/* Parallelism efficiency */}
+      {stats.wallClock > 0 && stats.total > 1 && (
+        <div className="flex items-center justify-between bg-gray-900/50 rounded px-2 py-1.5 mt-1.5">
+          <span className="text-xs text-gray-400">Speedup</span>
+          <span className="text-xs font-mono text-gray-300">
+            {speedup >= 1.05
+              ? `${speedup.toFixed(1)}x (saved ${formatDuration(stats.totalDuration - stats.wallClock)})`
+              : '1.0x (sequential)'}
+          </span>
         </div>
       )}
     </div>
