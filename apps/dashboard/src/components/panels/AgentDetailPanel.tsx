@@ -209,8 +209,8 @@ export function AgentDetailPanel() {
   const toolNodeId = selectedNodeId?.startsWith('tool-')
     ? selectedNodeId.slice(5)
     : null;
-  const toolGroupAgentId = selectedNodeId?.startsWith('toolgroup-agent-')
-    ? selectedNodeId.slice('toolgroup-agent-'.length)
+  const toolGroupParentId = selectedNodeId?.startsWith('toolgroup-')
+    ? selectedNodeId.slice('toolgroup-'.length)
     : null;
 
   const agent = agentId ? agents.get(agentId) : null;
@@ -415,11 +415,11 @@ export function AgentDetailPanel() {
   }
 
   // ── Tool group detail view ────────────────────────────────
-  if (toolGroupAgentId) {
+  if (toolGroupParentId) {
     return (
       <>
         <ToolGroupDetailView
-          agentId={toolGroupAgentId}
+          parentNodeId={toolGroupParentId}
           agents={agents}
           toolCalls={toolCalls}
           taskToolAgentMap={taskToolAgentMap}
