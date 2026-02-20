@@ -85,6 +85,16 @@ export interface TranscriptSummary {
   totalTextChars: number;
   totalToolCalls: number;
   uniqueToolNames: string[];
+
+  // Session metadata (from conversation records)
+  permissionMode?: string;
+  gitBranch?: string;
+  slug?: string;
+  version?: string;
+
+  // Server tool use aggregates
+  webSearchRequests?: number;
+  webFetchRequests?: number;
 }
 
 // ─── Content blocks (v2) ─────────────────────────────────────────

@@ -114,6 +114,7 @@ export function AgentDetailPanel() {
   const taskToolAgentMap = useAgentStore((s) => s.taskToolAgentMap);
   const toolAgentMap = useAgentStore((s) => s.toolAgentMap);
   const storeEdges = useAgentStore((s) => s.edges);
+  const transcripts = useAgentStore((s) => s.transcripts);
   const selectNode = useAgentStore((s) => s.selectNode);
   const removeNode = useAgentStore((s) => s.removeNode);
   const [message, setMessage] = useState('');
@@ -653,6 +654,21 @@ export function AgentDetailPanel() {
             {agent.endTime && <Detail label="Ended" value={formatTime(agent.endTime)} />}
           </div>
 
+          {/* Transcript metadata */}
+          {(() => {
+            const tx = transcripts.get(agent.sessionId);
+            if (!tx) return null;
+            const hasMetadata = tx.permissionMode || tx.gitBranch || tx.slug;
+            if (!hasMetadata) return null;
+            return (
+              <>
+                {tx.permissionMode && <Detail label="Permission" value={tx.permissionMode} />}
+                {tx.gitBranch && <Detail label="Branch" value={tx.gitBranch} mono />}
+                {tx.slug && <Detail label="Slug" value={tx.slug} mono />}
+              </>
+            );
+          })()}
+
           {/* MetricCard grid */}
           {hasAgentMetrics && (
             <>
@@ -676,6 +692,17 @@ export function AgentDetailPanel() {
                 {agentMetrics.childAgents.length > 0 && (
                   <MetricCard label="Children" value={String(agentMetrics.childAgents.length)} color="text-gray-200" />
                 )}
+                {(() => {
+                  const tx = transcripts.get(agent.sessionId);
+                  return <>
+                    {tx?.webSearchRequests != null && tx.webSearchRequests > 0 && (
+                      <MetricCard label="Web Searches" value={String(tx.webSearchRequests)} color="text-blue-400" />
+                    )}
+                    {tx?.webFetchRequests != null && tx.webFetchRequests > 0 && (
+                      <MetricCard label="Web Fetches" value={String(tx.webFetchRequests)} color="text-blue-400" />
+                    )}
+                  </>;
+                })()}
               </div>
             </>
           )}

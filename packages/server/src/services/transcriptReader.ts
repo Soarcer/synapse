@@ -521,7 +521,7 @@ export function readFullTranscript(
   }
 
   // Build backward-compatible summary from turns
-  const summary = buildSummary(turns, filePath, sessionId);
+  const summary = buildSummary(turns, filePath, sessionId, conversations);
 
   return {
     sessionId,
@@ -541,6 +541,7 @@ function buildSummary(
   turns: TranscriptTurn[],
   filePath: string,
   sessionId: string,
+  conversations?: ConversationRecord[],
 ): TranscriptSummary {
   // Sort by timestamp
   turns.sort((a, b) => a.timestamp - b.timestamp);
@@ -623,6 +624,40 @@ function buildSummary(
     totalTextChars,
     totalToolCalls,
     uniqueToolNames: [...toolNameSet].sort(),
+    // Session metadata from conversation records
+    ...extractSessionMetadata(conversations),
+  };
+}
+
+/** Extract session-level metadata from conversation records */
+function extractSessionMetadata(conversations?: ConversationRecord[]): {
+  permissionMode?: string;
+  gitBranch?: string;
+  slug?: string;
+  version?: string;
+  webSearchRequests?: number;
+  webFetchRequests?: number;
+} {
+  if (!conversations || conversations.length === 0) return {};
+
+  // Find the first record that has metadata (skip error messages)
+  const source = conversations.find(c => !c.isApiErrorMessage && (c.permissionMode || c.gitBranch || c.slug));
+
+  // Aggregate server tool use across all turns
+  let webSearches = 0;
+  let webFetches = 0;
+  for (const c of conversations) {
+    webSearches += c.usage.serverToolUse?.webSearchRequests ?? 0;
+    webFetches += c.usage.serverToolUse?.webFetchRequests ?? 0;
+  }
+
+  return {
+    permissionMode: source?.permissionMode,
+    gitBranch: source?.gitBranch,
+    slug: source?.slug,
+    version: source?.version,
+    webSearchRequests: webSearches > 0 ? webSearches : undefined,
+    webFetchRequests: webFetches > 0 ? webFetches : undefined,
   };
 }
 
