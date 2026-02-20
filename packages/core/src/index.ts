@@ -38,6 +38,10 @@ export type {
   FileHistoryRecord,
   QueueOperationRecord,
   FullTranscript,
+  StructuredThinking,
+  ReasoningToolCall,
+  ReasoningTurn,
+  ReasoningData,
 } from './types/transcript.js';
 
 export type {

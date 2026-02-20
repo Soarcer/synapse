@@ -263,3 +263,46 @@ export interface FullTranscript {
   fileHistory: FileHistoryRecord[];
   queueOps: QueueOperationRecord[];
 }
+
+// ─── Reasoning data (v2) ────────────────────────────────────────
+
+export interface StructuredThinking {
+  intent: string | null;
+  planSteps: Array<{ text: string; done: boolean }>;
+  decision: string | null;
+  confidence: number | null;
+}
+
+export interface ReasoningToolCall {
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+  resultContent: string | null;
+  isError: boolean;
+  durationMs: number | null;
+}
+
+export interface ReasoningTurn {
+  uuid: string;
+  parentUuid: string | null;
+  timestamp: number;
+  model?: string;
+  isSidechain: boolean;
+
+  thinkingText: string | null;
+  structured: StructuredThinking | null;
+  responseText: string | null;
+
+  toolCalls: ReasoningToolCall[];
+
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadTokens: number;
+  };
+}
+
+export interface ReasoningData {
+  sessionId: string;
+  turns: ReasoningTurn[];
+}
