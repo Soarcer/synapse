@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // Set DB path BEFORE any server imports
 import path from 'path';
 import os from 'os';
@@ -455,6 +458,38 @@ describe('Conversation mode detection', () => {
 
     const acc = getSessionAccumulator(sessionId);
     expect(acc!.conversationMode).toBe(true);
+  });
+
+  it('conversationMode stays false when early prompts are long despite recent short ones', () => {
+    const sessionId = 'conv-mixed-' + Date.now();
+    const now = Date.now();
+
+    // 1 long prompt, then 2 short ones — the long one is within the last 3
+    updateEventBuffer(makeEvent({
+      sessionId,
+      type: 'user_prompt',
+      toolName: undefined,
+      text: 'Refactor the entire authentication system with JWT tokens refresh flow middleware guards and update the database schema migrations',
+      timestamp: now,
+    }));
+    updateEventBuffer(makeEvent({
+      sessionId,
+      type: 'user_prompt',
+      toolName: undefined,
+      text: 'Make it blue',
+      timestamp: now + 30_000,
+    }));
+    updateEventBuffer(makeEvent({
+      sessionId,
+      type: 'user_prompt',
+      toolName: undefined,
+      text: 'Add padding',
+      timestamp: now + 60_000,
+    }));
+
+    const acc = getSessionAccumulator(sessionId);
+    // Long prompt in the last-3 window means NOT conversational
+    expect(acc!.conversationMode).toBe(false);
   });
 
   it('conversationMode stays false for spaced-out prompts', () => {

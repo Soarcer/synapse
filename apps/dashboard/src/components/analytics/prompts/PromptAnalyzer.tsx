@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import {
   ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ZAxis,
@@ -97,14 +100,13 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
       .filter((t) => t.turnIndex < turnIndex)
       .slice(-3);
 
-    // Detect conversational mode: 2+ turns within 2min AND avg words < 15
+    // Detect conversational mode: 2+ of the last 3 turns within 2min AND all short
     const twoMinMs = 2 * 60 * 1000;
-    const recentInWindow = sessionTurns.filter(
-      (t) => t.turnIndex <= turnIndex && timestamp - t.timestamp < twoMinMs,
+    const recentPrior = priorTurns.filter(
+      (t) => timestamp - t.timestamp < twoMinMs,
     );
-    const isConversationalMode = recentInWindow.length >= 2 &&
-      priorTurns.length > 0 &&
-      priorTurns.every((t) => t.promptText.split(/\s+/).filter(Boolean).length < 15);
+    const isConversationalMode = recentPrior.length >= 2 &&
+      recentPrior.every((t) => t.promptText.split(/\s+/).filter(Boolean).length < 15);
 
     // Session goal: first sentence / first 100 chars of the first prompt
     const firstTurn = sessionTurns[0];

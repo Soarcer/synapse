@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { nanoid } from 'nanoid';
 import { logger } from '../lib/logger.js';
 import { hasNudgeFired, insertNudge } from '../db.js';
@@ -156,14 +159,14 @@ function updateAccumulator(acc: SessionAccumulator, event: AgentEvent): void {
         : capped.slice(0, 100);
     }
 
-    // Conversation mode: 2+ prompts in last 2min AND avg word count of recent prompts < 15
+    // Conversation mode: 2+ of the last 3 prompts within 2min AND all short (<15 words)
     const twoMinAgo = event.timestamp - 120_000;
-    const recentCount = acc.promptTimestamps.filter((t) => t >= twoMinAgo).length;
-    if (recentCount >= 2) {
-      const avgWords = acc.recentPromptTexts
-        .map((p) => p.split(/\s+/).filter(Boolean).length)
-        .reduce((a, b) => a + b, 0) / acc.recentPromptTexts.length;
-      acc.conversationMode = avgWords < 15;
+    const last3Timestamps = acc.promptTimestamps.slice(-3);
+    const recentOfLast3 = last3Timestamps.filter((t) => t >= twoMinAgo).length;
+    if (recentOfLast3 >= 2) {
+      acc.conversationMode = acc.recentPromptTexts.every(
+        (p) => p.split(/\s+/).filter(Boolean).length < 15,
+      );
     } else {
       acc.conversationMode = false;
     }
