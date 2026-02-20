@@ -25,6 +25,8 @@ export type {
   ToolResultBlock,
   ImageBlock,
   ContentBlock,
+  ExtendedUsage,
+  ConversationRecord,
 } from './types/transcript.js';
 
 export type {

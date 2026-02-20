@@ -121,3 +121,51 @@ export interface ImageBlock {
 }
 
 export type ContentBlock = TextBlock | ThinkingBlock | ToolUseBlock | ToolResultBlock | ImageBlock;
+
+// ─── Extended usage (v2) ─────────────────────────────────────────
+
+export interface ExtendedUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  ephemeral5mTokens: number;
+  ephemeral1hTokens: number;
+  serverToolUse: {
+    webSearchRequests: number;
+    webFetchRequests: number;
+  };
+}
+
+// ─── Full conversation record (v2) ──────────────────────────────
+
+export interface ConversationRecord {
+  uuid: string;
+  parentUuid: string | null;
+  timestamp: number;
+  type: 'user' | 'assistant';
+  sessionId: string;
+
+  // Context flags
+  isSidechain: boolean;
+  isMeta: boolean;
+  isCompactSummary: boolean;
+  isApiErrorMessage: boolean;
+  permissionMode?: string;
+  cwd?: string;
+  gitBranch?: string;
+  error?: string;
+  slug?: string;
+  version?: string;
+
+  // Message content
+  model?: string;
+  stopReason?: string;
+  content: ContentBlock[];
+
+  // Token usage
+  usage: ExtendedUsage;
+
+  // Todo state snapshot
+  todos?: Array<{ content: string; status: string }>;
+}
