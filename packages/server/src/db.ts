@@ -293,6 +293,30 @@ export async function initDb(): Promise<void> {
   `);
   db.run('CREATE INDEX IF NOT EXISTS idx_ai_cache_expires ON ai_coaching_cache(expires_at)');
 
+  // ── Transcript index table ──────────────────────────────────────
+  db.run(`
+    CREATE TABLE IF NOT EXISTS transcript_index (
+      session_id        TEXT PRIMARY KEY,
+      project_hash      TEXT NOT NULL,
+      transcript_path   TEXT NOT NULL,
+      started_at        INTEGER,
+      ended_at          INTEGER,
+      model             TEXT,
+      permission_mode   TEXT,
+      git_branch        TEXT,
+      slug              TEXT,
+      total_turns       INTEGER DEFAULT 0,
+      total_tool_calls  INTEGER DEFAULT 0,
+      estimated_cost_usd REAL DEFAULT 0,
+      total_input_tokens  INTEGER DEFAULT 0,
+      total_output_tokens INTEGER DEFAULT 0,
+      file_size_bytes   INTEGER DEFAULT 0,
+      scanned_at        INTEGER NOT NULL
+    )
+  `);
+  db.run('CREATE INDEX IF NOT EXISTS idx_transcript_index_project ON transcript_index(project_hash)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_transcript_index_started ON transcript_index(started_at DESC)');
+
   logger.info({ path: DB_PATH }, 'Database initialized');
 }
 
@@ -1091,6 +1115,88 @@ export function pruneAiCache(): number {
   const changes = execute('DELETE FROM ai_coaching_cache WHERE expires_at < ?', [Date.now()]);
   if (changes > 0) scheduleSave();
   return changes;
+}
+
+// ─── Transcript Index Helpers ─────────────────────────────────────
+
+export interface TranscriptIndexRow {
+  session_id: string;
+  project_hash: string;
+  transcript_path: string;
+  started_at: number | null;
+  ended_at: number | null;
+  model: string | null;
+  permission_mode: string | null;
+  git_branch: string | null;
+  slug: string | null;
+  total_turns: number;
+  total_tool_calls: number;
+  estimated_cost_usd: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  file_size_bytes: number;
+  scanned_at: number;
+}
+
+export function getTranscriptIndexEntry(sessionId: string): TranscriptIndexRow | undefined {
+  return queryGet(
+    'SELECT * FROM transcript_index WHERE session_id = ?',
+    [sessionId],
+  ) as unknown as TranscriptIndexRow | undefined;
+}
+
+export function upsertTranscriptIndex(params: TranscriptIndexRow): void {
+  execute(`
+    INSERT INTO transcript_index (
+      session_id, project_hash, transcript_path, started_at, ended_at,
+      model, permission_mode, git_branch, slug,
+      total_turns, total_tool_calls, estimated_cost_usd,
+      total_input_tokens, total_output_tokens, file_size_bytes, scanned_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(session_id) DO UPDATE SET
+      transcript_path = excluded.transcript_path,
+      started_at = excluded.started_at,
+      ended_at = excluded.ended_at,
+      model = excluded.model,
+      permission_mode = excluded.permission_mode,
+      git_branch = excluded.git_branch,
+      slug = excluded.slug,
+      total_turns = excluded.total_turns,
+      total_tool_calls = excluded.total_tool_calls,
+      estimated_cost_usd = excluded.estimated_cost_usd,
+      total_input_tokens = excluded.total_input_tokens,
+      total_output_tokens = excluded.total_output_tokens,
+      file_size_bytes = excluded.file_size_bytes,
+      scanned_at = excluded.scanned_at
+  `, [
+    params.session_id, params.project_hash, params.transcript_path,
+    params.started_at, params.ended_at,
+    params.model, params.permission_mode, params.git_branch, params.slug,
+    params.total_turns, params.total_tool_calls, params.estimated_cost_usd,
+    params.total_input_tokens, params.total_output_tokens,
+    params.file_size_bytes, params.scanned_at,
+  ]);
+  scheduleSave();
+}
+
+export function getAllTranscriptIndex(limit = 100, offset = 0): { rows: TranscriptIndexRow[]; total: number } {
+  const countRow = queryGet('SELECT COUNT(*) as count FROM transcript_index') as { count: number } | undefined;
+  const total = countRow?.count ?? 0;
+  const rows = queryAll(
+    `SELECT * FROM transcript_index
+     ORDER BY CASE WHEN started_at IS NULL THEN 1 ELSE 0 END, started_at DESC
+     LIMIT ? OFFSET ?`,
+    [Math.min(Math.max(limit, 1), 500), Math.max(offset, 0)],
+  ) as unknown as TranscriptIndexRow[];
+  return { rows, total };
+}
+
+export function isLiveSession(sessionId: string): boolean {
+  const row = queryGet(
+    "SELECT id FROM events WHERE session_id = ? AND event_type = 'session_start' LIMIT 1",
+    [sessionId],
+  );
+  return row !== undefined;
 }
 
 // ─── Shutdown ─────────────────────────────────────────────────────────
