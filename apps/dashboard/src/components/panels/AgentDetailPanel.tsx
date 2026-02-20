@@ -853,18 +853,43 @@ export function AgentDetailPanel() {
 export function PanelShell({
   title,
   titleRight,
+  tabs,
   onClose,
   children,
 }: {
   title: string;
   titleRight?: React.ReactNode;
+  tabs?: {
+    items: { key: string; label: string }[];
+    activeKey: string;
+    onChange: (key: string) => void;
+  };
   onClose: () => void;
   children: React.ReactNode;
 }) {
   return (
     <div className="w-80 h-full bg-[#161b22] border-l border-gray-800 flex flex-col overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
-        <h3 className="text-sm font-semibold text-gray-200">{title}</h3>
+        <div className="flex items-center gap-3">
+          <h3 className="text-sm font-semibold text-gray-200">{title}</h3>
+          {tabs && (
+            <div className="flex items-center gap-1">
+              {tabs.items.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => tabs.onChange(tab.key)}
+                  className={`px-2 py-1 text-xs font-medium border-b-2 transition-colors ${
+                    tabs.activeKey === tab.key
+                      ? 'text-gray-200 border-blue-400'
+                      : 'text-gray-500 border-transparent hover:text-gray-300'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           {titleRight}
           <Tooltip content="Close panel" shortcut="Esc">
