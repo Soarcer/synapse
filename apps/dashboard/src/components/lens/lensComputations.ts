@@ -1,5 +1,5 @@
 import { getKindColor } from '@synapse-ai/core';
-import type { AgentNodeData, UserPromptData, AgentEvent, TranscriptSummary } from '@synapse-ai/core';
+import type { AgentNodeData, UserPromptData, AgentEvent, TranscriptSummary, FullTranscript } from '@synapse-ai/core';
 import { extractUserMessage } from '../../utils/promptText';
 import type {
   LensTreeNode,
@@ -195,16 +195,47 @@ export function buildSankeyData(
 
 // ── Compaction & cost derivation ─────────────────────────────
 
-export function buildCompactEvents(events: AgentEvent[]): CompactEvent[] {
-  return events
+export function buildCompactEvents(
+  events: AgentEvent[],
+  fullTranscripts?: Map<string, FullTranscript>,
+): CompactEvent[] {
+  const hookEvents: CompactEvent[] = events
     .filter((e) => e.type === 'compact')
     .map((e) => ({
       id: e.id,
       sessionId: e.sessionId,
       timestamp: e.timestamp,
       trigger: e.compactTrigger,
-    }))
-    .sort((a, b) => a.timestamp - b.timestamp);
+    }));
+
+  // Merge preTokens from transcript v2 CompactBoundaryRecord data when available
+  if (fullTranscripts) {
+    for (const [sessionId, ft] of fullTranscripts) {
+      const boundaries = ft.system.filter((s) => s.type === 'compact_boundary');
+      for (const b of boundaries) {
+        if (b.type !== 'compact_boundary') continue;
+        // Try to match to an existing hook event by timestamp (within 2s tolerance)
+        const match = hookEvents.find(
+          (h) => h.sessionId === sessionId && Math.abs(h.timestamp - b.timestamp) < 2000,
+        );
+        if (match) {
+          match.preTokens = b.preTokens;
+          if (!match.trigger && b.trigger) match.trigger = b.trigger;
+        } else {
+          // Transcript has a compaction event not seen in hooks — add it
+          hookEvents.push({
+            id: `compact-tx-${b.timestamp}`,
+            sessionId,
+            timestamp: b.timestamp,
+            trigger: b.trigger,
+            preTokens: b.preTokens,
+          });
+        }
+      }
+    }
+  }
+
+  return hookEvents.sort((a, b) => a.timestamp - b.timestamp);
 }
 
 export function buildCostPerTurn(
@@ -222,6 +253,9 @@ export function buildCostPerTurn(
 
     // Get transcript turns for this session (if available)
     const transcript = transcripts.get(sessionId);
+    // TODO: When full transcript data (ConversationRecord[]) is available via LensAdapter,
+    // filter out isMeta records here to prevent /skill invocations and system-injected
+    // content from appearing as user prompts in the cost lens.
     const tTurns = transcript?.turns.filter((t) => t.type === 'assistant') ?? [];
 
     for (let i = 0; i < sorted.length; i++) {
