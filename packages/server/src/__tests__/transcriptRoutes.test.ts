@@ -44,12 +44,12 @@ afterAll(() => {
 // ═══════════════════════════════════════════════════════════════════════
 
 describe('GET /api/transcript/:sessionId', () => {
-  it('returns 404 for unknown session', async () => {
+  it('returns 200 with found:false for unknown session', async () => {
     const res = await request(app)
       .get('/api/transcript/nonexistent-session-id')
-      .expect(404);
+      .expect(200);
 
-    expect(res.body).toEqual({ error: 'Transcript not found', sessionId: 'nonexistent-session-id' });
+    expect(res.body).toMatchObject({ sessionId: 'nonexistent-session-id', found: false });
   });
 
   it('rejects path traversal', async () => {
@@ -60,12 +60,12 @@ describe('GET /api/transcript/:sessionId', () => {
     expect(res.status).toBe(404);
   });
 
-  it('returns 404 for valid-looking but nonexistent session', async () => {
+  it('returns 200 with found:false for valid-looking but nonexistent session', async () => {
     const res = await request(app)
       .get('/api/transcript/abc123def456')
-      .expect(404);
+      .expect(200);
 
-    expect(res.body).toEqual({ error: 'Transcript not found', sessionId: 'abc123def456' });
+    expect(res.body).toMatchObject({ sessionId: 'abc123def456', found: false });
   });
 });
 

@@ -375,7 +375,10 @@ function findClaudeTerminal(): vscode.Terminal | undefined {
 let scoreRestoreTimer: ReturnType<typeof setTimeout> | undefined;
 
 async function improveSelectedText(mode: 'developer' | 'vibe'): Promise<void> {
-  const editor = vscode.window.activeTextEditor;
+  // activeTextEditor is undefined when a terminal/webview is focused —
+  // fall back to the first visible editor that has a non-empty selection.
+  const editor = vscode.window.activeTextEditor
+    ?? vscode.window.visibleTextEditors.find((e) => !e.selection.isEmpty);
   if (!editor) {
     vscode.window.showWarningMessage('No active editor.');
     return;

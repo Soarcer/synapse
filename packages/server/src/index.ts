@@ -43,17 +43,20 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const explicitDashDir = process.env.SYNAPSE_DASHBOARD_DIR;
 const defaultDistPath = path.resolve(__dirname, '..', '..', '..', 'apps', 'dashboard', 'dist');
 
-if (explicitDashDir && fs.existsSync(explicitDashDir)) {
-  // Production / VS Code extension: serve the bundled dashboard
-  app.use(express.static(explicitDashDir));
+const dashDir = (explicitDashDir && fs.existsSync(explicitDashDir))
+  ? explicitDashDir
+  : fs.existsSync(defaultDistPath) ? defaultDistPath : null;
+
+if (dashDir) {
+  // Serve the built dashboard (production, VS Code extension, or local dist)
+  app.use(express.static(dashDir));
   app.get('{*path}', (req, res, next) => {
     if (req.path.startsWith('/api') || req.path === '/ws') return next();
-    res.sendFile(path.join(explicitDashDir, 'index.html'));
+    res.sendFile(path.join(dashDir, 'index.html'));
   });
-  logger.info({ distPath: explicitDashDir }, 'Serving frontend from dist');
+  logger.info({ distPath: dashDir }, 'Serving frontend from dist');
 } else {
-  // Standalone dev: minimal status page with link to Vite dev server
-  const devPort = process.env.VITE_DEV_PORT || '5173';
+  // No built dashboard found — show minimal status page
   app.get('/', (_req, res) => {
     const dbStats = getDbStats();
     res.type('html').send(`<!DOCTYPE html>
@@ -65,32 +68,15 @@ if (explicitDashDir && fs.existsSync(explicitDashDir)) {
     max-width:420px;width:100%;text-align:center}
   h1{font-size:1.25rem;margin:0 0 .25rem;color:#e6edf3}
   .status{color:#3fb950;font-size:.875rem;margin-bottom:1.5rem}
-  .stats{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1.5rem;text-align:left}
-  .stat{background:#0d1117;border:1px solid #21262d;border-radius:8px;padding:.75rem}
-  .stat-label{font-size:.625rem;text-transform:uppercase;letter-spacing:.05em;color:#8b949e}
-  .stat-value{font-size:1.125rem;font-weight:600;color:#e6edf3;margin-top:.125rem}
-  a.btn{display:inline-block;padding:.625rem 1.5rem;background:#238636;color:#fff;
-    border-radius:6px;text-decoration:none;font-weight:500;font-size:.875rem}
-  a.btn:hover{background:#2ea043}
-  .hint{margin-top:1rem;font-size:.75rem;color:#8b949e}
+  .hint{font-size:.75rem;color:#8b949e}
   code{background:#21262d;padding:.125rem .375rem;border-radius:4px;font-size:.75rem}
 </style></head><body>
 <div class="card">
   <h1>Synapse Server</h1>
   <div class="status">Running on port ${_req.socket.localPort}</div>
-  <div class="stats">
-    <div class="stat"><div class="stat-label">Events</div><div class="stat-value">${dbStats?.totalEvents ?? 0}</div></div>
-    <div class="stat"><div class="stat-label">Sessions</div><div class="stat-value">${dbStats?.totalSessions ?? 0}</div></div>
-    <div class="stat"><div class="stat-label">WS Clients</div><div class="stat-value">${broadcaster.clientCount}</div></div>
-    <div class="stat"><div class="stat-label">Agents</div><div class="stat-value">${agentManager.getActive().length}</div></div>
-  </div>
-  <a class="btn" href="http://localhost:${devPort}">Open Dashboard</a>
-  <div class="hint">Dev server: <code>http://localhost:${devPort}</code></div>
+  <div class="hint">No built dashboard found. Run <code>pnpm --filter dashboard build</code> then restart.</div>
 </div></body></html>`);
   });
-  if (fs.existsSync(defaultDistPath)) {
-    logger.info({ distPath: defaultDistPath }, 'Stale dist/ found but ignored in dev mode (set SYNAPSE_DASHBOARD_DIR to serve it)');
-  }
 }
 
 // --- HTTP + WebSocket Server ---

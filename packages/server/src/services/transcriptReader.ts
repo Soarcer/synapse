@@ -184,7 +184,7 @@ function parseTurn(record: RawRecord): TranscriptTurn | null {
 
   const msg = record.message;
   const usage = msg.usage;
-  const content = msg.content ?? [];
+  const content = Array.isArray(msg.content) ? msg.content : [];
 
   const contentTypes = [...new Set(content.map((c) => c.type))];
   const toolNames: string[] = [];
@@ -263,7 +263,7 @@ type RawContentBlock = NonNullable<NonNullable<RawRecord['message']>['content']>
 type RawUsage = NonNullable<RawRecord['message']>['usage'];
 
 function parseContentBlocks(rawContent: RawContentBlock | undefined): ContentBlock[] {
-  if (!rawContent) return [];
+  if (!rawContent || !Array.isArray(rawContent)) return [];
   const blocks: ContentBlock[] = [];
 
   for (const raw of rawContent) {

@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { ReasoningData, ReasoningTurn } from '@synapse-ai/core';
-import { CollapsibleSection } from './CollapsibleSection.js';
 import { apiUrl } from '../../utils/api.js';
 import { getToolIcon } from '@synapse-ai/core';
+
+const POLL_INTERVAL_MS = 5000;
 
 interface ReasoningSectionProps {
   sessionId: string;
@@ -14,10 +15,11 @@ export function ReasoningSection({ sessionId }: ReasoningSectionProps) {
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<'structured' | 'raw'>('structured');
 
-  useEffect(() => {
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchReasoning = useCallback((isInitial: boolean) => {
     if (!sessionId) return;
-    setLoading(true);
-    setError(null);
+    if (isInitial) { setLoading(true); setError(null); }
 
     fetch(apiUrl(`/api/transcript/${sessionId}/reasoning`))
       .then(r => {
@@ -25,9 +27,15 @@ export function ReasoningSection({ sessionId }: ReasoningSectionProps) {
         return r.json();
       })
       .then((d: ReasoningData) => setData(d))
-      .catch(() => setError('Failed to load reasoning data'))
-      .finally(() => setLoading(false));
+      .catch(() => { if (isInitial) setError('Failed to load reasoning data'); })
+      .finally(() => { if (isInitial) setLoading(false); });
   }, [sessionId]);
+
+  useEffect(() => {
+    fetchReasoning(true);
+    pollRef.current = setInterval(() => fetchReasoning(false), POLL_INTERVAL_MS);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [fetchReasoning]);
 
   const thinkingTurns = data?.turns.filter(t => t.thinkingText) ?? [];
   const errorTurns = data?.turns.filter(t => t.isApiErrorMessage || t.error) ?? [];
@@ -39,7 +47,8 @@ export function ReasoningSection({ sessionId }: ReasoningSectionProps) {
   const badge = badgeParts.length > 0 ? badgeParts.join(' · ') : undefined;
 
   return (
-    <CollapsibleSection title="Reasoning" badge={badge} defaultOpen={false}>
+    <div>
+      {badge && <div className="text-gray-500 text-[10px] mb-2">{badge}</div>}
       <div className="space-y-2 pb-2">
         {loading && (
           <div className="text-gray-600 text-xs py-2">Loading reasoning data...</div>
@@ -109,7 +118,7 @@ export function ReasoningSection({ sessionId }: ReasoningSectionProps) {
           </>
         )}
       </div>
-    </CollapsibleSection>
+    </div>
   );
 }
 

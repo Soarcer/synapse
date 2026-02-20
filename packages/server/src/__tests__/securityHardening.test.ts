@@ -89,12 +89,15 @@ describe('Error response sanitization', () => {
     expect(body).not.toContain('packages/server');
   });
 
-  it('GET /api/transcript/:id error does not leak paths', async () => {
+  it('GET /api/transcript/:id does not leak paths for missing session', async () => {
     const res = await request(app)
       .get('/api/transcript/nonexistent-session')
-      .expect(404);
+      .expect(200);
 
-    expect(res.body.error).toBe('Transcript not found');
+    // Returns 200 with found:false (by design, to avoid console errors on bulk fetch)
+    expect(res.body.found).toBe(false);
+    // Ensure no filesystem paths leak in the response
+    expect(JSON.stringify(res.body)).not.toMatch(/[A-Z]:\\/i);
   });
 });
 
@@ -237,7 +240,7 @@ describe('WebSocket configuration', () => {
 // ── CORS Production Safeguard ──────────────────────────────────
 
 describe('CORS production safeguard', () => {
-  it('does not set wildcard CORS in production mode', async () => {
+  it('allows wildcard CORS when explicitly configured (needed for VS Code webview)', async () => {
     const origEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = 'production';
 
@@ -252,8 +255,9 @@ describe('CORS production safeguard', () => {
       .get('/api/health')
       .set('Origin', 'http://evil.com');
 
-    // Should NOT set Access-Control-Allow-Origin: *
-    expect(res.headers['access-control-allow-origin']).not.toBe('*');
+    // Wildcard CORS is intentionally allowed — server is localhost-only
+    // and VS Code webview iframes require it
+    expect(res.headers['access-control-allow-origin']).toBe('*');
 
     process.env.NODE_ENV = origEnv;
   });

@@ -2,7 +2,7 @@
   "name": "synapse-vscode",
   "displayName": "Synapse — Agent Monitor",
   "description": "Real-time Claude agent monitoring dashboard inside VS Code",
-  "version": "0.4.0",
+  "version": "0.6.0",
   "publisher": "Soarcer",
   "license": "MIT",
   "icon": "synapse-icon.png",
@@ -69,13 +69,11 @@
     "keybindings": [
       {
         "command": "synapse.improveTextDev",
-        "key": "ctrl+alt+d",
-        "when": "editorHasSelection"
+        "key": "ctrl+alt+d"
       },
       {
         "command": "synapse.improveTextVibe",
-        "key": "ctrl+alt+v",
-        "when": "editorHasSelection"
+        "key": "ctrl+alt+v"
       }
     ],
     "menus": {

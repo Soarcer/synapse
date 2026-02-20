@@ -14,7 +14,6 @@ import { TokenBreakdownBar } from '../analytics/shared/TokenBreakdownBar';
 import { ToolBadges } from '../analytics/shared/ToolBadges';
 import { ModelBadge } from '../analytics/shared/ModelBadge';
 import { ReasoningSection } from './ReasoningSection';
-import { PromptReasoningSummary } from './PromptReasoningSummary';
 import { CATEGORY_COLORS, fmtTokens } from '../analytics/shared/constants';
 import { computeCostUsd, classifyPrompt, computeComplexity, computeCacheRate } from '../analytics/shared/promptUtils';
 
@@ -1276,7 +1275,7 @@ function PromptDetailView({
         {/* Reasoning tab */}
         {detailTab === 'reasoning' && (
           <div className="p-4 flex-1 overflow-auto">
-            <PromptReasoningSummary sessionId={foundPrompt.sessionId} promptTimestamp={foundPrompt.timestamp} />
+            <ReasoningSection sessionId={foundPrompt.sessionId} />
           </div>
         )}
       </PanelShell>
