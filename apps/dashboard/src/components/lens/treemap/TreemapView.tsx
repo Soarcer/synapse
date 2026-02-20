@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useMemo, useCallback, useRef, useEffect, useLayoutEffect } from 'react';
 import { useLens, type LensTreeNode, type ProfileMetric } from '../LensContext';
 import { formatTokens, formatDuration, formatCount, getKindColor } from '@synapse-ai/core';
@@ -366,46 +369,46 @@ export function TreemapView() {
     );
   }
 
-  if (treeRoots.length === 0) {
-    return <div className="p-4 text-center text-gray-600 text-xs">No data yet.</div>;
-  }
+  const hasData = treeRoots.length > 0;
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-800 flex-shrink-0">
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => onProfileMetricChange('tokens')}
-            className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
-              profileMetric === 'tokens' ? 'bg-gray-700 text-gray-100' : 'text-gray-500 hover:text-gray-300'
-            }`}
-          >
-            Tokens
-          </button>
-          <button
-            onClick={() => onProfileMetricChange('duration')}
-            className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
-              profileMetric === 'duration' ? 'bg-gray-700 text-gray-100' : 'text-gray-500 hover:text-gray-300'
-            }`}
-          >
-            Duration
-          </button>
-          <button
-            onClick={() => onProfileMetricChange('count')}
-            className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
-              profileMetric === 'count' ? 'bg-gray-700 text-gray-100' : 'text-gray-500 hover:text-gray-300'
-            }`}
-          >
-            Count
-          </button>
+      {hasData && (
+        <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-800 flex-shrink-0">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => onProfileMetricChange('tokens')}
+              className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
+                profileMetric === 'tokens' ? 'bg-gray-700 text-gray-100' : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              Tokens
+            </button>
+            <button
+              onClick={() => onProfileMetricChange('duration')}
+              className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
+                profileMetric === 'duration' ? 'bg-gray-700 text-gray-100' : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              Duration
+            </button>
+            <button
+              onClick={() => onProfileMetricChange('count')}
+              className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
+                profileMetric === 'count' ? 'bg-gray-700 text-gray-100' : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              Count
+            </button>
+          </div>
+          <span className="text-[10px] text-gray-500 font-mono">
+            {profileMetric === 'tokens' && !hasTokenData
+              ? <span className="text-yellow-600" title="Hook sessions don't provide token data">no data</span>
+              : <>{formatValue(totalValue)} <span className="text-gray-600">Shift+scroll zoom</span></>}
+          </span>
         </div>
-        <span className="text-[10px] text-gray-500 font-mono">
-          {profileMetric === 'tokens' && !hasTokenData
-            ? <span className="text-yellow-600" title="Hook sessions don't provide token data">no data</span>
-            : <>{formatValue(totalValue)} <span className="text-gray-600">Shift+scroll zoom</span></>}
-        </span>
-      </div>
+      )}
 
       {/* Zoom breadcrumb */}
       {zoomNode && (
@@ -420,16 +423,20 @@ export function TreemapView() {
         </div>
       )}
 
-      {/* Treemap */}
+      {/* Treemap — container always rendered so ResizeObserver attaches on mount */}
       <div ref={containerRef} className="flex-1 min-h-0 overflow-auto p-1">
-        <svg
-          viewBox={`0 0 ${viewW} ${viewH}`}
-          width={viewW * zoom}
-          height={viewH * zoom}
-          className="block"
-        >
-          {nestedRects.map(renderRect)}
-        </svg>
+        {hasData ? (
+          <svg
+            viewBox={`0 0 ${viewW} ${viewH}`}
+            width={viewW * zoom}
+            height={viewH * zoom}
+            className="block"
+          >
+            {nestedRects.map(renderRect)}
+          </svg>
+        ) : (
+          <div className="h-full flex items-center justify-center text-gray-600 text-xs">No data yet.</div>
+        )}
       </div>
 
       {/* Tooltip */}
