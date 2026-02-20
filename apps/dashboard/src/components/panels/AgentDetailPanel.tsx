@@ -13,6 +13,8 @@ import { ToolGroupDetailView } from './ToolGroupDetailView';
 import { TokenBreakdownBar } from '../analytics/shared/TokenBreakdownBar';
 import { ToolBadges } from '../analytics/shared/ToolBadges';
 import { ModelBadge } from '../analytics/shared/ModelBadge';
+import { ReasoningSection } from './ReasoningSection';
+import { PromptReasoningSummary } from './PromptReasoningSummary';
 import { CATEGORY_COLORS, fmtTokens } from '../analytics/shared/constants';
 import { computeCostUsd, classifyPrompt, computeComplexity, computeCacheRate } from '../analytics/shared/promptUtils';
 
@@ -763,6 +765,9 @@ export function AgentDetailPanel() {
               </pre>
             </div>
           )}
+
+          {/* Reasoning */}
+          <ReasoningSection sessionId={agent.sessionId} />
         </div>
       </div>
 
@@ -1125,6 +1130,9 @@ function PromptDetailView({
               )}
             </div>
           )}
+
+          {/* Prompt Reasoning Summary */}
+          <PromptReasoningSummary sessionId={foundPrompt.sessionId} promptTimestamp={foundPrompt.timestamp} />
 
           <Divider />
 
