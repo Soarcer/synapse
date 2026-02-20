@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useEffect, useCallback } from 'react';
 import { useAgentStore } from '../store/agentStore';
 import { PromptWorkshop } from './analytics/workshop/PromptWorkshop';
@@ -111,7 +114,7 @@ export function WorkshopModal() {
 
         {/* Body — scrollable */}
         <div className="flex-1 overflow-y-auto">
-          <PromptWorkshop analysisMode={mode} modelId={modelId} />
+          <PromptWorkshop analysisMode={mode} modelId={modelId} sessions={[]} turns={[]} />
         </div>
       </div>
     </div>

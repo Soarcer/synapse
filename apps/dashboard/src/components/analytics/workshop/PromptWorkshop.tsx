@@ -1,7 +1,11 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { formatRewrite } from '../shared/formatMarkdown';
 import { copyToClipboard } from '../../../utils/clipboard';
 import type { AnalysisMode } from '../prompts/PromptAnalyzer';
+import type { MockSession, MockTurn } from '../mockData';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -89,9 +93,11 @@ function RegenIcon() {
 interface PromptWorkshopProps {
   analysisMode: AnalysisMode;
   modelId?: string;
+  sessions: MockSession[];
+  turns: MockTurn[];
 }
 
-export function PromptWorkshop({ analysisMode, modelId }: PromptWorkshopProps) {
+export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: PromptWorkshopProps) {
   const [promptText, setPromptText] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [currentResult, setCurrentResult] = useState<WorkshopResult | null>(null);

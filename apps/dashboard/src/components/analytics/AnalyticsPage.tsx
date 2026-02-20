@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useMemo, useCallback } from 'react';
 import { useAnalyticsData, type AnalyticsFilters } from './useAnalyticsData';
 import type { MockData } from './mockData';
@@ -210,7 +213,14 @@ export function AnalyticsPage() {
       <div className="flex-1 overflow-auto">
         {activeTab === 'executive' && <ExecutiveOverview data={mockData} />}
         {activeTab === 'prompts' && <PromptAnalyzer data={mockData} analysisMode={analysisMode} />}
-        {activeTab === 'workshop' && <PromptWorkshop analysisMode={analysisMode} modelId={selectedModel} />}
+        {activeTab === 'workshop' && (
+          <PromptWorkshop
+            analysisMode={analysisMode}
+            modelId={selectedModel}
+            sessions={mockData.sessions}
+            turns={mockData.turns}
+          />
+        )}
         {activeTab === 'insights' && <InsightsView data={mockData} sessions={analytics.sessions} />}
         {activeTab === 'nudges' && <LiveNudgesView />}
       </div>
