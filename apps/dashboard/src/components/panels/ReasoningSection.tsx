@@ -30,10 +30,13 @@ export function ReasoningSection({ sessionId }: ReasoningSectionProps) {
   }, [sessionId]);
 
   const thinkingTurns = data?.turns.filter(t => t.thinkingText) ?? [];
+  const errorTurns = data?.turns.filter(t => t.isApiErrorMessage || t.error) ?? [];
   const totalChars = thinkingTurns.reduce((s, t) => s + (t.thinkingText?.length ?? 0), 0);
-  const badge = thinkingTurns.length > 0
-    ? `${thinkingTurns.length} thinking · ${formatChars(totalChars)}`
-    : undefined;
+
+  const badgeParts: string[] = [];
+  if (thinkingTurns.length > 0) badgeParts.push(`${thinkingTurns.length} thinking · ${formatChars(totalChars)}`);
+  if (errorTurns.length > 0) badgeParts.push(`${errorTurns.length} error${errorTurns.length !== 1 ? 's' : ''}`);
+  const badge = badgeParts.length > 0 ? badgeParts.join(' · ') : undefined;
 
   return (
     <CollapsibleSection title="Reasoning" badge={badge} defaultOpen={false}>
@@ -49,6 +52,25 @@ export function ReasoningSection({ sessionId }: ReasoningSectionProps) {
         {!loading && !error && thinkingTurns.length === 0 && (
           <div className="text-gray-600 text-xs py-2">
             No reasoning data available — thinking may have been disabled for this session.
+          </div>
+        )}
+
+        {/* Error summary */}
+        {!loading && !error && errorTurns.length > 0 && (
+          <div className="bg-red-950/20 border border-red-900/40 rounded-lg px-3 py-2">
+            <span className="text-red-400 text-xs font-medium">
+              {errorTurns.length} API error{errorTurns.length !== 1 ? 's' : ''}
+            </span>
+            <div className="flex gap-1.5 mt-1 flex-wrap">
+              {[...new Set(errorTurns.map(t => t.error).filter(Boolean))].map(errType => {
+                const count = errorTurns.filter(t => t.error === errType).length;
+                return (
+                  <span key={errType} className="px-1.5 py-0.5 rounded text-[9px] bg-red-900/50 text-red-300">
+                    {errType} ({count})
+                  </span>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -94,8 +116,11 @@ export function ReasoningSection({ sessionId }: ReasoningSectionProps) {
 // ─── Structured Turn Card ────────────────────────────────────────
 
 function StructuredTurnCard({ turn, index }: { turn: ReasoningTurn; index: number }) {
+  const isError = turn.isApiErrorMessage || !!turn.error;
   return (
-    <div className="bg-[#0d1117] border border-gray-800 rounded-lg p-3 space-y-2">
+    <div className={`bg-[#0d1117] border rounded-lg p-3 space-y-2 ${
+      isError ? 'border-red-800/60' : 'border-gray-800'
+    }`}>
       {/* Header */}
       <div className="flex items-center gap-2">
         <span className="text-gray-500 text-[10px] font-mono">#{index + 1}</span>
@@ -104,6 +129,11 @@ function StructuredTurnCard({ turn, index }: { turn: ReasoningTurn; index: numbe
         )}
         {turn.isSidechain && (
           <span className="bg-purple-900/50 text-purple-300 text-[9px] px-1.5 rounded">Task</span>
+        )}
+        {isError && (
+          <span className="bg-red-900/50 text-red-300 text-[9px] px-1.5 rounded">
+            {turn.error ?? 'error'}
+          </span>
         )}
         {turn.structured?.confidence != null && (
           <ConfidenceBadge confidence={turn.structured.confidence} />

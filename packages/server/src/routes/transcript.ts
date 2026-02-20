@@ -121,6 +121,8 @@ export function createTranscriptRouter(): Router {
           timestamp: conv.timestamp,
           model: conv.model,
           isSidechain: conv.isSidechain,
+          isApiErrorMessage: conv.isApiErrorMessage,
+          error: conv.error,
           thinkingText,
           structured: parseThinking(thinkingText),
           responseText,

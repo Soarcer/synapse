@@ -289,6 +289,10 @@ export interface ReasoningTurn {
   model?: string;
   isSidechain: boolean;
 
+  // Error flags
+  isApiErrorMessage: boolean;
+  error?: string;                // e.g. 'rate_limit', 'overloaded'
+
   thinkingText: string | null;
   structured: StructuredThinking | null;
   responseText: string | null;
