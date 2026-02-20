@@ -259,7 +259,10 @@ function estimateCost(turns: TranscriptTurn[]): number {
 
 const TOOL_RESULT_MAX_CHARS = 50 * 1024; // 50KB
 
-function parseContentBlocks(rawContent: RawRecord['message'] extends { content?: infer C } ? C : never): ContentBlock[] {
+type RawContentBlock = NonNullable<NonNullable<RawRecord['message']>['content']>;
+type RawUsage = NonNullable<RawRecord['message']>['usage'];
+
+function parseContentBlocks(rawContent: RawContentBlock | undefined): ContentBlock[] {
   if (!rawContent) return [];
   const blocks: ContentBlock[] = [];
 
@@ -316,7 +319,7 @@ function parseContentBlocks(rawContent: RawRecord['message'] extends { content?:
   return blocks;
 }
 
-function parseExtendedUsage(usage: RawRecord['message'] extends { usage?: infer U } ? U : never): ExtendedUsage {
+function parseExtendedUsage(usage: RawUsage | undefined): ExtendedUsage {
   if (!usage) {
     return {
       inputTokens: 0, outputTokens: 0,
