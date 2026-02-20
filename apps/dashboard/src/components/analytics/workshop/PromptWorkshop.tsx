@@ -38,6 +38,34 @@ function saveHistory(history: WorkshopResult[]): void {
   catch { /* quota exceeded — silently skip */ }
 }
 
+// ─── Workshop Context persistence ─────────────────────────────────────
+
+const WORKSHOP_CONTEXT_KEY = 'synapse-workshop-context';
+
+interface WorkshopContext {
+  sessionId: string | null;   // null = auto (most recent), '' = none
+  notes: string;
+  panelOpen: boolean;
+}
+
+const DEFAULT_CONTEXT: WorkshopContext = {
+  sessionId: null,
+  notes: '',
+  panelOpen: false,
+};
+
+function loadContext(): WorkshopContext {
+  try {
+    const raw = localStorage.getItem(WORKSHOP_CONTEXT_KEY);
+    return raw ? { ...DEFAULT_CONTEXT, ...JSON.parse(raw) } : DEFAULT_CONTEXT;
+  } catch { return DEFAULT_CONTEXT; }
+}
+
+function saveContext(ctx: WorkshopContext): void {
+  try { localStorage.setItem(WORKSHOP_CONTEXT_KEY, JSON.stringify(ctx)); }
+  catch { /* quota exceeded */ }
+}
+
 // ─── SVG Icons ───────────────────────────────────────────────────────
 
 function CopyIcon() {
@@ -107,9 +135,67 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
   const [sendFeedback, setSendFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [workshopCtx, setWorkshopCtx] = useState<WorkshopContext>(loadContext);
+  const [sessionSpecificTurns, setSessionSpecificTurns] = useState<MockTurn[]>([]);
 
   // Persist history on change
   useEffect(() => { saveHistory(history); }, [history]);
+  useEffect(() => { saveContext(workshopCtx); }, [workshopCtx]);
+
+  // Per-session turn fetch for explicitly selected sessions
+  useEffect(() => {
+    // Only fetch for explicitly selected sessions (not auto, not none)
+    if (!workshopCtx.sessionId || workshopCtx.sessionId === '') {
+      setSessionSpecificTurns([]);
+      return;
+    }
+    fetch(`/api/analytics/turns?sessionId=${encodeURIComponent(workshopCtx.sessionId)}&limit=200`)
+      .then((r) => r.json())
+      .then((data) => {
+        const raw = data.data ?? data;
+        if (Array.isArray(raw)) {
+          setSessionSpecificTurns(raw.map((t: Record<string, unknown>) => ({
+            sessionId: (t.sessionId as string) || '',
+            turnIndex: t.turnIndex as number,
+            timestamp: t.timestamp as number,
+            promptText: (t.promptText as string) || '',
+            inputTokens: t.inputTokens as number,
+            outputTokens: t.outputTokens as number,
+            cacheReadTokens: (t.cacheReadTokens as number) || 0,
+            cacheCreationTokens: (t.cacheCreationTokens as number) || 0,
+            thinkingTokens: (t.thinkingTokens as number) || 0,
+            toolCount: (t.toolCount as number) || 0,
+            toolNames: (t.toolNames as string[]) || [],
+            latencyMs: (t.latencyMs as number) || 0,
+            costUsd: (t.costUsd as number) || 0,
+            model: (t.model as string) || 'claude-sonnet-4-5',
+            compactionBefore: (t.compactionBefore as boolean) || false,
+          })));
+        }
+      })
+      .catch(() => setSessionSpecificTurns([]));
+  }, [workshopCtx.sessionId]);
+
+  // Resolve "auto" to the most recent session
+  const resolvedSession = useMemo(() => {
+    if (workshopCtx.sessionId === '') return null; // explicitly "none"
+    if (workshopCtx.sessionId === null) {
+      // Auto: pick most recent session
+      return sessions.length > 0
+        ? sessions.reduce((a, b) => (a.endTime > b.endTime ? a : b))
+        : null;
+    }
+    return sessions.find((s) => s.id === workshopCtx.sessionId) ?? null;
+  }, [workshopCtx.sessionId, sessions]);
+
+  const sessionTurns = useMemo(() => {
+    if (!resolvedSession) return [];
+    // Prefer session-specific turns if fetched, otherwise fall back to global turns
+    const source = sessionSpecificTurns.length > 0 ? sessionSpecificTurns : turns;
+    return source
+      .filter((t) => t.sessionId === resolvedSession.id)
+      .sort((a, b) => a.turnIndex - b.turnIndex);
+  }, [resolvedSession, turns, sessionSpecificTurns]);
 
   const handleImprove = useCallback(async () => {
     if (!promptText.trim() || isAnalyzing) return;
