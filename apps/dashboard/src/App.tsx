@@ -5,6 +5,7 @@ import { LensAdapter } from './components/lens/LensAdapter';
 import { useBreakpoint } from './hooks/useBreakpoint';
 
 const AnalyticsPage = lazy(() => import('./components/analytics/AnalyticsPageLazy'));
+const PixelPage = lazy(() => import('./components/pixel/PixelPageLazy'));
 import { ToastContainer } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useAgentStore } from './store/agentStore';
@@ -12,12 +13,12 @@ import { wsClient } from './store/wsClient';
 import { apiUrl } from './utils/api';
 
 /** Layout modes: full (browser), lens (VS Code sidebar), graph (VS Code editor), analytics (reporting dashboard) */
-type ViewMode = 'full' | 'lens' | 'graph' | 'analytics';
+type ViewMode = 'full' | 'lens' | 'graph' | 'analytics' | 'pixel';
 
 function getViewMode(): ViewMode {
   const params = new URLSearchParams(window.location.search);
   const view = params.get('view');
-  if (view === 'lens' || view === 'graph' || view === 'analytics') return view;
+  if (view === 'lens' || view === 'graph' || view === 'analytics' || view === 'pixel') return view;
   return 'full';
 }
 
@@ -36,7 +37,7 @@ export default function App() {
   // Connect WebSocket and load existing events on mount
   // In VS Code mode (lens/graph), events arrive via postMessage from the extension — skip direct WS/fetch
   useEffect(() => {
-    if (viewMode !== 'full') return; // VS Code relay handles data delivery
+    if (viewMode !== 'full' && viewMode !== 'pixel') return; // VS Code relay handles data delivery
 
     wsClient.connect();
 
@@ -189,6 +190,17 @@ export default function App() {
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, []);
+
+  // ── Pixel office view ──────────────────────────────────────────
+  if (viewMode === 'pixel') {
+    return (
+      <ErrorBoundary name="PixelScene">
+        <Suspense fallback={<div className="h-screen w-screen bg-[#08080f] flex items-center justify-center text-gray-500 text-sm">Loading pixel office...</div>}>
+          <PixelPage />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
 
   // ── Analytics view ──────────────────────────────────────────
   if (viewMode === 'analytics') {
