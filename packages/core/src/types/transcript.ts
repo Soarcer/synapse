@@ -169,3 +169,97 @@ export interface ConversationRecord {
   // Todo state snapshot
   todos?: Array<{ content: string; status: string }>;
 }
+
+// ─── Progress records (v2) ──────────────────────────────────────
+
+export interface BashProgressRecord {
+  type: 'bash_progress';
+  timestamp: number;
+  sessionId: string;
+  toolUseId?: string;
+  output: string;
+  elapsedTimeSeconds: number;
+  totalLines: number;
+  totalBytes: number;
+}
+
+export interface AgentProgressRecord {
+  type: 'agent_progress';
+  timestamp: number;
+  sessionId: string;
+  agentId: string;
+  message?: string;
+  prompt?: string;
+}
+
+export interface HookProgressRecord {
+  type: 'hook_progress';
+  timestamp: number;
+  sessionId: string;
+  hookEvent: string;
+  hookName: string;
+  command: string;
+}
+
+export type ProgressRecord = BashProgressRecord | AgentProgressRecord | HookProgressRecord;
+
+// ─── System records (v2) ────────────────────────────────────────
+
+export interface CompactBoundaryRecord {
+  type: 'compact_boundary';
+  timestamp: number;
+  sessionId: string;
+  preTokens: number;
+  trigger: string;
+}
+
+export interface StopHookSummaryRecord {
+  type: 'stop_hook_summary';
+  timestamp: number;
+  sessionId: string;
+  hookCount: number;
+  hookErrors: string[];
+  stopReason?: string;
+}
+
+export type SystemRecord = CompactBoundaryRecord | StopHookSummaryRecord;
+
+// ─── File history (v2) ──────────────────────────────────────────
+
+export interface FileChange {
+  filePath: string;
+  backupFileName: string;
+  version: number;
+  backupTime: string;
+}
+
+export interface FileHistoryRecord {
+  type: 'file_history';
+  timestamp: number;
+  sessionId: string;
+  messageId: string;
+  files: FileChange[];
+}
+
+// ─── Queue operations (v2) ──────────────────────────────────────
+
+export interface QueueOperationRecord {
+  type: 'queue_operation';
+  timestamp: number;
+  sessionId: string;
+  operation: 'enqueue' | 'dequeue';
+  content?: string;
+}
+
+// ─── Full transcript (v2) ───────────────────────────────────────
+
+export interface FullTranscript {
+  sessionId: string;
+  transcriptPath: string;
+  summary: TranscriptSummary;
+  conversations: ConversationRecord[];
+  progress: ProgressRecord[];
+  system: SystemRecord[];
+  fileHistory: FileHistoryRecord[];
+  queueOps: QueueOperationRecord[];
+}

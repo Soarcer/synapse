@@ -27,6 +27,17 @@ export type {
   ContentBlock,
   ExtendedUsage,
   ConversationRecord,
+  BashProgressRecord,
+  AgentProgressRecord,
+  HookProgressRecord,
+  ProgressRecord,
+  CompactBoundaryRecord,
+  StopHookSummaryRecord,
+  SystemRecord,
+  FileChange,
+  FileHistoryRecord,
+  QueueOperationRecord,
+  FullTranscript,
 } from './types/transcript.js';
 
 export type {
