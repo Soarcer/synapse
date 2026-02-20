@@ -138,7 +138,7 @@ export class SceneManager {
         ch.statusIcon = cmd.success ? '✓' : '!';
         ch.statusTimer = 1.5;
         this.particles.emit(cmd.success ? 'sparkle' : 'error', ch.x, ch.y, 8);
-        setTimeout(() => this.characters.delete(cmd.agentId), 1000);
+        setTimeout(() => this.characters.delete(cmd.agentId), 3000);
         break;
       }
       case 'dispatchToStation': {
