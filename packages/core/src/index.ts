@@ -19,6 +19,12 @@ export type {
   TranscriptTurn,
   ModelUsage,
   TranscriptSummary,
+  TextBlock,
+  ThinkingBlock,
+  ToolUseBlock,
+  ToolResultBlock,
+  ImageBlock,
+  ContentBlock,
 } from './types/transcript.js';
 
 export type {
