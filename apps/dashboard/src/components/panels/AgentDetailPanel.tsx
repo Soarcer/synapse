@@ -122,6 +122,7 @@ export function AgentDetailPanel() {
   const [confirmRemove, setConfirmRemove] = useState<{ nodeId: string; label: string } | null>(null);
   const [confirmStop, setConfirmStop] = useState<string | null>(null);
   const textRef = useRef<HTMLPreElement>(null);
+  const [detailTab, setDetailTab] = useState<'stats' | 'reasoning'>('stats');
 
   // AI analysis state for prompt panel
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>(loadPanelMode);
@@ -280,6 +281,11 @@ export function AgentDetailPanel() {
       textRef.current.scrollTop = textRef.current.scrollHeight;
     }
   }, [agent?.streamingText]);
+
+  // Reset detail tab when selected node changes
+  useEffect(() => {
+    setDetailTab('stats');
+  }, [selectedNodeId]);
 
   const handleSendMessage = useCallback(async () => {
     if (!agentId || !message.trim()) return;
@@ -631,180 +637,196 @@ export function AgentDetailPanel() {
     <PanelShell
       title={agent.agentType}
       titleRight={<StatusBadge status={agent.status} />}
+      tabs={{
+        items: [
+          { key: 'stats', label: 'Stats' },
+          { key: 'reasoning', label: 'Reasoning' },
+        ],
+        activeKey: detailTab,
+        onChange: (k) => setDetailTab(k as 'stats' | 'reasoning'),
+      }}
       onClose={() => selectNode(null)}
     >
-      {/* Scrollable content */}
-      <div className="flex-1 overflow-auto">
-        <div className="p-4 space-y-3 text-sm">
-          <div className="flex justify-between items-start">
-            <Detail
-              label="Status"
-              value={agent.status}
-              badge={agent.status === 'running' ? 'green' : agent.status === 'error' ? 'red' : 'gray'}
-            />
-            <Detail label="Duration" value={agentDuration} />
-          </div>
-          <Detail label="Agent ID" value={agent.agentId} mono />
-          <Detail label="Session" value={agent.sessionId.slice(0, 12)} mono />
-          {agent.parentAgentId && (
-            <Detail label="Parent Agent" value={agent.parentAgentId.slice(0, 12)} mono />
-          )}
-          <div className="flex justify-between">
-            <Detail label="Started" value={formatTime(agent.startTime)} />
-            {agent.endTime && <Detail label="Ended" value={formatTime(agent.endTime)} />}
-          </div>
-
-          {/* Transcript metadata */}
-          {(() => {
-            const tx = transcripts.get(agent.sessionId);
-            if (!tx) return null;
-            const hasMetadata = tx.permissionMode || tx.gitBranch || tx.slug;
-            if (!hasMetadata) return null;
-            return (
-              <>
-                {tx.permissionMode && <Detail label="Permission" value={tx.permissionMode} />}
-                {tx.gitBranch && <Detail label="Branch" value={tx.gitBranch} mono />}
-                {tx.slug && <Detail label="Slug" value={tx.slug} mono />}
-              </>
-            );
-          })()}
-
-          {/* MetricCard grid */}
-          {hasAgentMetrics && (
-            <>
-              <Divider />
-              <div className="grid grid-cols-2 gap-2">
-                {hasAgentTokens && (
-                  <>
-                    <MetricCard label="Cost" value={`$${agentMetrics.costUsd.toFixed(4)}`} color="text-amber-400" />
-                    <MetricCard label="Total Tokens" value={fmtTokens(agentMetrics.totalTokens)} color="text-gray-200" />
-                    <MetricCard label="Cache Hit" value={`${agentMetrics.cacheRate.toFixed(0)}%`} color={agentCacheColor} />
-                  </>
-                )}
-                <MetricCard
-                  label="Duration"
-                  value={agentDurationMs < 1000 ? `${Math.round(agentDurationMs)}ms` : `${(agentDurationMs / 1000).toFixed(1)}s`}
-                  color="text-gray-200"
-                />
-                {agent.toolCalls.length > 0 && (
-                  <MetricCard label="Tools" value={String(agent.toolCalls.length)} color="text-gray-200" />
-                )}
-                {agentMetrics.childAgents.length > 0 && (
-                  <MetricCard label="Children" value={String(agentMetrics.childAgents.length)} color="text-gray-200" />
-                )}
-                {(() => {
-                  const tx = transcripts.get(agent.sessionId);
-                  return <>
-                    {tx?.webSearchRequests != null && tx.webSearchRequests > 0 && (
-                      <MetricCard label="Web Searches" value={String(tx.webSearchRequests)} color="text-blue-400" />
-                    )}
-                    {tx?.webFetchRequests != null && tx.webFetchRequests > 0 && (
-                      <MetricCard label="Web Fetches" value={String(tx.webFetchRequests)} color="text-blue-400" />
-                    )}
-                  </>;
-                })()}
-              </div>
-            </>
-          )}
-
-          {/* Token Breakdown Bar */}
-          {hasAgentTokens && (
-            <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
-              <TokenBreakdownBar
-                cacheReadTokens={agentMetrics.totalCacheRead}
-                inputTokens={agentMetrics.totalInput}
-                outputTokens={agentMetrics.totalOutput}
-                thinkingTokens={agentMetrics.totalThinking}
+      {/* Stats tab */}
+      {detailTab === 'stats' && (
+        <div className="flex-1 overflow-auto">
+          <div className="p-4 space-y-3 text-sm">
+            <div className="flex justify-between items-start">
+              <Detail
+                label="Status"
+                value={agent.status}
+                badge={agent.status === 'running' ? 'green' : agent.status === 'error' ? 'red' : 'gray'}
               />
+              <Detail label="Duration" value={agentDuration} />
             </div>
-          )}
-
-          {/* Tool Badges + Model */}
-          {(agentMetrics.toolNames.length > 0 || agentMetrics.model !== 'unknown') && (
-            <div className="space-y-2">
-              {agentMetrics.toolNames.length > 0 && (
-                <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
-                  <ToolBadges toolNames={agentMetrics.toolNames} toolCounts={agentMetrics.toolCounts} label={`Tools (${agent.toolCalls.length})`} />
-                </div>
-              )}
-              {agentMetrics.model !== 'unknown' && (
-                <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
-                  <span className="text-xs text-gray-500 block mb-1">Model</span>
-                  <ModelBadge model={agentMetrics.model} />
-                </div>
-              )}
+            <Detail label="Agent ID" value={agent.agentId} mono />
+            <Detail label="Session" value={agent.sessionId.slice(0, 12)} mono />
+            {agent.parentAgentId && (
+              <Detail label="Parent Agent" value={agent.parentAgentId.slice(0, 12)} mono />
+            )}
+            <div className="flex justify-between">
+              <Detail label="Started" value={formatTime(agent.startTime)} />
+              {agent.endTime && <Detail label="Ended" value={formatTime(agent.endTime)} />}
             </div>
-          )}
 
-          {/* Children token rollup */}
-          {agentMetrics.childAgents.length > 0 && hasAgentTokens && (
-            <>
-              <Divider />
+            {/* Transcript metadata */}
+            {(() => {
+              const tx = transcripts.get(agent.sessionId);
+              if (!tx) return null;
+              const hasMetadata = tx.permissionMode || tx.gitBranch || tx.slug;
+              if (!hasMetadata) return null;
+              return (
+                <>
+                  {tx.permissionMode && <Detail label="Permission" value={tx.permissionMode} />}
+                  {tx.gitBranch && <Detail label="Branch" value={tx.gitBranch} mono />}
+                  {tx.slug && <Detail label="Slug" value={tx.slug} mono />}
+                </>
+              );
+            })()}
+
+            {/* MetricCard grid */}
+            {hasAgentMetrics && (
+              <>
+                <Divider />
+                <div className="grid grid-cols-2 gap-2">
+                  {hasAgentTokens && (
+                    <>
+                      <MetricCard label="Cost" value={`$${agentMetrics.costUsd.toFixed(4)}`} color="text-amber-400" />
+                      <MetricCard label="Total Tokens" value={fmtTokens(agentMetrics.totalTokens)} color="text-gray-200" />
+                      <MetricCard label="Cache Hit" value={`${agentMetrics.cacheRate.toFixed(0)}%`} color={agentCacheColor} />
+                    </>
+                  )}
+                  <MetricCard
+                    label="Duration"
+                    value={agentDurationMs < 1000 ? `${Math.round(agentDurationMs)}ms` : `${(agentDurationMs / 1000).toFixed(1)}s`}
+                    color="text-gray-200"
+                  />
+                  {agent.toolCalls.length > 0 && (
+                    <MetricCard label="Tools" value={String(agent.toolCalls.length)} color="text-gray-200" />
+                  )}
+                  {agentMetrics.childAgents.length > 0 && (
+                    <MetricCard label="Children" value={String(agentMetrics.childAgents.length)} color="text-gray-200" />
+                  )}
+                  {(() => {
+                    const tx = transcripts.get(agent.sessionId);
+                    return <>
+                      {tx?.webSearchRequests != null && tx.webSearchRequests > 0 && (
+                        <MetricCard label="Web Searches" value={String(tx.webSearchRequests)} color="text-blue-400" />
+                      )}
+                      {tx?.webFetchRequests != null && tx.webFetchRequests > 0 && (
+                        <MetricCard label="Web Fetches" value={String(tx.webFetchRequests)} color="text-blue-400" />
+                      )}
+                    </>;
+                  })()}
+                </div>
+              </>
+            )}
+
+            {/* Token Breakdown Bar */}
+            {hasAgentTokens && (
+              <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
+                <TokenBreakdownBar
+                  cacheReadTokens={agentMetrics.totalCacheRead}
+                  inputTokens={agentMetrics.totalInput}
+                  outputTokens={agentMetrics.totalOutput}
+                  thinkingTokens={agentMetrics.totalThinking}
+                />
+              </div>
+            )}
+
+            {/* Tool Badges + Model */}
+            {(agentMetrics.toolNames.length > 0 || agentMetrics.model !== 'unknown') && (
+              <div className="space-y-2">
+                {agentMetrics.toolNames.length > 0 && (
+                  <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
+                    <ToolBadges toolNames={agentMetrics.toolNames} toolCounts={agentMetrics.toolCounts} label={`Tools (${agent.toolCalls.length})`} />
+                  </div>
+                )}
+                {agentMetrics.model !== 'unknown' && (
+                  <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
+                    <span className="text-xs text-gray-500 block mb-1">Model</span>
+                    <ModelBadge model={agentMetrics.model} />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Children token rollup */}
+            {agentMetrics.childAgents.length > 0 && hasAgentTokens && (
+              <>
+                <Divider />
+                <div>
+                  <span className="text-gray-500 text-xs block mb-1">Total (self + {agentMetrics.childAgents.length} child{agentMetrics.childAgents.length !== 1 ? 'ren' : ''})</span>
+                  <div className="flex gap-4">
+                    <Stat label="Input" value={agentMetrics.totalInput} format />
+                    <Stat label="Output" value={agentMetrics.totalOutput} format />
+                    <Stat label="Total" value={agentMetrics.totalTokens} format />
+                  </div>
+                </div>
+              </>
+            )}
+
+            <Divider />
+
+            {/* Tool calls */}
+            {agent.toolCalls.length > 0 && (
               <div>
-                <span className="text-gray-500 text-xs block mb-1">Total (self + {agentMetrics.childAgents.length} child{agentMetrics.childAgents.length !== 1 ? 'ren' : ''})</span>
-                <div className="flex gap-4">
-                  <Stat label="Input" value={agentMetrics.totalInput} format />
-                  <Stat label="Output" value={agentMetrics.totalOutput} format />
-                  <Stat label="Total" value={agentMetrics.totalTokens} format />
+                <span className="text-gray-500 text-xs block mb-1.5">
+                  Tool calls ({agent.toolCalls.length})
+                </span>
+                <div className="space-y-1 max-h-60 overflow-auto">
+                  {agent.toolCalls.map((tc) => (
+                    <button
+                      key={tc.toolUseId}
+                      onClick={() => selectNode(`tool-${tc.toolUseId}`)}
+                      className="w-full text-left flex items-center justify-between bg-gray-900/50 hover:bg-gray-800/50 rounded px-2 py-1.5 text-xs transition-colors"
+                    >
+                      <span className="text-gray-300 flex items-center gap-1.5">
+                        {tc.toolName}
+                        {tc.inputPreview && (
+                          <span className="text-gray-600 text-[10px] truncate max-w-[100px]">
+                            {tc.inputPreview}
+                          </span>
+                        )}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        {tc.duration != null && (
+                          <span className="text-gray-600 text-[10px]">
+                            {(tc.duration / 1000).toFixed(1)}s
+                          </span>
+                        )}
+                        <StatusBadge status={tc.status} />
+                      </div>
+                    </button>
+                  ))}
                 </div>
               </div>
-            </>
-          )}
+            )}
 
-          <Divider />
-
-          {/* Tool calls */}
-          {agent.toolCalls.length > 0 && (
-            <div>
-              <span className="text-gray-500 text-xs block mb-1.5">
-                Tool calls ({agent.toolCalls.length})
-              </span>
-              <div className="space-y-1 max-h-60 overflow-auto">
-                {agent.toolCalls.map((tc) => (
-                  <button
-                    key={tc.toolUseId}
-                    onClick={() => selectNode(`tool-${tc.toolUseId}`)}
-                    className="w-full text-left flex items-center justify-between bg-gray-900/50 hover:bg-gray-800/50 rounded px-2 py-1.5 text-xs transition-colors"
-                  >
-                    <span className="text-gray-300 flex items-center gap-1.5">
-                      {tc.toolName}
-                      {tc.inputPreview && (
-                        <span className="text-gray-600 text-[10px] truncate max-w-[100px]">
-                          {tc.inputPreview}
-                        </span>
-                      )}
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      {tc.duration != null && (
-                        <span className="text-gray-600 text-[10px]">
-                          {(tc.duration / 1000).toFixed(1)}s
-                        </span>
-                      )}
-                      <StatusBadge status={tc.status} />
-                    </div>
-                  </button>
-                ))}
+            {/* Streaming text */}
+            {agent.streamingText && (
+              <div>
+                <span className="text-gray-500 text-xs block mb-1.5">Output</span>
+                <pre
+                  ref={textRef}
+                  className="text-xs bg-gray-900 rounded p-2 text-gray-300 overflow-auto max-h-60 font-mono whitespace-pre-wrap"
+                >
+                  {agent.streamingText}
+                </pre>
               </div>
-            </div>
-          )}
-
-          {/* Streaming text */}
-          {agent.streamingText && (
-            <div>
-              <span className="text-gray-500 text-xs block mb-1.5">Output</span>
-              <pre
-                ref={textRef}
-                className="text-xs bg-gray-900 rounded p-2 text-gray-300 overflow-auto max-h-60 font-mono whitespace-pre-wrap"
-              >
-                {agent.streamingText}
-              </pre>
-            </div>
-          )}
-
-          {/* Reasoning */}
-          <ReasoningSection sessionId={agent.sessionId} />
+            )}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Reasoning tab */}
+      {detailTab === 'reasoning' && (
+        <div className="flex-1 overflow-auto">
+          <div className="p-4">
+            <ReasoningSection sessionId={agent.sessionId} />
+          </div>
+        </div>
+      )}
 
       {/* Actions */}
       <div className="p-3 border-t border-gray-800 space-y-2">
