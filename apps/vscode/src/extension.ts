@@ -69,8 +69,8 @@ export async function activate(context: vscode.ExtensionContext) {
     sidebarProvider.updatePort(port);
     connectWsClient(context, port);
 
-    // Configure hooks with the actual port (may differ from default if port was busy)
-    if (hookManager!.needsConfiguration(port)) {
+    // Only configure hooks if we own the server — external servers already have hooks set
+    if (!serverManager!.isExternalServer && hookManager!.needsConfiguration(port)) {
       outputChannel.appendLine(`Configuring hooks for port ${port}...`);
       hookManager!.configureHooks(port);
     }
@@ -311,7 +311,8 @@ async function fetchAndHydrateIframes(port: number): Promise<void> {
 function updateStatusBar(running: boolean) {
   if (running) {
     updateStatusBarMetrics();
-    statusBarItem.tooltip = `Synapse running on port ${serverManager?.port}. Click to open dashboard.`;
+    const external = serverManager?.isExternalServer ? ' (shared)' : '';
+    statusBarItem.tooltip = `Synapse running on port ${serverManager?.port}${external}. Click to open dashboard.`;
     statusBarItem.backgroundColor = undefined;
   } else {
     statusBarItem.text = '$(circle-slash) Synapse';
