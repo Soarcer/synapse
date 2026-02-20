@@ -589,6 +589,14 @@ export function AgentDetailPanel() {
               toolUseId={foundTc.toolUseId}
             />
 
+            {/* Transcript data (full tool I/O) */}
+            {parentAgent && (
+              <TranscriptToolDetail
+                sessionId={parentAgent.sessionId}
+                toolUseId={foundTc.toolUseId}
+              />
+            )}
+
             <Divider />
 
             <button
@@ -881,7 +889,16 @@ export function Detail({
   );
 }
 
-export function Divider() {
+export function Divider({ label }: { label?: string } = {}) {
+  if (label) {
+    return (
+      <div className="flex items-center gap-2">
+        <hr className="border-gray-800 flex-1" />
+        <span className="text-gray-600 text-[10px] shrink-0">{label}</span>
+        <hr className="border-gray-800 flex-1" />
+      </div>
+    );
+  }
   return <hr className="border-gray-800" />;
 }
 
@@ -1168,6 +1185,72 @@ function PromptDetailView({
         </div>
       </PanelShell>
       {dialogs}
+    </>
+  );
+}
+
+// ── Transcript Tool Detail (full I/O from transcript v2) ────────
+
+function TranscriptToolDetail({ sessionId, toolUseId }: { sessionId: string; toolUseId: string }) {
+  const [toolInput, setToolInput] = useState<Record<string, unknown> | null>(null);
+  const [toolResult, setToolResult] = useState<{ content: string; is_error: boolean } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [tried, setTried] = useState(false);
+
+  useEffect(() => {
+    if (!sessionId || tried) return;
+    setLoading(true);
+    setTried(true);
+
+    fetch(apiUrl(`/api/transcript/${sessionId}/full`))
+      .then(r => {
+        if (!r.ok) throw new Error(`${r.status}`);
+        return r.json();
+      })
+      .then((full: { conversations: Array<{ content: Array<{ type: string; id?: string; tool_use_id?: string; name?: string; input?: Record<string, unknown>; content?: string; is_error?: boolean }> }> }) => {
+        // Find matching tool_use block
+        for (const conv of full.conversations) {
+          for (const block of conv.content) {
+            if (block.type === 'tool_use' && block.id === toolUseId) {
+              setToolInput(block.input ?? null);
+            }
+            if (block.type === 'tool_result' && block.tool_use_id === toolUseId) {
+              setToolResult({ content: block.content ?? '', is_error: block.is_error ?? false });
+            }
+          }
+        }
+      })
+      .catch(() => { /* silently fail — transcript data is optional */ })
+      .finally(() => setLoading(false));
+  }, [sessionId, toolUseId, tried]);
+
+  if (loading) return <div className="text-gray-600 text-xs py-1">Loading transcript data...</div>;
+  if (!toolInput && !toolResult) return null;
+
+  return (
+    <>
+      <Divider label="Transcript Data" />
+      {toolInput && (
+        <div>
+          <span className="text-gray-500 text-[10px] block mb-1">Full Input (JSON)</span>
+          <pre className="text-[11px] bg-gray-900 rounded p-2 text-gray-300 overflow-auto max-h-40 font-mono whitespace-pre-wrap">
+            {JSON.stringify(toolInput, null, 2)}
+          </pre>
+        </div>
+      )}
+      {toolResult && (
+        <div>
+          <span className="text-gray-500 text-[10px] block mb-1">
+            Full Output
+            {toolResult.is_error && (
+              <span className="ml-1.5 bg-red-900/50 text-red-300 text-[9px] px-1.5 rounded">error</span>
+            )}
+          </span>
+          <pre className={`text-[11px] bg-gray-900 rounded p-2 overflow-auto max-h-60 font-mono whitespace-pre-wrap ${toolResult.is_error ? 'text-red-300' : 'text-gray-300'}`}>
+            {toolResult.content || '(empty)'}
+          </pre>
+        </div>
+      )}
     </>
   );
 }
