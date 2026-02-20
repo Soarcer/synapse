@@ -1143,6 +1143,13 @@ function PromptDetailView({
   const hasTokens = totalTokens > 0;
   const hasMetrics = hasTokens || metrics.toolCount > 0;
 
+  const [detailTab, setDetailTab] = useState<'stats' | 'reasoning'>('stats');
+
+  // Reset tab when prompt changes
+  useEffect(() => {
+    setDetailTab('stats');
+  }, [promptId]);
+
   return (
     <>
       <PanelShell
@@ -1158,105 +1165,120 @@ function PromptDetailView({
             {metrics.category}
           </span>
         }
+        tabs={{
+          items: [
+            { key: 'stats', label: 'Stats' },
+            { key: 'reasoning', label: 'Reasoning' },
+          ],
+          activeKey: detailTab,
+          onChange: (k) => setDetailTab(k as 'stats' | 'reasoning'),
+        }}
         onClose={onClose}
       >
-        <div className="p-4 space-y-3 text-sm flex-1 overflow-auto">
-          <Detail label="Time" value={formatTime(foundPrompt.timestamp)} />
-          <Detail label="Session" value={foundPrompt.sessionId.slice(0, 12)} mono />
+        {/* Stats tab */}
+        {detailTab === 'stats' && (
+          <div className="p-4 space-y-3 text-sm flex-1 overflow-auto">
+            <Detail label="Time" value={formatTime(foundPrompt.timestamp)} />
+            <Detail label="Session" value={foundPrompt.sessionId.slice(0, 12)} mono />
 
-          {/* Metrics stat cards — 2-column grid for 320px panel */}
-          {hasMetrics && (
-            <>
-              <Divider />
-              <div className="grid grid-cols-2 gap-2">
-                {hasTokens && (
-                  <>
-                    <MetricCard label="Cost" value={`$${metrics.costUsd.toFixed(4)}`} color="text-amber-400" />
-                    <MetricCard label="Total Tokens" value={fmtTokens(totalTokens)} color="text-gray-200" />
-                    <MetricCard label="Cache Hit" value={`${metrics.cacheRate.toFixed(0)}%`} color={cacheColor} />
-                  </>
-                )}
-                <MetricCard
-                  label="Latency"
-                  value={metrics.latencyMs > 0
-                    ? (metrics.latencyMs < 1000 ? `${Math.round(metrics.latencyMs)}ms` : `${(metrics.latencyMs / 1000).toFixed(1)}s`)
-                    : '\u2014'}
-                  color="text-gray-200"
+            {/* Metrics stat cards — 2-column grid for 320px panel */}
+            {hasMetrics && (
+              <>
+                <Divider />
+                <div className="grid grid-cols-2 gap-2">
+                  {hasTokens && (
+                    <>
+                      <MetricCard label="Cost" value={`$${metrics.costUsd.toFixed(4)}`} color="text-amber-400" />
+                      <MetricCard label="Total Tokens" value={fmtTokens(totalTokens)} color="text-gray-200" />
+                      <MetricCard label="Cache Hit" value={`${metrics.cacheRate.toFixed(0)}%`} color={cacheColor} />
+                    </>
+                  )}
+                  <MetricCard
+                    label="Latency"
+                    value={metrics.latencyMs > 0
+                      ? (metrics.latencyMs < 1000 ? `${Math.round(metrics.latencyMs)}ms` : `${(metrics.latencyMs / 1000).toFixed(1)}s`)
+                      : '\u2014'}
+                    color="text-gray-200"
+                  />
+                  <MetricCard label="Complexity" value={`${metrics.complexity}/100`} color={complexityColor} />
+                  {metrics.agentCount > 0 ? (
+                    <MetricCard label="Agents" value={String(metrics.agentCount)} color="text-gray-200" />
+                  ) : (
+                    <MetricCard label="Tools" value={String(metrics.toolCount)} color="text-gray-200" />
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Token Breakdown Bar */}
+            {hasTokens && (
+              <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
+                <TokenBreakdownBar
+                  cacheReadTokens={metrics.cacheReadTokens}
+                  inputTokens={metrics.inputTokens}
+                  outputTokens={metrics.outputTokens}
+                  thinkingTokens={metrics.thinkingTokens}
                 />
-                <MetricCard label="Complexity" value={`${metrics.complexity}/100`} color={complexityColor} />
-                {metrics.agentCount > 0 ? (
-                  <MetricCard label="Agents" value={String(metrics.agentCount)} color="text-gray-200" />
-                ) : (
-                  <MetricCard label="Tools" value={String(metrics.toolCount)} color="text-gray-200" />
+              </div>
+            )}
+
+            {/* Tool Badges + Model */}
+            {(metrics.toolNames.length > 0 || metrics.model !== 'unknown') && (
+              <div className="space-y-2">
+                {metrics.toolNames.length > 0 && (
+                  <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
+                    <ToolBadges toolNames={metrics.toolNames} toolCounts={metrics.toolCounts} label={`Tools (${metrics.toolCount})`} />
+                  </div>
+                )}
+                {metrics.model !== 'unknown' && (
+                  <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
+                    <span className="text-xs text-gray-500 block mb-1">Model</span>
+                    <ModelBadge model={metrics.model} />
+                  </div>
                 )}
               </div>
-            </>
-          )}
+            )}
 
-          {/* Token Breakdown Bar */}
-          {hasTokens && (
-            <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
-              <TokenBreakdownBar
-                cacheReadTokens={metrics.cacheReadTokens}
-                inputTokens={metrics.inputTokens}
-                outputTokens={metrics.outputTokens}
-                thinkingTokens={metrics.thinkingTokens}
-              />
+            <Divider />
+
+            {/* Prompt text */}
+            <div>
+              <span className="text-gray-500 text-xs block mb-1.5">Prompt text</span>
+              <pre className="text-xs bg-gray-900 rounded p-3 text-gray-200 overflow-auto max-h-80 font-mono whitespace-pre-wrap leading-relaxed">
+                {promptText || '(empty)'}
+              </pre>
             </div>
-          )}
 
-          {/* Tool Badges + Model */}
-          {(metrics.toolNames.length > 0 || metrics.model !== 'unknown') && (
-            <div className="space-y-2">
-              {metrics.toolNames.length > 0 && (
-                <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
-                  <ToolBadges toolNames={metrics.toolNames} toolCounts={metrics.toolCounts} label={`Tools (${metrics.toolCount})`} />
-                </div>
-              )}
-              {metrics.model !== 'unknown' && (
-                <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
-                  <span className="text-xs text-gray-500 block mb-1">Model</span>
-                  <ModelBadge model={metrics.model} />
-                </div>
-              )}
-            </div>
-          )}
+            <Divider />
 
-          {/* Prompt Reasoning Summary */}
-          <PromptReasoningSummary sessionId={foundPrompt.sessionId} promptTimestamp={foundPrompt.timestamp} />
+            {/* AI Analysis Section */}
+            <PromptAiSection
+              promptText={promptText}
+              devAnalysis={aiCache[panelCacheKey(promptText, 'developer')] ?? null}
+              vibeAnalysis={aiCache[panelCacheKey(promptText, 'vibe')] ?? null}
+              loading={aiLoading}
+              mode={analysisMode}
+              onModeChange={onModeChange}
+              onAnalyze={(skipCache) => onAnalyze(promptText, skipCache)}
+            />
 
-          <Divider />
+            <Divider />
 
-          {/* Prompt text */}
-          <div>
-            <span className="text-gray-500 text-xs block mb-1.5">Prompt text</span>
-            <pre className="text-xs bg-gray-900 rounded p-3 text-gray-200 overflow-auto max-h-80 font-mono whitespace-pre-wrap leading-relaxed">
-              {promptText || '(empty)'}
-            </pre>
+            <button
+              onClick={() => onRemove(`prompt-${promptId}`)}
+              className="w-full px-3 py-1.5 bg-red-900/30 hover:bg-red-800/40 border border-red-700/40 rounded text-xs text-red-300 transition-colors"
+            >
+              Remove Prompt
+            </button>
           </div>
+        )}
 
-          <Divider />
-
-          {/* AI Analysis Section */}
-          <PromptAiSection
-            promptText={promptText}
-            devAnalysis={aiCache[panelCacheKey(promptText, 'developer')] ?? null}
-            vibeAnalysis={aiCache[panelCacheKey(promptText, 'vibe')] ?? null}
-            loading={aiLoading}
-            mode={analysisMode}
-            onModeChange={onModeChange}
-            onAnalyze={(skipCache) => onAnalyze(promptText, skipCache)}
-          />
-
-          <Divider />
-
-          <button
-            onClick={() => onRemove(`prompt-${promptId}`)}
-            className="w-full px-3 py-1.5 bg-red-900/30 hover:bg-red-800/40 border border-red-700/40 rounded text-xs text-red-300 transition-colors"
-          >
-            Remove Prompt
-          </button>
-        </div>
+        {/* Reasoning tab */}
+        {detailTab === 'reasoning' && (
+          <div className="p-4 flex-1 overflow-auto">
+            <PromptReasoningSummary sessionId={foundPrompt.sessionId} promptTimestamp={foundPrompt.timestamp} />
+          </div>
+        )}
       </PanelShell>
       {dialogs}
     </>
