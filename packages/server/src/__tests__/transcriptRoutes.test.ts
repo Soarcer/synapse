@@ -70,6 +70,34 @@ describe('GET /api/transcript/:sessionId', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════
+// GET /api/transcript/:sessionId/reasoning
+// ═══════════════════════════════════════════════════════════════════════
+
+describe('GET /api/transcript/:sessionId/reasoning', () => {
+  it('returns 404 for unknown session', async () => {
+    const res = await request(app)
+      .get('/api/transcript/nonexistent-session-id/reasoning')
+      .expect(404);
+
+    expect(res.body.error).toBe('Transcript not found');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// GET /api/transcript/:sessionId/full
+// ═══════════════════════════════════════════════════════════════════════
+
+describe('GET /api/transcript/:sessionId/full', () => {
+  it('returns 404 for unknown session', async () => {
+    const res = await request(app)
+      .get('/api/transcript/nonexistent-session-id/full')
+      .expect(404);
+
+    expect(res.body.error).toBe('Transcript not found');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
 // GET /api/transcript
 // ═══════════════════════════════════════════════════════════════════════
 
