@@ -1,5 +1,6 @@
 import { useMemo, useRef, useEffect } from 'react';
 import { useLens } from '../LensContext';
+import type { CompactEvent } from '../LensContext';
 import { formatTokens, formatDuration } from '@synapse-ai/core';
 import { buildCompactEvents, buildCostPerTurn } from '../lensComputations';
 
@@ -246,6 +247,18 @@ export function CompactionView() {
           </div>
         )}
 
+        {/* Compaction detail with preTokens (from transcript v2) */}
+        {compactEvents.some((c) => c.preTokens != null) && (
+          <div>
+            <div className="text-[10px] text-gray-500 font-medium mb-1">Compaction events</div>
+            <div className="space-y-0.5">
+              {compactEvents.filter((c) => c.preTokens != null).map((c) => (
+                <CompactionEventRow key={c.id} event={c} />
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Context growth chart */}
         {hasTokenData && costPerTurn.length > 1 && (
           <div>
@@ -301,6 +314,22 @@ export function CompactionView() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function CompactionEventRow({ event }: { event: CompactEvent }) {
+  const time = new Date(event.timestamp);
+  const timeStr = `${time.getHours().toString().padStart(2, '0')}:${time.getMinutes().toString().padStart(2, '0')}:${time.getSeconds().toString().padStart(2, '0')}`;
+  return (
+    <div className="flex items-center gap-2 text-[10px] rounded px-1 py-0.5 bg-red-950/20 border border-red-900/30">
+      <span className="text-red-400 font-mono">{timeStr}</span>
+      <span className="text-gray-500">{event.trigger ?? 'auto'}</span>
+      {event.preTokens != null && (
+        <span className="text-gray-400 ml-auto font-mono" title="Context tokens before compaction">
+          {formatTokens(event.preTokens)} before
+        </span>
+      )}
     </div>
   );
 }

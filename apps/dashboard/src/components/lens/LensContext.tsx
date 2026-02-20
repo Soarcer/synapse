@@ -12,6 +12,7 @@ export interface CompactEvent {
   sessionId: string;
   timestamp: number;
   trigger?: string;              // 'manual' | 'auto'
+  preTokens?: number;            // Token count before compaction (from transcript v2)
 }
 
 export interface CostTurn {
