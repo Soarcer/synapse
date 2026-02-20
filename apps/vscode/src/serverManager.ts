@@ -9,6 +9,7 @@ export class ServerManager {
   private resourcesPath: string;
   private outputChannel: vscode.OutputChannel;
   private killTimer: ReturnType<typeof setTimeout> | null = null;
+  private _isExternalServer = false;
 
   private _startTime: number | null = null;
 
@@ -31,7 +32,11 @@ export class ServerManager {
   }
 
   get isRunning(): boolean {
-    return this.process !== null && !this.process.killed;
+    return this._isExternalServer || (this.process !== null && !this.process.killed);
+  }
+
+  get isExternalServer(): boolean {
+    return this._isExternalServer;
   }
 
   get uptime(): number {
@@ -61,7 +66,17 @@ export class ServerManager {
       return;
     }
 
+    // Check if a server is already running on the preferred port
     this._port = vscode.workspace.getConfiguration('synapse').get('port', 4000);
+    const alreadyRunning = await this.checkHealth(this._port);
+    if (alreadyRunning) {
+      this.outputChannel.appendLine(`Synapse server already running on port ${this._port} — connecting as client`);
+      this._isExternalServer = true;
+      this._startTime = Date.now();
+      this._onStarted.fire();
+      return;
+    }
+
     const serverDir = path.join(this.resourcesPath, 'synapse-server');
     const serverEntry = path.join(serverDir, 'server.mjs');
     const dashboardDir = path.join(serverDir, 'dashboard');
@@ -137,6 +152,12 @@ export class ServerManager {
   }
 
   stop(): void {
+    if (this._isExternalServer) {
+      this._isExternalServer = false;
+      this._startTime = null;
+      this._onStopped.fire();
+      return;
+    }
     if (this.killTimer) {
       clearTimeout(this.killTimer);
       this.killTimer = null;
@@ -181,6 +202,19 @@ export class ServerManager {
     } catch {
       return false;
     }
+  }
+
+  private checkHealth(port: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      const req = http.get(`http://localhost:${port}/api/health`, (res) => {
+        resolve(res.statusCode === 200);
+      });
+      req.on('error', () => resolve(false));
+      req.setTimeout(2000, () => {
+        req.destroy();
+        resolve(false);
+      });
+    });
   }
 
   private waitForReady(timeoutMs: number): Promise<void> {
