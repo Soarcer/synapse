@@ -197,6 +197,34 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
       .sort((a, b) => a.turnIndex - b.turnIndex);
   }, [resolvedSession, turns, sessionSpecificTurns]);
 
+  const conversationContext = useMemo(() => {
+    if (sessionTurns.length === 0) return undefined;
+
+    const lastTurn = sessionTurns[sessionTurns.length - 1];
+    const priorTurns = sessionTurns.slice(-3); // last 3 turns as context
+
+    // Detect conversational mode: 2+ of the last 3 turns within 2min AND all short
+    const twoMinMs = 2 * 60 * 1000;
+    const recentPrior = priorTurns.filter(
+      (t) => lastTurn.timestamp - t.timestamp < twoMinMs,
+    );
+    const isConversationalMode = recentPrior.length >= 2 &&
+      recentPrior.every((t) => t.promptText.split(/\s+/).filter(Boolean).length < 15);
+
+    // Session goal: first sentence / first 100 chars of first prompt
+    const firstTurn = sessionTurns[0];
+    const goalText = firstTurn.promptText;
+    const end = goalText.search(/[.!?]/);
+    const sessionGoal = end > 0 && end < 100 ? goalText.slice(0, end + 1) : goalText.slice(0, 100);
+
+    return {
+      recentPrompts: priorTurns.map((t) => t.promptText.slice(0, 500)),
+      sessionGoal,
+      turnNumber: sessionTurns.length + 1, // next turn
+      isConversationalMode,
+    };
+  }, [sessionTurns]);
+
   const handleImprove = useCallback(async () => {
     if (!promptText.trim() || isAnalyzing) return;
     setIsAnalyzing(true);
@@ -212,11 +240,26 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
           skipCache: false,
           ...(modelId && { model: modelId }),
           sessionContext: {
-            model: 'unknown',
+            model: resolvedSession?.model ?? 'unknown',
             toolCount: 0,
             category: 'general',
             cost: 0,
           },
+          conversationContext: conversationContext
+            ? {
+                ...conversationContext,
+                sessionGoal: workshopCtx.notes
+                  ? `${conversationContext.sessionGoal} | User notes: ${workshopCtx.notes.replace(/[\r\n]/g, ' ').slice(0, 300)}`
+                  : conversationContext.sessionGoal,
+              }
+            : workshopCtx.notes
+              ? {
+                  recentPrompts: [],
+                  sessionGoal: workshopCtx.notes.replace(/[\r\n]/g, ' ').slice(0, 500),
+                  turnNumber: 1,
+                  isConversationalMode: false,
+                }
+              : undefined,
         }),
       });
       const data = await response.json();
@@ -245,7 +288,7 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
     } finally {
       setIsAnalyzing(false);
     }
-  }, [promptText, analysisMode, isAnalyzing, modelId]);
+  }, [promptText, analysisMode, isAnalyzing, modelId, resolvedSession, conversationContext, workshopCtx.notes]);
 
   const handleRegen = useCallback(async () => {
     if (!promptText.trim() || isAnalyzing) return;
@@ -262,11 +305,26 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
           skipCache: true,
           ...(modelId && { model: modelId }),
           sessionContext: {
-            model: 'unknown',
+            model: resolvedSession?.model ?? 'unknown',
             toolCount: 0,
             category: 'general',
             cost: 0,
           },
+          conversationContext: conversationContext
+            ? {
+                ...conversationContext,
+                sessionGoal: workshopCtx.notes
+                  ? `${conversationContext.sessionGoal} | User notes: ${workshopCtx.notes.replace(/[\r\n]/g, ' ').slice(0, 300)}`
+                  : conversationContext.sessionGoal,
+              }
+            : workshopCtx.notes
+              ? {
+                  recentPrompts: [],
+                  sessionGoal: workshopCtx.notes.replace(/[\r\n]/g, ' ').slice(0, 500),
+                  turnNumber: 1,
+                  isConversationalMode: false,
+                }
+              : undefined,
         }),
       });
       const data = await response.json();
@@ -295,7 +353,7 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
     } finally {
       setIsAnalyzing(false);
     }
-  }, [promptText, analysisMode, isAnalyzing, modelId]);
+  }, [promptText, analysisMode, isAnalyzing, modelId, resolvedSession, conversationContext, workshopCtx.notes]);
 
   const handleCopy = useCallback(async (text: string) => {
     const ok = await copyToClipboard(text);
