@@ -3,6 +3,11 @@ import { Router, type Request, type Response } from 'express';
 import { logger } from '../lib/logger.js';
 import { findTranscriptPath, readTranscript, readFullTranscript } from '../services/transcriptReader.js';
 import { parseThinking } from '../services/thinkingParser.js';
+import {
+  scanProjectTranscripts,
+  getHistorySessions,
+  isScanInProgress,
+} from '../services/transcriptScanner.js';
 import { queryEvents } from '../db.js';
 import type { ReasoningTurn, ReasoningToolCall, ReasoningData } from '@synapse-ai/core';
 
@@ -30,6 +35,56 @@ function resolveTranscriptPath(sessionId: string): string | null {
 
 export function createTranscriptRouter(): Router {
   const router = Router();
+
+  // POST /api/transcript/scan — trigger a scan of historical transcripts
+  router.post('/scan', async (_req: Request, res: Response) => {
+    if (isScanInProgress()) {
+      res.status(409).json({ error: 'Scan already in progress' });
+      return;
+    }
+
+    try {
+      const result = await scanProjectTranscripts(process.cwd());
+      res.json(result);
+    } catch (err: unknown) {
+      logger.error({ err }, 'Transcript scan error');
+      res.status(500).json({ error: 'Scan failed' });
+    }
+  });
+
+  // GET /api/transcript/history — list indexed historical sessions
+  router.get('/history', (req: Request, res: Response) => {
+    try {
+      const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
+      const offset = Math.max(Number(req.query.offset) || 0, 0);
+      const { sessions, total } = getHistorySessions(limit, offset);
+
+      res.json({
+        sessions: sessions.map(s => ({
+          sessionId: s.session_id,
+          projectHash: s.project_hash,
+          transcriptPath: s.transcript_path,
+          startedAt: s.started_at,
+          endedAt: s.ended_at,
+          model: s.model,
+          permissionMode: s.permission_mode,
+          gitBranch: s.git_branch,
+          slug: s.slug,
+          totalTurns: s.total_turns,
+          totalToolCalls: s.total_tool_calls,
+          estimatedCostUsd: s.estimated_cost_usd,
+          totalInputTokens: s.total_input_tokens,
+          totalOutputTokens: s.total_output_tokens,
+          fileSizeBytes: s.file_size_bytes,
+          scannedAt: s.scanned_at,
+        })),
+        total,
+      });
+    } catch (err: unknown) {
+      logger.error({ err }, 'History list error');
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
 
   // GET /api/transcript/:sessionId/full — full transcript with all record types
   router.get('/:sessionId/full', (req: Request, res: Response) => {
@@ -148,13 +203,15 @@ export function createTranscriptRouter(): Router {
   });
 
   // GET /api/transcript/:sessionId — parse JSONL transcript for a session (summary)
+  // Returns 200 with empty data when transcript is unavailable (not 404)
+  // to avoid browser console errors from bulk-fetching all sessions.
   router.get('/:sessionId', (req: Request, res: Response) => {
     try {
       const sessionId = req.params.sessionId as string;
       const transcriptPath = resolveTranscriptPath(sessionId);
 
       if (!transcriptPath) {
-        res.status(404).json({ error: 'Transcript not found', sessionId });
+        res.json({ sessionId, turns: [], found: false });
         return;
       }
 
@@ -162,7 +219,7 @@ export function createTranscriptRouter(): Router {
       res.json(summary);
     } catch (err: unknown) {
       if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT') {
-        res.status(404).json({ error: 'Transcript not found', sessionId: req.params.sessionId as string });
+        res.json({ sessionId: req.params.sessionId as string, turns: [], found: false });
         return;
       }
       logger.error({ err }, 'Transcript error');
