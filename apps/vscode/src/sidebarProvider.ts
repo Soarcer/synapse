@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { executeForwardedKeybinding } from './keybindings';
 
 type SelectionHandler = (nodeId: string | null) => void;
 type VoidHandler = () => void;
@@ -36,6 +37,18 @@ export class SynapseSidebarProvider implements vscode.WebviewViewProvider {
       }
       if (message.type === 'iframeReady' && this._onIframeReady) {
         this._onIframeReady();
+      }
+      if (message.type === 'openGraphPanel') {
+        vscode.commands.executeCommand('synapse.openDashboard');
+      }
+      if (message.type === 'openGraphInBrowser') {
+        vscode.commands.executeCommand('synapse.openInBrowser');
+      }
+      if (message.type === 'forwardKeydown') {
+        executeForwardedKeybinding(message);
+      }
+      if (message.type === 'clipboardWrite' && typeof message.text === 'string') {
+        vscode.env.clipboard.writeText(message.text);
       }
     });
 
@@ -111,7 +124,7 @@ export class SynapseSidebarProvider implements vscode.WebviewViewProvider {
 </head>
 <body>
   <div id="loading" class="loading">Connecting to Synapse...</div>
-  <iframe id="dashboard" class="hidden" src="${url}"></iframe>
+  <iframe id="dashboard" class="hidden" src="${url}" allow="clipboard-write"></iframe>
   <script>
     const iframe = document.getElementById('dashboard');
     const loading = document.getElementById('loading');
@@ -147,18 +160,13 @@ export class SynapseSidebarProvider implements vscode.WebviewViewProvider {
       if ((['switchLens', 'selectNode', 'synapseEvent', 'hydrateEvents'].includes(message.type)) && iframe.contentWindow) {
         iframe.contentWindow.postMessage(message, '*');
       }
-      // Forward iframe → extension (selection changes)
-      if (message.type === 'selectionChanged') {
+      // Forward iframe → extension (selection changes, commands, clipboard)
+      if (message.type === 'selectionChanged' || message.type === 'openGraphPanel' || message.type === 'openGraphInBrowser' || message.type === 'clipboardWrite') {
         vscodeApi.postMessage(message);
       }
-      // Forward keyboard shortcuts from iframe back to VS Code
+      // Forward keyboard shortcuts from iframe to extension host → VS Code commands
       if (message.type === 'forwardKeydown') {
-        document.dispatchEvent(new KeyboardEvent('keydown', {
-          key: message.key, code: message.code,
-          ctrlKey: message.ctrlKey, shiftKey: message.shiftKey,
-          altKey: message.altKey, metaKey: message.metaKey,
-          bubbles: true, cancelable: true,
-        }));
+        vscodeApi.postMessage(message);
       }
     });
   </script>

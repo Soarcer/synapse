@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAgentStore } from '../../../store/agentStore';
 import { apiUrl } from '../../../utils/api';
+import { copyToClipboard } from '../../../utils/clipboard';
 import type { CoachingNudge, NudgeSeverity, NudgeRuleCategory } from '@synapse-ai/core';
 
 type Sensitivity = 'low' | 'medium' | 'high';
@@ -842,12 +843,13 @@ function CopyableCodeBlock({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(code).then(() => {
+  const handleCopy = useCallback(async () => {
+    const ok = await copyToClipboard(code);
+    if (ok) {
       setCopied(true);
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => setCopied(false), 2000);
-    }).catch(() => {});
+    }
   }, [code]);
 
   return (

@@ -61,11 +61,13 @@ export default function App() {
       // Extension relays real-time events from its single WS connection
       if (msg.type === 'synapseEvent' && msg.data) {
         useAgentStore.getState().addEvent(msg.data);
+        useAgentStore.getState().setConnectionStatus('connected');
       }
       // Extension sends bulk hydration on connect / iframe ready
       if (msg.type === 'hydrateEvents' && Array.isArray(msg.events)) {
         useAgentStore.getState().loadEvents(msg.events);
         useAgentStore.getState().setLoading(false);
+        useAgentStore.getState().setConnectionStatus('connected');
       }
     };
     window.addEventListener('message', handleMessage);
@@ -87,14 +89,21 @@ export default function App() {
     return unsub;
   }, [viewMode]);
 
-  // Forward modifier keyboard shortcuts to VS Code when running inside an iframe.
-  // The cross-origin iframe traps keyboard events; we re-post them so VS Code can handle them.
+  // Forward keyboard events to VS Code when running inside an iframe.
+  // Cross-origin iframes trap keyboard events; we relay them via postMessage so
+  // VS Code can handle shortcuts like Ctrl+Shift+P, Ctrl+P, etc.
+  // Synthetic KeyboardEvents don't work (isTrusted: false), so the webview HTML
+  // relays these messages to the extension host which calls executeCommand().
   useEffect(() => {
     if (viewMode === 'full') return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Forward Ctrl/Cmd combos (command palette, extensions panel, etc.)
-      if (e.ctrlKey || e.metaKey) {
+      if (isEditableTarget(e)) return;
+
+      // Forward all modifier combos (Ctrl/Cmd + key) to VS Code
+      if (e.ctrlKey || e.metaKey || e.altKey) {
+        e.preventDefault();
+        e.stopPropagation();
         window.parent.postMessage({
           type: 'forwardKeydown',
           key: e.key,
@@ -104,22 +113,55 @@ export default function App() {
           altKey: e.altKey,
           metaKey: e.metaKey,
         }, '*');
+        return;
+      }
+
+      // Forward function keys (F1–F12) to VS Code
+      if (e.key.startsWith('F') && e.key.length <= 3 && !isNaN(Number(e.key.slice(1)))) {
+        e.preventDefault();
+        e.stopPropagation();
+        window.parent.postMessage({
+          type: 'forwardKeydown',
+          key: e.key,
+          code: e.code,
+          ctrlKey: false, shiftKey: e.shiftKey,
+          altKey: false, metaKey: false,
+        }, '*');
+        return;
       }
     };
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [viewMode]);
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts — full browser mode only.
+  // In VS Code mode (lens/graph), only Escape and number-key lens tabs are active;
+  // all other shortcuts are disabled to avoid swallowing VS Code hotkeys.
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (isEditableTarget(e)) return;
+
+      // ── Shortcuts available in ALL modes ──
 
       if (e.key === 'Escape') {
         useAgentStore.getState().selectNode(null);
         useAgentStore.getState().setShowSpawnDialog(false);
         useAgentStore.getState().setShowWorkshop(false);
       }
+
+      // Number keys switch lens tabs (all modes)
+      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        const tabKeys = ['treemap', 'heatmap', 'compaction', 'cost', 'sankey', 'tree'];
+        const tabIdx = parseInt(e.key, 10) - 1;
+        if (tabIdx >= 0 && tabIdx < tabKeys.length) {
+          useAgentStore.getState().setActiveLensTab(tabKeys[tabIdx]);
+        }
+      }
+
+      // ── Shortcuts for full browser mode only ──
+
+      if (viewMode !== 'full') return;
+
       if (e.key === ' ') {
         const store = useAgentStore.getState();
         // Don't toggle pause when navigating tools inside an expanded group
@@ -158,14 +200,6 @@ export default function App() {
       if (e.key === '/') {
         e.preventDefault();
         document.getElementById('graph-search-input')?.focus();
-      }
-      // Number keys switch lens tabs only when no modifier is held
-      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-        const tabKeys = ['treemap', 'heatmap', 'compaction', 'cost', 'sankey', 'tree'];
-        const tabIdx = parseInt(e.key, 10) - 1;
-        if (tabIdx >= 0 && tabIdx < tabKeys.length) {
-          useAgentStore.getState().setActiveLensTab(tabKeys[tabIdx]);
-        }
       }
     };
     window.addEventListener('keydown', handleKey);

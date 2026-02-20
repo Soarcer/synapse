@@ -148,6 +148,11 @@ export async function activate(context: vscode.ExtensionContext) {
       hookManager!.removeHooks();
     }),
 
+    vscode.commands.registerCommand('synapse.openInBrowser', () => {
+      const port = serverManager?.port ?? 4000;
+      vscode.env.openExternal(vscode.Uri.parse(`http://localhost:${port}`));
+    }),
+
     vscode.commands.registerCommand('synapse.switchLens', async () => {
       const lenses = ['Graph', 'Timeline', 'List', 'Tools', 'Agents'];
       const picked = await vscode.window.showQuickPick(lenses, {
@@ -176,6 +181,9 @@ export async function activate(context: vscode.ExtensionContext) {
         hookManager!,
       );
     }),
+
+    vscode.commands.registerCommand('synapse.improveTextDev', () => improveSelectedText('developer')),
+    vscode.commands.registerCommand('synapse.improveTextVibe', () => improveSelectedText('vibe')),
 
     vscode.commands.registerCommand('synapse.sendToClaudeTerminal', (text: string) => {
       if (!text || typeof text !== 'string') {
@@ -326,12 +334,176 @@ function updateStatusBarMetrics() {
 }
 
 function findClaudeTerminal(): vscode.Terminal | undefined {
-  // Look for terminal named "Claude" (set by Claude Code VS Code extension)
+  // Claude Code VS Code extension creates pseudo-terminals named after the
+  // first few words of each prompt — so we can't match by name alone.
+  // Strategy: 1) exact "claude" match, 2) pseudo-terminals from the Claude extension
+  const SHELL_NAMES = ['powershell', 'pwsh', 'bash', 'zsh', 'sh', 'cmd', 'fish',
+    'node', 'python', 'ruby', 'java', 'cargo', 'npm', 'pnpm', 'yarn', 'git',
+    'synapse', 'task -', 'javascript debug'];
+
+  // Pass 1: terminal with "claude" in the name (explicit match)
   for (const terminal of vscode.window.terminals) {
-    const name = terminal.name.toLowerCase();
-    if (name.includes('claude')) return terminal;
+    if (terminal.name.toLowerCase().includes('claude')) return terminal;
   }
+
+  // Pass 2: pseudo-terminals that aren't standard shells (likely Claude Code)
+  // Claude Code extension uses ExtensionTerminalOptions (has a `pty` property)
+  const candidates: vscode.Terminal[] = [];
+  for (const terminal of vscode.window.terminals) {
+    const opts = terminal.creationOptions;
+    const isPseudo = opts && 'pty' in opts;
+    if (!isPseudo) continue;
+    const name = terminal.name.toLowerCase();
+    const isShell = SHELL_NAMES.some((s) => name.startsWith(s));
+    if (!isShell) candidates.push(terminal);
+  }
+
+  if (candidates.length === 1) return candidates[0];
+  // Multiple pseudo-terminals — prefer the active one if it's among them
+  if (candidates.length > 1) {
+    const active = vscode.window.activeTerminal;
+    if (active && candidates.includes(active)) return active;
+    return candidates[0]; // fall back to first
+  }
+
   return undefined;
+}
+
+// ── Prompt Lab Hotkey Handler ──────────────────────────────────
+
+let scoreRestoreTimer: ReturnType<typeof setTimeout> | undefined;
+
+async function improveSelectedText(mode: 'developer' | 'vibe'): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    vscode.window.showWarningMessage('No active editor.');
+    return;
+  }
+
+  const selection = editor.selection;
+  if (selection.isEmpty) {
+    vscode.window.showWarningMessage('No text selected.');
+    return;
+  }
+
+  const config = vscode.workspace.getConfiguration('synapse');
+  const maxChars = config.get<number>('promptLab.maxChars', 4000);
+  const modelId = config.get<string>('promptLab.model', 'claude-sonnet-4-5-20250929');
+  const showScore = config.get<boolean>('promptLab.showScore', true);
+
+  const selectedText = editor.document.getText(selection).slice(0, maxChars);
+  const port = serverManager?.port ?? 4000;
+
+  const reachable = await checkServerHealth(port);
+  if (!reachable) {
+    const choice = await vscode.window.showWarningMessage(
+      'Synapse server is not running. Prompt Lab requires the server.',
+      'Start Server',
+    );
+    if (choice === 'Start Server') {
+      vscode.commands.executeCommand('synapse.startServer');
+    }
+    return;
+  }
+
+  // Show spinner in status bar
+  const prevText = statusBarItem.text;
+  const prevTooltip = statusBarItem.tooltip;
+  statusBarItem.text = `$(loading~spin) Improving (${mode})...`;
+  statusBarItem.tooltip = 'Prompt Lab is processing your selection...';
+
+  try {
+    const body = JSON.stringify({
+      promptText: selectedText,
+      mode,
+      model: modelId,
+      skipCache: false,
+      sessionContext: { model: 'unknown', toolCount: 0, category: 'general', cost: 0 },
+    });
+
+    const responseBody = await httpPost(port, '/api/analytics/ai-analyze-prompt', body);
+    const parsed = JSON.parse(responseBody);
+    const data = parsed?.data;
+
+    if (!data?.rewrite) {
+      const reason = data?.explanation || 'No rewrite returned.';
+      vscode.window.showWarningMessage(`Prompt Lab: ${reason}`);
+      statusBarItem.text = prevText;
+      statusBarItem.tooltip = prevTooltip;
+      return;
+    }
+
+    const success = await editor.edit((editBuilder) => {
+      editBuilder.replace(selection, data.rewrite);
+    });
+
+    if (!success) {
+      vscode.window.showWarningMessage('Could not replace text (editor may be read-only).');
+      statusBarItem.text = prevText;
+      statusBarItem.tooltip = prevTooltip;
+      return;
+    }
+
+    if (showScore && typeof data.score === 'number') {
+      const scoreLabel = mode === 'vibe'
+        ? vibeScoreLabel(data.score)
+        : `${data.score}/10`;
+      statusBarItem.text = `$(sparkle) ${scoreLabel}`;
+      statusBarItem.tooltip = data.explanation || `Score: ${scoreLabel}`;
+
+      if (scoreRestoreTimer) clearTimeout(scoreRestoreTimer);
+      scoreRestoreTimer = setTimeout(() => {
+        updateStatusBarMetrics();
+        statusBarItem.tooltip = `Synapse running on port ${serverManager?.port}. Click to open dashboard.`;
+      }, 3000);
+    } else {
+      statusBarItem.text = prevText;
+      statusBarItem.tooltip = prevTooltip;
+    }
+  } catch (err) {
+    vscode.window.showErrorMessage(
+      `Prompt Lab error: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    statusBarItem.text = prevText;
+    statusBarItem.tooltip = prevTooltip;
+  }
+}
+
+function vibeScoreLabel(score: number): string {
+  if (score >= 8) return 'Nailed it!';
+  if (score >= 6) return 'Pretty good';
+  if (score >= 4) return 'Getting there';
+  return 'Needs work';
+}
+
+function httpPost(port: number, urlPath: string, body: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const req = http.request(
+      `http://localhost:${port}${urlPath}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+        },
+      },
+      (res) => {
+        let data = '';
+        res.on('data', (chunk: Buffer) => { data += chunk.toString(); });
+        res.on('end', () => {
+          if (res.statusCode && res.statusCode >= 400) {
+            reject(new Error(`Server returned ${res.statusCode}: ${data.slice(0, 200)}`));
+          } else {
+            resolve(data);
+          }
+        });
+      },
+    );
+    req.on('error', reject);
+    req.setTimeout(30000, () => { req.destroy(); reject(new Error('Request timed out')); });
+    req.write(body);
+    req.end();
+  });
 }
 
 function checkServerHealth(port: number): Promise<boolean> {

@@ -177,14 +177,16 @@ export function TreemapView() {
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const observer = new ResizeObserver(() => {
+    const measure = () => {
       const w = el.clientWidth - 8;
       const h = el.clientHeight - 8;
       if (w > 0 && h > 0) setContainerSize({ w, h });
-    });
+    };
+    const observer = new ResizeObserver(measure);
     observer.observe(el);
-    setContainerSize({ w: el.clientWidth - 8 || 300, h: el.clientHeight - 8 || 400 });
-    return () => observer.disconnect();
+    // Defer initial measurement so flex layout has settled
+    const raf = requestAnimationFrame(measure);
+    return () => { observer.disconnect(); cancelAnimationFrame(raf); };
   }, []);
 
   // Shift+scroll zoom centered on mouse position (native listener for passive:false)

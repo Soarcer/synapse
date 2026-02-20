@@ -1,5 +1,6 @@
 import { useState, useCallback, type ReactNode } from 'react';
 import { highlight, highlightJSON } from '../../../utils/syntaxHighlight';
+import { copyToClipboard } from '../../../utils/clipboard';
 
 // ── Utility Functions ───────────────────────────────────────────
 
@@ -22,11 +23,12 @@ export function shortPath(path: string | undefined): string {
 
 export function CopyButton({ text, label }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(text).then(() => {
+  const handleCopy = useCallback(async () => {
+    const ok = await copyToClipboard(text);
+    if (ok) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-    });
+    }
   }, [text]);
 
   return (

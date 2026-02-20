@@ -4,6 +4,7 @@ import { ConfirmDialog } from '../ConfirmDialog';
 import type { ToolCallSummary, PromptAnalysis } from '@synapse-ai/core';
 import { formatTime, formatDuration } from '@synapse-ai/core';
 import { apiUrl } from '../../utils/api';
+import { copyToClipboard } from '../../utils/clipboard';
 import { extractUserMessage } from '../../utils/promptText';
 import { toast } from '../Toast';
 import { Tooltip } from '../ui/Tooltip';
@@ -1320,9 +1321,9 @@ function PromptAiSection({
           <div className="relative bg-[#0d1117] border border-gray-800 rounded p-2 pr-8 text-xs text-gray-300 leading-relaxed">
             {formatPanelText(analysis.rewrite)}
             <button
-              onClick={() => {
-                navigator.clipboard.writeText(analysis.rewrite);
-                toast('Copied to clipboard', 'success');
+              onClick={async () => {
+                const ok = await copyToClipboard(analysis.rewrite);
+                if (ok) toast('Copied to clipboard', 'success');
               }}
               className="absolute top-1 right-1 p-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
               title="Copy rewrite"

@@ -357,25 +357,6 @@ function AgentGraphInner() {
     return result;
   }, [visibleEdges, mergedHighlightIds, edgeCostMap]);
 
-  // Fit view when new nodes are added (unless viewport is locked)
-  useEffect(() => {
-    if (rawNodes.length > prevNodeCountRef.current && !lockViewport) {
-      setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 100);
-    }
-    prevNodeCountRef.current = rawNodes.length;
-  }, [rawNodes.length, fitView, lockViewport]);
-
-  // One-time fitView after initial measurement pass — snaps layout into correct positions
-  const initialMeasureDoneRef = useRef(false);
-  useEffect(() => {
-    if (initialMeasureDoneRef.current) return;
-    const hasMeasured = layoutNodes.some((n) => n.measured?.width);
-    if (hasMeasured && layoutNodes.length > 1) {
-      initialMeasureDoneRef.current = true;
-      setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 50);
-    }
-  }, [layoutNodes, fitView]);
-
   // Resolve a node ID to a visible ID — if the node is a grouped tool,
   // return its parent toolgroup ID instead so fitView can find it.
   const resolveVisibleId = useCallback(
@@ -393,6 +374,41 @@ function AgentGraphInner() {
     },
     [visibleNodes, rawEdges],
   );
+
+  // Zoom to newest node when nodes are added (unless viewport is locked).
+  // Must resolve raw node IDs to visible IDs because tool nodes are replaced
+  // by synthetic toolgroup nodes — fitView on a non-existent ID causes React
+  // Flow to compute empty bounds at (0,0) and zoom to the canvas origin.
+  const prevNodeIdsRef = useRef<Set<string>>(new Set(rawNodes.map((n) => n.id)));
+  useEffect(() => {
+    if (rawNodes.length > prevNodeCountRef.current && !lockViewport) {
+      const prevIds = prevNodeIdsRef.current;
+      const newNodes = rawNodes.filter((n) => !prevIds.has(n.id));
+      const target = newNodes[newNodes.length - 1];
+      if (target) {
+        const visibleId = resolveVisibleId(target.id);
+        if (visibleId) {
+          setTimeout(() => fitView({ nodes: [{ id: visibleId }], duration: 300, padding: 1 }), 100);
+        }
+        // No visible representation (collapsed/hidden) — skip zoom
+      } else {
+        setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 100);
+      }
+    }
+    prevNodeCountRef.current = rawNodes.length;
+    prevNodeIdsRef.current = new Set(rawNodes.map((n) => n.id));
+  }, [rawNodes, fitView, lockViewport, resolveVisibleId]);
+
+  // One-time fitView after initial measurement pass — snaps layout into correct positions
+  const initialMeasureDoneRef = useRef(false);
+  useEffect(() => {
+    if (initialMeasureDoneRef.current) return;
+    const hasMeasured = layoutNodes.some((n) => n.measured?.width);
+    if (hasMeasured && layoutNodes.length > 1) {
+      initialMeasureDoneRef.current = true;
+      setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 50);
+    }
+  }, [layoutNodes, fitView]);
 
   // Center on node when selected from lens panel
   useEffect(() => {

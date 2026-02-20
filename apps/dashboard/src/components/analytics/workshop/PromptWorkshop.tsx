@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { formatRewrite } from '../shared/formatMarkdown';
+import { copyToClipboard } from '../../../utils/clipboard';
 import type { AnalysisMode } from '../prompts/PromptAnalyzer';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -204,10 +205,12 @@ export function PromptWorkshop({ analysisMode, modelId }: PromptWorkshopProps) {
     }
   }, [promptText, analysisMode, isAnalyzing, modelId]);
 
-  const handleCopy = useCallback((text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopyFeedback(true);
-    setTimeout(() => setCopyFeedback(false), 1500);
+  const handleCopy = useCallback(async (text: string) => {
+    const ok = await copyToClipboard(text);
+    if (ok) {
+      setCopyFeedback(true);
+      setTimeout(() => setCopyFeedback(false), 1500);
+    }
   }, []);
 
   const handleSendToClaude = useCallback(async (text: string) => {
@@ -223,12 +226,12 @@ export function PromptWorkshop({ analysisMode, modelId }: PromptWorkshopProps) {
         setSendFeedback('sent');
       } else {
         // Fallback: copy to clipboard
-        navigator.clipboard.writeText(text);
+        await copyToClipboard(text);
         setSendFeedback('copied');
       }
     } catch {
       // Network error fallback: copy to clipboard
-      navigator.clipboard.writeText(text);
+      await copyToClipboard(text);
       setSendFeedback('copied');
     }
     setTimeout(() => setSendFeedback(null), 2500);

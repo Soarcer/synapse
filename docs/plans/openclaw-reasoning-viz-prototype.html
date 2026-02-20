@@ -1,0 +1,1853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenClaw Reasoning Visualizer — Prototype</title>
+<style>
+  :root {
+    --bg-primary: #0d1117;
+    --bg-secondary: #161b22;
+    --bg-tertiary: #21262d;
+    --bg-card: #1c2129;
+    --border: #30363d;
+    --border-active: #58a6ff;
+    --text-primary: #e6edf3;
+    --text-secondary: #8b949e;
+    --text-muted: #6e7681;
+    --accent-blue: #58a6ff;
+    --accent-purple: #bc8cff;
+    --accent-green: #3fb950;
+    --accent-red: #f85149;
+    --accent-orange: #d29922;
+    --accent-cyan: #39d2c0;
+    --thinking-bg: #1a1f35;
+    --thinking-border: #3b4a7a;
+    --tool-bg: #1a2a1a;
+    --tool-border: #2d5a2d;
+    --tool-error-bg: #2a1a1a;
+    --tool-error-border: #5a2d2d;
+    --text-bg: #1a1f22;
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.4);
+    --radius: 8px;
+    --radius-lg: 12px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', 'Fira Code', monospace;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* Layout */
+  .app {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    grid-template-rows: 48px 1fr 40px;
+    height: 100vh;
+  }
+
+  /* Header */
+  .header {
+    grid-column: 1 / -1;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 16px;
+  }
+
+  .header-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--accent-cyan);
+  }
+
+  .header-logo svg { width: 22px; height: 22px; }
+
+  .header-tabs {
+    display: flex;
+    gap: 2px;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    padding: 2px;
+  }
+
+  .header-tab {
+    padding: 6px 14px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    border: none;
+    background: none;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+
+  .header-tab:hover { color: var(--text-primary); background: rgba(255,255,255,0.05); }
+  .header-tab.active { color: var(--text-primary); background: var(--bg-secondary); }
+
+  .header-live {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--accent-green);
+    font-weight: 500;
+  }
+
+  .live-dot {
+    width: 8px; height: 8px;
+    background: var(--accent-green);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Sidebar */
+  .sidebar {
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 12px;
+  }
+
+  .sidebar-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+    padding: 0 4px;
+  }
+
+  .session-card {
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    margin-bottom: 4px;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+  }
+
+  .session-card:hover { background: var(--bg-tertiary); }
+  .session-card.active { background: var(--bg-tertiary); border-color: var(--accent-blue); }
+
+  .session-card .session-model {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .session-card .session-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  .session-live-badge {
+    font-size: 9px;
+    background: var(--accent-green);
+    color: #000;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 600;
+  }
+
+  .provider-badge {
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 600;
+  }
+  .provider-anthropic { background: #d4a574; color: #1a0f00; }
+  .provider-openai { background: #74d4a5; color: #001a0f; }
+  .provider-google { background: #7498d4; color: #000f1a; }
+
+  /* Main content */
+  .main {
+    overflow: hidden;
+    position: relative;
+  }
+
+  .view { display: none; height: 100%; }
+  .view.active { display: flex; flex-direction: column; }
+
+  /* ====== TIMELINE VIEW ====== */
+  .timeline-container {
+    flex: 1;
+    overflow-x: auto;
+    overflow-y: auto;
+    padding: 20px;
+  }
+
+  .timeline-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-secondary);
+  }
+
+  .timeline-header h3 {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+
+  .timeline-legend {
+    display: flex;
+    gap: 16px;
+    margin-left: auto;
+    font-size: 11px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-muted);
+  }
+
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 2px;
+  }
+
+  .timeline-svg {
+    min-width: 900px;
+  }
+
+  /* SVG timeline styles */
+  .tl-turn-bg { fill: var(--bg-tertiary); rx: 4; opacity: 0.4; }
+  .tl-turn-bg:hover { opacity: 0.7; }
+
+  .tl-segment { rx: 4; cursor: pointer; transition: opacity 0.15s; }
+  .tl-segment:hover { opacity: 0.85; filter: brightness(1.2); }
+
+  .tl-thinking { fill: #3b5998; }
+  .tl-tool-success { fill: #238636; }
+  .tl-tool-error { fill: #da3633; }
+  .tl-text { fill: #484f58; }
+
+  .tl-label {
+    font-size: 10px;
+    fill: var(--text-primary);
+    font-family: inherit;
+    pointer-events: none;
+  }
+
+  .tl-turn-label {
+    font-size: 11px;
+    fill: var(--text-secondary);
+    font-family: inherit;
+    font-weight: 500;
+  }
+
+  .tl-time-axis {
+    font-size: 10px;
+    fill: var(--text-muted);
+    font-family: inherit;
+  }
+
+  .tl-grid-line { stroke: var(--border); stroke-width: 0.5; stroke-dasharray: 4 4; }
+
+  /* ====== REASONING VIEW ====== */
+  .reasoning-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    max-width: 800px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .reasoning-turn {
+    margin-bottom: 24px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  .turn-header {
+    padding: 12px 16px;
+    background: var(--bg-tertiary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+  }
+
+  .turn-number {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent-blue);
+    background: rgba(88, 166, 255, 0.12);
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  .turn-title {
+    font-size: 13px;
+    font-weight: 500;
+    flex: 1;
+  }
+
+  .turn-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+    display: flex;
+    gap: 12px;
+  }
+
+  .turn-body { padding: 16px; }
+
+  .reasoning-section {
+    margin-bottom: 16px;
+  }
+
+  .section-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .section-label svg { width: 12px; height: 12px; opacity: 0.6; }
+
+  .thinking-block {
+    background: var(--thinking-bg);
+    border: 1px solid var(--thinking-border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    font-size: 12px;
+    line-height: 1.65;
+    color: #b8c7e0;
+    white-space: pre-wrap;
+  }
+
+  .plan-steps {
+    list-style: none;
+    padding: 0;
+  }
+
+  .plan-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 6px 0;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .plan-check {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .plan-check.done {
+    background: var(--accent-green);
+    border-color: var(--accent-green);
+  }
+
+  .plan-check.done::after {
+    content: '✓';
+    font-size: 10px;
+    color: #000;
+    font-weight: bold;
+  }
+
+  .plan-check.current {
+    border-color: var(--accent-blue);
+    background: rgba(88, 166, 255, 0.15);
+  }
+
+  .plan-check.current::after {
+    content: '→';
+    font-size: 10px;
+    color: var(--accent-blue);
+  }
+
+  .confidence-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .confidence-track {
+    width: 120px;
+    height: 6px;
+    background: var(--bg-tertiary);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .confidence-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.5s ease;
+  }
+
+  .confidence-high { background: var(--accent-green); }
+  .confidence-medium { background: var(--accent-orange); }
+  .confidence-low { background: var(--accent-red); }
+
+  .confidence-label {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .tool-call-card {
+    background: var(--tool-bg);
+    border: 1px solid var(--tool-border);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .tool-call-card:hover { border-color: var(--accent-green); }
+
+  .tool-call-card.error {
+    background: var(--tool-error-bg);
+    border-color: var(--tool-error-border);
+  }
+
+  .tool-icon {
+    font-size: 14px;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(63, 185, 80, 0.1);
+    border-radius: 6px;
+  }
+
+  .tool-call-card.error .tool-icon { background: rgba(248, 81, 73, 0.1); }
+
+  .tool-info { flex: 1; }
+
+  .tool-name {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--accent-green);
+  }
+
+  .tool-call-card.error .tool-name { color: var(--accent-red); }
+
+  .tool-input {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 400px;
+  }
+
+  .tool-duration {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .tool-status {
+    font-size: 14px;
+  }
+
+  .decision-block {
+    background: rgba(188, 140, 255, 0.06);
+    border: 1px solid rgba(188, 140, 255, 0.2);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    font-size: 12px;
+    line-height: 1.65;
+    color: #c9b8e0;
+  }
+
+  /* ====== TOOL TREE VIEW ====== */
+  .tree-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .tree-canvas {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Tree node styles */
+  .tree-node {
+    cursor: pointer;
+    transition: filter 0.15s;
+  }
+  .tree-node:hover { filter: brightness(1.15); }
+
+  .tree-node-rect { rx: 8; ry: 8; }
+  .tree-node-label {
+    font-size: 11px;
+    font-family: inherit;
+    fill: var(--text-primary);
+    text-anchor: middle;
+    dominant-baseline: middle;
+  }
+  .tree-node-sublabel {
+    font-size: 9px;
+    font-family: inherit;
+    fill: var(--text-muted);
+    text-anchor: middle;
+    dominant-baseline: middle;
+  }
+  .tree-edge {
+    stroke: var(--border);
+    stroke-width: 1.5;
+    fill: none;
+    marker-end: url(#arrowhead);
+  }
+  .tree-edge-active { stroke: var(--accent-blue); stroke-width: 2; }
+
+  /* Detail panel (shared) */
+  .detail-panel {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 360px;
+    background: var(--bg-secondary);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    transform: translateX(100%);
+    transition: transform 0.2s ease;
+    z-index: 10;
+    box-shadow: var(--shadow-lg);
+  }
+
+  .detail-panel.open { transform: translateX(0); }
+
+  .detail-header {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    background: var(--bg-secondary);
+    z-index: 1;
+  }
+
+  .detail-title {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .detail-close {
+    width: 24px; height: 24px;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .detail-close:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+
+  .detail-body {
+    padding: 16px;
+    font-size: 12px;
+    line-height: 1.65;
+  }
+
+  .detail-section {
+    margin-bottom: 16px;
+  }
+
+  .detail-section-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+
+  .detail-code {
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .detail-kv {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 12px;
+    font-size: 11px;
+  }
+
+  .detail-kv dt { color: var(--text-muted); }
+  .detail-kv dd { color: var(--text-primary); }
+
+  /* ====== METRICS BAR ====== */
+  .metrics-bar {
+    grid-column: 1 / -1;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 24px;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .metric {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .metric-value {
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+
+  .metric-icon { opacity: 0.5; font-size: 12px; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--bg-tertiary); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border); }
+
+  /* Animations */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .reasoning-turn { animation: fadeIn 0.3s ease; }
+
+  /* Tooltip */
+  .tooltip {
+    position: fixed;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    font-size: 11px;
+    color: var(--text-primary);
+    pointer-events: none;
+    z-index: 100;
+    box-shadow: var(--shadow-lg);
+    max-width: 300px;
+    display: none;
+  }
+
+  .tooltip.visible { display: block; }
+
+  .raw-toggle {
+    font-size: 10px;
+    color: var(--accent-blue);
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-family: inherit;
+    padding: 2px 0;
+    margin-top: 6px;
+  }
+
+  .raw-toggle:hover { text-decoration: underline; }
+
+  .raw-text {
+    display: none;
+    margin-top: 8px;
+    padding: 10px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: pre-wrap;
+    line-height: 1.5;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .raw-text.visible { display: block; }
+
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 16px 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Header -->
+  <header class="header">
+    <div class="header-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+      </svg>
+      reasoning-viz
+    </div>
+
+    <div class="header-tabs">
+      <button class="header-tab active" onclick="switchView('timeline')">Timeline</button>
+      <button class="header-tab" onclick="switchView('reasoning')">Reasoning</button>
+      <button class="header-tab" onclick="switchView('tree')">Tool Tree</button>
+    </div>
+
+    <div class="header-live">
+      <div class="live-dot"></div>
+      LIVE — streaming
+    </div>
+  </header>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-title">Sessions</div>
+
+    <div class="session-card active" onclick="selectSession(0)">
+      <div class="session-model">
+        <span class="session-live-badge">LIVE</span>
+        claude-opus-4-6
+      </div>
+      <div class="session-meta">5 turns &middot; 23s &middot; $0.08</div>
+    </div>
+
+    <div class="session-card" onclick="selectSession(1)">
+      <div class="session-model">
+        <span class="provider-badge provider-openai">openai</span>
+        gpt-4o
+      </div>
+      <div class="session-meta">8 turns &middot; 45s &middot; $0.12</div>
+    </div>
+
+    <div class="session-card" onclick="selectSession(2)">
+      <div class="session-model">
+        <span class="provider-badge provider-google">google</span>
+        gemini-2.0-pro
+      </div>
+      <div class="session-meta">3 turns &middot; 18s &middot; $0.02</div>
+    </div>
+
+    <div class="session-card" onclick="selectSession(3)">
+      <div class="session-model">
+        <span class="provider-badge provider-anthropic">anthropic</span>
+        claude-sonnet-4-6
+      </div>
+      <div class="session-meta">12 turns &middot; 1m 32s &middot; $0.21</div>
+    </div>
+
+    <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border);">
+      <div class="sidebar-title">Load Session</div>
+      <div style="padding: 8px 4px; font-size: 11px; color: var(--text-muted); cursor: pointer;">
+        + Load JSONL file...
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main">
+
+    <!-- ====== TIMELINE VIEW ====== -->
+    <div class="view active" id="view-timeline">
+      <div class="timeline-header">
+        <h3>Session Timeline — claude-opus-4-6</h3>
+        <div class="timeline-legend">
+          <div class="legend-item"><div class="legend-dot" style="background: #3b5998;"></div> Thinking</div>
+          <div class="legend-item"><div class="legend-dot" style="background: #238636;"></div> Tool (OK)</div>
+          <div class="legend-item"><div class="legend-dot" style="background: #da3633;"></div> Tool (Err)</div>
+          <div class="legend-item"><div class="legend-dot" style="background: #484f58;"></div> Response</div>
+        </div>
+      </div>
+      <div class="timeline-container">
+        <svg class="timeline-svg" width="900" height="420" viewBox="0 0 900 420">
+          <!-- Time axis -->
+          <g transform="translate(80, 20)">
+            <line x1="0" y1="0" x2="0" y2="370" class="tl-grid-line"/>
+            <text x="0" y="-6" class="tl-time-axis" text-anchor="middle">0s</text>
+            <line x1="160" y1="0" x2="160" y2="370" class="tl-grid-line"/>
+            <text x="160" y="-6" class="tl-time-axis" text-anchor="middle">5s</text>
+            <line x1="320" y1="0" x2="320" y2="370" class="tl-grid-line"/>
+            <text x="320" y="-6" class="tl-time-axis" text-anchor="middle">10s</text>
+            <line x1="480" y1="0" x2="480" y2="370" class="tl-grid-line"/>
+            <text x="480" y="-6" class="tl-time-axis" text-anchor="middle">15s</text>
+            <line x1="640" y1="0" x2="640" y2="370" class="tl-grid-line"/>
+            <text x="640" y="-6" class="tl-time-axis" text-anchor="middle">20s</text>
+            <line x1="780" y1="0" x2="780" y2="370" class="tl-grid-line"/>
+            <text x="780" y="-6" class="tl-time-axis" text-anchor="middle">25s</text>
+          </g>
+
+          <!-- Turn 1 -->
+          <g transform="translate(0, 30)">
+            <text x="70" y="30" class="tl-turn-label" text-anchor="end">Turn 1</text>
+            <rect x="80" y="8" width="620" height="44" class="tl-turn-bg"/>
+
+            <!-- Thinking: 0-2.1s -->
+            <rect x="80" y="12" width="68" height="36" class="tl-segment tl-thinking"
+                  onmouseover="showTooltip(event, 'Thinking: Plan approach\n2.1s · Analyzing project structure')"
+                  onmouseout="hideTooltip()"
+                  onclick="showDetail('thinking', 0)"/>
+            <text x="114" y="34" class="tl-label">Plan</text>
+
+            <!-- Tool: bash grep 2.1-2.4s -->
+            <rect x="148" y="12" width="12" height="36" class="tl-segment tl-tool-success"
+                  onmouseover="showTooltip(event, 'bash: grep -r authenticate\n0.3s · 3 matches found')"
+                  onmouseout="hideTooltip()"
+                  onclick="showDetail('tool', 0)"/>
+
+            <!-- Thinking: 2.4-4.2s -->
+            <rect x="160" y="12" width="58" height="36" class="tl-segment tl-thinking"
+                  onmouseover="showTooltip(event, 'Thinking: Analyze grep results\n1.8s · Found auth handler location')"
+                  onmouseout="hideTooltip()"
+                  onclick="showDetail('thinking', 1)"/>
+            <text x="189" y="34" class="tl-label">Analyze</text>
+
+            <!-- Tool: read main.ts 4.2-4.3s -->
+            <rect x="218" y="12" width="8" height="36" class="tl-segment tl-tool-success"
+                  onmouseover="showTooltip(event, 'read: src/auth/login.ts\n0.1s · 142 lines')"
+                  onmouseout="hideTooltip()"
+                  onclick="showDetail('tool', 1)"/>
+
+            <!-- Tool: read config.ts 4.3-4.4s (parallel) -->
+            <rect x="226" y="12" width="8" height="36" class="tl-segment tl-tool-success"
+                  onmouseover="showTooltip(event, 'read: src/config/auth.ts\n0.1s · 58 lines')"
+                  onmouseout="hideTooltip()"
+                  onclick="showDetail('tool', 2)"/>
+
+            <!-- Thinking: 4.4-5.9s -->
+            <rect x="234" y="12" width="48" height="36" class="tl-segment tl-thinking"
+                  onmouseover="showTooltip(event, 'Thinking: Identify bug\n1.5s · Found off-by-one in token expiry check')"
+                  onmouseout="hideTooltip()"
+                  onclick="showDetail('thinking', 2)"/>
+            <text x="258" y="34" class="tl-label">Decide</text>
+
+            <!-- Tool: edit 5.9-6.1s -->
+            <rect x="282" y="12" width="8" height="36" class="tl-segment tl-tool-success"
+                  onmouseover="showTooltip(event, 'edit: src/auth/login.ts:42\n0.2s · Changed < to <=')"
+                  onmouseout="hideTooltip()"
+                  onclick="showDetail('tool', 3)"/>
+
+            <!-- Text response: 6.1-9.3s -->
+            <rect x="290" y="12" width="104" height="36" class="tl-segment tl-text"
+                  onmouseover="showTooltip(event, 'Response: Summarizing fix\n3.2s · 180 tokens')"
+                  onmouseout="hideTooltip()"/>
+            <text x="342" y="34" class="tl-label">Response</text>
+          </g>
+
+          <!-- Turn 2 -->
+          <g transform="translate(0, 100)">
+            <text x="70" y="30" class="tl-turn-label" text-anchor="end">Turn 2</text>
+            <rect x="80" y="8" width="540" height="44" class="tl-turn-bg"/>
+
+            <!-- Thinking -->
+            <rect x="80" y="12" width="52" height="36" class="tl-segment tl-thinking"
+                  onmouseover="showTooltip(event, 'Thinking: Plan test strategy\n1.6s · Need to verify the fix works')"
+                  onmouseout="hideTooltip()"/>
+            <text x="106" y="34" class="tl-label">Plan</text>
+
+            <!-- Tool: bash test (error) -->
+            <rect x="132" y="12" width="48" height="36" class="tl-segment tl-tool-error"
+                  onmouseover="showTooltip(event, 'bash: npm test -- auth\n1.5s · FAILED: 2 tests failed')"
+                  onmouseout="hideTooltip()"
+                  onclick="showDetail('tool-error', 0)"/>
+            <text x="156" y="34" class="tl-label" style="fill: #ffa198;">test ✗</text>
+
+            <!-- Thinking -->
+            <rect x="180" y="12" width="64" height="36" class="tl-segment tl-thinking"
+                  onmouseover="showTooltip(event, 'Thinking: Debug test failure\n2.0s · Test expects strict equality, need to update assertion')"
+                  onmouseout="hideTooltip()"/>
+            <text x="212" y="34" class="tl-label">Debug</text>
+
+            <!-- Tool: edit test -->
+            <rect x="244" y="12" width="8" height="36" class="tl-segment tl-tool-success"
+                  onmouseover="showTooltip(event, 'edit: tests/auth.test.ts:28\n0.2s · Updated assertion')"
+                  onmouseout="hideTooltip()"/>
+
+            <!-- Tool: bash test (success) -->
+            <rect x="252" y="12" width="40" height="36" class="tl-segment tl-tool-success"
+                  onmouseover="showTooltip(event, 'bash: npm test -- auth\n1.2s · All 15 tests passed')"
+                  onmouseout="hideTooltip()"/>
+            <text x="272" y="34" class="tl-label">test ✓</text>
+
+            <!-- Text -->
+            <rect x="292" y="12" width="80" height="36" class="tl-segment tl-text"
+                  onmouseover="showTooltip(event, 'Response: All tests passing\n2.5s · 120 tokens')"
+                  onmouseout="hideTooltip()"/>
+            <text x="332" y="34" class="tl-label">Response</text>
+          </g>
+
+          <!-- Turn 3 -->
+          <g transform="translate(0, 170)">
+            <text x="70" y="30" class="tl-turn-label" text-anchor="end">Turn 3</text>
+            <rect x="80" y="8" width="380" height="44" class="tl-turn-bg"/>
+
+            <rect x="80" y="12" width="40" height="36" class="tl-segment tl-thinking"
+                  onmouseover="showTooltip(event, 'Thinking: Review changes\n1.2s · Check for edge cases')"
+                  onmouseout="hideTooltip()"/>
+            <text x="100" y="34" class="tl-label">Review</text>
+
+            <rect x="120" y="12" width="10" height="36" class="tl-segment tl-tool-success"
+                  onmouseover="showTooltip(event, 'read: src/auth/login.ts\n0.1s · Verify edit')"
+                  onmouseout="hideTooltip()"/>
+
+            <rect x="130" y="12" width="36" height="36" class="tl-segment tl-thinking"
+                  onmouseover="showTooltip(event, 'Thinking: Consider edge cases\n1.1s · Timezone handling, leap seconds')"
+                  onmouseout="hideTooltip()"/>
+            <text x="148" y="34" class="tl-label">Edge</text>
+
+            <rect x="166" y="12" width="10" height="36" class="tl-segment tl-tool-success"
+                  onmouseover="showTooltip(event, 'edit: src/auth/login.ts:45\n0.2s · Added timezone normalization')"
+                  onmouseout="hideTooltip()"/>
+
+            <rect x="176" y="12" width="72" height="36" class="tl-segment tl-text"
+                  onmouseover="showTooltip(event, 'Response: Summary of all changes\n2.3s · 210 tokens')"
+                  onmouseout="hideTooltip()"/>
+            <text x="212" y="34" class="tl-label">Response</text>
+          </g>
+
+          <!-- Turn 4 -->
+          <g transform="translate(0, 240)">
+            <text x="70" y="30" class="tl-turn-label" text-anchor="end">Turn 4</text>
+            <rect x="80" y="8" width="480" height="44" class="tl-turn-bg"/>
+
+            <rect x="80" y="12" width="56" height="36" class="tl-segment tl-thinking"
+                  onmouseover="showTooltip(event, 'Thinking: Commit strategy\n1.8s · Deciding commit message and which files to stage')"
+                  onmouseout="hideTooltip()"/>
+            <text x="108" y="34" class="tl-label">Plan</text>
+
+            <rect x="136" y="12" width="12" height="36" class="tl-segment tl-tool-success"
+                  onmouseover="showTooltip(event, 'bash: git diff --stat\n0.3s · 2 files changed')"
+                  onmouseout="hideTooltip()"/>
+
+            <rect x="148" y="12" width="12" height="36" class="tl-segment tl-tool-success"
+                  onmouseover="showTooltip(event, 'bash: git add src/auth/login.ts tests/auth.test.ts\n0.2s')"
+                  onmouseout="hideTooltip()"/>
+
+            <rect x="160" y="12" width="16" height="36" class="tl-segment tl-tool-success"
+                  onmouseover="showTooltip(event, 'bash: git commit -m &quot;fix: token expiry off-by-one&quot;\n0.4s')"
+                  onmouseout="hideTooltip()"/>
+
+            <rect x="176" y="12" width="96" height="36" class="tl-segment tl-text"
+                  onmouseover="showTooltip(event, 'Response: Commit confirmed\n3.0s · 150 tokens')"
+                  onmouseout="hideTooltip()"/>
+            <text x="224" y="34" class="tl-label">Response</text>
+          </g>
+
+          <!-- Turn 5 (live / in-progress) -->
+          <g transform="translate(0, 310)">
+            <text x="70" y="30" class="tl-turn-label" text-anchor="end">Turn 5</text>
+            <rect x="80" y="8" width="200" height="44" class="tl-turn-bg" style="opacity: 0.2;"/>
+
+            <rect x="80" y="12" width="48" height="36" class="tl-segment tl-thinking" style="opacity: 0.7;">
+              <animate attributeName="width" values="48;52;48" dur="2s" repeatCount="indefinite"/>
+            </rect>
+            <text x="104" y="34" class="tl-label" style="opacity: 0.7;">Thinking...</text>
+
+            <!-- Pulsing cursor -->
+            <rect x="128" y="12" width="3" height="36" fill="var(--accent-cyan)" opacity="0.6">
+              <animate attributeName="opacity" values="0.6;0.2;0.6" dur="1s" repeatCount="indefinite"/>
+            </rect>
+          </g>
+        </svg>
+      </div>
+
+      <!-- Detail panel for timeline -->
+      <div class="detail-panel" id="timeline-detail">
+        <div class="detail-header">
+          <span class="detail-title" id="detail-title">Tool: bash</span>
+          <button class="detail-close" onclick="closeDetail('timeline-detail')">&times;</button>
+        </div>
+        <div class="detail-body" id="detail-body">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== REASONING VIEW ====== -->
+    <div class="view" id="view-reasoning">
+      <div class="reasoning-container">
+
+        <!-- Turn 1 -->
+        <div class="reasoning-turn">
+          <div class="turn-header" onclick="toggleTurn(this)">
+            <span class="turn-number">Turn 1</span>
+            <span class="turn-title">Fix authentication bug in login handler</span>
+            <div class="turn-meta">
+              <span>9.3s</span>
+              <span>8,420 tokens</span>
+              <span>$0.032</span>
+            </div>
+          </div>
+          <div class="turn-body">
+
+            <!-- Intent -->
+            <div class="reasoning-section">
+              <div class="section-label">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                Intent
+              </div>
+              <div class="thinking-block">The user wants to fix an authentication bug in the login handler. I need to first understand the project structure, locate the auth-related files, identify the bug, and apply a fix. I should also verify the fix with tests.</div>
+            </div>
+
+            <!-- Plan -->
+            <div class="reasoning-section">
+              <div class="section-label">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                Plan
+              </div>
+              <ul class="plan-steps">
+                <li class="plan-step">
+                  <div class="plan-check done"></div>
+                  <span>Search project for auth-related files using grep</span>
+                </li>
+                <li class="plan-step">
+                  <div class="plan-check done"></div>
+                  <span>Read the login handler and auth config files</span>
+                </li>
+                <li class="plan-step">
+                  <div class="plan-check done"></div>
+                  <span>Identify the bug in token validation logic</span>
+                </li>
+                <li class="plan-step">
+                  <div class="plan-check done"></div>
+                  <span>Apply the fix (< to <= for expiry check)</span>
+                </li>
+              </ul>
+            </div>
+
+            <!-- Decision -->
+            <div class="reasoning-section">
+              <div class="section-label">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                Decision
+              </div>
+              <div class="decision-block">I'll start by searching for authentication-related files using grep, since I don't yet know the project structure. This is faster than reading directory listings. After locating the files, I'll read them to understand the current token validation logic before making any changes.</div>
+              <div class="confidence-bar">
+                <span class="confidence-label">Confidence:</span>
+                <div class="confidence-track">
+                  <div class="confidence-fill confidence-high" style="width: 85%;"></div>
+                </div>
+                <span class="confidence-label">85%</span>
+              </div>
+            </div>
+
+            <hr class="divider">
+
+            <!-- Tool calls -->
+            <div class="reasoning-section">
+              <div class="section-label">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                Tool Calls
+              </div>
+              <div class="tool-call-card">
+                <div class="tool-icon">$</div>
+                <div class="tool-info">
+                  <div class="tool-name">bash</div>
+                  <div class="tool-input">grep -r "authenticate" --include="*.ts" src/</div>
+                </div>
+                <div class="tool-duration">0.3s</div>
+                <div class="tool-status">&#10003;</div>
+              </div>
+            </div>
+
+            <!-- Post-tool analysis -->
+            <div class="reasoning-section">
+              <div class="section-label">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                Analysis (post-tool)
+              </div>
+              <div class="thinking-block">Found three matches. The main auth handler is at src/auth/login.ts with a validateToken function. There's also src/config/auth.ts for token settings and src/middleware/auth.ts for the Express middleware. I should read the login handler and config first.</div>
+            </div>
+
+            <!-- More tool calls -->
+            <div class="reasoning-section">
+              <div class="tool-call-card">
+                <div class="tool-icon" style="font-size: 12px;">&#128196;</div>
+                <div class="tool-info">
+                  <div class="tool-name">read</div>
+                  <div class="tool-input">src/auth/login.ts</div>
+                </div>
+                <div class="tool-duration">0.1s</div>
+                <div class="tool-status">&#10003;</div>
+              </div>
+              <div class="tool-call-card">
+                <div class="tool-icon" style="font-size: 12px;">&#128196;</div>
+                <div class="tool-info">
+                  <div class="tool-name">read</div>
+                  <div class="tool-input">src/config/auth.ts</div>
+                </div>
+                <div class="tool-duration">0.1s</div>
+                <div class="tool-status">&#10003;</div>
+              </div>
+            </div>
+
+            <!-- Bug identification -->
+            <div class="reasoning-section">
+              <div class="section-label">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/></svg>
+                Bug Identified
+              </div>
+              <div class="thinking-block" style="border-color: var(--accent-red); background: rgba(248, 81, 73, 0.06);">Found the bug at line 42 of src/auth/login.ts:
+
+  if (tokenExpiry < Date.now())
+
+The comparison uses strict less-than (<), which means tokens expiring at exactly the current timestamp are considered valid for one more millisecond. This should be <= (less-than-or-equal) to properly reject tokens at the exact moment of expiry.
+
+This is an off-by-one temporal boundary bug.</div>
+              <div class="confidence-bar">
+                <span class="confidence-label">Confidence:</span>
+                <div class="confidence-track">
+                  <div class="confidence-fill confidence-high" style="width: 95%;"></div>
+                </div>
+                <span class="confidence-label">95%</span>
+              </div>
+            </div>
+
+            <!-- Fix applied -->
+            <div class="reasoning-section">
+              <div class="tool-call-card">
+                <div class="tool-icon">&#9998;</div>
+                <div class="tool-info">
+                  <div class="tool-name">edit</div>
+                  <div class="tool-input">src/auth/login.ts:42 — Changed &lt; to &lt;=</div>
+                </div>
+                <div class="tool-duration">0.2s</div>
+                <div class="tool-status">&#10003;</div>
+              </div>
+            </div>
+
+            <!-- Raw thinking toggle -->
+            <button class="raw-toggle" onclick="toggleRaw(this)">Show raw thinking block &darr;</button>
+            <div class="raw-text">The user asked me to fix the authentication bug in the login handler. Let me start by understanding the project structure.
+
+I should search for files related to authentication. Using grep will be faster than listing directories since I can search for specific patterns.
+
+Let me search for "authenticate" across TypeScript files...
+
+Found 3 matches:
+- src/auth/login.ts:42: if (tokenExpiry < Date.now()) { // authenticate check
+- src/config/auth.ts:15: export const AUTH_TOKEN_EXPIRY = 3600;
+- src/middleware/auth.ts:8: const authenticated = validateToken(req.headers.authorization);
+
+The main logic is in login.ts. Let me read it along with the config...
+
+After reading the files, I can see the issue. Line 42 uses `<` for the expiry comparison:
+  if (tokenExpiry < Date.now())
+
+This means at the exact millisecond of expiry, the token is still considered valid. It should be `<=` to reject at the boundary.
+
+I'm quite confident this is the bug because:
+1. The variable name is "tokenExpiry" suggesting it's the exact expiry time
+2. The surrounding comments say "reject expired tokens"
+3. Using < instead of <= is a classic off-by-one for time comparisons
+
+I'll apply the fix using the edit tool, changing < to <=.</div>
+          </div>
+        </div>
+
+        <!-- Turn 2 -->
+        <div class="reasoning-turn">
+          <div class="turn-header" onclick="toggleTurn(this)">
+            <span class="turn-number">Turn 2</span>
+            <span class="turn-title">Verify fix with test suite</span>
+            <div class="turn-meta">
+              <span>7.4s</span>
+              <span>5,230 tokens</span>
+              <span>$0.021</span>
+            </div>
+          </div>
+          <div class="turn-body">
+            <div class="reasoning-section">
+              <div class="section-label">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                Intent
+              </div>
+              <div class="thinking-block">Now I need to verify the fix works. I should run the existing auth test suite. If any tests fail, I'll need to update the test expectations to match the corrected behavior.</div>
+            </div>
+
+            <div class="reasoning-section">
+              <div class="tool-call-card error">
+                <div class="tool-icon" style="font-size: 12px;">$</div>
+                <div class="tool-info">
+                  <div class="tool-name">bash</div>
+                  <div class="tool-input">npm test -- --grep "auth"</div>
+                </div>
+                <div class="tool-duration">1.5s</div>
+                <div class="tool-status" style="color: var(--accent-red);">&#10007;</div>
+              </div>
+            </div>
+
+            <div class="reasoning-section">
+              <div class="section-label">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                Error Analysis
+              </div>
+              <div class="thinking-block" style="border-color: var(--accent-orange); background: rgba(210, 153, 34, 0.06);">2 of 15 tests failed. Both failures are in the boundary test:
+
+  "should reject token at exact expiry time" — Expected: rejected, Got: accepted
+
+This makes sense. The old tests were written assuming the buggy behavior (< instead of <=). The test at line 28 expects the token to be VALID at exact expiry, but our fix now correctly rejects it.
+
+I need to update the test assertion, not revert the fix. The test was validating the bug, not the correct behavior.</div>
+              <div class="confidence-bar">
+                <span class="confidence-label">Confidence:</span>
+                <div class="confidence-track">
+                  <div class="confidence-fill confidence-high" style="width: 92%;"></div>
+                </div>
+                <span class="confidence-label">92%</span>
+              </div>
+            </div>
+
+            <div class="reasoning-section">
+              <div class="tool-call-card">
+                <div class="tool-icon">&#9998;</div>
+                <div class="tool-info">
+                  <div class="tool-name">edit</div>
+                  <div class="tool-input">tests/auth.test.ts:28 — Updated assertion to expect rejection</div>
+                </div>
+                <div class="tool-duration">0.2s</div>
+                <div class="tool-status">&#10003;</div>
+              </div>
+              <div class="tool-call-card">
+                <div class="tool-icon" style="font-size: 12px;">$</div>
+                <div class="tool-info">
+                  <div class="tool-name">bash</div>
+                  <div class="tool-input">npm test -- --grep "auth"</div>
+                </div>
+                <div class="tool-duration">1.2s</div>
+                <div class="tool-status" style="color: var(--accent-green);">&#10003;</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Turn 5 (live) -->
+        <div class="reasoning-turn" style="border-color: var(--accent-cyan); border-style: dashed;">
+          <div class="turn-header">
+            <span class="turn-number" style="background: rgba(57, 210, 192, 0.12); color: var(--accent-cyan);">Turn 5</span>
+            <span class="turn-title" style="color: var(--accent-cyan);">Thinking...</span>
+            <div class="turn-meta">
+              <span>
+                <span class="live-dot" style="display: inline-block; width: 6px; height: 6px; vertical-align: middle;"></span>
+                streaming
+              </span>
+            </div>
+          </div>
+          <div class="turn-body">
+            <div class="reasoning-section">
+              <div class="thinking-block" style="border-color: var(--accent-cyan); border-style: dashed; opacity: 0.8;">
+                The user is now asking about edge cases with timezone handling. Let me think about whether the Date.now() comparison could be affected by<span style="animation: blink 1s infinite;">|</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ====== TOOL TREE VIEW ====== -->
+    <div class="view" id="view-tree">
+      <div class="tree-container">
+        <svg class="tree-canvas" viewBox="0 0 900 600">
+          <defs>
+            <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+              <polygon points="0 0, 8 3, 0 6" fill="var(--border)"/>
+            </marker>
+            <marker id="arrowhead-active" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+              <polygon points="0 0, 8 3, 0 6" fill="var(--accent-blue)"/>
+            </marker>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+              <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+
+          <!-- Edges -->
+          <g>
+            <!-- Prompt → Think 1 -->
+            <path d="M 450 65 L 450 95" class="tree-edge"/>
+            <!-- Think 1 → bash:grep -->
+            <path d="M 450 145 L 450 175" class="tree-edge"/>
+            <!-- bash:grep → Think 2 -->
+            <path d="M 450 225 L 450 255" class="tree-edge"/>
+            <!-- Think 2 → read (branch left) -->
+            <path d="M 420 305 C 420 330, 320 330, 320 355" class="tree-edge"/>
+            <!-- Think 2 → read (branch right) -->
+            <path d="M 480 305 C 480 330, 580 330, 580 355" class="tree-edge"/>
+            <!-- read left → Think 3 -->
+            <path d="M 320 405 C 320 430, 450 430, 450 435" class="tree-edge"/>
+            <!-- read right → Think 3 -->
+            <path d="M 580 405 C 580 430, 450 430, 450 435" class="tree-edge"/>
+            <!-- Think 3 → edit -->
+            <path d="M 450 485 L 450 505" class="tree-edge"/>
+            <!-- edit → response -->
+            <path d="M 450 555 L 450 570" class="tree-edge"/>
+          </g>
+
+          <!-- Nodes -->
+
+          <!-- User Prompt -->
+          <g class="tree-node" onclick="showTreeDetail('prompt')" transform="translate(450, 45)">
+            <rect class="tree-node-rect" x="-80" y="-20" width="160" height="40" fill="#1a2744" stroke="var(--accent-blue)" stroke-width="1.5"/>
+            <text class="tree-node-label" y="-3">Fix auth bug</text>
+            <text class="tree-node-sublabel" y="12" style="fill: var(--accent-blue);">User Prompt</text>
+          </g>
+
+          <!-- Think 1 -->
+          <g class="tree-node" onclick="showTreeDetail('think1')" transform="translate(450, 120)">
+            <rect class="tree-node-rect" x="-70" y="-25" width="140" height="50" fill="var(--thinking-bg)" stroke="var(--thinking-border)" stroke-width="1.5"/>
+            <text class="tree-node-label" y="-5">Plan Approach</text>
+            <text class="tree-node-sublabel" y="10">2.1s &middot; 85% conf</text>
+          </g>
+
+          <!-- bash: grep -->
+          <g class="tree-node" onclick="showTreeDetail('grep')" transform="translate(450, 200)">
+            <rect class="tree-node-rect" x="-70" y="-25" width="140" height="50" fill="var(--tool-bg)" stroke="var(--tool-border)" stroke-width="1.5"/>
+            <text class="tree-node-label" y="-5" style="fill: var(--accent-green);">bash: grep</text>
+            <text class="tree-node-sublabel" y="10">0.3s &middot; 3 matches</text>
+          </g>
+
+          <!-- Think 2 -->
+          <g class="tree-node" onclick="showTreeDetail('think2')" transform="translate(450, 280)">
+            <rect class="tree-node-rect" x="-70" y="-25" width="140" height="50" fill="var(--thinking-bg)" stroke="var(--thinking-border)" stroke-width="1.5"/>
+            <text class="tree-node-label" y="-5">Analyze Results</text>
+            <text class="tree-node-sublabel" y="10">1.8s &middot; 90% conf</text>
+          </g>
+
+          <!-- read: login.ts (left branch) -->
+          <g class="tree-node" onclick="showTreeDetail('read1')" transform="translate(320, 380)">
+            <rect class="tree-node-rect" x="-70" y="-25" width="140" height="50" fill="var(--tool-bg)" stroke="var(--tool-border)" stroke-width="1.5"/>
+            <text class="tree-node-label" y="-5" style="fill: var(--accent-green);">read: login.ts</text>
+            <text class="tree-node-sublabel" y="10">0.1s &middot; 142 lines</text>
+          </g>
+
+          <!-- read: auth.ts (right branch) -->
+          <g class="tree-node" onclick="showTreeDetail('read2')" transform="translate(580, 380)">
+            <rect class="tree-node-rect" x="-70" y="-25" width="140" height="50" fill="var(--tool-bg)" stroke="var(--tool-border)" stroke-width="1.5"/>
+            <text class="tree-node-label" y="-5" style="fill: var(--accent-green);">read: auth.ts</text>
+            <text class="tree-node-sublabel" y="10">0.1s &middot; 58 lines</text>
+          </g>
+
+          <!-- Think 3 (merge) -->
+          <g class="tree-node" onclick="showTreeDetail('think3')" transform="translate(450, 460)">
+            <rect class="tree-node-rect" x="-80" y="-25" width="160" height="50" fill="var(--thinking-bg)" stroke="var(--accent-red)" stroke-width="1.5" stroke-dasharray="4"/>
+            <text class="tree-node-label" y="-5" style="fill: var(--accent-red);">Bug Found!</text>
+            <text class="tree-node-sublabel" y="10">1.5s &middot; 95% conf &middot; off-by-one</text>
+          </g>
+
+          <!-- edit: fix -->
+          <g class="tree-node" onclick="showTreeDetail('edit')" transform="translate(450, 530)">
+            <rect class="tree-node-rect" x="-70" y="-25" width="140" height="50" fill="var(--tool-bg)" stroke="var(--accent-green)" stroke-width="2"/>
+            <text class="tree-node-label" y="-5" style="fill: var(--accent-green);">edit: login.ts</text>
+            <text class="tree-node-sublabel" y="10">0.2s &middot; line 42: &lt; &rarr; &lt;=</text>
+          </g>
+
+          <!-- Parallel indicator -->
+          <text x="450" y="345" class="tree-node-sublabel" text-anchor="middle" style="fill: var(--accent-purple);">&#x2016; parallel reads</text>
+
+          <!-- Data flow labels -->
+          <text x="470" y="163" class="tree-node-sublabel" style="fill: var(--text-muted); font-size: 8px;" text-anchor="start">search for auth files</text>
+          <text x="470" y="243" class="tree-node-sublabel" style="fill: var(--text-muted); font-size: 8px;" text-anchor="start">3 files found</text>
+        </svg>
+      </div>
+
+      <!-- Detail panel for tree -->
+      <div class="detail-panel" id="tree-detail">
+        <div class="detail-header">
+          <span class="detail-title" id="tree-detail-title">Node Details</span>
+          <button class="detail-close" onclick="closeDetail('tree-detail')">&times;</button>
+        </div>
+        <div class="detail-body" id="tree-detail-body">
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Metrics Bar -->
+  <footer class="metrics-bar">
+    <div class="metric">
+      <span class="metric-icon">&#9670;</span>
+      Tokens: <span class="metric-value">18,450 in</span> / <span class="metric-value">4,200 out</span>
+    </div>
+    <div class="metric">
+      <span class="metric-icon">$</span>
+      Cost: <span class="metric-value">$0.082</span>
+    </div>
+    <div class="metric">
+      <span class="metric-icon">&#9881;</span>
+      Cache hit: <span class="metric-value" style="color: var(--accent-green);">72%</span>
+    </div>
+    <div class="metric">
+      <span class="metric-icon">&#9202;</span>
+      Duration: <span class="metric-value">23.4s</span>
+    </div>
+    <div class="metric">
+      <span class="metric-icon">&#128295;</span>
+      Tools: <span class="metric-value">9 calls</span>
+      <span style="color: var(--accent-red); margin-left: 2px;">(1 err)</span>
+    </div>
+    <div class="metric">
+      <span class="metric-icon">&#129504;</span>
+      Thinking: <span class="metric-value">8.2s</span>
+      <span>(35%)</span>
+    </div>
+    <div class="metric" style="margin-left: auto;">
+      <span class="metric-icon">&#9889;</span>
+      Model: <span class="metric-value">claude-opus-4-6</span>
+    </div>
+  </footer>
+</div>
+
+<!-- Tooltip -->
+<div class="tooltip" id="tooltip"></div>
+
+<style>
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+</style>
+
+<script>
+// View switching
+function switchView(viewId) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.header-tab').forEach(t => t.classList.remove('active'));
+
+  document.getElementById('view-' + viewId).classList.add('active');
+  event.target.classList.add('active');
+
+  // Close detail panels
+  document.querySelectorAll('.detail-panel').forEach(p => p.classList.remove('open'));
+}
+
+// Session selection
+function selectSession(idx) {
+  document.querySelectorAll('.session-card').forEach((c, i) => {
+    c.classList.toggle('active', i === idx);
+  });
+}
+
+// Tooltip
+function showTooltip(e, text) {
+  const tooltip = document.getElementById('tooltip');
+  tooltip.textContent = text;
+  tooltip.style.left = (e.clientX + 12) + 'px';
+  tooltip.style.top = (e.clientY - 8) + 'px';
+  tooltip.classList.add('visible');
+}
+
+function hideTooltip() {
+  document.getElementById('tooltip').classList.remove('visible');
+}
+
+// Detail panels
+const detailData = {
+  thinking: [
+    {
+      title: 'Thinking: Plan Approach',
+      content: `<div class="detail-section">
+        <div class="detail-section-title">Duration</div>
+        <div>2.1 seconds</div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-section-title">Thinking Level</div>
+        <div>high</div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-section-title">Content</div>
+        <div class="detail-code">The user wants to fix an authentication bug in the login handler. I need to:
+1. Find auth-related files (grep is fastest)
+2. Read and understand the current logic
+3. Identify the bug
+4. Apply a minimal fix
+
+Starting with grep to search for "authenticate" across TypeScript files.</div>
+      </div>`
+    },
+    {
+      title: 'Thinking: Analyze Results',
+      content: `<div class="detail-section">
+        <div class="detail-section-title">Duration</div>
+        <div>1.8 seconds</div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-section-title">Content</div>
+        <div class="detail-code">Found 3 matches across the codebase:
+- src/auth/login.ts (main handler)
+- src/config/auth.ts (token configuration)
+- src/middleware/auth.ts (Express middleware)
+
+I should read login.ts and auth.ts in parallel since they're independent reads.</div>
+      </div>`
+    },
+    {
+      title: 'Thinking: Identify Bug',
+      content: `<div class="detail-section">
+        <div class="detail-section-title">Duration</div>
+        <div>1.5 seconds</div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-section-title">Confidence</div>
+        <div>95% — classic off-by-one pattern</div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-section-title">Content</div>
+        <div class="detail-code">Line 42 uses < instead of <= for expiry comparison:
+  if (tokenExpiry < Date.now())
+
+At exact expiry timestamp, token is incorrectly accepted.
+Fix: change < to <=</div>
+      </div>`
+    }
+  ],
+  tool: [
+    {
+      title: 'Tool: bash',
+      content: `<div class="detail-section">
+        <dl class="detail-kv">
+          <dt>Tool</dt><dd>bash</dd>
+          <dt>Duration</dt><dd>0.3s</dd>
+          <dt>Status</dt><dd style="color: var(--accent-green);">Success</dd>
+          <dt>Turn</dt><dd>1</dd>
+        </dl>
+      </div>
+      <div class="detail-section">
+        <div class="detail-section-title">Input</div>
+        <div class="detail-code">grep -r "authenticate" --include="*.ts" src/</div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-section-title">Output</div>
+        <div class="detail-code">src/auth/login.ts:42:  if (tokenExpiry < Date.now()) { // authenticate check
+src/config/auth.ts:15:  export const AUTH_TOKEN_EXPIRY = 3600; // authenticate timeout
+src/middleware/auth.ts:8:  const authenticated = validateToken(req.headers.authorization);</div>
+      </div>`
+    },
+    {
+      title: 'Tool: read',
+      content: `<div class="detail-section">
+        <dl class="detail-kv">
+          <dt>Tool</dt><dd>read</dd>
+          <dt>File</dt><dd>src/auth/login.ts</dd>
+          <dt>Duration</dt><dd>0.1s</dd>
+          <dt>Lines</dt><dd>142</dd>
+          <dt>Status</dt><dd style="color: var(--accent-green);">Success</dd>
+        </dl>
+      </div>`
+    },
+    {
+      title: 'Tool: read',
+      content: `<div class="detail-section">
+        <dl class="detail-kv">
+          <dt>Tool</dt><dd>read</dd>
+          <dt>File</dt><dd>src/config/auth.ts</dd>
+          <dt>Duration</dt><dd>0.1s</dd>
+          <dt>Lines</dt><dd>58</dd>
+          <dt>Status</dt><dd style="color: var(--accent-green);">Success</dd>
+        </dl>
+      </div>`
+    },
+    {
+      title: 'Tool: edit',
+      content: `<div class="detail-section">
+        <dl class="detail-kv">
+          <dt>Tool</dt><dd>edit</dd>
+          <dt>File</dt><dd>src/auth/login.ts</dd>
+          <dt>Line</dt><dd>42</dd>
+          <dt>Duration</dt><dd>0.2s</dd>
+          <dt>Status</dt><dd style="color: var(--accent-green);">Success</dd>
+        </dl>
+      </div>
+      <div class="detail-section">
+        <div class="detail-section-title">Change</div>
+        <div class="detail-code" style="color: var(--accent-red);">- if (tokenExpiry < Date.now())</div>
+        <div class="detail-code" style="color: var(--accent-green); margin-top: 2px;">+ if (tokenExpiry <= Date.now())</div>
+      </div>`
+    }
+  ],
+  'tool-error': [
+    {
+      title: 'Tool: bash (FAILED)',
+      content: `<div class="detail-section">
+        <dl class="detail-kv">
+          <dt>Tool</dt><dd>bash</dd>
+          <dt>Duration</dt><dd>1.5s</dd>
+          <dt>Status</dt><dd style="color: var(--accent-red);">Failed</dd>
+          <dt>Exit code</dt><dd>1</dd>
+        </dl>
+      </div>
+      <div class="detail-section">
+        <div class="detail-section-title">Input</div>
+        <div class="detail-code">npm test -- --grep "auth"</div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-section-title">Output (stderr)</div>
+        <div class="detail-code" style="color: var(--accent-red);">FAIL tests/auth.test.ts
+  ✓ should accept valid token (3ms)
+  ✓ should reject expired token (2ms)
+  ✗ should accept token at exact expiry time (4ms)
+  ✗ should handle boundary timestamp (3ms)
+  ✓ should reject malformed token (1ms)
+  ...
+
+2 of 15 tests failed
+
+  Expected: token to be valid
+  Received: token was rejected</div>
+      </div>`
+    }
+  ]
+};
+
+function showDetail(type, index) {
+  const data = detailData[type][index];
+  document.getElementById('detail-title').textContent = data.title;
+  document.getElementById('detail-body').innerHTML = data.content;
+  document.getElementById('timeline-detail').classList.add('open');
+}
+
+function closeDetail(panelId) {
+  document.getElementById(panelId).classList.remove('open');
+}
+
+// Tree detail
+const treeData = {
+  prompt: {
+    title: 'User Prompt',
+    body: `<div class="detail-section">
+      <div class="detail-section-title">Message</div>
+      <div class="detail-code">Fix the authentication bug in the login handler. Users are reporting they can still use expired tokens.</div>
+    </div>
+    <div class="detail-section">
+      <dl class="detail-kv">
+        <dt>Session</dt><dd>sess_abc123</dd>
+        <dt>Agent</dt><dd>main</dd>
+        <dt>Thinking</dt><dd>high</dd>
+        <dt>Model</dt><dd>claude-opus-4-6</dd>
+      </dl>
+    </div>`
+  },
+  think1: {
+    title: 'Thinking: Plan Approach',
+    body: `<div class="detail-section">
+      <dl class="detail-kv">
+        <dt>Duration</dt><dd>2.1s</dd>
+        <dt>Confidence</dt><dd>85%</dd>
+        <dt>Next action</dt><dd>bash: grep</dd>
+      </dl>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">Reasoning</div>
+      <div class="detail-code">Need to understand the project layout before making changes. Grep is the fastest way to find auth-related code without knowing the directory structure.</div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">Alternatives Considered</div>
+      <div class="detail-code">1. Read directory listing first (slower)
+2. Ask user for file location (unnecessary)
+3. Search for "token" instead (too broad)</div>
+    </div>`
+  },
+  grep: {
+    title: 'Tool: bash (grep)',
+    body: `<div class="detail-section">
+      <dl class="detail-kv">
+        <dt>Tool</dt><dd>bash</dd>
+        <dt>Duration</dt><dd>0.3s</dd>
+        <dt>Status</dt><dd style="color: var(--accent-green);">Success</dd>
+      </dl>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">Input</div>
+      <div class="detail-code">grep -r "authenticate" --include="*.ts" src/</div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">Output</div>
+      <div class="detail-code">src/auth/login.ts:42: authenticate check
+src/config/auth.ts:15: authenticate timeout
+src/middleware/auth.ts:8: authenticated = validateToken</div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">Impact</div>
+      <div style="font-size: 11px; color: var(--text-secondary);">Found 3 files. Result fed into next thinking step which decided to read login.ts and auth.ts in parallel.</div>
+    </div>`
+  },
+  think2: {
+    title: 'Thinking: Analyze Results',
+    body: `<div class="detail-section">
+      <dl class="detail-kv">
+        <dt>Duration</dt><dd>1.8s</dd>
+        <dt>Confidence</dt><dd>90%</dd>
+        <dt>Next action</dt><dd>read (parallel x2)</dd>
+      </dl>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">Reasoning</div>
+      <div class="detail-code">3 files found. login.ts has the main validation logic (line 42), auth.ts has configuration, middleware.ts just calls validateToken. I need to read login.ts and auth.ts to understand the full picture. These reads are independent so I'll do them in parallel.</div>
+    </div>`
+  },
+  read1: {
+    title: 'Tool: read (login.ts)',
+    body: `<div class="detail-section">
+      <dl class="detail-kv">
+        <dt>File</dt><dd>src/auth/login.ts</dd>
+        <dt>Lines</dt><dd>142</dd>
+        <dt>Duration</dt><dd>0.1s</dd>
+      </dl>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">Key Finding</div>
+      <div style="font-size: 11px; color: var(--text-secondary);">Line 42: <code style="color: var(--accent-red);">if (tokenExpiry < Date.now())</code> — uses strict less-than for expiry comparison</div>
+    </div>`
+  },
+  read2: {
+    title: 'Tool: read (auth.ts)',
+    body: `<div class="detail-section">
+      <dl class="detail-kv">
+        <dt>File</dt><dd>src/config/auth.ts</dd>
+        <dt>Lines</dt><dd>58</dd>
+        <dt>Duration</dt><dd>0.1s</dd>
+      </dl>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">Key Finding</div>
+      <div style="font-size: 11px; color: var(--text-secondary);">AUTH_TOKEN_EXPIRY = 3600 (1 hour). Token expiry is calculated as issue_time + AUTH_TOKEN_EXPIRY. Confirms expiry is an exact timestamp.</div>
+    </div>`
+  },
+  think3: {
+    title: 'Bug Found! (Off-by-one)',
+    body: `<div class="detail-section">
+      <dl class="detail-kv">
+        <dt>Duration</dt><dd>1.5s</dd>
+        <dt>Confidence</dt><dd style="color: var(--accent-green);">95%</dd>
+        <dt>Bug type</dt><dd style="color: var(--accent-red);">Off-by-one (temporal boundary)</dd>
+      </dl>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">Root Cause</div>
+      <div class="detail-code" style="color: var(--accent-red);">Line 42: if (tokenExpiry < Date.now())
+
+At exact expiry time, tokenExpiry == Date.now(), so the condition is FALSE and the token is accepted. Should use <= to reject at boundary.</div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">Evidence</div>
+      <div class="detail-code">1. Variable name "tokenExpiry" = exact expiry time
+2. Comments say "reject expired tokens"
+3. Classic off-by-one for time comparisons
+4. Users report "can still use expired tokens"</div>
+    </div>`
+  },
+  edit: {
+    title: 'Tool: edit (Fix Applied)',
+    body: `<div class="detail-section">
+      <dl class="detail-kv">
+        <dt>File</dt><dd>src/auth/login.ts</dd>
+        <dt>Line</dt><dd>42</dd>
+        <dt>Duration</dt><dd>0.2s</dd>
+        <dt>Status</dt><dd style="color: var(--accent-green);">Success</dd>
+      </dl>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">Diff</div>
+      <div class="detail-code"><span style="color: var(--accent-red);">- if (tokenExpiry < Date.now())</span>
+<span style="color: var(--accent-green);">+ if (tokenExpiry <= Date.now())</span></div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">Preceding Reasoning</div>
+      <div style="font-size: 11px; color: var(--text-muted);">"I'm 95% confident this is the bug. The < operator allows tokens to be used at the exact millisecond of expiry. Changing to <= fixes the boundary condition."</div>
+    </div>`
+  }
+};
+
+function showTreeDetail(nodeId) {
+  const data = treeData[nodeId];
+  document.getElementById('tree-detail-title').textContent = data.title;
+  document.getElementById('tree-detail-body').innerHTML = data.body;
+  document.getElementById('tree-detail').classList.add('open');
+}
+
+// Reasoning view toggles
+function toggleTurn(header) {
+  const body = header.nextElementSibling;
+  body.style.display = body.style.display === 'none' ? 'block' : 'none';
+}
+
+function toggleRaw(btn) {
+  const raw = btn.nextElementSibling;
+  const isVisible = raw.classList.toggle('visible');
+  btn.innerHTML = isVisible ? 'Hide raw thinking block &uarr;' : 'Show raw thinking block &darr;';
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  if (e.key === '1') switchViewByName('timeline');
+  if (e.key === '2') switchViewByName('reasoning');
+  if (e.key === '3') switchViewByName('tree');
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.detail-panel').forEach(p => p.classList.remove('open'));
+  }
+});
+
+function switchViewByName(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.header-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  const tabs = document.querySelectorAll('.header-tab');
+  const names = ['timeline', 'reasoning', 'tree'];
+  tabs[names.indexOf(name)].classList.add('active');
+}
+</script>
+
+</body>
+</html>

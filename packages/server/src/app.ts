@@ -28,8 +28,8 @@ export function createApp(deps: AppDeps) {
   const { broadcaster, agentManager } = deps;
   const app = express();
 
-  // Security headers
-  app.use(helmet({ contentSecurityPolicy: false })); // CSP disabled — frontend served separately
+  // Security headers (frameguard disabled — dashboard is loaded inside VS Code webview iframes)
+  app.use(helmet({ contentSecurityPolicy: false, frameguard: false }));
 
   // Request ID middleware
   app.use(requestIdMiddleware);
@@ -43,10 +43,7 @@ export function createApp(deps: AppDeps) {
 
   app.use((_req, res, next) => {
     const origin = _req.headers.origin;
-    if (allowedOrigins.includes('*') && process.env.NODE_ENV === 'production') {
-      logger.warn('CORS wildcard (*) not allowed in production, falling back to localhost');
-      res.header('Access-Control-Allow-Origin', 'http://localhost:5173');
-    } else if (allowedOrigins.includes('*')) {
+    if (allowedOrigins.includes('*')) {
       res.header('Access-Control-Allow-Origin', '*');
     } else if (origin && allowedOrigins.includes(origin)) {
       res.header('Access-Control-Allow-Origin', origin);

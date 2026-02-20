@@ -152,25 +152,6 @@ export class SettingsPanel {
         await this.fetchHealthAndSend();
         break;
 
-      // Display Preferences
-      case 'getAllSettings': {
-        const config = vscode.workspace.getConfiguration('synapse');
-        const keys = [
-          'port', 'autoStart', 'layout', 'animationSpeed', 'defaultLens',
-          'nodeLabelDensity', 'edgeStyle', 'autoZoom', 'themeOverride', 'maxEvents',
-        ];
-        const data: Record<string, unknown> = {};
-        for (const k of keys) data[k] = config.get(k);
-        this.panel.webview.postMessage({ type: 'allSettings', data });
-        break;
-      }
-      case 'setSetting': {
-        const key = msg.key as string;
-        const value = msg.value;
-        await vscode.workspace.getConfiguration('synapse').update(key, value, vscode.ConfigurationTarget.Global);
-        break;
-      }
-
       // Data Management
       case 'clearAllEvents':
         await this.proxyDelete(`/api/events`);
@@ -188,6 +169,53 @@ export class SettingsPanel {
       case 'exportData':
         await this.exportData();
         break;
+
+      // AI Features
+      case 'getAiStatus':
+        await this.fetchAiStatusAndSend();
+        break;
+      case 'setApiKey': {
+        const apiKey = msg.value as string;
+        await this.proxyPutJson(`/api/settings`, { anthropic_api_key: apiKey });
+        await this.fetchAiStatusAndSend();
+        this.panel.webview.postMessage({
+          type: 'actionResult', action: 'setApiKey', success: true,
+          message: apiKey ? 'API key saved' : 'API key removed',
+        });
+        break;
+      }
+
+      // Prompt Lab Settings
+      case 'getPromptLabSettings': {
+        const config = vscode.workspace.getConfiguration('synapse');
+        this.panel.webview.postMessage({
+          type: 'promptLabSettings',
+          data: {
+            model: config.get('promptLab.model', 'claude-sonnet-4-5-20250929'),
+            showScore: config.get('promptLab.showScore', true),
+            maxChars: config.get('promptLab.maxChars', 4000),
+          },
+        });
+        break;
+      }
+      case 'setPromptLabSetting': {
+        const config = vscode.workspace.getConfiguration('synapse');
+        const key = msg.key as string;
+        const value = msg.value;
+        await config.update(`promptLab.${key}`, value, vscode.ConfigurationTarget.Global);
+        this.panel.webview.postMessage({
+          type: 'actionResult', action: 'setPromptLabSetting', success: true,
+          message: `${key} updated`,
+        });
+        break;
+      }
+      case 'openKeybindings': {
+        vscode.commands.executeCommand(
+          'workbench.action.openGlobalKeybindings',
+          'synapse.improveText',
+        );
+        break;
+      }
     }
   }
 
@@ -273,6 +301,59 @@ export class SettingsPanel {
       );
       req.on('error', reject);
       req.setTimeout(5000, () => { req.destroy(); reject(new Error('timeout')); });
+      req.end();
+    });
+  }
+
+  private async fetchAiStatusAndSend(): Promise<void> {
+    if (!this.serverManager.isRunning) {
+      this.panel.webview.postMessage({ type: 'aiStatus', data: null });
+      return;
+    }
+    try {
+      const statusBody = await this.httpGet(`/api/settings/ai-status`);
+      const parsed = JSON.parse(statusBody);
+      const status = parsed.data ?? parsed;
+
+      const settingsBody = await this.httpGet(`/api/settings`);
+      const settingsParsed = JSON.parse(settingsBody);
+      const settings = settingsParsed.data ?? settingsParsed;
+
+      this.panel.webview.postMessage({
+        type: 'aiStatus',
+        data: {
+          available: status.available,
+          source: status.source,
+          model: status.model,
+          maskedKey: status.maskedKey,
+          keySource: settings._api_key_source ?? status.source,
+        },
+      });
+    } catch {
+      this.panel.webview.postMessage({ type: 'aiStatus', data: null });
+    }
+  }
+
+  private proxyPutJson(urlPath: string, body: Record<string, string>): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const data = JSON.stringify(body);
+      const req = http.request(
+        `http://localhost:${this.serverManager.port}${urlPath}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(data),
+          },
+        },
+        (res) => {
+          res.resume();
+          res.on('end', () => resolve());
+        },
+      );
+      req.on('error', reject);
+      req.setTimeout(5000, () => { req.destroy(); reject(new Error('timeout')); });
+      req.write(data);
       req.end();
     });
   }
@@ -457,6 +538,7 @@ export class SettingsPanel {
       color: var(--vscode-descriptionForeground);
       margin-bottom: 6px;
     }
+    input[type="text"], input[type="password"],
     select, input[type="number"] {
       background: var(--vscode-input-background);
       color: var(--vscode-input-foreground);
@@ -467,6 +549,7 @@ export class SettingsPanel {
       font-family: inherit;
       width: 200px;
     }
+    input[type="text"]:focus, input[type="password"]:focus,
     select:focus, input[type="number"]:focus {
       outline: 1px solid var(--vscode-focusBorder);
     }
@@ -498,6 +581,33 @@ export class SettingsPanel {
       padding: 24px;
       color: var(--vscode-descriptionForeground);
       font-style: italic;
+    }
+
+    /* ── Shortcut Rows ── */
+    .shortcut-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      font-size: 12px;
+    }
+    .shortcut-label {
+      width: 120px;
+      font-weight: 600;
+      color: var(--vscode-foreground);
+    }
+    .shortcut-desc {
+      color: var(--vscode-descriptionForeground);
+    }
+    kbd {
+      background: var(--vscode-editor-background);
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 3px;
+      padding: 2px 6px;
+      font-family: var(--vscode-editor-font-family);
+      font-size: 11px;
+      min-width: 90px;
+      text-align: center;
     }
 
     /* ── Toast ── */
@@ -543,8 +653,8 @@ export class SettingsPanel {
   <div class="tab-bar">
     <div class="tab active" data-tab="hooks">Hooks</div>
     <div class="tab" data-tab="server">Server</div>
-    <div class="tab" data-tab="display">Display</div>
     <div class="tab" data-tab="data">Data</div>
+    <div class="tab" data-tab="promptlab">Prompt Lab</div>
   </div>
 
   <!-- ════════════════════════════════════════════════════════════ -->
@@ -632,93 +742,38 @@ export class SettingsPanel {
         Auto-refreshes every 5 seconds
       </div>
     </div>
-  </div>
-
-  <!-- ════════════════════════════════════════════════════════════ -->
-  <!-- TAB 3: DISPLAY                                              -->
-  <!-- ════════════════════════════════════════════════════════════ -->
-  <div id="tab-display" class="tab-content">
-    <div class="card">
-      <h3>Graph Preferences</h3>
-      <div class="form-group">
-        <label for="s-animationSpeed">Animation Speed</label>
-        <div class="desc">Speed of edge and node animations</div>
-        <select id="s-animationSpeed" onchange="setSetting('animationSpeed',this.value)">
-          <option value="off">Off</option>
-          <option value="slow">Slow</option>
-          <option value="normal">Normal</option>
-          <option value="fast">Fast</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label for="s-edgeStyle">Edge Style</label>
-        <div class="desc">Edge routing style in the graph</div>
-        <select id="s-edgeStyle" onchange="setSetting('edgeStyle',this.value)">
-          <option value="smoothstep">Smooth Step</option>
-          <option value="bezier">Bezier</option>
-          <option value="straight">Straight</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label for="s-nodeLabelDensity">Node Label Density</label>
-        <div class="desc">Amount of detail shown on graph nodes</div>
-        <select id="s-nodeLabelDensity" onchange="setSetting('nodeLabelDensity',this.value)">
-          <option value="minimal">Minimal</option>
-          <option value="normal">Normal</option>
-          <option value="verbose">Verbose</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label for="s-autoZoom">Auto-Zoom</label>
-        <div class="desc">Zoom behavior when new nodes appear</div>
-        <select id="s-autoZoom" onchange="setSetting('autoZoom',this.value)">
-          <option value="fit-all">Fit All</option>
-          <option value="follow-latest">Follow Latest</option>
-          <option value="manual">Manual</option>
-        </select>
-      </div>
-    </div>
 
     <div class="card">
-      <h3>Appearance</h3>
-      <div class="form-group">
-        <label for="s-defaultLens">Default Lens</label>
-        <div class="desc">Lens view shown when opening the sidebar</div>
-        <select id="s-defaultLens" onchange="setSetting('defaultLens',this.value)">
-          <option value="tree">Tree</option>
-          <option value="heat">Heatmap</option>
-          <option value="tmap">Treemap</option>
-          <option value="flow">Sankey</option>
-          <option value="comp">Compaction</option>
-          <option value="cost">Cost</option>
-        </select>
+      <h3>AI Features</h3>
+      <div class="status-row">
+        <div id="ai-dot" class="status-dot red"></div>
+        <span id="ai-label" class="status-label">Checking...</span>
       </div>
+      <div id="ai-details" style="font-size:12px;color:var(--vscode-descriptionForeground);margin-bottom:12px;"></div>
       <div class="form-group">
-        <label for="s-themeOverride">Theme Override</label>
-        <div class="desc">Dashboard theme (auto follows your VS Code theme)</div>
-        <select id="s-themeOverride" onchange="setSetting('themeOverride',this.value)">
-          <option value="auto">Auto</option>
-          <option value="dark">Dark</option>
-          <option value="light">Light</option>
-        </select>
+        <label for="api-key-input">Anthropic API Key</label>
+        <div class="desc">
+          Required for AI-powered features (prompt scoring, coaching insights, Prompt Lab).
+          Your Claude Code subscription does not include API access \u2014 you need a separate API key from
+          <a href="#" onclick="return false;" style="color:var(--vscode-textLink-foreground);">console.anthropic.com</a>.
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="password" id="api-key-input" placeholder="sk-ant-..." style="width:320px;flex-shrink:0;">
+          <button onclick="saveApiKey()">Save</button>
+          <button class="secondary" onclick="toggleKeyVisibility();" title="Show/hide key" style="padding:6px 8px;">
+            \ud83d\udc41
+          </button>
+        </div>
       </div>
-      <div class="form-group">
-        <label for="s-layout">Layout</label>
-        <div class="desc">Dashboard arrangement in VS Code</div>
-        <select id="s-layout" onchange="setSetting('layout',this.value)">
-          <option value="split">Split (sidebar + editor)</option>
-          <option value="single">Single panel</option>
-        </select>
+      <div id="ai-key-info" style="font-size:11px;color:var(--vscode-descriptionForeground);margin-top:4px;"></div>
+      <div class="button-row">
+        <button class="danger" onclick="clearApiKey()" id="btn-clear-key" style="display:none;">Remove Key</button>
       </div>
-    </div>
-
-    <div class="button-row">
-      <button class="secondary" onclick="resetDefaults()">Reset to Defaults</button>
     </div>
   </div>
 
   <!-- ════════════════════════════════════════════════════════════ -->
-  <!-- TAB 4: DATA                                                 -->
+  <!-- TAB 3: DATA                                                 -->
   <!-- ════════════════════════════════════════════════════════════ -->
   <div id="tab-data" class="tab-content">
     <div class="card">
@@ -730,20 +785,64 @@ export class SettingsPanel {
     </div>
 
     <div class="card">
-      <h3>Event Retention</h3>
-      <div class="form-group">
-        <label for="s-maxEvents">Maximum Events</label>
-        <div class="desc">Limit stored events in the database (0 = unlimited)</div>
-        <input type="number" id="s-maxEvents" min="0" step="100" value="0"
-          onchange="setSetting('maxEvents',parseInt(this.value)||0)">
-      </div>
-    </div>
-
-    <div class="card">
       <h3>Actions</h3>
       <div class="button-row">
         <button onclick="send({type:'exportData'})">Export Database</button>
         <button class="danger" onclick="confirmAction('clearAllEvents', 'Clear All Events', 'This will permanently delete all stored events from the database. This cannot be undone.')">Clear All Events</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- TAB 4: PROMPT LAB                                          -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <div id="tab-promptlab" class="tab-content">
+    <div class="card">
+      <h3>Keyboard Shortcuts</h3>
+      <p style="font-size:12px;color:var(--vscode-descriptionForeground);margin-bottom:12px;">
+        Select text in any editor and press the shortcut to improve it with Prompt Lab.
+      </p>
+      <div class="shortcut-row">
+        <span class="shortcut-label">Developer mode</span>
+        <kbd>Ctrl+Alt+D</kbd>
+        <span class="shortcut-desc">Precise, technical rewrite</span>
+      </div>
+      <div class="shortcut-row">
+        <span class="shortcut-label">Vibe mode</span>
+        <kbd>Ctrl+Alt+V</kbd>
+        <span class="shortcut-desc">Creative, conversational rewrite</span>
+      </div>
+      <div class="button-row">
+        <button class="secondary" onclick="send({type:'openKeybindings'})">Customize Keybindings</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Default Model</h3>
+      <div class="form-group">
+        <label for="pl-model">AI model for text improvements</label>
+        <select id="pl-model" onchange="send({type:'setPromptLabSetting', key:'model', value:this.value})">
+          <option value="claude-haiku-4-5-20251001">Haiku 4.5 \u2014 fast, cheap</option>
+          <option value="claude-sonnet-4-5-20250929">Sonnet 4.5 \u2014 balanced</option>
+          <option value="claude-opus-4-6">Opus 4.6 \u2014 highest quality</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Behavior</h3>
+      <div class="form-group">
+        <label class="checkbox-item">
+          <input type="checkbox" id="pl-show-score"
+            onchange="send({type:'setPromptLabSetting', key:'showScore', value:this.checked})">
+          Show score in status bar after processing
+        </label>
+      </div>
+      <div class="form-group">
+        <label for="pl-max-chars">Maximum characters to send</label>
+        <div class="desc">Selections longer than this are clipped before analysis.</div>
+        <input type="number" id="pl-max-chars" min="100" max="10000" step="500" style="width:120px;"
+          onchange="send({type:'setPromptLabSetting', key:'maxChars', value:parseInt(this.value,10)})">
       </div>
     </div>
   </div>
@@ -777,9 +876,9 @@ export class SettingsPanel {
 
         // Load data for the tab
         if (tab.dataset.tab === 'hooks') send({ type: 'getHookStatus' });
-        if (tab.dataset.tab === 'server') send({ type: 'getServerHealth' });
-        if (tab.dataset.tab === 'display') send({ type: 'getAllSettings' });
+        if (tab.dataset.tab === 'server') { send({ type: 'getServerHealth' }); send({ type: 'getAiStatus' }); }
         if (tab.dataset.tab === 'data') send({ type: 'getSessions' });
+        if (tab.dataset.tab === 'promptlab') send({ type: 'getPromptLabSettings' });
       });
     });
 
@@ -793,8 +892,9 @@ export class SettingsPanel {
       switch (msg.type) {
         case 'hookStatus': renderHookStatus(msg.data); break;
         case 'serverHealth': renderServerHealth(msg.data); break;
-        case 'allSettings': renderSettings(msg.data); break;
         case 'sessions': renderSessions(msg.data); break;
+        case 'aiStatus': renderAiStatus(msg.data); break;
+        case 'promptLabSettings': renderPromptLabSettings(msg.data); break;
         case 'actionResult': showToast(msg.success ? msg.message : 'Error: ' + msg.message); break;
       }
     });
@@ -882,30 +982,65 @@ export class SettingsPanel {
       }
     }
 
-    /* ── Settings rendering ── */
-    function renderSettings(data) {
-      const fields = ['animationSpeed','defaultLens','nodeLabelDensity','edgeStyle','autoZoom','themeOverride','layout'];
-      for (const key of fields) {
-        const el = document.getElementById('s-' + key);
-        if (el && data[key] !== undefined) el.value = data[key];
+    /* ── AI status rendering ── */
+    function renderAiStatus(data) {
+      const dot = document.getElementById('ai-dot');
+      const label = document.getElementById('ai-label');
+      const details = document.getElementById('ai-details');
+      const keyInfo = document.getElementById('ai-key-info');
+      const clearBtn = document.getElementById('btn-clear-key');
+
+      if (!data) {
+        dot.className = 'status-dot red';
+        label.textContent = 'Server not running';
+        details.textContent = '';
+        keyInfo.textContent = '';
+        clearBtn.style.display = 'none';
+        return;
       }
-      const maxEl = document.getElementById('s-maxEvents');
-      if (maxEl && data.maxEvents !== undefined) maxEl.value = data.maxEvents;
+
+      if (data.available) {
+        dot.className = 'status-dot green';
+        label.textContent = 'Active \u2014 AI features enabled';
+        details.textContent = 'Model: ' + data.model;
+      } else {
+        dot.className = 'status-dot red';
+        label.textContent = 'No API key configured';
+        details.textContent = 'AI-powered features (prompt scoring, coaching, Prompt Lab) require an API key.';
+      }
+
+      if (data.maskedKey) {
+        const sourceLabel = data.keySource === 'env' ? 'environment variable' : 'saved in settings';
+        keyInfo.textContent = 'Current key: ' + data.maskedKey + ' (from ' + sourceLabel + ')';
+        clearBtn.style.display = data.keySource === 'settings' ? '' : 'none';
+      } else {
+        keyInfo.textContent = '';
+        clearBtn.style.display = 'none';
+      }
     }
 
-    function setSetting(key, value) { send({ type: 'setSetting', key: key, value: value }); }
-
-    function resetDefaults() {
-      const defaults = {
-        animationSpeed: 'normal', defaultLens: 'tree', nodeLabelDensity: 'normal',
-        edgeStyle: 'smoothstep', autoZoom: 'fit-all', themeOverride: 'auto', layout: 'split',
-      };
-      for (const [k, v] of Object.entries(defaults)) {
-        setSetting(k, v);
-        const el = document.getElementById('s-' + k);
-        if (el) el.value = v;
+    function saveApiKey() {
+      const input = document.getElementById('api-key-input');
+      const key = input.value.trim();
+      if (!key) {
+        showToast('Please enter an API key');
+        return;
       }
-      showToast('Settings reset to defaults');
+      send({ type: 'setApiKey', value: key });
+      input.value = '';
+    }
+
+    function deleteSession(sessionId) {
+      confirmAction('clearSession:' + sessionId, 'Delete Session', 'Delete all events for session ' + sessionId.slice(0, 12) + '\u2026?');
+    }
+
+    function clearApiKey() {
+      send({ type: 'setApiKey', value: '' });
+    }
+
+    function toggleKeyVisibility() {
+      const input = document.getElementById('api-key-input');
+      input.type = input.type === 'password' ? 'text' : 'password';
     }
 
     /* ── Session rendering ── */
@@ -922,8 +1057,7 @@ export class SettingsPanel {
         '<td>' + formatTime(s.first_event) + '</td>' +
         '<td>' + formatTime(s.last_event) + '</td>' +
         '<td><button class="danger" style="padding:3px 8px;font-size:11px;" ' +
-        'onclick="confirmAction(\'clearSession:' + s.session_id + '\', \'Delete Session\', ' +
-        '\'Delete all events for session ' + s.session_id.slice(0, 12) + '\u2026?\')">Delete</button></td>' +
+        'onclick="deleteSession(' + "'" + s.session_id + "'" + ')">Delete</button></td>' +
         '</tr>'
       ).join('');
       container.innerHTML =
@@ -1002,9 +1136,22 @@ export class SettingsPanel {
       return d.toLocaleDateString();
     }
 
+    /* ── Prompt Lab rendering ── */
+    function renderPromptLabSettings(data) {
+      if (!data) return;
+      const modelSelect = document.getElementById('pl-model');
+      if (modelSelect) modelSelect.value = data.model || 'claude-sonnet-4-5-20250929';
+      const showScore = document.getElementById('pl-show-score');
+      if (showScore) showScore.checked = data.showScore !== false;
+      const maxChars = document.getElementById('pl-max-chars');
+      if (maxChars) maxChars.value = data.maxChars || 4000;
+    }
+
     /* ── Init: load Hooks tab data ── */
     send({ type: 'getHookStatus' });
     send({ type: 'getServerHealth' });
+    send({ type: 'getAiStatus' });
+    send({ type: 'getPromptLabSettings' });
   </script>
 </body>
 </html>`;

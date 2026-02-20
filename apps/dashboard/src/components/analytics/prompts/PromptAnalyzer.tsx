@@ -10,6 +10,7 @@ import { InfoTooltip } from '../shared/InfoTooltip';
 import { TOOL_COLORS, CATEGORY_COLORS, fmtTokens } from '../shared/constants';
 import { classifyPrompt, computeComplexity, type PromptCategory } from '../shared/promptUtils';
 import { formatInline, formatRewrite } from '../shared/formatMarkdown';
+import { copyToClipboard } from '../../../utils/clipboard';
 import type { MockData } from '../mockData';
 
 const AI_ANALYSIS_STORAGE_KEY = 'synapse-ai-analyses';
@@ -578,13 +579,15 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
                                   <div className="relative bg-[#0d1117] border border-gray-800 rounded-lg p-3 pr-10 text-sm text-gray-300 leading-relaxed">
                                     {formatRewrite(aiAnalysis[pk].rewrite)}
                                     <button
-                                      onClick={(e) => {
+                                      onClick={async (e) => {
                                         e.stopPropagation();
-                                        navigator.clipboard.writeText(aiAnalysis[pk].rewrite);
-                                        const btn = e.currentTarget;
-                                        const orig = btn.innerHTML;
-                                        btn.innerHTML = '<span class="text-emerald-400">Copied!</span>';
-                                        setTimeout(() => { btn.innerHTML = orig; }, 1500);
+                                        const ok = await copyToClipboard(aiAnalysis[pk].rewrite);
+                                        if (ok) {
+                                          const btn = e.currentTarget;
+                                          const orig = btn.innerHTML;
+                                          btn.innerHTML = '<span class="text-emerald-400">Copied!</span>';
+                                          setTimeout(() => { btn.innerHTML = orig; }, 1500);
+                                        }
                                       }}
                                       className="absolute top-1.5 right-1.5 p-1.5 rounded-md bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
                                       title="Copy rewrite to clipboard"

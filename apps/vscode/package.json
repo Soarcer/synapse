@@ -2,9 +2,10 @@
   "name": "synapse-vscode",
   "displayName": "Synapse — Agent Monitor",
   "description": "Real-time Claude agent monitoring dashboard inside VS Code",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "publisher": "Soarcer",
   "license": "MIT",
+  "icon": "synapse-icon.png",
   "engines": {
     "vscode": "^1.95.0"
   },
@@ -55,6 +56,26 @@
       {
         "command": "synapse.sendToClaudeTerminal",
         "title": "Synapse: Send Text to Claude Terminal"
+      },
+      {
+        "command": "synapse.improveTextDev",
+        "title": "Synapse: Improve Selection (Developer)"
+      },
+      {
+        "command": "synapse.improveTextVibe",
+        "title": "Synapse: Improve Selection (Vibe)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "synapse.improveTextDev",
+        "key": "ctrl+alt+d",
+        "when": "editorHasSelection"
+      },
+      {
+        "command": "synapse.improveTextVibe",
+        "key": "ctrl+alt+v",
+        "when": "editorHasSelection"
       }
     ],
     "menus": {
@@ -71,7 +92,7 @@
         {
           "id": "synapseSidebar",
           "title": "Synapse",
-          "icon": "$(pulse)"
+          "icon": "synapse-icon-black-128.svg"
         }
       ]
     },
@@ -114,47 +135,32 @@
             "Full dashboard in a single editor panel"
           ]
         },
-        "synapse.animationSpeed": {
+        "synapse.promptLab.model": {
           "type": "string",
-          "enum": ["off", "slow", "normal", "fast"],
-          "default": "normal",
-          "description": "Speed of edge and node animations in the graph"
+          "enum": [
+            "claude-haiku-4-5-20251001",
+            "claude-sonnet-4-5-20250929",
+            "claude-opus-4-6"
+          ],
+          "enumDescriptions": [
+            "Haiku 4.5 — fast, cheap",
+            "Sonnet 4.5 — balanced",
+            "Opus 4.6 — highest quality"
+          ],
+          "default": "claude-sonnet-4-5-20250929",
+          "description": "Default AI model for Prompt Lab hotkeys"
         },
-        "synapse.defaultLens": {
-          "type": "string",
-          "enum": ["tree", "heat", "tmap", "flow", "comp", "cost"],
-          "default": "tree",
-          "description": "Default lens view when opening the sidebar"
+        "synapse.promptLab.showScore": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show score in status bar after processing"
         },
-        "synapse.nodeLabelDensity": {
-          "type": "string",
-          "enum": ["minimal", "normal", "verbose"],
-          "default": "normal",
-          "description": "Amount of detail shown on graph nodes"
-        },
-        "synapse.edgeStyle": {
-          "type": "string",
-          "enum": ["smoothstep", "bezier", "straight"],
-          "default": "smoothstep",
-          "description": "Edge routing style in the graph"
-        },
-        "synapse.autoZoom": {
-          "type": "string",
-          "enum": ["fit-all", "follow-latest", "manual"],
-          "default": "fit-all",
-          "description": "Auto-zoom behavior when new nodes appear"
-        },
-        "synapse.themeOverride": {
-          "type": "string",
-          "enum": ["auto", "dark", "light"],
-          "default": "auto",
-          "description": "Override the dashboard theme (auto follows VS Code theme)"
-        },
-        "synapse.maxEvents": {
+        "synapse.promptLab.maxChars": {
           "type": "number",
-          "default": 0,
-          "minimum": 0,
-          "description": "Maximum events to retain in the database (0 = unlimited)"
+          "default": 4000,
+          "minimum": 100,
+          "maximum": 10000,
+          "description": "Maximum characters to send for analysis"
         }
       }
     }
@@ -163,7 +169,7 @@
     "build": "node esbuild.mjs",
     "build:ext-only": "node esbuild.mjs --skip-server",
     "watch": "node esbuild.mjs --watch",
-    "package": "npx @vscode/vsce package --no-dependencies",
+    "package": "npx @vscode/vsce package --no-dependencies --allow-missing-repository",
     "prepackage": "node esbuild.mjs",
     "clean": "node -e \"const fs=require('fs'); if(fs.existsSync('resources'))fs.rmSync('resources',{recursive:true}); if(fs.existsSync('out'))fs.rmSync('out',{recursive:true})\""
   },

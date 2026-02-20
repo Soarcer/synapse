@@ -286,9 +286,9 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   showWorkshop: false,
   paused: false,
   showHookEvents: savedViewSettings.showHookEvents ?? true,
-  showAllTools: savedViewSettings.showAllTools ?? false,
-  toolGroupMode: savedViewSettings.toolGroupMode ?? 'pillGrid',
-  lockViewport: savedViewSettings.lockViewport ?? true,
+  showAllTools: savedViewSettings.showAllTools ?? true,
+  toolGroupMode: savedViewSettings.toolGroupMode ?? 'heatmap',
+  lockViewport: savedViewSettings.lockViewport ?? false,
   autoClosePrompts: savedViewSettings.autoClosePrompts ?? false,
   cwdFilter: projectCwd,
   timeRange: computeTimeRange(savedTimeLabel),
@@ -301,7 +301,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   loadError: null,
 
   // Lens Panel state
-  activeLensTab: 'tree',
+  activeLensTab: 'treemap',
   lensPanelWidth: 320,
   lensSearchQuery: '',
   profileMetric: 'count',

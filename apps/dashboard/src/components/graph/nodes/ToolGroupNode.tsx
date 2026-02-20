@@ -366,7 +366,7 @@ function HeatmapView({
           <span className="text-[9px] text-gray-500 truncate w-14 flex-shrink-0 text-right" title={name}>
             {name}
           </span>
-          <div className="flex gap-0.5">
+          <div className="flex flex-wrap gap-0.5" style={{ maxWidth: 20 * 22 + 19 * 2 }}>
             {calls.map((tc) => {
               const nodeId = `tool-${tc.toolUseId}`;
               const isSelected = selectedNodeId === nodeId;

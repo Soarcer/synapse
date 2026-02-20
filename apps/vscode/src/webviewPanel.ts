@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { executeForwardedKeybinding } from './keybindings';
 
 type SelectionHandler = (nodeId: string | null) => void;
 type VoidHandler = () => void;
@@ -29,6 +30,12 @@ export class SynapsePanel {
         }
         if (message.type === 'iframeReady' && this._onIframeReady) {
           this._onIframeReady();
+        }
+        if (message.type === 'forwardKeydown') {
+          executeForwardedKeybinding(message);
+        }
+        if (message.type === 'clipboardWrite' && typeof message.text === 'string') {
+          vscode.env.clipboard.writeText(message.text);
         }
       },
       null,
@@ -124,7 +131,7 @@ export class SynapsePanel {
 </head>
 <body>
   <div id="loading" class="loading">Starting Synapse dashboard...</div>
-  <iframe id="dashboard" class="hidden" src="${url}"></iframe>
+  <iframe id="dashboard" class="hidden" src="${url}" allow="clipboard-write"></iframe>
   <script>
     const iframe = document.getElementById('dashboard');
     const loading = document.getElementById('loading');
@@ -159,17 +166,12 @@ export class SynapsePanel {
         iframe.contentWindow.postMessage(msg, '*');
       }
       // iframe → extension
-      if (msg.type === 'selectionChanged') {
+      if (msg.type === 'selectionChanged' || msg.type === 'clipboardWrite') {
         vscodeApi.postMessage(msg);
       }
-      // Forward keyboard shortcuts from iframe back to VS Code
+      // Forward keyboard shortcuts from iframe to extension host → VS Code commands
       if (msg.type === 'forwardKeydown') {
-        document.dispatchEvent(new KeyboardEvent('keydown', {
-          key: msg.key, code: msg.code,
-          ctrlKey: msg.ctrlKey, shiftKey: msg.shiftKey,
-          altKey: msg.altKey, metaKey: msg.metaKey,
-          bubbles: true, cancelable: true,
-        }));
+        vscodeApi.postMessage(msg);
       }
     });
   </script>
