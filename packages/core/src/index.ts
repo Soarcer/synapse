@@ -19,7 +19,51 @@ export type {
   TranscriptTurn,
   ModelUsage,
   TranscriptSummary,
+  TextBlock,
+  ThinkingBlock,
+  ToolUseBlock,
+  ToolResultBlock,
+  ImageBlock,
+  ContentBlock,
+  ExtendedUsage,
+  ConversationRecord,
+  BashProgressRecord,
+  AgentProgressRecord,
+  HookProgressRecord,
+  ProgressRecord,
+  CompactBoundaryRecord,
+  StopHookSummaryRecord,
+  SystemRecord,
+  FileChange,
+  FileHistoryRecord,
+  QueueOperationRecord,
+  FullTranscript,
+  StructuredThinking,
+  ReasoningToolCall,
+  ReasoningTurn,
+  ReasoningData,
 } from './types/transcript.js';
+
+export type {
+  CoachingDimension,
+  DetectorResult,
+  DimensionScore,
+  ReportCard,
+  NudgeSeverity,
+  NudgeRuleCategory,
+  NudgeRuleMeta,
+  CoachingNudge,
+  NudgeCandidate,
+  SessionAccumulator,
+  DeliveryConfig,
+  PlaybookCategory,
+  PlaybookPattern,
+  Playbook,
+  PromptAnalysis,
+  SessionSummary,
+  EnrichedNudge,
+  AiCoachStatus,
+} from './types/coaching.js';
 
 // Transcript constants
 export { MODEL_PRICING, DEFAULT_PRICING } from './types/transcript.js';
@@ -33,6 +77,10 @@ export {
   SnapshotImportSchema,
   AnalyticsQuerySchema,
   PriceCreateSchema,
+  CoachingQuerySchema,
+  CoachingMultiQuerySchema,
+  PlaybookCreateSchema,
+  NudgeDismissSchema,
 } from './schemas.js';
 
 // Format utilities

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ReactFlow,
   MiniMap,
@@ -8,17 +8,19 @@ import {
   useReactFlow,
   ReactFlowProvider,
 } from '@xyflow/react';
+import type { Node, Edge, NodeChange } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useAgentStore } from '../../store/agentStore';
+import { useAgentStore, reloadAllEvents } from '../../store/agentStore';
 import { useAutoLayout } from '../../hooks/useAutoLayout';
 import { useGraphNavigation } from '../../hooks/useGraphNavigation';
 import { nodeTypes, edgeTypes } from './nodeTypes';
 import { GraphSearchBox } from './GraphSearchBox';
 import { EdgeCostLegend } from './EdgeCostLegend';
+import { NudgeBadge } from './NudgeBadge';
 import { registerToastNavigator, unregisterToastNavigator } from '../Toast';
-import { nodeMatchesSearch, buildParentMap, collectAncestors } from '../../utils/graphSearch';
-import type { AgentNodeData } from '@synapse-ai/core';
-import { apiUrl } from '../../utils/api';
+import { nodeMatchesSearch, buildParentMap, collectAncestors, buildChildrenMap } from '../../utils/graphSearch';
+import type { AgentNodeData, ToolCallSummary } from '@synapse-ai/core';
+
 
 // ── Main graph component ─────────────────────────────────────
 
@@ -26,26 +28,29 @@ function AgentGraphInner() {
   const rawNodes = useAgentStore((s) => s.nodes);
   const rawEdges = useAgentStore((s) => s.edges);
   const selectNode = useAgentStore((s) => s.selectNode);
-  const layoutMode = useAgentStore((s) => s.layoutMode);
   const selectedNodeId = useAgentStore((s) => s.selectedNodeId);
   const selectSource = useAgentStore((s) => s.selectSource);
   const graphSearchQuery = useAgentStore((s) => s.graphSearchQuery);
   const autoClosePrompts = useAgentStore((s) => s.autoClosePrompts);
   const showAllTools = useAgentStore((s) => s.showAllTools);
+  const toolGroupMode = useAgentStore((s) => s.toolGroupMode);
   const collapsedNodes = useAgentStore((s) => s.collapsedNodes);
   const lockViewport = useAgentStore((s) => s.lockViewport);
   const { fitView, getViewport, setViewport } = useReactFlow();
   const prevNodeCountRef = useRef(rawNodes.length);
   const prevExpandedRef = useRef<string | null>(null);
+  const [toolGroupDims, setToolGroupDims] = useState<Map<string, { width: number; height: number }>>(
+    () => new Map(),
+  );
 
   // Register toast click→node navigator so toasts can zoom to nodes
   useEffect(() => {
     registerToastNavigator((nodeId: string) => {
+      // Defer to the lens-sync effect which handles toolgroup resolution
       useAgentStore.getState().selectNode(nodeId, 'lens');
-      setTimeout(() => fitView({ nodes: [{ id: nodeId }], duration: 300, padding: 1 }), 50);
     });
     return unregisterToastNavigator;
-  }, [fitView]);
+  }, []);
 
   // ── Tool collapse: hide leaf tools, keep structural tools (Task→child agent) ──
 
@@ -53,6 +58,9 @@ function AgentGraphInner() {
     if (!selectedNodeId) return null;
     if (selectedNodeId.startsWith('agent-') || selectedNodeId.startsWith('prompt-')) {
       return selectedNodeId;
+    }
+    if (selectedNodeId.startsWith('toolgroup-')) {
+      return selectedNodeId.slice('toolgroup-'.length);
     }
     if (selectedNodeId.startsWith('tool-')) {
       for (const edge of rawEdges) {
@@ -62,34 +70,10 @@ function AgentGraphInner() {
     return null;
   }, [selectedNodeId, rawEdges]);
 
-  // ── Visibility filtering: search mode OR tool-collapse mode ──
+  // ── Visibility filtering: replace leaf tools with toolGroup nodes, then search/collapse ──
 
-  const { visibleNodes, visibleEdges, searchMatchCount, stackedEdgeTargets } = useMemo(() => {
-    const query = graphSearchQuery.toLowerCase().trim();
-
-    if (query) {
-      // Search mode: show matching nodes + their ancestors
-      const matchIds = new Set<string>();
-      for (const node of rawNodes) {
-        if (nodeMatchesSearch(node, query)) matchIds.add(node.id);
-      }
-
-      const parentOf = buildParentMap(rawEdges);
-      const keepIds = new Set<string>(matchIds);
-      for (const id of matchIds) {
-        collectAncestors(id, parentOf, keepIds);
-      }
-      keepIds.add('__spawn__');
-
-      return {
-        visibleNodes: rawNodes.filter((n) => keepIds.has(n.id)),
-        visibleEdges: rawEdges.filter((e) => keepIds.has(e.source) && keepIds.has(e.target)),
-        searchMatchCount: matchIds.size,
-        stackedEdgeTargets: new Set<string>(),
-      };
-    }
-
-    // Normal mode: tool collapse + optional auto-close prompts
+  const { visibleNodes, visibleEdges, searchMatchCount } = useMemo(() => {
+    // Phase 1: Replace leaf tools with synthetic toolGroup nodes
     const structuralToolIds = new Set<string>();
     for (const edge of rawEdges) {
       if (edge.source.startsWith('tool-') && edge.target.startsWith('agent-')) {
@@ -97,95 +81,124 @@ function AgentGraphInner() {
       }
     }
 
-    const toolParent = new Map<string, string>();
-    for (const edge of rawEdges) {
-      if (edge.target.startsWith('tool-')) {
-        toolParent.set(edge.target, edge.source);
-      }
-    }
-
-    const hiddenIds = new Set<string>();
-    const MAX_STACKED_PREVIEW = 5;
     const leafToolsByParent = new Map<string, string[]>();
-
-    if (!showAllTools) {
-      // Group leaf tools by their parent
-      for (const [toolId, parentId] of toolParent) {
-        if (structuralToolIds.has(toolId)) continue;
-        const list = leafToolsByParent.get(parentId) ?? [];
-        list.push(toolId);
-        leafToolsByParent.set(parentId, list);
-      }
-
-      for (const [parentId, tools] of leafToolsByParent) {
-        if (parentId === expandedParentId) continue; // expanded → show all
-        // Stacked preview: show first N, hide rest
-        for (let i = MAX_STACKED_PREVIEW; i < tools.length; i++) {
-          hiddenIds.add(tools[i]);
-        }
+    const leafToolNodeIds = new Set<string>();
+    for (const edge of rawEdges) {
+      if (edge.target.startsWith('tool-') && !structuralToolIds.has(edge.target)) {
+        leafToolNodeIds.add(edge.target);
+        const list = leafToolsByParent.get(edge.source) ?? [];
+        list.push(edge.target);
+        leafToolsByParent.set(edge.source, list);
       }
     }
 
-    // Edges to hide for stacked tools (keep only edge to first tool in stack)
-    const stackedEdgeTargets = new Set<string>();
-    if (!showAllTools) {
-      for (const [parentId, tools] of leafToolsByParent) {
-        if (parentId === expandedParentId) continue;
-        for (let i = 1; i < Math.min(tools.length, MAX_STACKED_PREVIEW); i++) {
-          stackedEdgeTargets.add(tools[i]);
+    const rawNodeById = new Map(rawNodes.map((n) => [n.id, n]));
+    const syntheticNodes: Node[] = [];
+    const syntheticEdges: Edge[] = [];
+
+    for (const [parentId, toolIds] of leafToolsByParent) {
+      const tools: ToolCallSummary[] = [];
+      for (const tid of toolIds) {
+        const node = rawNodeById.get(tid);
+        if (node) {
+          const tc = (node.data as Record<string, unknown>).toolCall as ToolCallSummary;
+          if (tc) tools.push(tc);
         }
       }
+      if (tools.length === 0) continue;
+      const tgId = `toolgroup-${parentId}`;
+      syntheticNodes.push({
+        id: tgId,
+        type: 'toolGroup',
+        data: { tools, parentAgentId: parentId },
+        position: { x: -9999, y: -9999 },
+        style: { visibility: 'hidden' as const },
+        measured: toolGroupDims.get(tgId),
+      });
+      syntheticEdges.push({
+        id: `edge-${parentId}-toolgroup-${parentId}`,
+        source: parentId,
+        target: `toolgroup-${parentId}`,
+      });
     }
 
-    // Auto-close: hide descendants of all prompts except the expanded one
+    // Base node/edge sets: leaf tools replaced by toolGroup nodes
+    const baseNodes = [
+      ...rawNodes.filter((n) => !leafToolNodeIds.has(n.id)),
+      ...syntheticNodes,
+    ];
+    const baseEdges = [
+      ...rawEdges.filter((e) => !leafToolNodeIds.has(e.target)),
+      ...syntheticEdges,
+    ];
+
+    // Phase 2: Search or collapse filtering
+    const query = graphSearchQuery.toLowerCase().trim();
+
+    if (query) {
+      const matchIds = new Set<string>();
+      for (const node of baseNodes) {
+        if (nodeMatchesSearch(node, query)) matchIds.add(node.id);
+      }
+      const parentOf = buildParentMap(baseEdges);
+      const keepIds = new Set<string>(matchIds);
+      for (const id of matchIds) {
+        collectAncestors(id, parentOf, keepIds);
+      }
+      keepIds.add('__spawn__');
+
+      return {
+        visibleNodes: baseNodes.filter((n) => keepIds.has(n.id)),
+        visibleEdges: baseEdges.filter((e) => keepIds.has(e.source) && keepIds.has(e.target)),
+        searchMatchCount: matchIds.size,
+      };
+    }
+
+    // Normal mode: auto-close prompts + manual collapse
+    const hiddenIds = new Set<string>();
+
     if (autoClosePrompts) {
-      const parentOf = buildParentMap(rawEdges);
-
-      // Find which prompt is expanded — walk up from selected node
+      const parentOf = buildParentMap(baseEdges);
       let expandedPrompt: string | null = null;
       if (selectedNodeId) {
-        let walk: string | undefined = selectedNodeId;
+        // If selected is a tool inside a group, walk from its agent parent
+        let walkStart: string | undefined = selectedNodeId;
+        if (selectedNodeId.startsWith('tool-')) {
+          for (const edge of rawEdges) {
+            if (edge.target === selectedNodeId) {
+              walkStart = `toolgroup-${edge.source}`;
+              break;
+            }
+          }
+        }
+        let walk: string | undefined = walkStart;
         while (walk) {
           if (walk.startsWith('prompt-')) { expandedPrompt = walk; break; }
           walk = parentOf.get(walk);
         }
       }
-
-      // Fallback: expand the last prompt node (most recent)
       if (!expandedPrompt) {
-        const promptNodes = rawNodes.filter((n) => n.type === 'userPrompt');
-        if (promptNodes.length > 0) {
-          expandedPrompt = promptNodes[promptNodes.length - 1].id;
-        }
+        const promptNodes = baseNodes.filter((n) => n.type === 'userPrompt');
+        if (promptNodes.length > 0) expandedPrompt = promptNodes[promptNodes.length - 1].id;
       }
-
-      // Hide agents/tools whose prompt ancestor isn't the expanded prompt
-      for (const node of rawNodes) {
+      for (const node of baseNodes) {
         if (node.type === 'session' || node.type === 'userPrompt' || node.id === '__spawn__') continue;
         if (hiddenIds.has(node.id)) continue;
-
         let promptAncestor: string | null = null;
         let walk: string | undefined = node.id;
         while (walk) {
           if (walk.startsWith('prompt-')) { promptAncestor = walk; break; }
           walk = parentOf.get(walk);
         }
-
         if (promptAncestor && promptAncestor !== expandedPrompt) {
           hiddenIds.add(node.id);
         }
       }
     }
 
-    // Manual collapse: BFS-hide all descendants of collapsed nodes
     if (collapsedNodes.size > 0) {
-      const allChildrenOf = new Map<string, string[]>();
-      for (const edge of rawEdges) {
-        if (hiddenIds.has(edge.target)) continue;
-        const kids = allChildrenOf.get(edge.source) ?? [];
-        kids.push(edge.target);
-        allChildrenOf.set(edge.source, kids);
-      }
+      const edgesForCollapse = baseEdges.filter((e) => !hiddenIds.has(e.target));
+      const allChildrenOf = buildChildrenMap(edgesForCollapse);
       for (const cid of collapsedNodes) {
         const queue = [...(allChildrenOf.get(cid) ?? [])];
         while (queue.length > 0) {
@@ -198,16 +211,13 @@ function AgentGraphInner() {
     }
 
     return {
-      visibleNodes: rawNodes.filter((n) => !hiddenIds.has(n.id)),
-      visibleEdges: rawEdges.filter(
-        (e) => !hiddenIds.has(e.source) && !hiddenIds.has(e.target),
-      ),
+      visibleNodes: baseNodes.filter((n) => !hiddenIds.has(n.id)),
+      visibleEdges: baseEdges.filter((e) => !hiddenIds.has(e.source) && !hiddenIds.has(e.target)),
       searchMatchCount: null as number | null,
-      stackedEdgeTargets,
     };
-  }, [rawNodes, rawEdges, expandedParentId, graphSearchQuery, autoClosePrompts, showAllTools, selectedNodeId, collapsedNodes]);
+  }, [rawNodes, rawEdges, graphSearchQuery, autoClosePrompts, showAllTools, toolGroupMode, selectedNodeId, collapsedNodes, toolGroupDims]);
 
-  const layoutNodes = useAutoLayout(visibleNodes, visibleEdges, layoutMode, expandedParentId);
+  const layoutNodes = useAutoLayout(visibleNodes, visibleEdges, expandedParentId);
 
   // Compute highlighted node IDs: selected + direct children + all ancestors up the hierarchy
   const connectedIds = useMemo(() => {
@@ -216,16 +226,28 @@ function AgentGraphInner() {
 
     const parentOf = buildParentMap(visibleEdges);
 
-    // Add direct children
-    for (const edge of visibleEdges) {
-      if (edge.source === selectedNodeId) ids.add(edge.target);
+    if (selectedNodeId.startsWith('tool-')) {
+      // Selected a tool inside a group (from clicking a pill) — highlight the toolGroup + ancestors
+      for (const edge of rawEdges) {
+        if (edge.target === selectedNodeId) {
+          const toolGroupId = `toolgroup-${edge.source}`;
+          ids.add(toolGroupId);
+          ids.add(edge.source);
+          collectAncestors(edge.source, parentOf, ids);
+          break;
+        }
+      }
+    } else {
+      // Add direct children
+      for (const edge of visibleEdges) {
+        if (edge.source === selectedNodeId) ids.add(edge.target);
+      }
+      // Walk up ancestors
+      collectAncestors(selectedNodeId, parentOf, ids);
     }
 
-    // Walk up ancestors
-    collectAncestors(selectedNodeId, parentOf, ids);
-
     return ids;
-  }, [selectedNodeId, visibleEdges]);
+  }, [selectedNodeId, visibleEdges, rawEdges]);
 
   // Merge connectedIds (from single selection) with multiHighlightIds (from heatmap etc.)
   const multiHighlightIds = useAgentStore((s) => s.multiHighlightIds);
@@ -294,19 +316,15 @@ function AgentGraphInner() {
     return { cumTokens, maxCum };
   }, [visibleNodes, visibleEdges, mergedHighlightIds]);
 
-  // In list mode, use smoothstep edges; dim non-connected edges when selected; apply cost gradient
+  // Use smoothstep edges for clean routing; dim non-connected edges when selected; apply cost gradient
   const styledEdges = useMemo(() => {
-    // Hide edges to non-first stacked tool nodes (keep them in visibleEdges for layout)
-    let result = stackedEdgeTargets.size > 0
-      ? visibleEdges.filter((e) => !stackedEdgeTargets.has(e.target))
-      : visibleEdges;
-    if (layoutMode === 'list') {
-      result = result.map((e) => ({
-        ...e,
-        type: 'smoothstep' as const,
-        pathOptions: { borderRadius: 8 },
-      }));
-    }
+    // Smoothstep edges route in L-shapes: edges from the same parent share the
+    // horizontal segment and only diverge vertically, creating clean overlapping paths
+    let result = visibleEdges.map((e) => ({
+      ...e,
+      type: 'smoothstep' as const,
+      pathOptions: { borderRadius: 12 },
+    }));
     // Cost gradient coloring (only when no highlight active)
     if (edgeCostMap && !mergedHighlightIds) {
       result = result.map((e) => {
@@ -337,29 +355,74 @@ function AgentGraphInner() {
       }));
     }
     return result;
-  }, [visibleEdges, layoutMode, mergedHighlightIds, edgeCostMap, stackedEdgeTargets]);
+  }, [visibleEdges, mergedHighlightIds, edgeCostMap]);
 
-  // Fit view when new nodes are added (unless viewport is locked)
+  // Resolve a node ID to a visible ID — if the node is a grouped tool,
+  // return its parent toolgroup ID instead so fitView can find it.
+  const resolveVisibleId = useCallback(
+    (nodeId: string): string | null => {
+      if (visibleNodes.some((n) => n.id === nodeId)) return nodeId;
+      if (nodeId.startsWith('tool-')) {
+        for (const edge of rawEdges) {
+          if (edge.target === nodeId) {
+            const tgId = `toolgroup-${edge.source}`;
+            if (visibleNodes.some((n) => n.id === tgId)) return tgId;
+          }
+        }
+      }
+      return null;
+    },
+    [visibleNodes, rawEdges],
+  );
+
+  // Zoom to newest node when nodes are added (unless viewport is locked).
+  // Must resolve raw node IDs to visible IDs because tool nodes are replaced
+  // by synthetic toolgroup nodes — fitView on a non-existent ID causes React
+  // Flow to compute empty bounds at (0,0) and zoom to the canvas origin.
+  const prevNodeIdsRef = useRef<Set<string>>(new Set(rawNodes.map((n) => n.id)));
   useEffect(() => {
     if (rawNodes.length > prevNodeCountRef.current && !lockViewport) {
-      setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 100);
+      const prevIds = prevNodeIdsRef.current;
+      const newNodes = rawNodes.filter((n) => !prevIds.has(n.id));
+      const target = newNodes[newNodes.length - 1];
+      if (target) {
+        const visibleId = resolveVisibleId(target.id);
+        if (visibleId) {
+          setTimeout(() => fitView({ nodes: [{ id: visibleId }], duration: 300, padding: 1 }), 100);
+        }
+        // No visible representation (collapsed/hidden) — skip zoom
+      } else {
+        setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 100);
+      }
     }
     prevNodeCountRef.current = rawNodes.length;
-  }, [rawNodes.length, fitView, lockViewport]);
+    prevNodeIdsRef.current = new Set(rawNodes.map((n) => n.id));
+  }, [rawNodes, fitView, lockViewport, resolveVisibleId]);
+
+  // One-time fitView after initial measurement pass — snaps layout into correct positions
+  const initialMeasureDoneRef = useRef(false);
+  useEffect(() => {
+    if (initialMeasureDoneRef.current) return;
+    const hasMeasured = layoutNodes.some((n) => n.measured?.width);
+    if (hasMeasured && layoutNodes.length > 1) {
+      initialMeasureDoneRef.current = true;
+      setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 50);
+    }
+  }, [layoutNodes, fitView]);
 
   // Center on node when selected from lens panel
   useEffect(() => {
     if (selectSource === 'lens' && selectedNodeId) {
-      const targetNode = visibleNodes.find((n) => n.id === selectedNodeId);
-      if (targetNode) {
+      const zoomTarget = resolveVisibleId(selectedNodeId);
+      if (zoomTarget) {
         setTimeout(
-          () => fitView({ nodes: [{ id: selectedNodeId }], duration: 300, padding: 1 }),
+          () => fitView({ nodes: [{ id: zoomTarget }], duration: 300, padding: 1 }),
           50,
         );
       }
       useAgentStore.setState({ selectSource: null });
     }
-  }, [selectSource, selectedNodeId, visibleNodes, fitView]);
+  }, [selectSource, selectedNodeId, visibleNodes, fitView, resolveVisibleId]);
 
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: { id: string }) => {
@@ -440,11 +503,15 @@ function AgentGraphInner() {
     if (!selectedNodeId || selectSource !== 'graph') return;
 
     const timer = setTimeout(() => {
-      if (expansionHappened && expandedParentId) {
-        // Frame parent + its newly expanded tool children
+      const clickedToolGroup = selectedNodeId.startsWith('toolgroup-');
+      if (clickedToolGroup) {
+        // Zoom directly to the toolgroup container the user clicked
+        fitView({ nodes: [{ id: selectedNodeId }], duration: 400, padding: 0.3 });
+      } else if (expansionHappened && expandedParentId) {
+        // Frame parent + its toolGroup child (or structural tool children)
         const nodeIds = [expandedParentId];
         for (const edge of visibleEdges) {
-          if (edge.source === expandedParentId && edge.target.startsWith('tool-')) {
+          if (edge.source === expandedParentId && (edge.target.startsWith('tool-') || edge.target.startsWith('toolgroup-'))) {
             nodeIds.push(edge.target);
           }
         }
@@ -487,7 +554,40 @@ function AgentGraphInner() {
   const isLoading = useAgentStore((s) => s.isLoading);
   const loadError = useAgentStore((s) => s.loadError);
 
-  const onNodesChange = useCallback(() => {}, []);
+  const updateNodeDimensions = useAgentStore((s) => s.updateNodeDimensions);
+  const onNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      const dimUpdates: Array<{ id: string; width: number; height: number }> = [];
+      const tgUpdates: Array<{ id: string; width: number; height: number }> = [];
+      for (const c of changes) {
+        if (c.type === 'dimensions' && c.dimensions?.width && c.dimensions?.height) {
+          if (c.id.startsWith('toolgroup-')) {
+            tgUpdates.push({ id: c.id, width: c.dimensions.width, height: c.dimensions.height });
+            continue;
+          }
+          dimUpdates.push({ id: c.id, width: c.dimensions.width, height: c.dimensions.height });
+        }
+      }
+      if (dimUpdates.length > 0) updateNodeDimensions(dimUpdates);
+      if (tgUpdates.length > 0) {
+        setToolGroupDims((prev) => {
+          let changed = false;
+          for (const { id, width, height } of tgUpdates) {
+            const existing = prev.get(id);
+            if (!existing || existing.width !== width || existing.height !== height) {
+              changed = true;
+              break;
+            }
+          }
+          if (!changed) return prev; // same ref → no re-render
+          const next = new Map(prev);
+          for (const { id, width, height } of tgUpdates) next.set(id, { width, height });
+          return next;
+        });
+      }
+    },
+    [updateNodeDimensions],
+  );
   const onEdgesChange = useCallback(() => {}, []);
 
   // Show hint when graph has only the spawn node
@@ -513,20 +613,7 @@ function AgentGraphInner() {
             <p className="text-red-400 text-sm mb-2">Failed to connect to server</p>
             <p className="text-gray-500 text-xs mb-4">{loadError}</p>
             <button
-              onClick={() => {
-                useAgentStore.getState().setLoadError(null);
-                useAgentStore.getState().setLoading(true);
-                fetch(apiUrl('/api/events?limit=2000'))
-                  .then((r) => r.json())
-                  .then((events) => {
-                    useAgentStore.getState().loadEvents(events);
-                    useAgentStore.getState().setLoading(false);
-                  })
-                  .catch((err) => {
-                    useAgentStore.getState().setLoadError(err.message);
-                    useAgentStore.getState().setLoading(false);
-                  });
-              }}
+              onClick={() => reloadAllEvents({ showLoading: true })}
               className="px-4 py-2 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-700"
             >
               Retry
@@ -589,6 +676,8 @@ function AgentGraphInner() {
                 return '#22c55e';
               case 'toolCall':
                 return '#a855f7';
+              case 'toolGroup':
+                return '#a855f7';
               default:
                 return '#6b7280';
             }
@@ -600,6 +689,7 @@ function AgentGraphInner() {
         />
       </ReactFlow>
       <EdgeCostLegend />
+      <NudgeBadge />
     </>
   );
 }

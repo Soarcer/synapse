@@ -74,7 +74,7 @@ describe('SpawnAgentRequestSchema', () => {
           env: { PORT: '3000' },
         },
       },
-      cwd: '/home/user/project',
+      cwd: 'home/user/project',
       sessionId: 'sess-xyz',
     };
 

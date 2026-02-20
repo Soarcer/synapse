@@ -26,9 +26,8 @@ export function createEventsRouter(broadcaster: Broadcaster): Router {
       logger.info({ hookEvent: raw.hook_event_name || 'unknown', type: event.type, sessionId: event.sessionId }, 'Event received');
       res.status(200).json({ ok: true, eventId: event.id });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
       logger.error({ err }, 'Error processing event');
-      res.status(500).json({ error: message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -36,29 +35,34 @@ export function createEventsRouter(broadcaster: Broadcaster): Router {
   router.get('/', validateQuery(EventQuerySchema), (req: Request, res: Response) => {
     try {
       const cwdParam = req.query.cwd as string | undefined;
+      const fromParam = req.query.from ? parseInt(req.query.from as string, 10) : undefined;
+      const toParam = req.query.to ? parseInt(req.query.to as string, 10) : undefined;
       const events = getStoredEvents({
         sessionId: req.query.sessionId as string | undefined,
         agentId: req.query.agentId as string | undefined,
         type: req.query.type as string | undefined,
         cwd: cwdParam ? normalizeCwd(cwdParam) : undefined,
+        from: Number.isFinite(fromParam) ? fromParam : undefined,
+        to: Number.isFinite(toParam) ? toParam : undefined,
         limit: req.query.limit ? parseInt(req.query.limit as string, 10) : undefined,
         offset: req.query.offset ? parseInt(req.query.offset as string, 10) : undefined,
       });
       res.json(events);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
       logger.error({ err }, 'Error querying events');
-      res.status(500).json({ error: message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
   // GET /api/events/sessions — list all sessions with summary
-  router.get('/sessions', (_req: Request, res: Response) => {
+  router.get('/sessions', (req: Request, res: Response) => {
     try {
-      res.json(listSessions());
+      const cwdParam = req.query.cwd as string | undefined;
+      const cwd = cwdParam ? normalizeCwd(cwdParam) : undefined;
+      res.json(listSessions(500, cwd));
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      res.status(500).json({ error: message });
+      logger.error({ err }, 'Error listing sessions');
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -69,8 +73,8 @@ export function createEventsRouter(broadcaster: Broadcaster): Router {
       logger.info({ deleted }, 'Deleted all events');
       res.json({ ok: true, deleted });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      res.status(500).json({ error: message });
+      logger.error({ err }, 'Error deleting all events');
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -82,8 +86,8 @@ export function createEventsRouter(broadcaster: Broadcaster): Router {
       logger.info({ sessionId, deleted }, 'Deleted session events');
       res.json({ ok: true, deleted });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      res.status(500).json({ error: message });
+      logger.error({ err }, 'Error deleting session events');
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 

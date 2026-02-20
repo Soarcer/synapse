@@ -54,6 +54,7 @@ export function ToolLogPanel() {
         <select
           value={filterTool}
           onChange={(e) => setFilterTool(e.target.value)}
+          aria-label="Filter by tool name"
           className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-300"
         >
           <option value="">All tools</option>
@@ -64,6 +65,7 @@ export function ToolLogPanel() {
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
+          aria-label="Filter by status"
           className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-300"
         >
           <option value="">All statuses</option>

@@ -5,11 +5,12 @@ import { generateMockData } from './mockData';
 // ─── Types ──────────────────────────────────────────────────────────
 
 export interface AnalyticsFilters {
-  timeRange: string;         // '24h' | '7d' | '30d' | 'all' | custom
+  timeRange: string;         // '1h' | '6h' | '24h' | '7d' | '30d' | 'all'
   cwd?: string;
   model?: string;
   vendor?: string;
   sessionId?: string;
+  sessionIds?: string[];
 }
 
 interface OverviewData {
@@ -25,8 +26,10 @@ interface TimeseriesPoint {
   cost: number;
   inputTokens: number;
   outputTokens: number;
+  cacheRead: number;
   sessions: number;
   toolCalls: number;
+  models: Record<string, { cost: number; tokens: number; calls: number }>;
 }
 
 interface ToolSummary {
@@ -64,6 +67,8 @@ function getTimeRangeMs(range: string): { from: number; to: number } {
   const now = Date.now();
   const DAY = 86_400_000;
   switch (range) {
+    case '1h':  return { from: now - 3_600_000, to: now };
+    case '6h':  return { from: now - 6 * 3_600_000, to: now };
     case '24h': return { from: now - DAY, to: now };
     case '7d':  return { from: now - 7 * DAY, to: now };
     case '30d': return { from: now - 30 * DAY, to: now };
@@ -136,10 +141,10 @@ function timeseriesToDailyRollups(ts: TimeseriesPoint[]): MockDailyRollup[] {
     totalCost: point.cost,
     totalInputTokens: point.inputTokens,
     totalOutputTokens: point.outputTokens,
-    totalCacheRead: Math.round(point.inputTokens * 0.5),
+    totalCacheRead: point.cacheRead ?? 0,
     totalToolCalls: point.toolCalls,
     avgLatencyMs: 0,
-    models: {},
+    models: point.models ?? {},
   }));
 }
 
@@ -159,7 +164,7 @@ export function useAnalyticsData(filters: AnalyticsFilters): AnalyticsData {
   const [timeseries, setTimeseries] = useState<TimeseriesPoint[]>(EMPTY_TIMESERIES);
   const [sessions, setSessions] = useState<MockSession[]>(EMPTY_SESSIONS);
   const [turns, setTurns] = useState<MockTurn[]>(EMPTY_TURNS);
-  const [toolCalls] = useState<MockToolCall[]>(EMPTY_TOOL_CALLS);
+  const [toolCalls, setToolCalls] = useState<MockToolCall[]>(EMPTY_TOOL_CALLS);
   const [dailyRollups, setDailyRollups] = useState<MockDailyRollup[]>(EMPTY_DAILY_ROLLUPS);
   const [tools, setTools] = useState<ToolSummary[]>(EMPTY_TOOLS);
   const [models, setModels] = useState<ModelSummary[]>(EMPTY_MODELS);
@@ -176,6 +181,9 @@ export function useAnalyticsData(filters: AnalyticsFilters): AnalyticsData {
     abortRef.current = controller;
     const fetchId = ++fetchIdRef.current;
 
+    // Auto-abort after 30s to prevent hung requests
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+
     setIsLoading(true);
     setError(null);
     setIsUsingMockData(false);
@@ -185,15 +193,24 @@ export function useAnalyticsData(filters: AnalyticsFilters): AnalyticsData {
     params.set('from', String(from));
     params.set('to', String(to));
     if (filters.cwd) params.set('cwd', filters.cwd);
+    if (filters.sessionIds && filters.sessionIds.length > 0) {
+      params.set('sessionIds', filters.sessionIds.join(','));
+    }
 
     try {
       // Parallel fetches for independent endpoints
-      const [overviewRes, timeseriesRes, sessionsRes, toolsRes, modelsRes] = await Promise.all([
+      const turnsParam = filters.sessionId
+        ? `sessionId=${encodeURIComponent(filters.sessionId)}`
+        : `${params}&limit=50`;
+
+      const [overviewRes, timeseriesRes, sessionsRes, toolsRes, modelsRes, turnsRes, toolCallsRes] = await Promise.all([
         fetchApi<OverviewData>(`${API_BASE}/overview?${params}`, controller.signal),
         fetchApi<TimeseriesPoint[]>(`${API_BASE}/timeseries?${params}&granularity=day`, controller.signal),
         fetchApi<Array<Record<string, unknown>>>(`${API_BASE}/sessions?${params}&limit=100`, controller.signal),
         fetchApi<ToolSummary[]>(`${API_BASE}/tools?${params}`, controller.signal),
         fetchApi<ModelSummary[]>(`${API_BASE}/models?${params}`, controller.signal),
+        fetchApi<Array<Record<string, unknown>>>(`${API_BASE}/turns?${turnsParam}`, controller.signal),
+        fetchApi<MockToolCall[]>(`${API_BASE}/tool-calls?${params}`, controller.signal),
       ]);
 
       // Stale check
@@ -201,29 +218,34 @@ export function useAnalyticsData(filters: AnalyticsFilters): AnalyticsData {
 
       setOverview(overviewRes);
       setTimeseries(timeseriesRes.length > 0 ? timeseriesRes : EMPTY_TIMESERIES);
-      setSessions(apiSessionsToMock(sessionsRes).length > 0 ? apiSessionsToMock(sessionsRes) : EMPTY_SESSIONS);
+
+      // Filter out sessions with 0 tokens and 0 cost (no transcript data)
+      const allSessions = apiSessionsToMock(sessionsRes);
+      const liveSessions = allSessions.filter(
+        (s) => s.totalInputTokens + s.totalOutputTokens > 0 || s.totalCost > 0,
+      );
+      setSessions(liveSessions.length > 0 ? liveSessions : EMPTY_SESSIONS);
+
+      // Filter turns to only include sessions that passed the filter
+      const liveSessionIds = new Set(liveSessions.map((s) => s.id));
+      const allTurns = apiTurnsToMock(turnsRes);
+      const liveTurns = allTurns.filter((t) => liveSessionIds.has(t.sessionId));
+
       setDailyRollups(timeseriesToDailyRollups(timeseriesRes));
       setTools(toolsRes.length > 0 ? toolsRes : EMPTY_TOOLS);
       setModels(modelsRes.length > 0 ? modelsRes : EMPTY_MODELS);
+      setTurns(liveTurns.length > 0 ? liveTurns : EMPTY_TURNS);
+      setToolCalls(toolCallsRes.length > 0 ? toolCallsRes : EMPTY_TOOL_CALLS);
 
-      // If a specific session is selected, fetch its turns
-      if (filters.sessionId) {
-        const turnsRes = await fetchApi<Array<Record<string, unknown>>>(
-          `${API_BASE}/turns?sessionId=${encodeURIComponent(filters.sessionId)}`,
-          controller.signal,
-        );
-        if (fetchId === fetchIdRef.current) {
-          setTurns(apiTurnsToMock(turnsRes));
-        }
-      }
-
+      clearTimeout(timeout);
       setIsLoading(false);
     } catch (err: unknown) {
+      clearTimeout(timeout);
       if (err instanceof DOMException && err.name === 'AbortError') return;
       if (fetchId !== fetchIdRef.current) return;
 
       // Fallback to mock data in development
-      console.warn('Analytics API unavailable, falling back to mock data:', err);
+      if (import.meta.env.DEV) console.warn('Analytics API unavailable, falling back to mock data:', err);
       const mock = generateMockData(42);
       setOverview({
         totalCost: mock.sessions.reduce((s, session) => s + session.totalCost, 0),
@@ -241,11 +263,14 @@ export function useAnalyticsData(filters: AnalyticsFilters): AnalyticsData {
         cost: d.totalCost,
         inputTokens: d.totalInputTokens,
         outputTokens: d.totalOutputTokens,
+        cacheRead: d.totalCacheRead,
         sessions: d.sessions,
         toolCalls: d.totalToolCalls,
+        models: d.models,
       })));
       setSessions(mock.sessions);
       setTurns(mock.turns);
+      setToolCalls(mock.toolCalls);
       setDailyRollups(mock.dailyRollups);
       setTools(mock.toolCalls.reduce((acc, tc) => {
         const existing = acc.find((t) => t.name === tc.toolName);
@@ -274,7 +299,8 @@ export function useAnalyticsData(filters: AnalyticsFilters): AnalyticsData {
       setError(null); // Don't show error when gracefully falling back
       setIsLoading(false);
     }
-  }, [filters.timeRange, filters.cwd, filters.sessionId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- sessionIds is an array, serialized for stability
+  }, [filters.timeRange, filters.cwd, filters.sessionId, filters.sessionIds?.join(',')]);
 
   useEffect(() => {
     fetchData();

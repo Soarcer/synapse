@@ -6,6 +6,7 @@ import { TimelinePanel } from '../panels/TimelinePanel';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { useAgentStore } from '../../store/agentStore';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
+import { Tooltip } from '../ui/Tooltip';
 
 const AgentGraph = lazy(() => import('../graph/AgentGraph'));
 
@@ -62,13 +63,14 @@ export function GraphLayout() {
               </div>
             )}
 
-            <button
-              onClick={() => setShowToolLog(!showToolLog)}
-              className="absolute bottom-3 right-3 z-10 px-3 py-1.5 bg-gray-800/90 hover:bg-gray-700/90 border border-gray-700 rounded-lg text-xs text-gray-400 hover:text-gray-200 transition-colors backdrop-blur-sm"
-              title="Toggle tool log (T)"
-            >
-              {showToolLog ? 'Hide' : 'Show'} Tool Log
-            </button>
+            <Tooltip content="Toggle tool log" shortcut="T">
+              <button
+                onClick={() => setShowToolLog(!showToolLog)}
+                className="absolute bottom-3 right-3 z-10 px-3 py-1.5 bg-gray-800/90 hover:bg-gray-700/90 border border-gray-700 rounded-lg text-xs text-gray-400 hover:text-gray-200 transition-colors backdrop-blur-sm"
+              >
+                {showToolLog ? 'Hide' : 'Show'} Tool Log
+              </button>
+            </Tooltip>
           </div>
 
           {/* Detail panel: sidebar on md+, overlay sheet on sm */}

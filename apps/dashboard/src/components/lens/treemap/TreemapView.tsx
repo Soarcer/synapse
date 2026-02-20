@@ -177,14 +177,16 @@ export function TreemapView() {
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const observer = new ResizeObserver(() => {
+    const measure = () => {
       const w = el.clientWidth - 8;
       const h = el.clientHeight - 8;
       if (w > 0 && h > 0) setContainerSize({ w, h });
-    });
+    };
+    const observer = new ResizeObserver(measure);
     observer.observe(el);
-    setContainerSize({ w: el.clientWidth - 8 || 300, h: el.clientHeight - 8 || 400 });
-    return () => observer.disconnect();
+    // Defer initial measurement so flex layout has settled
+    const raf = requestAnimationFrame(measure);
+    return () => { observer.disconnect(); cancelAnimationFrame(raf); };
   }, []);
 
   // Shift+scroll zoom centered on mouse position (native listener for passive:false)
@@ -419,10 +421,12 @@ export function TreemapView() {
       )}
 
       {/* Treemap */}
-      <div ref={containerRef} className="flex-1 overflow-auto p-1">
+      <div ref={containerRef} className="flex-1 min-h-0 overflow-auto p-1">
         <svg
           viewBox={`0 0 ${viewW} ${viewH}`}
-          style={{ width: `${100 * zoom}%`, height: `${100 * zoom}%` }}
+          width={viewW * zoom}
+          height={viewH * zoom}
+          className="block"
         >
           {nestedRects.map(renderRect)}
         </svg>

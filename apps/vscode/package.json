@@ -2,9 +2,10 @@
   "name": "synapse-vscode",
   "displayName": "Synapse — Agent Monitor",
   "description": "Real-time Claude agent monitoring dashboard inside VS Code",
-  "version": "0.1.0",
-  "publisher": "bernhard",
+  "version": "0.4.0",
+  "publisher": "Soarcer",
   "license": "MIT",
+  "icon": "synapse-icon.png",
   "engines": {
     "vscode": "^1.95.0"
   },
@@ -46,14 +47,52 @@
       {
         "command": "synapse.reconnect",
         "title": "Synapse: Reconnect to Server"
+      },
+      {
+        "command": "synapse.openSettings",
+        "title": "Synapse: Settings",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "synapse.sendToClaudeTerminal",
+        "title": "Synapse: Send Text to Claude Terminal"
+      },
+      {
+        "command": "synapse.improveTextDev",
+        "title": "Synapse: Improve Selection (Developer)"
+      },
+      {
+        "command": "synapse.improveTextVibe",
+        "title": "Synapse: Improve Selection (Vibe)"
       }
     ],
+    "keybindings": [
+      {
+        "command": "synapse.improveTextDev",
+        "key": "ctrl+alt+d",
+        "when": "editorHasSelection"
+      },
+      {
+        "command": "synapse.improveTextVibe",
+        "key": "ctrl+alt+v",
+        "when": "editorHasSelection"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "synapse.openSettings",
+          "when": "view == synapseSidebarView",
+          "group": "navigation"
+        }
+      ]
+    },
     "viewsContainers": {
       "activitybar": [
         {
           "id": "synapseSidebar",
           "title": "Synapse",
-          "icon": "$(pulse)"
+          "icon": "synapse-icon-black-128.svg"
         }
       ]
     },
@@ -79,7 +118,7 @@
         "synapse.port": {
           "type": "number",
           "default": 4000,
-          "description": "Port for the Synapse server"
+          "description": "Preferred port for the Synapse server. If busy, the next available port is used automatically."
         },
         "synapse.autoStart": {
           "type": "boolean",
@@ -95,6 +134,33 @@
             "Lenses in the sidebar, graph in a separate editor panel",
             "Full dashboard in a single editor panel"
           ]
+        },
+        "synapse.promptLab.model": {
+          "type": "string",
+          "enum": [
+            "claude-haiku-4-5-20251001",
+            "claude-sonnet-4-5-20250929",
+            "claude-opus-4-6"
+          ],
+          "enumDescriptions": [
+            "Haiku 4.5 — fast, cheap",
+            "Sonnet 4.5 — balanced",
+            "Opus 4.6 — highest quality"
+          ],
+          "default": "claude-sonnet-4-5-20250929",
+          "description": "Default AI model for Prompt Lab hotkeys"
+        },
+        "synapse.promptLab.showScore": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show score in status bar after processing"
+        },
+        "synapse.promptLab.maxChars": {
+          "type": "number",
+          "default": 4000,
+          "minimum": 100,
+          "maximum": 10000,
+          "description": "Maximum characters to send for analysis"
         }
       }
     }
@@ -103,7 +169,7 @@
     "build": "node esbuild.mjs",
     "build:ext-only": "node esbuild.mjs --skip-server",
     "watch": "node esbuild.mjs --watch",
-    "package": "npx @vscode/vsce package --no-dependencies",
+    "package": "npx @vscode/vsce package --no-dependencies --allow-missing-repository",
     "prepackage": "node esbuild.mjs",
     "clean": "node -e \"const fs=require('fs'); if(fs.existsSync('resources'))fs.rmSync('resources',{recursive:true}); if(fs.existsSync('out'))fs.rmSync('out',{recursive:true})\""
   },

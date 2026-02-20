@@ -1,6 +1,6 @@
 import { WebSocket } from 'ws';
 import { logger } from '../lib/logger.js';
-import type { AgentEvent, WsServerMessage, ActiveAgentInfo } from '@synapse-ai/core';
+import type { AgentEvent, WsServerMessage, ActiveAgentInfo, CoachingNudge } from '@synapse-ai/core';
 
 const MAX_BUFFERED_AMOUNT = 1_048_576; // 1MB backpressure threshold
 const MAX_CLIENTS = parseInt(process.env.SYNAPSE_MAX_WS_CLIENTS || '50', 10);
@@ -55,6 +55,24 @@ export class Broadcaster {
     }
   }
 
+  broadcastNudge(nudge: CoachingNudge): void {
+    const msg: WsServerMessage = { type: 'coaching_nudge', data: nudge };
+    const payload = JSON.stringify(msg);
+
+    for (const client of this.clients) {
+      this.safeSend(client, payload);
+    }
+  }
+
+  broadcastTerminalSend(text: string): void {
+    const msg: WsServerMessage = { type: 'terminal_send', data: { text } };
+    const payload = JSON.stringify(msg);
+
+    for (const client of this.clients) {
+      this.safeSend(client, payload);
+    }
+  }
+
   broadcastText(agentId: string, text: string, isPartial: boolean): void {
     const msg: WsServerMessage = {
       type: 'agent_text',
@@ -69,6 +87,16 @@ export class Broadcaster {
 
   get clientCount(): number {
     return this.clients.size;
+  }
+
+  /** Returns true if any connected client has high buffered amount (backpressure). */
+  hasBackpressure(): boolean {
+    for (const client of this.clients) {
+      if (client.readyState === WebSocket.OPEN && client.bufferedAmount > 64 * 1024) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Stop heartbeat timer (for graceful shutdown) */
@@ -89,7 +117,7 @@ export class Broadcaster {
     // If client was stale (missed events), send a stale signal so it reloads
     if (this.stale.has(client)) {
       this.stale.delete(client);
-      const staleMsg: WsServerMessage = { type: 'stale' as WsServerMessage['type'], data: {} };
+      const staleMsg: WsServerMessage = { type: 'stale', data: {} };
       client.send(JSON.stringify(staleMsg));
     }
     client.send(payload);

@@ -1,4 +1,5 @@
 import express, { type Request, type Response, type NextFunction } from 'express';
+import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { apiKeyAuth } from './lib/auth.js';
 import { requestIdMiddleware } from './lib/requestId.js';
@@ -9,6 +10,8 @@ import { createAgentsRouter } from './routes/agents.js';
 import { createTranscriptRouter } from './routes/transcript.js';
 import { createSnapshotRouter } from './routes/snapshot.js';
 import { createAnalyticsRouter } from './routes/analytics.js';
+import { createCoachingRouter } from './routes/coaching.js';
+import { createSettingsRouter } from './routes/settings.js';
 import { getDbStats } from './db.js';
 import { logger } from './lib/logger.js';
 
@@ -24,6 +27,9 @@ export interface AppDeps {
 export function createApp(deps: AppDeps) {
   const { broadcaster, agentManager } = deps;
   const app = express();
+
+  // Security headers (frameguard disabled — dashboard is loaded inside VS Code webview iframes)
+  app.use(helmet({ contentSecurityPolicy: false, frameguard: false }));
 
   // Request ID middleware
   app.use(requestIdMiddleware);
@@ -55,7 +61,7 @@ export function createApp(deps: AppDeps) {
   app.use('/api', apiKeyAuth);
 
   // Rate limiting (can be disabled for tests)
-  if (!deps.disableRateLimiting) {
+  if (!deps.disableRateLimiting || process.env.NODE_ENV === 'production') {
     const apiLimiter = rateLimit({ windowMs: 60_000, max: 300, standardHeaders: 'draft-8', message: { error: 'Too many requests' } });
     const hookLimiter = rateLimit({ windowMs: 60_000, max: 200, standardHeaders: 'draft-8', message: { error: 'Too many requests' } });
     const spawnLimiter = rateLimit({ windowMs: 60_000, max: 30, standardHeaders: 'draft-8', message: { error: 'Too many spawn requests' } });
@@ -70,7 +76,9 @@ export function createApp(deps: AppDeps) {
   app.use('/api/transcript', createTranscriptRouter());
   app.use('/api/snapshot/import', express.json({ limit: '50mb' }));
   app.use('/api/snapshot', createSnapshotRouter());
-  app.use('/api/analytics', createAnalyticsRouter());
+  app.use('/api/analytics', createAnalyticsRouter(broadcaster));
+  app.use('/api/analytics/coaching', createCoachingRouter());
+  app.use('/api/settings', createSettingsRouter());
 
   // Health check
   app.get('/api/health', (_req, res) => {

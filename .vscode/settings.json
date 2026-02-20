@@ -1,3 +1,5 @@
 {
-    "claudeCode.allowDangerouslySkipPermissions": true
+    "claudeCode.allowDangerouslySkipPermissions": true,
+    "liveServer.settings.port": 5501,
+    "chat.customAgentInSubagent.enabled": true
 }

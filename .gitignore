@@ -2,14 +2,19 @@ node_modules
 dist
 out
 .env
-*.db
-*.db-journal
-*.db-shm
-*.db-wal
+synapse.db
+synapse.db-journal
+synapse.db-shm
+synapse.db-wal
 *.tsbuildinfo
+*.vsix
 hook_debug.log
 nul
 c:temp*
+*synapse_stop.json
+*tmp_events.json
+test-results/
+.claude/settings.local.json
 
 # Old directories (migrated to packages/ and apps/)
 openclaw-plugin/dist/

@@ -9,15 +9,6 @@ import type {
 
 // ── Constants ────────────────────────────────────────────────
 
-const SESSION_W = 220;
-const SESSION_H = 80;
-const PROMPT_W = 240;
-const PROMPT_H = 130;
-const AGENT_W = 200;
-const AGENT_H = 110;
-const TOOL_W = 150;
-const TOOL_H = 32;
-
 /** Offscreen position + hidden so new nodes aren't visible before layout runs */
 const OFFSCREEN = { x: -9999, y: -9999 };
 const HIDDEN_STYLE = { visibility: 'hidden' as const };
@@ -74,6 +65,10 @@ export interface StateDraft {
   prompts: Map<string, UserPromptData[]>;
   activeAgents: Map<string, string[]>;
   toolAgentMap: Map<string, string>;
+  /** sessionId → FIFO queue of running Task tool_use_ids (for Task→Agent correlation) */
+  pendingTaskTools: Map<string, string[]>;
+  /** taskToolUseId → childAgentId (set when SubagentStart links to a Task tool) */
+  taskToolAgentMap: Map<string, string>;
   nodes: Node[];
   edges: Edge[];
 }
@@ -86,6 +81,8 @@ export function createFreshDraft(): StateDraft {
     prompts: new Map(),
     activeAgents: new Map(),
     toolAgentMap: new Map(),
+    pendingTaskTools: new Map(),
+    taskToolAgentMap: new Map(),
     nodes: [{ ...SPAWN_NODE }],
     edges: [],
   };
@@ -99,6 +96,10 @@ export function draftFromState(state: StateDraft): StateDraft {
     prompts: new Map(state.prompts),
     activeAgents: new Map(state.activeAgents),
     toolAgentMap: new Map(state.toolAgentMap),
+    pendingTaskTools: new Map(
+      Array.from(state.pendingTaskTools, ([k, v]) => [k, [...v]]),
+    ),
+    taskToolAgentMap: new Map(state.taskToolAgentMap),
     nodes: [...state.nodes],
     edges: [...state.edges],
   };
@@ -130,8 +131,6 @@ function ensureSession(
     position: OFFSCREEN,
     style: HIDDEN_STYLE,
     data: { session },
-    width: SESSION_W,
-    height: SESSION_H,
   });
 }
 
@@ -151,6 +150,17 @@ function handleSessionStart(event: AgentEvent, draft: StateDraft): void {
   };
   draft.sessions.set(event.sessionId, session);
 
+  // Backfill model on agents created before SessionStart arrived (out-of-order events)
+  if (event.model) {
+    for (const [agentId, agent] of draft.agents) {
+      if (agent.sessionId === event.sessionId && !agent.model) {
+        const updated = { ...agent, model: event.model };
+        draft.agents.set(agentId, updated);
+        updateNode(draft.nodes, nid.agent(agentId), { agent: updated });
+      }
+    }
+  }
+
   if (existing) {
     updateNode(draft.nodes, nid.session(event.sessionId), { session });
   } else {
@@ -160,8 +170,6 @@ function handleSessionStart(event: AgentEvent, draft: StateDraft): void {
       position: OFFSCREEN,
       style: HIDDEN_STYLE,
       data: { session },
-      width: SESSION_W,
-      height: SESSION_H,
     });
   }
 }
@@ -178,7 +186,18 @@ function handleSessionEnd(event: AgentEvent, draft: StateDraft): void {
 
 function handleUserPrompt(event: AgentEvent, draft: StateDraft): void {
   ensureSession(event.sessionId, event.timestamp, draft, event);
+
+  // Guard: skip if this prompt node already exists (dedup safety net)
+  if (draft.nodes.some((n) => n.id === nid.prompt(event.id))) return;
+
+  // Content-based dedup: two hook sources can produce the same prompt with different
+  // event IDs. Skip if a prompt with identical text already exists in this session
+  // within a 3-second window.
   const sessionPrompts = draft.prompts.get(event.sessionId) ?? [];
+  const promptText = event.text ?? '';
+  if (sessionPrompts.some(
+    (p) => p.text === promptText && Math.abs(p.timestamp - event.timestamp) < 3000,
+  )) return;
   const prompt: UserPromptData = {
     id: event.id,
     sessionId: event.sessionId,
@@ -193,8 +212,6 @@ function handleUserPrompt(event: AgentEvent, draft: StateDraft): void {
     position: OFFSCREEN,
     style: HIDDEN_STYLE,
     data: { prompt },
-    width: PROMPT_W,
-    height: PROMPT_H,
   });
   draft.edges.push({
     id: eid(nid.session(event.sessionId), nid.prompt(event.id)),
@@ -216,6 +233,7 @@ function handleAgentStart(event: AgentEvent, draft: StateDraft): void {
     toolCalls: [],
     tokenUsage: { input: 0, output: 0 },
     startTime: event.timestamp,
+    model: event.model ?? draft.sessions.get(event.sessionId)?.model,
   };
   draft.agents.set(agentId, agent);
 
@@ -237,21 +255,56 @@ function handleAgentStart(event: AgentEvent, draft: StateDraft): void {
     position: OFFSCREEN,
     style: HIDDEN_STYLE,
     data: { agent },
-    width: AGENT_W,
-    height: AGENT_H,
   });
 
-  // Edge: parent agent, or latest prompt, or session
-  let parentNodeId: string;
+  // ── Determine parent node for the agent edge ──
+  // Priority: parentAgentId (if valid) → pending Task tool → latest prompt → session
+  let parentNodeId: string | undefined;
+
+  // 1. Explicit parent agent (for nested subagents)
   if (event.parentAgentId) {
-    parentNodeId = nid.agent(event.parentAgentId);
-  } else {
+    const parentExists = draft.nodes.some((n) => n.id === nid.agent(event.parentAgentId!));
+    if (parentExists) {
+      parentNodeId = nid.agent(event.parentAgentId);
+    }
+    // If parent agent doesn't exist yet (out-of-order events), fall through
+  }
+
+  // 2. Pending Task tool — SubagentStart arriving after PreToolUse(Task)
+  if (!parentNodeId) {
+    const pending = draft.pendingTaskTools.get(event.sessionId);
+    if (pending && pending.length > 0) {
+      // Prefer explicit toolUseId match (hooks provide tool_use_id on SubagentStart)
+      // Fall back to FIFO only when toolUseId is unavailable
+      let taskToolUseId: string | undefined;
+      if (event.toolUseId && pending.includes(event.toolUseId)) {
+        taskToolUseId = event.toolUseId;
+        const idx = pending.indexOf(event.toolUseId);
+        pending.splice(idx, 1);
+      } else {
+        taskToolUseId = pending.shift();
+      }
+      if (pending.length === 0) draft.pendingTaskTools.delete(event.sessionId);
+      if (taskToolUseId) {
+        const taskToolNodeId = nid.tool(taskToolUseId);
+        if (draft.nodes.some((n) => n.id === taskToolNodeId)) {
+          parentNodeId = taskToolNodeId;
+          // Record mapping so handleToolEnd can also do re-pointing for SDK events
+          draft.taskToolAgentMap.set(taskToolUseId, agentId);
+        }
+      }
+    }
+  }
+
+  // 3. Latest prompt or session fallback
+  if (!parentNodeId) {
     const sessionPrompts = draft.prompts.get(event.sessionId);
     const latestPrompt = sessionPrompts?.[sessionPrompts.length - 1];
     parentNodeId = latestPrompt
       ? nid.prompt(latestPrompt.id)
       : nid.session(event.sessionId);
   }
+
   draft.edges.push({
     id: eid(parentNodeId, nid.agent(agentId)),
     source: parentNodeId,
@@ -272,11 +325,23 @@ function handleAgentStop(event: AgentEvent, draft: StateDraft): void {
   const agent = draft.agents.get(agentId);
   if (!agent) return;
 
+  // Merge tokenUsage: event provides {input, output} but agent may already have
+  // richer cache/thinking data from Task tool_end — preserve those fields
+  const mergedTokenUsage = event.tokenUsage
+    ? {
+        ...event.tokenUsage,
+        cacheRead: agent.tokenUsage.cacheRead,
+        cacheCreation: agent.tokenUsage.cacheCreation,
+        thinking: agent.tokenUsage.thinking,
+      }
+    : agent.tokenUsage;
+
   const updated = {
     ...agent,
     status: (event.status ?? 'success') as AgentNodeData['status'],
     endTime: event.timestamp,
-    tokenUsage: event.tokenUsage ?? agent.tokenUsage,
+    tokenUsage: mergedTokenUsage,
+    model: event.model ?? agent.model,
   };
   draft.agents.set(agentId, updated);
   updateNode(draft.nodes, nid.agent(agentId), { agent: updated });
@@ -299,6 +364,12 @@ function handleToolStart(event: AgentEvent, draft: StateDraft): void {
     }
   }
   draft.toolAgentMap.set(toolUseId, agentId);
+
+  // Track running Task tools so SubagentStart can link to them
+  if (event.toolName === 'Task') {
+    const pending = draft.pendingTaskTools.get(event.sessionId) ?? [];
+    draft.pendingTaskTools.set(event.sessionId, [...pending, toolUseId]);
+  }
 
   const tc: ToolCallSummary = {
     toolUseId,
@@ -326,8 +397,6 @@ function handleToolStart(event: AgentEvent, draft: StateDraft): void {
     position: OFFSCREEN,
     style: HIDDEN_STYLE,
     data: { toolCall: tc },
-    width: TOOL_W,
-    height: TOOL_H,
   });
 
   // Edge: agent → tool, or latest prompt, or session
@@ -362,6 +431,29 @@ function finalizeToolCall(
   const toolUseId = event.toolUseId ?? '';
   const agentId = event.agentId || draft.toolAgentMap.get(toolUseId) || '';
   const patch: Partial<ToolCallSummary> = { status, endTime: event.timestamp, ...extras };
+
+  // Compute duration from timestamps when the event doesn't provide it
+  // (Claude Code hooks never send event.duration)
+  if (patch.duration == null && patch.endTime != null) {
+    const existing = draft.toolCalls.get(agentId)?.find((tc) => tc.toolUseId === toolUseId);
+    if (existing?.startTime) {
+      patch.duration = patch.endTime - existing.startTime;
+    }
+  }
+
+  // If tool_end arrived before tool_start (async hook race), create the tool
+  // node now so the completion isn't silently lost.
+  const toolNodeExists = draft.nodes.some((n) => n.id === nid.tool(toolUseId));
+  if (!toolNodeExists && toolUseId) {
+    handleToolStart(
+      {
+        ...event,
+        type: 'tool_start',
+        status: 'running',
+      },
+      draft,
+    );
+  }
 
   // Update toolCalls Map
   const agentTools = draft.toolCalls.get(agentId);
@@ -404,21 +496,34 @@ function handleToolEnd(event: AgentEvent, draft: StateDraft): void {
     toolResponse: event.toolResponse,
   });
 
-  // Task tool response → link child agent to this tool node
-  if (event.toolName !== 'Task' || !event.toolResponse) return;
+  if (event.toolName !== 'Task') return;
 
   const toolUseId = event.toolUseId ?? '';
-  const childAgentId = (event.toolResponse as Record<string, unknown>).agentId as
-    | string
-    | undefined;
+
+  // Consume from pendingTaskTools if this Task wasn't consumed by SubagentStart
+  // (happens when PostToolUse(Task) arrives but no SubagentStart was processed)
+  const pending = draft.pendingTaskTools.get(event.sessionId);
+  if (pending) {
+    const idx = pending.indexOf(toolUseId);
+    if (idx >= 0) {
+      pending.splice(idx, 1);
+      if (pending.length === 0) draft.pendingTaskTools.delete(event.sessionId);
+    }
+  }
+
+  // Resolve child agent: try toolResponse.agentId (SDK), then taskToolAgentMap (hooks)
+  const childAgentId =
+    ((event.toolResponse as Record<string, unknown> | undefined)?.agentId as string | undefined) ??
+    draft.taskToolAgentMap.get(toolUseId);
   if (!childAgentId) return;
 
   const toolNodeId = nid.tool(toolUseId);
   const agentNodeId = nid.agent(childAgentId);
 
   // Re-point the child agent's incoming edge to this Task tool
+  // (only needed if handleAgentStart didn't already link to the Task tool, e.g. SDK path)
   for (let i = 0; i < draft.edges.length; i++) {
-    if (draft.edges[i].target === agentNodeId) {
+    if (draft.edges[i].target === agentNodeId && draft.edges[i].source !== toolNodeId) {
       draft.edges[i] = {
         ...draft.edges[i],
         id: eid(toolNodeId, agentNodeId),
@@ -427,7 +532,8 @@ function handleToolEnd(event: AgentEvent, draft: StateDraft): void {
     }
   }
 
-  // Extract token usage from Task response
+  // Extract token usage from Task response (SDK path)
+  if (!event.toolResponse) return;
   const resp = event.toolResponse as Record<string, unknown>;
   const usage = resp.usage as Record<string, number> | undefined;
   if (!usage) return;
@@ -436,12 +542,14 @@ function handleToolEnd(event: AgentEvent, draft: StateDraft): void {
   if (!childAgent || childAgent.tokenUsage.input !== 0 || childAgent.tokenUsage.output !== 0)
     return;
 
+  const cacheRead = usage.cache_read_input_tokens ?? 0;
+  const cacheCreation = usage.cache_creation_input_tokens ?? 0;
   const tokenUsage = {
-    input:
-      (usage.input_tokens ?? 0) +
-      (usage.cache_read_input_tokens ?? 0) +
-      (usage.cache_creation_input_tokens ?? 0),
+    input: (usage.input_tokens ?? 0) + cacheRead + cacheCreation,
     output: usage.output_tokens ?? 0,
+    cacheRead,
+    cacheCreation,
+    thinking: usage.thinking_tokens ?? 0,
   };
   const updated = { ...childAgent, tokenUsage };
   draft.agents.set(childAgentId, updated);
@@ -457,11 +565,22 @@ function handleResult(event: AgentEvent, draft: StateDraft): void {
   const agent = draft.agents.get(agentId);
   if (!agent) return;
 
+  // Preserve cache/thinking data from earlier Task tool_end
+  const mergedTokenUsage = event.tokenUsage
+    ? {
+        ...event.tokenUsage,
+        cacheRead: agent.tokenUsage.cacheRead,
+        cacheCreation: agent.tokenUsage.cacheCreation,
+        thinking: agent.tokenUsage.thinking,
+      }
+    : agent.tokenUsage;
+
   const updated = {
     ...agent,
     status: (event.status ?? 'success') as AgentNodeData['status'],
     endTime: event.timestamp,
-    tokenUsage: event.tokenUsage ?? agent.tokenUsage,
+    tokenUsage: mergedTokenUsage,
+    model: event.model ?? agent.model,
   };
   draft.agents.set(agentId, updated);
   updateNode(draft.nodes, nid.agent(agentId), { agent: updated });

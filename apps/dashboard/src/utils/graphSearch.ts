@@ -33,6 +33,10 @@ export function nodeMatchesSearch(node: Node, query: string): boolean {
         v?.toLowerCase().includes(query),
       );
     }
+    case 'toolGroup': {
+      const tools = d.tools as ToolCallSummary[] | undefined;
+      return tools?.some((t) => [t.toolName, t.inputPreview].some((v) => v?.toLowerCase().includes(query))) ?? false;
+    }
     default:
       return false;
   }
@@ -54,4 +58,15 @@ export function collectAncestors(id: string, parentOf: Map<string, string>, into
     current = parentOf.get(current)!;
     into.add(current);
   }
+}
+
+/** Build a parent->children map from edges */
+export function buildChildrenMap(edges: { source: string; target: string }[]): Map<string, string[]> {
+  const childrenOf = new Map<string, string[]>();
+  for (const edge of edges) {
+    const kids = childrenOf.get(edge.source) ?? [];
+    kids.push(edge.target);
+    childrenOf.set(edge.source, kids);
+  }
+  return childrenOf;
 }

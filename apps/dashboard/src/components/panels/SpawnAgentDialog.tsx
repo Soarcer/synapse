@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useAgentStore } from '../../store/agentStore';
 import { apiUrl } from '../../utils/api';
+import { toast } from '../Toast';
 
 const AVAILABLE_TOOLS = [
   'Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep', 'WebSearch', 'WebFetch', 'Task',
@@ -64,13 +65,14 @@ export function SpawnAgentDialog() {
       setSystemPrompt('');
       setCwd('');
     } catch {
-      // ignore
+      toast('Failed to spawn agent', 'error');
     } finally {
       setSpawning(false);
     }
   }, [prompt, model, tools, permissionMode, systemPrompt, cwd, targetSessionId, latestSessionId, setShowSpawnDialog]);
 
   const promptRef = useRef<HTMLTextAreaElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   // Auto-focus the prompt textarea when dialog opens
   useEffect(() => {
@@ -78,6 +80,35 @@ export function SpawnAgentDialog() {
       setTimeout(() => promptRef.current?.focus(), 50);
     }
   }, [showSpawnDialog]);
+
+  // Escape key + focus trap
+  useEffect(() => {
+    if (!showSpawnDialog) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowSpawnDialog(false);
+        return;
+      }
+      // Focus trap: cycle Tab within dialog
+      if (e.key === 'Tab' && dialogRef.current) {
+        const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])',
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          last.focus();
+          e.preventDefault();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          first.focus();
+          e.preventDefault();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [showSpawnDialog, setShowSpawnDialog]);
 
   if (!showSpawnDialog) return null;
 
@@ -90,6 +121,7 @@ export function SpawnAgentDialog() {
       onClick={() => setShowSpawnDialog(false)}
     >
       <div
+        ref={dialogRef}
         className="bg-[#161b22] border border-gray-700 rounded-xl shadow-2xl w-full max-w-lg mx-4"
         onClick={(e) => e.stopPropagation()}
       >

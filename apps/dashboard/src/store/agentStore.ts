@@ -7,11 +7,16 @@ import type {
   ToolCallSummary,
   UserPromptData,
   TranscriptSummary,
+  CoachingNudge,
 } from '@synapse-ai/core';
 import { PALETTES, normalizeCwd } from '@synapse-ai/core';
 import { wsClient } from './wsClient';
 import { toast } from '../components/Toast';
+import { t } from '../i18n';
 import { apiUrl } from '../utils/api';
+
+// Module-level empty array to avoid re-render loops (Zustand convention)
+const EMPTY_NUDGES: CoachingNudge[] = [];
 
 // ── CWD filter ────────────────────────────────────────────────
 /** The project cwd from the URL (null when not embedded with ?cwd=). */
@@ -30,6 +35,70 @@ import {
   buildDerivedMaps,
 } from './eventHandlers';
 
+// ── View settings persistence ────────────────────────────────
+const VIEW_SETTINGS_KEY = 'synapse-view-settings';
+
+interface PersistedViewSettings {
+  showHookEvents?: boolean;
+  showAllTools?: boolean;
+  toolGroupMode?: 'pillGrid' | 'timeline' | 'heatmap';
+  lockViewport?: boolean;
+  autoClosePrompts?: boolean;
+}
+
+const savedViewSettings: PersistedViewSettings = (() => {
+  try {
+    const raw = localStorage.getItem(VIEW_SETTINGS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+})();
+
+function persistViewSettings(partial: Partial<PersistedViewSettings>) {
+  try {
+    const current = JSON.parse(localStorage.getItem(VIEW_SETTINGS_KEY) ?? '{}');
+    localStorage.setItem(VIEW_SETTINGS_KEY, JSON.stringify({ ...current, ...partial }));
+  } catch { /* quota exceeded */ }
+}
+
+// ── Time filter persistence ──────────────────────────────────
+const TIME_FILTER_KEY = 'synapse-time-filter';
+
+/** Recompute a fresh time range from a preset label (ranges are relative to "now"). */
+function computeTimeRange(label: string): { from: number; to: number } | null {
+  const now = Date.now();
+  switch (label) {
+    case 'Last hour':
+      return { from: now - 3_600_000, to: now };
+    case 'Last 4 hours':
+      return { from: now - 14_400_000, to: now };
+    case 'Today': {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      return { from: d.getTime(), to: now };
+    }
+    case 'This week': {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - d.getDay());
+      return { from: d.getTime(), to: now };
+    }
+    case 'Last 30 days':
+      return { from: now - 30 * 86_400_000, to: now };
+    default:
+      return null;
+  }
+}
+
+const savedTimeLabel = (() => {
+  try {
+    return localStorage.getItem(TIME_FILTER_KEY) ?? 'All time';
+  } catch {
+    return 'All time';
+  }
+})();
+
 // ── Stable selectors (defined outside functions to avoid re-creation) ────
 
 export const selectEvents = (s: AgentStore) => s.events;
@@ -40,6 +109,7 @@ export const selectConnectionStatus = (s: AgentStore) => s.connectionStatus;
 export const selectIsPaused = (s: AgentStore) => s.paused;
 
 // ── Event cap tracking ───────────────────────────────────────
+export const MAX_EVENTS = 1000;
 let eventCapToastFired = false;
 
 // ── Binary-search insertion for event ordering ───────────────
@@ -56,7 +126,7 @@ function insertEventSorted(events: AgentEvent[], event: AgentEvent, maxSize: num
   if (result.length > maxSize) {
     if (!eventCapToastFired) {
       eventCapToastFired = true;
-      toast('Event limit reached — oldest events are being dropped', 'warning');
+      toast(t('toast.eventLimit'), 'warning');
     }
     return result.slice(0, maxSize);
   }
@@ -67,23 +137,41 @@ function insertEventSorted(events: AgentEvent[], event: AgentEvent, maxSize: num
 
 let reloadAbort: AbortController | null = null;
 
-function reloadAllEvents(): void {
+export function reloadAllEvents(options?: { showLoading?: boolean }): void {
   reloadAbort?.abort();
   reloadAbort = new AbortController();
   const signal = reloadAbort.signal;
 
-  const cwdFilter = useAgentStore.getState().cwdFilter;
-  const cwdParam = cwdFilter ? `&cwd=${encodeURIComponent(cwdFilter)}` : '';
-  fetch(apiUrl(`/api/events?limit=2000${cwdParam}`), { signal })
+  const { cwdFilter, timeRange } = useAgentStore.getState();
+  if (options?.showLoading) {
+    useAgentStore.getState().setLoading(true);
+    useAgentStore.getState().setLoadError(null);
+  }
+  const params = new URLSearchParams({ limit: '2000' });
+  if (cwdFilter) params.set('cwd', cwdFilter);
+  if (timeRange) {
+    params.set('from', String(timeRange.from));
+    params.set('to', String(timeRange.to));
+  }
+  fetch(apiUrl(`/api/events?${params}`), { signal })
     .then((r) => r.json())
     .then((data) => {
       const events = Array.isArray(data) ? data : data?.events;
       if (Array.isArray(events)) {
         useAgentStore.getState().loadEvents(events);
       }
+      if (options?.showLoading) {
+        useAgentStore.getState().setLoading(false);
+      }
     })
     .catch((err: unknown) => {
       if (err instanceof Error && err.name === 'AbortError') return;
+      if (options?.showLoading) {
+        useAgentStore.getState().setLoadError(
+          err instanceof Error ? err.message : 'Failed to connect to server',
+        );
+        useAgentStore.getState().setLoading(false);
+      }
     });
 }
 
@@ -98,6 +186,8 @@ interface AgentStore {
   prompts: Map<string, UserPromptData[]>;
   activeAgents: Map<string, string[]>;
   toolAgentMap: Map<string, string>;
+  pendingTaskTools: Map<string, string[]>;
+  taskToolAgentMap: Map<string, string>;
   events: AgentEvent[];
   pauseQueue: AgentEvent[];
   nodes: Node[];
@@ -108,17 +198,20 @@ interface AgentStore {
   connectionStatus: 'connected' | 'disconnected' | 'reconnecting' | 'failed';
   filter: { sessionId?: string; agentType?: string };
   showSpawnDialog: boolean;
+  showWorkshop: boolean;
   paused: boolean;
-  layoutMode: 'graph' | 'list';
   showHookEvents: boolean;
   showAllTools: boolean;
+  toolGroupMode: 'pillGrid' | 'timeline' | 'heatmap';
   lockViewport: boolean;
   autoClosePrompts: boolean;
-  cwdFilterActive: boolean;
   cwdFilter: string | null;
+  timeRange: { from: number; to: number } | null;
+  timePresetLabel: string;
   graphSearchQuery: string;
   collapsedNodes: Set<string>;
   transcripts: Map<string, TranscriptSummary>;
+  liveNudges: CoachingNudge[];
   isLoading: boolean;
   loadError: string | null;
 
@@ -136,13 +229,14 @@ interface AgentStore {
   setFilter: (filter: { sessionId?: string; agentType?: string }) => void;
   setConnectionStatus: (s: 'connected' | 'disconnected' | 'reconnecting' | 'failed') => void;
   setShowSpawnDialog: (show: boolean) => void;
+  setShowWorkshop: (show: boolean) => void;
   setPaused: (paused: boolean) => void;
-  setLayoutMode: (mode: 'graph' | 'list') => void;
   setShowHookEvents: (show: boolean) => void;
   setShowAllTools: (show: boolean) => void;
+  setToolGroupMode: (mode: 'pillGrid' | 'timeline' | 'heatmap') => void;
   setLockViewport: (lock: boolean) => void;
   setAutoClosePrompts: (v: boolean) => void;
-  setCwdFilterActive: (active: boolean) => void;
+  setTimeRange: (range: { from: number; to: number } | null, label: string) => void;
   setGraphSearchQuery: (query: string) => void;
   toggleCollapsed: (nodeId: string) => void;
   expandNode: (nodeId: string) => void;
@@ -156,8 +250,12 @@ interface AgentStore {
   setTranscript: (sessionId: string, data: TranscriptSummary) => void;
   setLoading: (loading: boolean) => void;
   setLoadError: (error: string | null) => void;
+  updateNodeDimensions: (updates: Array<{ id: string; width: number; height: number }>) => void;
   removeNode: (nodeId: string) => void;
   removeSession: (sessionId: string) => void;
+  addNudge: (nudge: CoachingNudge) => void;
+  dismissNudge: (id: string) => void;
+  undismissNudge: (id: string) => void;
   clearEvents: () => void;
   loadEvents: (events: AgentEvent[]) => void;
 }
@@ -173,6 +271,8 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   prompts: new Map(),
   activeAgents: new Map(),
   toolAgentMap: new Map(),
+  pendingTaskTools: new Map(),
+  taskToolAgentMap: new Map(),
   events: [],
   pauseQueue: [],
   nodes: [{ ...SPAWN_NODE }],
@@ -183,22 +283,25 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   connectionStatus: 'disconnected',
   filter: {},
   showSpawnDialog: false,
+  showWorkshop: false,
   paused: false,
-  layoutMode: 'graph',
-  showHookEvents: true,
-  showAllTools: false,
-  lockViewport: true,
-  autoClosePrompts: false,
-  cwdFilterActive: projectCwd !== null,
+  showHookEvents: savedViewSettings.showHookEvents ?? true,
+  showAllTools: savedViewSettings.showAllTools ?? true,
+  toolGroupMode: savedViewSettings.toolGroupMode ?? 'heatmap',
+  lockViewport: savedViewSettings.lockViewport ?? false,
+  autoClosePrompts: savedViewSettings.autoClosePrompts ?? false,
   cwdFilter: projectCwd,
+  timeRange: computeTimeRange(savedTimeLabel),
+  timePresetLabel: savedTimeLabel,
   graphSearchQuery: '',
   collapsedNodes: new Set<string>(),
   transcripts: new Map(),
+  liveNudges: EMPTY_NUDGES,
   isLoading: true,
   loadError: null,
 
   // Lens Panel state
-  activeLensTab: 'tree',
+  activeLensTab: 'treemap',
   lensPanelWidth: 320,
   lensSearchQuery: '',
   profileMetric: 'count',
@@ -214,11 +317,17 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
         return { ...state, pauseQueue: [...state.pauseQueue, event] };
       }
 
+      // Dedup: skip events already in the store (protects against WS + HTTP load races
+      // and duplicate broadcasts from overlapping hook sources)
+      if (event.type !== 'text_delta' && state.events.some((e) => e.id === event.id)) {
+        return state;
+      }
+
       // Fast path: text_delta — only copy agents Map + nodes array
       if (event.type === 'text_delta') {
         const agentId = event.agentId ?? '';
         const agent = state.agents.get(agentId);
-        const events = insertEventSorted(state.events, event, 1000);
+        const events = insertEventSorted(state.events, event, MAX_EVENTS);
         if (!agent) {
           return { ...state, events };
         }
@@ -234,7 +343,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
         return { ...state, agents, nodes, events, ...buildDerivedMaps(agents) };
       }
 
-      const events = insertEventSorted(state.events, event, 1000);
+      const events = insertEventSorted(state.events, event, MAX_EVENTS);
 
       // Hidden hook events: store event, skip graph processing
       if (event.eventSource === 'hook' && !state.showHookEvents) {
@@ -261,13 +370,12 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   setConnectionStatus: (connectionStatus) => set({ connectionStatus }),
 
   setShowSpawnDialog: (showSpawnDialog) => set({ showSpawnDialog }),
-
-  setLayoutMode: (layoutMode) => set({ layoutMode }),
+  setShowWorkshop: (showWorkshop) => set({ showWorkshop }),
 
   setLoading: (loading) => set({ isLoading: loading }),
   setLoadError: (error) => set({ loadError: error }),
 
-  setAutoClosePrompts: (autoClosePrompts) => set({ autoClosePrompts }),
+  setAutoClosePrompts: (autoClosePrompts) => { persistViewSettings({ autoClosePrompts }); set({ autoClosePrompts }); },
   setGraphSearchQuery: (graphSearchQuery) => set({ graphSearchQuery }),
 
   toggleCollapsed: (nodeId) => {
@@ -300,17 +408,19 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   },
 
   setShowHookEvents: (showHookEvents) => {
+    persistViewSettings({ showHookEvents });
     set({ showHookEvents });
     reloadAllEvents();
   },
 
-  setShowAllTools: (showAllTools) => set({ showAllTools }),
+  setShowAllTools: (showAllTools) => { persistViewSettings({ showAllTools }); set({ showAllTools }); },
+  setToolGroupMode: (toolGroupMode) => { persistViewSettings({ toolGroupMode }); set({ toolGroupMode }); },
 
-  setLockViewport: (lockViewport) => set({ lockViewport }),
+  setLockViewport: (lockViewport) => { persistViewSettings({ lockViewport }); set({ lockViewport }); },
 
-  setCwdFilterActive: (active) => {
-    const newFilter = active ? projectCwd : null;
-    set({ cwdFilterActive: active, cwdFilter: newFilter });
+  setTimeRange: (range, label) => {
+    try { localStorage.setItem(TIME_FILTER_KEY, label); } catch { /* quota exceeded */ }
+    set({ timeRange: range, timePresetLabel: label });
     reloadAllEvents();
   },
 
@@ -325,6 +435,23 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     } else {
       set({ paused: true });
     }
+  },
+
+  // ── updateNodeDimensions (from React Flow measurement) ───
+
+  updateNodeDimensions: (updates) => {
+    set((state) => {
+      const updateMap = new Map(updates.map((u) => [u.id, u]));
+      let changed = false;
+      const nodes = state.nodes.map((node) => {
+        const u = updateMap.get(node.id);
+        if (!u) return node;
+        if (node.measured?.width === u.width && node.measured?.height === u.height) return node;
+        changed = true;
+        return { ...node, measured: { width: u.width, height: u.height } };
+      });
+      return changed ? { nodes } : {};
+    });
   },
 
   // ── removeNode (BFS with adjacency map) ──────────────────
@@ -428,9 +555,29 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     get().removeNode(nid.session(sessionId));
   },
 
+  // ── Coaching nudges ─────────────────────────────────────────
+
+  addNudge: (nudge) =>
+    set((s) => {
+      const updated = [...s.liveNudges, nudge];
+      // Cap at 50 nudges to prevent unbounded growth
+      return { liveNudges: updated.length > 50 ? updated.slice(-50) : updated };
+    }),
+
+  dismissNudge: (id) =>
+    set((s) => ({
+      liveNudges: s.liveNudges.map((n) => (n.id === id ? { ...n, dismissed: true } : n)),
+    })),
+
+  undismissNudge: (id) =>
+    set((s) => ({
+      liveNudges: s.liveNudges.map((n) => (n.id === id ? { ...n, dismissed: false } : n)),
+    })),
+
   // ── clearEvents / loadEvents (batched — single set()) ────
 
-  clearEvents: () =>
+  clearEvents: () => {
+    eventCapToastFired = false;
     set({
       sessions: new Map(),
       agents: new Map(),
@@ -440,6 +587,8 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       prompts: new Map(),
       activeAgents: new Map(),
       toolAgentMap: new Map(),
+      pendingTaskTools: new Map(),
+      taskToolAgentMap: new Map(),
       events: [],
       pauseQueue: [],
       nodes: [{ ...SPAWN_NODE }],
@@ -448,27 +597,99 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       highlightedNodeIds: null,
       multiHighlightIds: null,
       collapsedNodes: new Set(),
-    }),
+      transcripts: new Map(),
+      liveNudges: EMPTY_NUDGES,
+    });
+  },
 
   loadEvents: (events) => {
+    eventCapToastFired = false;
     const { showHookEvents } = get();
     const draft = createFreshDraft();
     const sorted = [...events].sort((a, b) => a.timestamp - b.timestamp);
-    for (const event of sorted) {
+    // Content-based dedup: the DB may contain duplicate events from multiple hook
+    // sources (same logical event stored twice with different nanoid IDs).
+    const deduped = deduplicateEvents(sorted);
+    for (const event of deduped) {
       processEvent(event, draft, showHookEvents);
     }
     // Events stored newest-first for timeline display
     set({
       ...draft,
       ...buildDerivedMaps(draft.agents),
-      events: sorted.reverse().slice(0, 1000),
+      events: deduped.reverse().slice(0, MAX_EVENTS),
       selectedNodeId: null,
       highlightedNodeIds: null,
       multiHighlightIds: null,
       collapsedNodes: new Set(),
+      transcripts: new Map(),
+      liveNudges: EMPTY_NUDGES,
     });
   },
 }));
+
+// ── Content-based event fingerprint (shared by WS dedup + loadEvents dedup) ──
+
+function eventFingerprint(event: AgentEvent): string {
+  // Use the most specific stable identifier per event type.
+  // toolUseId and agentId are stable across hook sources (same stdin from Claude Code).
+  if (event.toolUseId) return `${event.sessionId}:${event.type}:${event.toolUseId}`;
+  if (event.agentId) return `${event.sessionId}:${event.type}:${event.agentId}`;
+  // For prompts, include text so two different rapid prompts aren't falsely deduped
+  if (event.type === 'user_prompt') return `${event.sessionId}:user_prompt:${(event.text ?? '').slice(0, 200)}`;
+  // Fallback: session-level events (session_start, session_end, compact, etc.)
+  return `${event.sessionId}:${event.type}`;
+}
+
+/** Filter duplicate events from a timestamp-sorted array (ascending).
+ *  Two events with the same fingerprint within 2s are considered duplicates. */
+const LOAD_DEDUPE_WINDOW_MS = 2000;
+function deduplicateEvents(sorted: AgentEvent[]): AgentEvent[] {
+  const seen = new Map<string, number>(); // fingerprint → timestamp
+  return sorted.filter((event) => {
+    const fp = eventFingerprint(event);
+    const prev = seen.get(fp);
+    if (prev !== undefined && event.timestamp - prev < LOAD_DEDUPE_WINDOW_MS) return false;
+    seen.set(fp, event.timestamp);
+    return true;
+  });
+}
+
+// ── Content-based dedup for live WS events ──────────────────
+// Two hook sources (settings.json + settings.local.json) can broadcast the same
+// logical event with different nanoid() IDs. Match on session + type + timestamp.
+const WS_DEDUPE_WINDOW_MS = 3000;
+const recentWsEvents = new Map<string, number>(); // fingerprint → timestamp
+
+function wsDedupeKey(event: AgentEvent): string {
+  const base = `${event.sessionId}:${event.type}:${event.toolUseId ?? ''}:${event.agentId ?? ''}`;
+  // For user_prompt, include text so two different rapid prompts aren't falsely deduped
+  // (toolUseId and agentId are both empty for prompts)
+  if (event.type === 'user_prompt') return `${base}:${(event.text ?? '').slice(0, 200)}`;
+  return base;
+}
+
+function isWsDuplicate(event: AgentEvent): boolean {
+  // text_delta events are high-frequency and already keyed by content
+  if (event.type === 'text_delta') return false;
+
+  const key = wsDedupeKey(event);
+  const now = Date.now();
+
+  // Prune stale entries
+  if (recentWsEvents.size > 200) {
+    for (const [k, ts] of recentWsEvents) {
+      if (now - ts > WS_DEDUPE_WINDOW_MS) recentWsEvents.delete(k);
+    }
+  }
+
+  const prev = recentWsEvents.get(key);
+  if (prev && now - prev < WS_DEDUPE_WINDOW_MS) {
+    return true;
+  }
+  recentWsEvents.set(key, now);
+  return false;
+}
 
 // ── Wire WebSocket to store ──────────────────────────────────
 
@@ -477,8 +698,14 @@ wsClient.setOnEvent((msg) => {
     const event = msg.data;
 
     // Skip events from other projects when cwd filter is active
-    const cwdFilter = useAgentStore.getState().cwdFilter;
+    const { cwdFilter, timeRange } = useAgentStore.getState();
     if (cwdFilter && event.cwd && normalizeCwd(event.cwd) !== cwdFilter) return;
+
+    // Skip events outside the active time range
+    if (timeRange && event.timestamp < timeRange.from) return;
+
+    // Content-based dedup: catch duplicate broadcasts with different event IDs
+    if (isWsDuplicate(event)) return;
 
     useAgentStore.getState().addEvent(event);
 
@@ -513,8 +740,12 @@ wsClient.setOnEvent((msg) => {
       text: msg.data.text,
       timestamp: Date.now(),
     });
+  } else if (msg.type === 'coaching_nudge') {
+    useAgentStore.getState().addNudge(msg.data);
+    toast(`Coach: ${msg.data.title}`, msg.data.severity === 'warning' ? 'warning' : 'info');
   } else if (msg.type === 'stale') {
     // Server signals missed events due to backpressure — do full reload
+    toast('Catching up — some events were buffered', 'info');
     reloadAllEvents();
   }
 });

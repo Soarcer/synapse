@@ -5,6 +5,7 @@ import { formatTokens, formatElapsed, formatTime, statusIcon, statusBorderColor,
 import { useHandlePositions } from '../../../hooks/useHandlePositions';
 import { useAgentStore } from '../../../store/agentStore';
 import { CollapsibleSourceHandle } from '../CollapsibleSourceHandle';
+import { Tooltip } from '../../ui/Tooltip';
 
 const EMPTY_AGENTS: AgentNodeData[] = [];
 
@@ -54,7 +55,12 @@ function AgentNodeComponent({ data }: NodeProps) {
 
       <div className="px-3 py-2">
         <div className="flex items-center justify-between">
-          <span className="text-green-400/60 text-[10px] font-semibold uppercase tracking-wider">Agent</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-green-400/60 text-[10px] font-semibold uppercase tracking-wider">Agent</span>
+            {agent.parentAgentId && (
+              <span className="bg-purple-900/50 text-purple-300 text-[9px] px-1.5 rounded">Task</span>
+            )}
+          </div>
           <span className="text-[10px] text-gray-400">
             {formatTime(agent.startTime)}
             {agent.endTime && <span className="text-gray-600"> → {formatTime(agent.endTime)}</span>}
@@ -70,17 +76,19 @@ function AgentNodeComponent({ data }: NodeProps) {
               {formatElapsed(agent.startTime, agent.endTime)}
             </span>
           </div>
-          <span
-            className={`text-xs font-bold shrink-0 ${
-              agent.status === 'running'
-                ? 'text-green-400'
-                : agent.status === 'error'
-                  ? 'text-red-400'
-                  : 'text-gray-400'
-            }`}
-          >
-            {statusIcon[agent.status]}
-          </span>
+          <Tooltip content={`Agent status: ${agent.status}`}>
+            <span
+              className={`text-xs font-bold shrink-0 ${
+                agent.status === 'running'
+                  ? 'text-green-400'
+                  : agent.status === 'error'
+                    ? 'text-red-400'
+                    : 'text-gray-400'
+              }`}
+            >
+              {statusIcon[agent.status]}
+            </span>
+          </Tooltip>
         </div>
 
         {/* Info row */}
@@ -88,19 +96,25 @@ function AgentNodeComponent({ data }: NodeProps) {
           <div className="flex items-center gap-1.5">
             {(inputTokens > 0 || outputTokens > 0) && (
               <span className="text-[10px] font-mono">
-                <span className="text-cyan-400/60">{formatTokens(inputTokens)}{'\u2193'}</span>
+                <Tooltip content="Input tokens">
+                  <span className="text-cyan-400/60">{formatTokens(inputTokens)}{'\u2193'}</span>
+                </Tooltip>
                 {' '}
-                <span className="text-orange-400/60">{formatTokens(outputTokens)}{'\u2191'}</span>
+                <Tooltip content="Output tokens">
+                  <span className="text-orange-400/60">{formatTokens(outputTokens)}{'\u2191'}</span>
+                </Tooltip>
               </span>
             )}
             {agent.toolCalls.length > 0 && (
-              <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
-                toolsExpanded
-                  ? 'bg-purple-600/40 text-purple-200'
-                  : 'bg-purple-600/20 text-purple-400'
-              }`}>
-                {toolsExpanded ? '\u25BE' : '\u25B8'} {agent.toolCalls.length} tool{agent.toolCalls.length !== 1 ? 's' : ''}
-              </span>
+              <Tooltip content="Tool calls by this agent">
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+                  toolsExpanded
+                    ? 'bg-purple-600/40 text-purple-200'
+                    : 'bg-purple-600/20 text-purple-400'
+                }`}>
+                  {toolsExpanded ? '\u25BE' : '\u25B8'} {agent.toolCalls.length} tool{agent.toolCalls.length !== 1 ? 's' : ''}
+                </span>
+              </Tooltip>
             )}
           </div>
         </div>

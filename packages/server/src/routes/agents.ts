@@ -32,7 +32,7 @@ export function createAgentsRouter(
         res.status(429).json({ error: message });
       } else {
         logger.error({ err }, 'Spawn error');
-        res.status(500).json({ error: message });
+        res.status(500).json({ error: 'Failed to spawn agent' });
       }
     }
   });
@@ -50,9 +50,8 @@ export function createAgentsRouter(
       }
       res.json({ ok: true });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
       logger.error({ err }, 'Error sending message');
-      res.status(500).json({ error: message });
+      res.status(500).json({ error: 'Failed to send message' });
     }
   });
 

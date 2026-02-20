@@ -20,22 +20,43 @@ const DB_PATH = envDbPath ? path.resolve(envDbPath) : path.join(__dirname, '..',
 
 let db: SqlJsDatabase;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let lastSaveTime = 0;
+const MAX_SAVE_DELAY_MS = 5000; // Force save after 5s under continuous writes
 
 // ─── Persistence ──────────────────────────────────────────────────────
+// sql.js runs single-threaded; all queries are synchronous against the
+// in-memory WASM database.  `scheduleSave()` debounces disk persistence
+// via `db.export()` → `fs.writeFileSync()`.  Under continuous writes the
+// debounce could delay indefinitely, so we force a save after 5 seconds.
 
 function scheduleSave(): void {
+  const now = Date.now();
+  const sinceLast = now - lastSaveTime;
+
+  // Force immediate save if too long since last save
+  if (lastSaveTime > 0 && sinceLast >= MAX_SAVE_DELAY_MS) {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    performSave();
+    return;
+  }
+
   if (saveTimer) return;
   saveTimer = setTimeout(() => {
     saveTimer = null;
-    try {
-      const data = db.export();
-      const dir = path.dirname(DB_PATH);
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(DB_PATH, Buffer.from(data));
-    } catch (err) {
-      logger.error({ err }, 'Failed to save database');
-    }
+    performSave();
   }, 1000);
+}
+
+function performSave(): void {
+  try {
+    const data = db.export();
+    const dir = path.dirname(DB_PATH);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(DB_PATH, Buffer.from(data));
+    lastSaveTime = Date.now();
+  } catch (err) {
+    logger.error({ err }, 'Failed to save database');
+  }
 }
 
 function saveNow(): void {
@@ -43,14 +64,7 @@ function saveNow(): void {
     clearTimeout(saveTimer);
     saveTimer = null;
   }
-  try {
-    const data = db.export();
-    const dir = path.dirname(DB_PATH);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(DB_PATH, Buffer.from(data));
-  } catch (err) {
-    logger.error({ err }, 'Failed to save database on shutdown');
-  }
+  performSave();
 }
 
 // ─── Initialization ──────────────────────────────────────────────────
@@ -124,6 +138,7 @@ export async function initDb(): Promise<void> {
 
   db.run('CREATE INDEX IF NOT EXISTS idx_events_vendor ON events(vendor)');
   db.run('CREATE INDEX IF NOT EXISTS idx_events_cwd ON events(cwd)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_events_tool_use_id ON events(tool_use_id)');
 
   // Migration: add model column to existing databases
   try { db.run('ALTER TABLE events ADD COLUMN model TEXT'); } catch { /* column already exists */ }
@@ -197,6 +212,111 @@ export async function initDb(): Promise<void> {
     )
   `);
 
+  // ── Coaching tables ────────────────────────────────────────────────
+  db.run(`
+    CREATE TABLE IF NOT EXISTS coaching_report_cards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id TEXT NOT NULL UNIQUE,
+      computed_at INTEGER NOT NULL,
+      overall_score INTEGER NOT NULL,
+      dimension_scores TEXT NOT NULL,
+      detector_results TEXT NOT NULL,
+      summary TEXT NOT NULL
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS coaching_nudges (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id TEXT NOT NULL,
+      nudge_id TEXT NOT NULL,
+      detector_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      recommendation TEXT,
+      severity TEXT NOT NULL,
+      fired_at INTEGER NOT NULL,
+      dismissed INTEGER DEFAULT 0,
+      UNIQUE(session_id, nudge_id)
+    )
+  `);
+  db.run('CREATE INDEX IF NOT EXISTS idx_nudges_session ON coaching_nudges(session_id)');
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS coaching_playbooks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL,
+      category TEXT NOT NULL,
+      source_session_id TEXT,
+      pattern TEXT NOT NULL,
+      tags TEXT,
+      score INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+
+  // ── Nudge rule configuration table ─────────────────────────────────
+  db.run(`
+    CREATE TABLE IF NOT EXISTS nudge_rule_config (
+      rule_id TEXT PRIMARY KEY,
+      enabled INTEGER DEFAULT 1,
+      severity TEXT,
+      cooldown_ms INTEGER,
+      options TEXT,
+      suppressed INTEGER DEFAULT 0,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+
+  // ── Settings table ──────────────────────────────────────────────────
+  db.run(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+
+  // ── AI coaching cache table ────────────────────────────────────────
+  db.run(`
+    CREATE TABLE IF NOT EXISTS ai_coaching_cache (
+      cache_key TEXT PRIMARY KEY,
+      method TEXT NOT NULL,
+      session_id TEXT,
+      content_hash TEXT NOT NULL,
+      response TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL
+    )
+  `);
+  db.run('CREATE INDEX IF NOT EXISTS idx_ai_cache_expires ON ai_coaching_cache(expires_at)');
+
+  // ── Transcript index table ──────────────────────────────────────
+  db.run(`
+    CREATE TABLE IF NOT EXISTS transcript_index (
+      session_id        TEXT PRIMARY KEY,
+      project_hash      TEXT NOT NULL,
+      transcript_path   TEXT NOT NULL,
+      started_at        INTEGER,
+      ended_at          INTEGER,
+      model             TEXT,
+      permission_mode   TEXT,
+      git_branch        TEXT,
+      slug              TEXT,
+      total_turns       INTEGER DEFAULT 0,
+      total_tool_calls  INTEGER DEFAULT 0,
+      estimated_cost_usd REAL DEFAULT 0,
+      total_input_tokens  INTEGER DEFAULT 0,
+      total_output_tokens INTEGER DEFAULT 0,
+      file_size_bytes   INTEGER DEFAULT 0,
+      scanned_at        INTEGER NOT NULL
+    )
+  `);
+  db.run('CREATE INDEX IF NOT EXISTS idx_transcript_index_project ON transcript_index(project_hash)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_transcript_index_started ON transcript_index(started_at DESC)');
+
   logger.info({ path: DB_PATH }, 'Database initialized');
 }
 
@@ -204,7 +324,7 @@ export async function initDb(): Promise<void> {
 
 function queryAll(sql: string, params?: unknown[]): Record<string, unknown>[] {
   const stmt = db.prepare(sql);
-  if (params) stmt.bind(params as initSqlJs.BindParams);
+  if (params) stmt.bind(params as unknown[]);
   const results: Record<string, unknown>[] = [];
   while (stmt.step()) {
     results.push(stmt.getAsObject() as Record<string, unknown>);
@@ -219,7 +339,7 @@ function queryGet(sql: string, params?: unknown[]): Record<string, unknown> | un
 }
 
 function execute(sql: string, params?: unknown[]): number {
-  db.run(sql, params as initSqlJs.BindParams);
+  db.run(sql, params as unknown[]);
   return db.getRowsModified();
 }
 
@@ -243,6 +363,7 @@ export interface EventRow {
   token_input: number | null;
   token_output: number | null;
   duration_ms: number | null;
+  model: string | null;
   vendor: string | null;
   cwd: string | null;
   raw_payload: string;
@@ -266,6 +387,7 @@ export function insertEvent(params: {
   token_input?: number | null;
   token_output?: number | null;
   duration_ms?: number | null;
+  model?: string | null;
   vendor?: string | null;
   cwd?: string | null;
   raw_payload: string;
@@ -277,8 +399,8 @@ export function insertEvent(params: {
       agent_id, agent_type, parent_agent_id,
       tool_name, tool_use_id, tool_input, tool_response,
       status, error, token_input, token_output, duration_ms,
-      vendor, cwd, raw_payload, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      model, vendor, cwd, raw_payload, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     params.event_id,
     params.session_id,
@@ -296,6 +418,7 @@ export function insertEvent(params: {
     params.token_input ?? null,
     params.token_output ?? null,
     params.duration_ms ?? null,
+    params.model ?? null,
     params.vendor ?? null,
     params.cwd ?? null,
     params.raw_payload,
@@ -304,17 +427,17 @@ export function insertEvent(params: {
   scheduleSave();
 }
 
-export function getEventsBySession(sessionId: string): EventRow[] {
+export function getEventsBySession(sessionId: string, limit = 10_000): EventRow[] {
   return queryAll(
-    'SELECT * FROM events WHERE session_id = ? ORDER BY created_at ASC',
-    [sessionId],
+    'SELECT * FROM events WHERE session_id = ? ORDER BY created_at ASC LIMIT ?',
+    [sessionId, limit],
   ) as unknown as EventRow[];
 }
 
-export function getEventsByAgent(agentId: string): EventRow[] {
+export function getEventsByAgent(agentId: string, limit = 10_000): EventRow[] {
   return queryAll(
-    'SELECT * FROM events WHERE agent_id = ? ORDER BY created_at ASC',
-    [agentId],
+    'SELECT * FROM events WHERE agent_id = ? ORDER BY created_at ASC LIMIT ?',
+    [agentId, limit],
   ) as unknown as EventRow[];
 }
 
@@ -323,39 +446,31 @@ export function queryEvents(params: {
   agentId?: string;
   type?: string;
   cwd?: string;
+  from?: number;
+  to?: number;
   limit?: number;
   offset?: number;
 }): EventRow[] {
   const limit = Math.min(Math.max(params.limit ?? 100, 1), 2000);
   const offset = Math.min(Math.max(params.offset ?? 0, 0), 100000);
 
-  if (params.cwd) {
-    return queryAll(
-      'SELECT * FROM events WHERE cwd = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
-      [params.cwd, limit, offset],
-    ) as unknown as EventRow[];
-  }
-  if (params.sessionId) {
-    return queryAll(
-      'SELECT * FROM events WHERE session_id = ? ORDER BY created_at ASC LIMIT ? OFFSET ?',
-      [params.sessionId, limit, offset],
-    ) as unknown as EventRow[];
-  }
-  if (params.agentId) {
-    return queryAll(
-      'SELECT * FROM events WHERE agent_id = ? ORDER BY created_at ASC LIMIT ? OFFSET ?',
-      [params.agentId, limit, offset],
-    ) as unknown as EventRow[];
-  }
-  if (params.type) {
-    return queryAll(
-      'SELECT * FROM events WHERE event_type = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
-      [params.type, limit, offset],
-    ) as unknown as EventRow[];
-  }
+  const clauses: string[] = [];
+  const values: unknown[] = [];
+
+  if (params.cwd) { clauses.push('cwd = ?'); values.push(params.cwd); }
+  if (params.sessionId) { clauses.push('session_id = ?'); values.push(params.sessionId); }
+  if (params.agentId) { clauses.push('agent_id = ?'); values.push(params.agentId); }
+  if (params.type) { clauses.push('event_type = ?'); values.push(params.type); }
+  if (params.from != null) { clauses.push('created_at >= ?'); values.push(params.from); }
+  if (params.to != null) { clauses.push('created_at <= ?'); values.push(params.to); }
+
+  const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+  const order = params.sessionId || params.agentId ? 'ASC' : 'DESC';
+
+  values.push(limit, offset);
   return queryAll(
-    'SELECT * FROM events ORDER BY created_at DESC LIMIT ? OFFSET ?',
-    [limit, offset],
+    `SELECT * FROM events ${where} ORDER BY created_at ${order} LIMIT ? OFFSET ?`,
+    values,
   ) as unknown as EventRow[];
 }
 
@@ -373,17 +488,45 @@ export function deleteAllEvents(): number {
   return changes;
 }
 
+export function deleteAllPlaybooks(): number {
+  const changes = execute('DELETE FROM coaching_playbooks');
+  scheduleSave();
+  return changes;
+}
+
 export interface SessionSummary {
   session_id: string;
   first_event: number;
   last_event: number;
   event_count: number;
+  tool_count: number;
+  total_tokens: number;
+  model: string | null;
+  cwd: string | null;
+  has_ended: number; // 0 or 1 (SQLite boolean)
 }
 
-export function listSessions(): SessionSummary[] {
+export function listSessions(limit = 500, cwd?: string): SessionSummary[] {
+  const clauses: string[] = [];
+  const values: unknown[] = [];
+
+  if (cwd) { clauses.push('cwd = ?'); values.push(cwd); }
+
+  const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+  values.push(limit);
+
   return queryAll(
-    `SELECT session_id, MIN(created_at) as first_event, MAX(created_at) as last_event, COUNT(*) as event_count
-     FROM events GROUP BY session_id ORDER BY last_event DESC`,
+    `SELECT session_id,
+      MIN(created_at) as first_event,
+      MAX(created_at) as last_event,
+      COUNT(*) as event_count,
+      SUM(CASE WHEN event_type IN ('tool_start','tool_end','tool_error') THEN 1 ELSE 0 END) as tool_count,
+      COALESCE(SUM(COALESCE(token_input,0) + COALESCE(token_output,0)), 0) as total_tokens,
+      MAX(model) as model,
+      MAX(cwd) as cwd,
+      MAX(CASE WHEN event_type = 'session_end' THEN 1 ELSE 0 END) as has_ended
+     FROM events ${where} GROUP BY session_id ORDER BY last_event DESC LIMIT ?`,
+    values,
   ) as unknown as SessionSummary[];
 }
 
@@ -618,6 +761,442 @@ export function getEventsBySessionIds(sessionIds: string[]): Map<string, EventRo
     else grouped.set(row.session_id, [row]);
   }
   return grouped;
+}
+
+// ─── Coaching: Report Card Helpers ────────────────────────────────────
+
+export interface ReportCardRow {
+  id: number;
+  session_id: string;
+  computed_at: number;
+  overall_score: number;
+  dimension_scores: string;
+  detector_results: string;
+  summary: string;
+}
+
+export function getCachedReportCard(sessionId: string): ReportCardRow | undefined {
+  return queryGet(
+    'SELECT * FROM coaching_report_cards WHERE session_id = ?',
+    [sessionId],
+  ) as unknown as ReportCardRow | undefined;
+}
+
+export function upsertReportCard(params: {
+  session_id: string;
+  computed_at: number;
+  overall_score: number;
+  dimension_scores: string;
+  detector_results: string;
+  summary: string;
+}): void {
+  execute(`
+    INSERT INTO coaching_report_cards (session_id, computed_at, overall_score, dimension_scores, detector_results, summary)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT (session_id) DO UPDATE SET
+      computed_at = excluded.computed_at,
+      overall_score = excluded.overall_score,
+      dimension_scores = excluded.dimension_scores,
+      detector_results = excluded.detector_results,
+      summary = excluded.summary
+  `, [
+    params.session_id,
+    params.computed_at,
+    params.overall_score,
+    params.dimension_scores,
+    params.detector_results,
+    params.summary,
+  ]);
+  scheduleSave();
+}
+
+export function getReportCardsInRange(from: number, to: number): ReportCardRow[] {
+  return queryAll(
+    'SELECT * FROM coaching_report_cards WHERE computed_at >= ? AND computed_at <= ? ORDER BY computed_at DESC',
+    [from, to],
+  ) as unknown as ReportCardRow[];
+}
+
+export function getRecentReportCards(limit: number): ReportCardRow[] {
+  return queryAll(
+    'SELECT session_id, computed_at, overall_score, dimension_scores FROM coaching_report_cards ORDER BY computed_at DESC LIMIT ?',
+    [limit],
+  ) as unknown as ReportCardRow[];
+}
+
+// ─── Coaching: Nudge Helpers ─────────────────────────────────────────
+
+export interface NudgeRow {
+  id: number;
+  session_id: string;
+  nudge_id: string;
+  detector_id: string;
+  title: string;
+  message: string;
+  recommendation: string | null;
+  severity: string;
+  fired_at: number;
+  dismissed: number;
+}
+
+export function insertNudge(params: {
+  session_id: string;
+  nudge_id: string;
+  detector_id: string;
+  title: string;
+  message: string;
+  recommendation?: string;
+  severity: string;
+  fired_at: number;
+}): void {
+  execute(`
+    INSERT OR IGNORE INTO coaching_nudges (session_id, nudge_id, detector_id, title, message, recommendation, severity, fired_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `, [
+    params.session_id,
+    params.nudge_id,
+    params.detector_id,
+    params.title,
+    params.message,
+    params.recommendation ?? null,
+    params.severity,
+    params.fired_at,
+  ]);
+  scheduleSave();
+}
+
+export function getNudgesBySession(sessionId: string): NudgeRow[] {
+  return queryAll(
+    'SELECT * FROM coaching_nudges WHERE session_id = ? ORDER BY fired_at DESC',
+    [sessionId],
+  ) as unknown as NudgeRow[];
+}
+
+export function hasNudgeFired(sessionId: string, detectorId: string, sinceMs: number): boolean {
+  const cutoff = Date.now() - sinceMs;
+  const row = queryGet(
+    'SELECT id FROM coaching_nudges WHERE session_id = ? AND detector_id = ? AND fired_at > ?',
+    [sessionId, detectorId, cutoff],
+  );
+  return row !== undefined;
+}
+
+export function dismissNudge(sessionId: string, nudgeId: string): number {
+  const result = execute(
+    'UPDATE coaching_nudges SET dismissed = 1 WHERE session_id = ? AND nudge_id = ?',
+    [sessionId, nudgeId],
+  );
+  scheduleSave();
+  return result;
+}
+
+export interface NudgeStatsRow {
+  detector_id: string;
+  fire_count: number;
+  dismiss_count: number;
+}
+
+export function getNudgeStats(): { byDetector: NudgeStatsRow[]; totalFired: number; totalDismissed: number } {
+  const byDetector = queryAll(`
+    SELECT detector_id,
+           COUNT(*) as fire_count,
+           SUM(CASE WHEN dismissed = 1 THEN 1 ELSE 0 END) as dismiss_count
+    FROM coaching_nudges
+    GROUP BY detector_id
+    ORDER BY fire_count DESC
+  `) as unknown as NudgeStatsRow[];
+
+  const totals = queryGet(`
+    SELECT COUNT(*) as total_fired,
+           SUM(CASE WHEN dismissed = 1 THEN 1 ELSE 0 END) as total_dismissed
+    FROM coaching_nudges
+  `) as { total_fired: number; total_dismissed: number } | undefined;
+
+  return {
+    byDetector,
+    totalFired: totals?.total_fired ?? 0,
+    totalDismissed: totals?.total_dismissed ?? 0,
+  };
+}
+
+// ─── Coaching: Rule Config Helpers ───────────────────────────────────
+
+export interface RuleConfigRow {
+  rule_id: string;
+  enabled: number;
+  severity: string | null;
+  cooldown_ms: number | null;
+  options: string | null;
+  suppressed: number;
+  updated_at: number;
+}
+
+export function getAllRuleConfigs(): RuleConfigRow[] {
+  return queryAll('SELECT * FROM nudge_rule_config') as unknown as RuleConfigRow[];
+}
+
+export function getRuleConfig(ruleId: string): RuleConfigRow | undefined {
+  return queryGet('SELECT * FROM nudge_rule_config WHERE rule_id = ?', [ruleId]) as RuleConfigRow | undefined;
+}
+
+export function upsertRuleConfig(params: {
+  rule_id: string;
+  enabled?: number;
+  severity?: string | null;
+  cooldown_ms?: number | null;
+  options?: string | null;
+  suppressed?: number;
+}): void {
+  const existing = getRuleConfig(params.rule_id);
+  const now = Date.now();
+
+  if (existing) {
+    const fields: string[] = [];
+    const values: unknown[] = [];
+
+    if (params.enabled !== undefined) { fields.push('enabled = ?'); values.push(params.enabled); }
+    if (params.severity !== undefined) { fields.push('severity = ?'); values.push(params.severity); }
+    if (params.cooldown_ms !== undefined) { fields.push('cooldown_ms = ?'); values.push(params.cooldown_ms); }
+    if (params.options !== undefined) { fields.push('options = ?'); values.push(params.options); }
+    if (params.suppressed !== undefined) { fields.push('suppressed = ?'); values.push(params.suppressed); }
+
+    if (fields.length > 0) {
+      fields.push('updated_at = ?');
+      values.push(now);
+      values.push(params.rule_id);
+      execute(`UPDATE nudge_rule_config SET ${fields.join(', ')} WHERE rule_id = ?`, values);
+    }
+  } else {
+    execute(
+      `INSERT INTO nudge_rule_config (rule_id, enabled, severity, cooldown_ms, options, suppressed, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        params.rule_id,
+        params.enabled ?? 1,
+        params.severity ?? null,
+        params.cooldown_ms ?? null,
+        params.options ?? null,
+        params.suppressed ?? 0,
+        now,
+      ],
+    );
+  }
+  scheduleSave();
+}
+
+export function resetAllRuleConfigs(): void {
+  execute('DELETE FROM nudge_rule_config', []);
+  scheduleSave();
+}
+
+// ─── Coaching: Playbook Helpers ──────────────────────────────────────
+
+export interface PlaybookRow {
+  id: number;
+  name: string;
+  description: string;
+  category: string;
+  source_session_id: string | null;
+  pattern: string;
+  tags: string | null;
+  score: number | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export function getAllPlaybooks(): PlaybookRow[] {
+  return queryAll(
+    'SELECT * FROM coaching_playbooks ORDER BY updated_at DESC',
+  ) as unknown as PlaybookRow[];
+}
+
+export function getPlaybookById(id: number): PlaybookRow | undefined {
+  return queryGet(
+    'SELECT * FROM coaching_playbooks WHERE id = ?',
+    [id],
+  ) as unknown as PlaybookRow | undefined;
+}
+
+export function insertPlaybook(params: {
+  name: string;
+  description: string;
+  category: string;
+  source_session_id?: string;
+  pattern: string;
+  tags?: string;
+  score?: number;
+}): number {
+  const now = Date.now();
+  execute(`
+    INSERT INTO coaching_playbooks (name, description, category, source_session_id, pattern, tags, score, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [
+    params.name,
+    params.description,
+    params.category,
+    params.source_session_id ?? null,
+    params.pattern,
+    params.tags ?? null,
+    params.score ?? null,
+    now,
+    now,
+  ]);
+  scheduleSave();
+  // Return the last inserted ID
+  const row = queryGet('SELECT last_insert_rowid() as id');
+  return (row as { id: number } | undefined)?.id ?? 0;
+}
+
+export function deletePlaybook(id: number): number {
+  const result = execute('DELETE FROM coaching_playbooks WHERE id = ?', [id]);
+  scheduleSave();
+  return result;
+}
+
+// ─── Settings Helpers ─────────────────────────────────────────────────
+
+export function getSetting(key: string): string | undefined {
+  const row = queryGet('SELECT value FROM settings WHERE key = ?', [key]) as { value: string } | undefined;
+  return row?.value;
+}
+
+export function setSetting(key: string, value: string): void {
+  execute(
+    'INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at',
+    [key, value, Date.now()],
+  );
+  scheduleSave();
+}
+
+export function getAllSettings(): Record<string, string> {
+  const rows = queryAll('SELECT key, value FROM settings') as { key: string; value: string }[];
+  const result: Record<string, string> = {};
+  for (const row of rows) result[row.key] = row.value;
+  return result;
+}
+
+export function deleteSetting(key: string): number {
+  const result = execute('DELETE FROM settings WHERE key = ?', [key]);
+  scheduleSave();
+  return result;
+}
+
+// ─── AI Coaching Cache Helpers ────────────────────────────────────────
+
+export function getAiCacheEntry(cacheKey: string): string | undefined {
+  const now = Date.now();
+  const row = queryGet(
+    'SELECT response FROM ai_coaching_cache WHERE cache_key = ? AND expires_at > ?',
+    [cacheKey, now],
+  ) as { response: string } | undefined;
+  return row?.response;
+}
+
+export function setAiCacheEntry(params: {
+  cacheKey: string;
+  method: string;
+  sessionId?: string;
+  contentHash: string;
+  response: string;
+  ttlMs?: number;
+}): void {
+  const now = Date.now();
+  const ttl = params.ttlMs ?? 3_600_000; // 1 hour default
+  execute(
+    `INSERT INTO ai_coaching_cache (cache_key, method, session_id, content_hash, response, created_at, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(cache_key) DO UPDATE SET response = excluded.response, created_at = excluded.created_at, expires_at = excluded.expires_at`,
+    [params.cacheKey, params.method, params.sessionId ?? null, params.contentHash, params.response, now, now + ttl],
+  );
+  scheduleSave();
+}
+
+export function pruneAiCache(): number {
+  const changes = execute('DELETE FROM ai_coaching_cache WHERE expires_at < ?', [Date.now()]);
+  if (changes > 0) scheduleSave();
+  return changes;
+}
+
+// ─── Transcript Index Helpers ─────────────────────────────────────
+
+export interface TranscriptIndexRow {
+  session_id: string;
+  project_hash: string;
+  transcript_path: string;
+  started_at: number | null;
+  ended_at: number | null;
+  model: string | null;
+  permission_mode: string | null;
+  git_branch: string | null;
+  slug: string | null;
+  total_turns: number;
+  total_tool_calls: number;
+  estimated_cost_usd: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  file_size_bytes: number;
+  scanned_at: number;
+}
+
+export function getTranscriptIndexEntry(sessionId: string): TranscriptIndexRow | undefined {
+  return queryGet(
+    'SELECT * FROM transcript_index WHERE session_id = ?',
+    [sessionId],
+  ) as unknown as TranscriptIndexRow | undefined;
+}
+
+export function upsertTranscriptIndex(params: TranscriptIndexRow): void {
+  execute(`
+    INSERT INTO transcript_index (
+      session_id, project_hash, transcript_path, started_at, ended_at,
+      model, permission_mode, git_branch, slug,
+      total_turns, total_tool_calls, estimated_cost_usd,
+      total_input_tokens, total_output_tokens, file_size_bytes, scanned_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(session_id) DO UPDATE SET
+      transcript_path = excluded.transcript_path,
+      started_at = excluded.started_at,
+      ended_at = excluded.ended_at,
+      model = excluded.model,
+      permission_mode = excluded.permission_mode,
+      git_branch = excluded.git_branch,
+      slug = excluded.slug,
+      total_turns = excluded.total_turns,
+      total_tool_calls = excluded.total_tool_calls,
+      estimated_cost_usd = excluded.estimated_cost_usd,
+      total_input_tokens = excluded.total_input_tokens,
+      total_output_tokens = excluded.total_output_tokens,
+      file_size_bytes = excluded.file_size_bytes,
+      scanned_at = excluded.scanned_at
+  `, [
+    params.session_id, params.project_hash, params.transcript_path,
+    params.started_at, params.ended_at,
+    params.model, params.permission_mode, params.git_branch, params.slug,
+    params.total_turns, params.total_tool_calls, params.estimated_cost_usd,
+    params.total_input_tokens, params.total_output_tokens,
+    params.file_size_bytes, params.scanned_at,
+  ]);
+  scheduleSave();
+}
+
+export function getAllTranscriptIndex(limit = 100, offset = 0): { rows: TranscriptIndexRow[]; total: number } {
+  const countRow = queryGet('SELECT COUNT(*) as count FROM transcript_index') as { count: number } | undefined;
+  const total = countRow?.count ?? 0;
+  const rows = queryAll(
+    `SELECT * FROM transcript_index
+     ORDER BY CASE WHEN started_at IS NULL THEN 1 ELSE 0 END, started_at DESC
+     LIMIT ? OFFSET ?`,
+    [Math.min(Math.max(limit, 1), 500), Math.max(offset, 0)],
+  ) as unknown as TranscriptIndexRow[];
+  return { rows, total };
+}
+
+export function isLiveSession(sessionId: string): boolean {
+  const row = queryGet(
+    "SELECT id FROM events WHERE session_id = ? AND event_type = 'session_start' LIMIT 1",
+    [sessionId],
+  );
+  return row !== undefined;
 }
 
 // ─── Shutdown ─────────────────────────────────────────────────────────

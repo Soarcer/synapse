@@ -3,17 +3,21 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
 const devPort = Number.parseInt(process.env.VITE_DEV_PORT || '5173', 10);
-const apiOrigin = process.env.VITE_API_ORIGIN || 'http://localhost:4000';
-const wsOrigin = process.env.VITE_WS_ORIGIN || apiOrigin.replace(/^http/, 'ws');
+
+// Proxy target for the dev server — always hits the local Synapse server.
+// Separate from VITE_API_ORIGIN (which is for production client-side builds only).
+const serverPort = process.env.SYNAPSE_PORT || process.env.PORT || '4000';
+const proxyTarget = `http://localhost:${serverPort}`;
+const wsTarget = `ws://localhost:${serverPort}`;
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     port: Number.isNaN(devPort) ? 5173 : devPort,
     proxy: {
-      '/api': apiOrigin,
+      '/api': proxyTarget,
       '/ws': {
-        target: wsOrigin,
+        target: wsTarget,
         ws: true,
       },
     },
@@ -23,6 +27,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           'vendor-xyflow': ['@xyflow/react'],
+          'vendor-recharts': ['recharts'],
         },
       },
     },

@@ -21,6 +21,7 @@ export interface TranscriptTurn {
   toolUseCount: number;
   textLength: number;              // total text output chars
   thinkingLength: number;          // thinking block chars
+  promptText?: string;             // user prompt text (first 500 chars, user turns only)
 
   // Derived
   totalInputTokens: number;        // input + cache_read
@@ -84,4 +85,238 @@ export interface TranscriptSummary {
   totalTextChars: number;
   totalToolCalls: number;
   uniqueToolNames: string[];
+
+  // Session metadata (from conversation records)
+  permissionMode?: string;
+  gitBranch?: string;
+  slug?: string;
+  version?: string;
+
+  // Server tool use aggregates
+  webSearchRequests?: number;
+  webFetchRequests?: number;
+}
+
+// ─── Content blocks (v2) ─────────────────────────────────────────
+
+export interface TextBlock {
+  type: 'text';
+  text: string;
+}
+
+export interface ThinkingBlock {
+  type: 'thinking';
+  thinking: string;
+  signature?: string;
+}
+
+export interface ToolUseBlock {
+  type: 'tool_use';
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+}
+
+export interface ToolResultBlock {
+  type: 'tool_result';
+  tool_use_id: string;
+  content: string;
+  is_error: boolean;
+}
+
+export interface ImageBlock {
+  type: 'image';
+  mediaType: string;
+  dataLength: number;
+}
+
+export type ContentBlock = TextBlock | ThinkingBlock | ToolUseBlock | ToolResultBlock | ImageBlock;
+
+// ─── Extended usage (v2) ─────────────────────────────────────────
+
+export interface ExtendedUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  ephemeral5mTokens: number;
+  ephemeral1hTokens: number;
+  serverToolUse: {
+    webSearchRequests: number;
+    webFetchRequests: number;
+  };
+}
+
+// ─── Full conversation record (v2) ──────────────────────────────
+
+export interface ConversationRecord {
+  uuid: string;
+  parentUuid: string | null;
+  timestamp: number;
+  type: 'user' | 'assistant';
+  sessionId: string;
+
+  // Context flags
+  isSidechain: boolean;
+  isMeta: boolean;
+  isCompactSummary: boolean;
+  isApiErrorMessage: boolean;
+  permissionMode?: string;
+  cwd?: string;
+  gitBranch?: string;
+  error?: string;
+  slug?: string;
+  version?: string;
+
+  // Message content
+  model?: string;
+  stopReason?: string;
+  content: ContentBlock[];
+
+  // Token usage
+  usage: ExtendedUsage;
+
+  // Todo state snapshot
+  todos?: Array<{ content: string; status: string }>;
+}
+
+// ─── Progress records (v2) ──────────────────────────────────────
+
+export interface BashProgressRecord {
+  type: 'bash_progress';
+  timestamp: number;
+  sessionId: string;
+  toolUseId?: string;
+  output: string;
+  elapsedTimeSeconds: number;
+  totalLines: number;
+  totalBytes: number;
+}
+
+export interface AgentProgressRecord {
+  type: 'agent_progress';
+  timestamp: number;
+  sessionId: string;
+  agentId: string;
+  message?: string;
+  prompt?: string;
+}
+
+export interface HookProgressRecord {
+  type: 'hook_progress';
+  timestamp: number;
+  sessionId: string;
+  hookEvent: string;
+  hookName: string;
+  command: string;
+}
+
+export type ProgressRecord = BashProgressRecord | AgentProgressRecord | HookProgressRecord;
+
+// ─── System records (v2) ────────────────────────────────────────
+
+export interface CompactBoundaryRecord {
+  type: 'compact_boundary';
+  timestamp: number;
+  sessionId: string;
+  preTokens: number;
+  trigger: string;
+}
+
+export interface StopHookSummaryRecord {
+  type: 'stop_hook_summary';
+  timestamp: number;
+  sessionId: string;
+  hookCount: number;
+  hookErrors: string[];
+  stopReason?: string;
+}
+
+export type SystemRecord = CompactBoundaryRecord | StopHookSummaryRecord;
+
+// ─── File history (v2) ──────────────────────────────────────────
+
+export interface FileChange {
+  filePath: string;
+  backupFileName: string;
+  version: number;
+  backupTime: string;
+}
+
+export interface FileHistoryRecord {
+  type: 'file_history';
+  timestamp: number;
+  sessionId: string;
+  messageId: string;
+  files: FileChange[];
+}
+
+// ─── Queue operations (v2) ──────────────────────────────────────
+
+export interface QueueOperationRecord {
+  type: 'queue_operation';
+  timestamp: number;
+  sessionId: string;
+  operation: 'enqueue' | 'dequeue';
+  content?: string;
+}
+
+// ─── Full transcript (v2) ───────────────────────────────────────
+
+export interface FullTranscript {
+  sessionId: string;
+  transcriptPath: string;
+  summary: TranscriptSummary;
+  conversations: ConversationRecord[];
+  progress: ProgressRecord[];
+  system: SystemRecord[];
+  fileHistory: FileHistoryRecord[];
+  queueOps: QueueOperationRecord[];
+}
+
+// ─── Reasoning data (v2) ────────────────────────────────────────
+
+export interface StructuredThinking {
+  intent: string | null;
+  planSteps: Array<{ text: string; done: boolean }>;
+  decision: string | null;
+  confidence: number | null;
+}
+
+export interface ReasoningToolCall {
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+  resultContent: string | null;
+  isError: boolean;
+  durationMs: number | null;
+}
+
+export interface ReasoningTurn {
+  uuid: string;
+  parentUuid: string | null;
+  timestamp: number;
+  model?: string;
+  isSidechain: boolean;
+
+  // Error flags
+  isApiErrorMessage: boolean;
+  error?: string;                // e.g. 'rate_limit', 'overloaded'
+
+  thinkingText: string | null;
+  structured: StructuredThinking | null;
+  responseText: string | null;
+
+  toolCalls: ReasoningToolCall[];
+
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadTokens: number;
+  };
+}
+
+export interface ReasoningData {
+  sessionId: string;
+  turns: ReasoningTurn[];
 }

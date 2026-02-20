@@ -4,13 +4,11 @@
   "description": "Synapse backend — Express + SQLite + WebSocket server",
   "type": "module",
   "main": "dist/index.js",
-  "types": "dist/index.d.ts",
   "bin": {
     "synapse-server": "dist/index.js"
   },
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }
   },
@@ -28,6 +26,7 @@
     "@synapse-ai/core": "workspace:*",
     "express": "^5.1.0",
     "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
     "nanoid": "^5.1.0",
     "pino": "^10.3.1",
     "sql.js": "^1.13.0",
