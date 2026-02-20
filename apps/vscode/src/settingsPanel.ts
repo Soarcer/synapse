@@ -90,6 +90,7 @@ export class SettingsPanel {
           type: 'hookStatus',
           data: {
             ...status,
+            isExternalServer: this.serverManager.isExternalServer,
             allSyncEvents: SYNC_EVENTS,
             allAsyncEvents: ASYNC_EVENTS,
           },
@@ -103,7 +104,7 @@ export class SettingsPanel {
         const status = this.hookManager.getHookStatus(this.serverManager.port);
         this.panel.webview.postMessage({
           type: 'hookStatus',
-          data: { ...status, allSyncEvents: SYNC_EVENTS, allAsyncEvents: ASYNC_EVENTS },
+          data: { ...status, isExternalServer: this.serverManager.isExternalServer, allSyncEvents: SYNC_EVENTS, allAsyncEvents: ASYNC_EVENTS },
         });
         break;
       }
@@ -112,7 +113,7 @@ export class SettingsPanel {
         const status = this.hookManager.getHookStatus(this.serverManager.port);
         this.panel.webview.postMessage({
           type: 'hookStatus',
-          data: { ...status, allSyncEvents: SYNC_EVENTS, allAsyncEvents: ASYNC_EVENTS },
+          data: { ...status, isExternalServer: this.serverManager.isExternalServer, allSyncEvents: SYNC_EVENTS, allAsyncEvents: ASYNC_EVENTS },
         });
         break;
       }
@@ -121,7 +122,7 @@ export class SettingsPanel {
         const status = this.hookManager.getHookStatus(this.serverManager.port);
         this.panel.webview.postMessage({
           type: 'hookStatus',
-          data: { ...status, allSyncEvents: SYNC_EVENTS, allAsyncEvents: ASYNC_EVENTS },
+          data: { ...status, isExternalServer: this.serverManager.isExternalServer, allSyncEvents: SYNC_EVENTS, allAsyncEvents: ASYNC_EVENTS },
         });
         this.panel.webview.postMessage({
           type: 'actionResult',
@@ -234,6 +235,7 @@ export class SettingsPanel {
         data: {
           running: true,
           port: this.serverManager.port,
+          isExternalServer: this.serverManager.isExternalServer,
           uptime: this.serverManager.uptime,
           clients: health.clients ?? 0,
           agents: health.agents ?? 0,
@@ -452,6 +454,7 @@ export class SettingsPanel {
     .status-dot.green { background: #3fb950; }
     .status-dot.red { background: #f85149; }
     .status-dot.yellow { background: #d29922; }
+    .status-dot.blue { background: #4a9eff; }
     .status-label { font-size: 13px; }
 
     /* ── Metrics Grid ── */
@@ -670,26 +673,28 @@ export class SettingsPanel {
       <div id="hook-port-info" style="font-size:12px;color:var(--vscode-descriptionForeground);margin-bottom:4px;"></div>
     </div>
 
-    <div class="card">
-      <h3>Event Types</h3>
-      <div class="checkbox-section">
-        <div class="checkbox-section-label">Sync Events</div>
-        <div id="sync-events" class="checkbox-grid"></div>
+    <div id="hook-controls">
+      <div class="card">
+        <h3>Event Types</h3>
+        <div class="checkbox-section">
+          <div class="checkbox-section-label">Sync Events</div>
+          <div id="sync-events" class="checkbox-grid"></div>
+        </div>
+        <div class="checkbox-section">
+          <div class="checkbox-section-label">Async Events</div>
+          <div id="async-events" class="checkbox-grid"></div>
+        </div>
+        <div class="button-row">
+          <button onclick="selectAllHooks(true)">Select All</button>
+          <button class="secondary" onclick="selectAllHooks(false)">Deselect All</button>
+        </div>
       </div>
-      <div class="checkbox-section">
-        <div class="checkbox-section-label">Async Events</div>
-        <div id="async-events" class="checkbox-grid"></div>
-      </div>
-      <div class="button-row">
-        <button onclick="selectAllHooks(true)">Select All</button>
-        <button class="secondary" onclick="selectAllHooks(false)">Deselect All</button>
-      </div>
-    </div>
 
-    <div class="button-row">
-      <button onclick="applyHooks()">Apply Changes</button>
-      <button class="secondary" onclick="repairHooks()">Repair Hooks</button>
-      <button class="danger" onclick="confirmAction('removeHooks', 'Remove All Hooks', 'This will remove all Synapse hooks from .claude/settings.local.json. Claude Code will stop sending events to Synapse.')">Remove All Hooks</button>
+      <div class="button-row">
+        <button onclick="applyHooks()">Apply Changes</button>
+        <button class="secondary" onclick="repairHooks()">Repair Hooks</button>
+        <button class="danger" onclick="confirmAction('removeHooks', 'Remove All Hooks', 'This will remove all Synapse hooks from .claude/settings.local.json. Claude Code will stop sending events to Synapse.')">Remove All Hooks</button>
+      </div>
     </div>
   </div>
 
@@ -904,6 +909,17 @@ export class SettingsPanel {
       const dot = document.getElementById('hook-dot');
       const label = document.getElementById('hook-label');
       const portInfo = document.getElementById('hook-port-info');
+      const hookControls = document.getElementById('hook-controls');
+
+      if (data.isExternalServer) {
+        dot.className = 'status-dot blue';
+        label.textContent = 'Connected to shared server on port ' + data.port;
+        portInfo.textContent = 'This instance is a client \u2014 hooks managed by the server owner';
+        if (hookControls) hookControls.style.display = 'none';
+        return;
+      }
+
+      if (hookControls) hookControls.style.display = '';
 
       if (data.configured) {
         if (data.portMatch) {
@@ -957,11 +973,21 @@ export class SettingsPanel {
       const btnRestart = document.getElementById('btn-restart');
 
       if (data && data.running) {
-        dot.className = 'status-dot green';
-        label.textContent = 'Running on port ' + data.port;
-        btnStart.style.display = 'none';
-        btnStop.style.display = '';
-        btnRestart.style.display = '';
+        if (data.isExternalServer) {
+          dot.className = 'status-dot blue';
+          label.textContent = 'Shared server on port ' + data.port;
+          btnStart.style.display = 'none';
+          btnStop.textContent = 'Disconnect';
+          btnStop.style.display = '';
+          btnRestart.style.display = 'none';
+        } else {
+          dot.className = 'status-dot green';
+          label.textContent = 'Running on port ' + data.port;
+          btnStart.style.display = 'none';
+          btnStop.textContent = 'Stop';
+          btnStop.style.display = '';
+          btnRestart.style.display = '';
+        }
 
         document.getElementById('m-uptime').textContent = formatUptime(data.uptime);
         document.getElementById('m-events').textContent = formatNumber(data.totalEvents);
