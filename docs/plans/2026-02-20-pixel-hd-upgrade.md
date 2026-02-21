@@ -10,6 +10,27 @@
 
 ---
 
+## Isolation & Reversibility
+
+**This plan touches ZERO core functionality.** Every file modified lives inside the pixel feature boundary:
+
+- `apps/dashboard/src/components/pixel/` — engine, bridge, modes, themes
+- `apps/dashboard/src/__tests__/pixel/` — tests only
+
+**No changes to:** `@synapse-ai/core`, `@synapse-ai/server`, `@synapse-ai/openclaw`, the main graph view, the analytics view, the store (`agentStore.ts`), any shared component, or any API route.
+
+**Why this is safe:**
+- The `TILE` constant and all pixel types are only imported within `components/pixel/` — verified via grep
+- The pixel view is lazy-loaded behind `?view=pixel` URL param — not in the default bundle path
+- It's wrapped in an `ErrorBoundary` — crashes cannot propagate to the main app
+- The bridge only subscribes to `agentStore` (read-only) — it never mutates shared state
+
+**To disable:** Remove the `'pixel'` case from `App.tsx:222` (3 lines). The lazy import won't load.
+
+**To remove entirely:** Delete `apps/dashboard/src/components/pixel/` and `apps/dashboard/src/__tests__/pixel/`, then remove the lazy import + route branch from `App.tsx` (~8 lines). Zero side effects elsewhere.
+
+---
+
 ## Task 1: Types & Constants
 
 **Files:**
