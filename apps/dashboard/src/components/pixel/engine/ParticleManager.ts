@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
+import { TILE } from './types';
+
 export type ParticleType = 'dust' | 'token' | 'sparkle' | 'error' | 'steam' | 'cache';
 
 const MAX_PARTICLES = 500;
@@ -15,49 +20,50 @@ export interface Particle {
 }
 
 function createParticle(type: ParticleType, x: number, y: number): Particle {
-  const p: Particle = { x, y, vx: 0, vy: 0, life: 1, maxLife: 1, size: 1, color: '#fff', type };
+  const S = TILE / 16;
+  const p: Particle = { x, y, vx: 0, vy: 0, life: 1, maxLife: 1, size: S, color: '#fff', type };
 
   switch (type) {
     case 'dust':
-      p.vx = (Math.random() - 0.5) * 10;
-      p.vy = -Math.random() * 8 - 2;
+      p.vx = (Math.random() - 0.5) * 10 * S;
+      p.vy = (-Math.random() * 8 - 2) * S;
       p.maxLife = 0.4 + Math.random() * 0.2;
-      p.size = 1;
+      p.size = S;
       p.color = '#b0a090';
       break;
     case 'token':
-      p.vx = (Math.random() - 0.5) * 20;
-      p.vy = -Math.random() * 30 - 15;
+      p.vx = (Math.random() - 0.5) * 20 * S;
+      p.vy = (-Math.random() * 30 - 15) * S;
       p.maxLife = 1.0 + Math.random() * 0.5;
-      p.size = 2;
+      p.size = 2 * S;
       p.color = Math.random() > 0.5 ? '#ffd700' : '#ffa500';
       break;
     case 'sparkle':
-      p.vx = (Math.random() - 0.5) * 30;
-      p.vy = (Math.random() - 0.5) * 30;
+      p.vx = (Math.random() - 0.5) * 30 * S;
+      p.vy = (Math.random() - 0.5) * 30 * S;
       p.maxLife = 0.3 + Math.random() * 0.3;
-      p.size = 1 + Math.floor(Math.random() * 2);
+      p.size = S + Math.floor(Math.random() * S);
       p.color = '#ffffaa';
       break;
     case 'error':
-      p.vx = (Math.random() - 0.5) * 15;
-      p.vy = -Math.random() * 20 - 10;
+      p.vx = (Math.random() - 0.5) * 15 * S;
+      p.vy = (-Math.random() * 20 - 10) * S;
       p.maxLife = 0.6 + Math.random() * 0.3;
-      p.size = 2;
+      p.size = 2 * S;
       p.color = '#ff4444';
       break;
     case 'steam':
-      p.vx = (Math.random() - 0.5) * 3;
-      p.vy = -Math.random() * 8 - 4;
+      p.vx = (Math.random() - 0.5) * 3 * S;
+      p.vy = (-Math.random() * 8 - 4) * S;
       p.maxLife = 1.5 + Math.random() * 0.5;
-      p.size = 2 + Math.floor(Math.random() * 2);
+      p.size = 2 * S + Math.floor(Math.random() * S);
       p.color = 'rgba(200,200,200,0.35)';
       break;
     case 'cache':
-      p.vx = (Math.random() - 0.5) * 8;
-      p.vy = -Math.random() * 12 - 5;
+      p.vx = (Math.random() - 0.5) * 8 * S;
+      p.vy = (-Math.random() * 12 - 5) * S;
       p.maxLife = 0.5;
-      p.size = 1;
+      p.size = S;
       p.color = '#55ffaa';
       break;
   }
@@ -81,6 +87,7 @@ export class ParticleManager {
   }
 
   update(dt: number): void {
+    const S = TILE / 16;
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
       p.life -= dt;
@@ -93,9 +100,9 @@ export class ParticleManager {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       // Gravity for token and error
-      if (p.type === 'token' || p.type === 'error') p.vy += 20 * dt;
+      if (p.type === 'token' || p.type === 'error') p.vy += 20 * S * dt;
       // Steam drift
-      if (p.type === 'steam') p.vx += (Math.random() - 0.5) * 2;
+      if (p.type === 'steam') p.vx += (Math.random() - 0.5) * 2 * S;
     }
   }
 
