@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Synapse Contributors
 
+export const NOTIFICATIONS_ENABLED = true;
+
 export const MAX_NOTIFICATIONS = 50;
 
 export const NOTIFICATION_TYPES: Record<string, { label: string; color: string; dot: string; border: string; bg: string }> = {

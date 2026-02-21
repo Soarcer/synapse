@@ -5,11 +5,12 @@
 // All exports become no-ops so existing touchpoints in the app
 // silently do nothing without errors.
 
-export const NOTIFICATIONS_ENABLED = true;
+export { NOTIFICATIONS_ENABLED } from './constants';
 
 export { useNotificationStore } from './notificationStore';
 export { NOTIFICATION_TYPES, FALLBACK_TYPE, sessionLabel, formatElapsed, formatWait, targetNodeId } from './constants';
 
+import { NOTIFICATIONS_ENABLED } from './constants';
 import { useAgentStore } from '../../store/agentStore';
 import { useNotificationStore } from './notificationStore';
 import { toast } from '../../components/Toast';

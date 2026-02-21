@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ReactFlow,
@@ -8,18 +11,20 @@ import {
   useReactFlow,
   ReactFlowProvider,
 } from '@xyflow/react';
-import type { Node, Edge, NodeChange } from '@xyflow/react';
+import type { NodeChange } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useAgentStore, reloadAllEvents } from '../../store/agentStore';
 import { useAutoLayout } from '../../hooks/useAutoLayout';
+import { useVisibleGraph } from '../../hooks/useVisibleGraph';
 import { useGraphNavigation } from '../../hooks/useGraphNavigation';
 import { nodeTypes, edgeTypes } from './nodeTypes';
+import { NotificationPulse } from '../../features/notifications/NotificationPulse'; // [notifications]
 import { GraphSearchBox } from './GraphSearchBox';
 import { EdgeCostLegend } from './EdgeCostLegend';
 import { NudgeBadge } from './NudgeBadge';
 import { registerToastNavigator, unregisterToastNavigator } from '../Toast';
-import { nodeMatchesSearch, buildParentMap, collectAncestors, buildChildrenMap } from '../../utils/graphSearch';
-import type { AgentNodeData, ToolCallSummary } from '@synapse-ai/core';
+import { buildParentMap, collectAncestors } from '../../utils/graphSearch';
+import type { AgentNodeData } from '@synapse-ai/core';
 
 
 // ── Main graph component ─────────────────────────────────────
@@ -30,10 +35,7 @@ function AgentGraphInner() {
   const selectNode = useAgentStore((s) => s.selectNode);
   const selectedNodeId = useAgentStore((s) => s.selectedNodeId);
   const selectSource = useAgentStore((s) => s.selectSource);
-  const graphSearchQuery = useAgentStore((s) => s.graphSearchQuery);
   const autoClosePrompts = useAgentStore((s) => s.autoClosePrompts);
-  const showAllTools = useAgentStore((s) => s.showAllTools);
-  const toolGroupMode = useAgentStore((s) => s.toolGroupMode);
   const collapsedNodes = useAgentStore((s) => s.collapsedNodes);
   const lockViewport = useAgentStore((s) => s.lockViewport);
   const { fitView, getViewport, setViewport } = useReactFlow();
@@ -70,152 +72,13 @@ function AgentGraphInner() {
     return null;
   }, [selectedNodeId, rawEdges]);
 
-  // ── Visibility filtering: replace leaf tools with toolGroup nodes, then search/collapse ──
+  // ── Visibility filtering: shared hook (also used by MobileGraphView) ──
 
-  const { visibleNodes, visibleEdges, searchMatchCount } = useMemo(() => {
-    // Phase 1: Replace leaf tools with synthetic toolGroup nodes
-    const structuralToolIds = new Set<string>();
-    for (const edge of rawEdges) {
-      if (edge.source.startsWith('tool-') && edge.target.startsWith('agent-')) {
-        structuralToolIds.add(edge.source);
-      }
-    }
-
-    const leafToolsByParent = new Map<string, string[]>();
-    const leafToolNodeIds = new Set<string>();
-    for (const edge of rawEdges) {
-      if (edge.target.startsWith('tool-') && !structuralToolIds.has(edge.target)) {
-        leafToolNodeIds.add(edge.target);
-        const list = leafToolsByParent.get(edge.source) ?? [];
-        list.push(edge.target);
-        leafToolsByParent.set(edge.source, list);
-      }
-    }
-
-    const rawNodeById = new Map(rawNodes.map((n) => [n.id, n]));
-    const syntheticNodes: Node[] = [];
-    const syntheticEdges: Edge[] = [];
-
-    for (const [parentId, toolIds] of leafToolsByParent) {
-      const tools: ToolCallSummary[] = [];
-      for (const tid of toolIds) {
-        const node = rawNodeById.get(tid);
-        if (node) {
-          const tc = (node.data as Record<string, unknown>).toolCall as ToolCallSummary;
-          if (tc) tools.push(tc);
-        }
-      }
-      if (tools.length === 0) continue;
-      const tgId = `toolgroup-${parentId}`;
-      syntheticNodes.push({
-        id: tgId,
-        type: 'toolGroup',
-        data: { tools, parentAgentId: parentId },
-        position: { x: -9999, y: -9999 },
-        style: { visibility: 'hidden' as const },
-        measured: toolGroupDims.get(tgId),
-      });
-      syntheticEdges.push({
-        id: `edge-${parentId}-toolgroup-${parentId}`,
-        source: parentId,
-        target: `toolgroup-${parentId}`,
-      });
-    }
-
-    // Base node/edge sets: leaf tools replaced by toolGroup nodes
-    const baseNodes = [
-      ...rawNodes.filter((n) => !leafToolNodeIds.has(n.id)),
-      ...syntheticNodes,
-    ];
-    const baseEdges = [
-      ...rawEdges.filter((e) => !leafToolNodeIds.has(e.target)),
-      ...syntheticEdges,
-    ];
-
-    // Phase 2: Search or collapse filtering
-    const query = graphSearchQuery.toLowerCase().trim();
-
-    if (query) {
-      const matchIds = new Set<string>();
-      for (const node of baseNodes) {
-        if (nodeMatchesSearch(node, query)) matchIds.add(node.id);
-      }
-      const parentOf = buildParentMap(baseEdges);
-      const keepIds = new Set<string>(matchIds);
-      for (const id of matchIds) {
-        collectAncestors(id, parentOf, keepIds);
-      }
-      keepIds.add('__spawn__');
-
-      return {
-        visibleNodes: baseNodes.filter((n) => keepIds.has(n.id)),
-        visibleEdges: baseEdges.filter((e) => keepIds.has(e.source) && keepIds.has(e.target)),
-        searchMatchCount: matchIds.size,
-      };
-    }
-
-    // Normal mode: auto-close prompts + manual collapse
-    const hiddenIds = new Set<string>();
-
-    if (autoClosePrompts) {
-      const parentOf = buildParentMap(baseEdges);
-      let expandedPrompt: string | null = null;
-      if (selectedNodeId) {
-        // If selected is a tool inside a group, walk from its agent parent
-        let walkStart: string | undefined = selectedNodeId;
-        if (selectedNodeId.startsWith('tool-')) {
-          for (const edge of rawEdges) {
-            if (edge.target === selectedNodeId) {
-              walkStart = `toolgroup-${edge.source}`;
-              break;
-            }
-          }
-        }
-        let walk: string | undefined = walkStart;
-        while (walk) {
-          if (walk.startsWith('prompt-')) { expandedPrompt = walk; break; }
-          walk = parentOf.get(walk);
-        }
-      }
-      if (!expandedPrompt) {
-        const promptNodes = baseNodes.filter((n) => n.type === 'userPrompt');
-        if (promptNodes.length > 0) expandedPrompt = promptNodes[promptNodes.length - 1].id;
-      }
-      for (const node of baseNodes) {
-        if (node.type === 'session' || node.type === 'userPrompt' || node.id === '__spawn__') continue;
-        if (hiddenIds.has(node.id)) continue;
-        let promptAncestor: string | null = null;
-        let walk: string | undefined = node.id;
-        while (walk) {
-          if (walk.startsWith('prompt-')) { promptAncestor = walk; break; }
-          walk = parentOf.get(walk);
-        }
-        if (promptAncestor && promptAncestor !== expandedPrompt) {
-          hiddenIds.add(node.id);
-        }
-      }
-    }
-
-    if (collapsedNodes.size > 0) {
-      const edgesForCollapse = baseEdges.filter((e) => !hiddenIds.has(e.target));
-      const allChildrenOf = buildChildrenMap(edgesForCollapse);
-      for (const cid of collapsedNodes) {
-        const queue = [...(allChildrenOf.get(cid) ?? [])];
-        while (queue.length > 0) {
-          const id = queue.shift()!;
-          if (hiddenIds.has(id)) continue;
-          hiddenIds.add(id);
-          for (const child of allChildrenOf.get(id) ?? []) queue.push(child);
-        }
-      }
-    }
-
-    return {
-      visibleNodes: baseNodes.filter((n) => !hiddenIds.has(n.id)),
-      visibleEdges: baseEdges.filter((e) => !hiddenIds.has(e.source) && !hiddenIds.has(e.target)),
-      searchMatchCount: null as number | null,
-    };
-  }, [rawNodes, rawEdges, graphSearchQuery, autoClosePrompts, showAllTools, toolGroupMode, selectedNodeId, collapsedNodes, toolGroupDims]);
+  const { visibleNodes, visibleEdges, searchMatchCount } = useVisibleGraph({
+    autoClosePrompts,
+    collapsedNodes,
+    toolGroupDims,
+  });
 
   const layoutNodes = useAutoLayout(visibleNodes, visibleEdges, expandedParentId);
 
@@ -375,13 +238,13 @@ function AgentGraphInner() {
     [visibleNodes, rawEdges],
   );
 
-  // Zoom to newest node when nodes are added (unless viewport is locked).
+  // Zoom to newest node when nodes are added (unless viewport is locked or a node is selected).
   // Must resolve raw node IDs to visible IDs because tool nodes are replaced
   // by synthetic toolgroup nodes — fitView on a non-existent ID causes React
   // Flow to compute empty bounds at (0,0) and zoom to the canvas origin.
   const prevNodeIdsRef = useRef<Set<string>>(new Set(rawNodes.map((n) => n.id)));
   useEffect(() => {
-    if (rawNodes.length > prevNodeCountRef.current && !lockViewport) {
+    if (rawNodes.length > prevNodeCountRef.current && !lockViewport && !selectedNodeId) {
       const prevIds = prevNodeIdsRef.current;
       const newNodes = rawNodes.filter((n) => !prevIds.has(n.id));
       const target = newNodes[newNodes.length - 1];
@@ -397,7 +260,7 @@ function AgentGraphInner() {
     }
     prevNodeCountRef.current = rawNodes.length;
     prevNodeIdsRef.current = new Set(rawNodes.map((n) => n.id));
-  }, [rawNodes, fitView, lockViewport, resolveVisibleId]);
+  }, [rawNodes, fitView, lockViewport, selectedNodeId, resolveVisibleId]);
 
   // One-time fitView after initial measurement pass — snaps layout into correct positions
   const initialMeasureDoneRef = useRef(false);
@@ -690,6 +553,7 @@ function AgentGraphInner() {
       </ReactFlow>
       <EdgeCostLegend />
       <NudgeBadge />
+      <NotificationPulse /> {/* [notifications] */}
     </>
   );
 }
