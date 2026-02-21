@@ -1,8 +1,11 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import type { PixelTheme } from '../engine/types';
 
 export const RETRO_OFFICE: PixelTheme = {
   name: 'retro-office',
-  grid: { cols: 42, rows: 28, tileSize: 16 },
+  grid: { cols: 42, rows: 28, tileSize: 32 },
   palette: {
     floor: ['#c4a47a', '#b8986e'],
     carpet: ['#2b5329', '#3a6b37'],
@@ -30,10 +33,10 @@ export const RETRO_OFFICE: PixelTheme = {
     { name: 'Task',  col: 35, row: 15, icon: 'dispatch' },
   ],
   models: {
-    opus:    { width: 12, height: 16, speed: 45,  bodyColor: '#b82030', accentColor: '#ffd700', label: 'Opus' },
-    sonnet:  { width: 10, height: 14, speed: 65,  bodyColor: '#2855a0', accentColor: '#b0c0d0', label: 'Sonnet' },
-    haiku:   { width: 8,  height: 11, speed: 100, bodyColor: '#1e8c3a', accentColor: '#d0f0d0', label: 'Haiku' },
-    manager: { width: 10, height: 14, speed: 50,  bodyColor: '#2a2a2a', accentColor: '#cc2233', label: 'Manager' },
+    opus:    { width: 24, height: 32, speed: 90,  bodyColor: '#b82030', accentColor: '#ffd700', label: 'Opus' },
+    sonnet:  { width: 20, height: 28, speed: 130, bodyColor: '#2855a0', accentColor: '#b0c0d0', label: 'Sonnet' },
+    haiku:   { width: 16, height: 22, speed: 200, bodyColor: '#1e8c3a', accentColor: '#d0f0d0', label: 'Haiku' },
+    manager: { width: 20, height: 28, speed: 100, bodyColor: '#2a2a2a', accentColor: '#cc2233', label: 'Manager' },
   },
   decorations: [
     { type: 'plant',  col: 2,  row: 3 },
@@ -48,4 +51,18 @@ export const RETRO_OFFICE: PixelTheme = {
   door: { col: 20, row: 0, width: 2 },
   spawnArea: { col: 20, row: 22 },
   outputStation: { col: 19, row: 21 },
+  homeDesks: [
+    { col: 7, row: 10 },
+    { col: 13, row: 10 },
+    { col: 7, row: 17 },
+    { col: 13, row: 17 },
+    { col: 31, row: 10 },
+    { col: 31, row: 17 },
+    { col: 37, row: 10 },
+    { col: 37, row: 17 },
+  ],
+  pointsOfInterest: [
+    { col: 37, row: 5, name: 'coffee', icon: 'coffee' },
+    { col: 37, row: 20, name: 'cooler', icon: 'cooler' },
+  ],
 };
