@@ -1,4 +1,7 @@
-export const TILE = 16;
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
+export const TILE = 32;
 
 export interface GridConfig {
   cols: number;
@@ -28,6 +31,20 @@ export interface DecorationDef {
   row: number;
 }
 
+export interface DeskDef {
+  col: number;
+  row: number;
+}
+
+export interface PointOfInterestDef {
+  col: number;
+  row: number;
+  name: string;
+  icon: string;
+}
+
+export type IdleBehavior = 'sit' | 'wander' | 'coffee' | 'socialize';
+
 export interface Palette {
   floor: [string, string];
   carpet: [string, string];
@@ -55,6 +72,8 @@ export interface PixelTheme {
   door: { col: number; row: number; width: number };
   spawnArea: { col: number; row: number };
   outputStation: { col: number; row: number };
+  homeDesks: DeskDef[];
+  pointsOfInterest: PointOfInterestDef[];
 }
 
 export type SceneCommand =

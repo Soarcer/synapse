@@ -1,4 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { describe, it, expect } from 'vitest';
+import { TILE } from '../../components/pixel/engine/types';
 import { RETRO_OFFICE } from '../../components/pixel/themes/retro-office';
 
 describe('PixelTheme: retro-office', () => {
@@ -30,5 +34,19 @@ describe('PixelTheme: retro-office', () => {
     expect(RETRO_OFFICE.models.sonnet).toBeDefined();
     expect(RETRO_OFFICE.models.haiku).toBeDefined();
     expect(RETRO_OFFICE.models.opus.speed).toBeLessThan(RETRO_OFFICE.models.haiku.speed);
+  });
+
+  it('TILE is 32 for HD resolution', () => {
+    expect(TILE).toBe(32);
+  });
+
+  it('has homeDesks defined', () => {
+    expect(RETRO_OFFICE.homeDesks).toBeDefined();
+    expect(RETRO_OFFICE.homeDesks.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it('has pointsOfInterest defined', () => {
+    expect(RETRO_OFFICE.pointsOfInterest).toBeDefined();
+    expect(RETRO_OFFICE.pointsOfInterest.length).toBeGreaterThanOrEqual(2);
   });
 });
