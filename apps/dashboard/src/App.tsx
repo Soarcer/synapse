@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useEffect, useMemo, lazy, Suspense } from 'react';
 import { Header } from './components/layout/Header';
 import { GraphLayout } from './components/layout/GraphLayout';
@@ -6,19 +9,26 @@ import { useBreakpoint } from './hooks/useBreakpoint';
 
 const AnalyticsPage = lazy(() => import('./components/analytics/AnalyticsPageLazy'));
 const PixelPage = lazy(() => import('./components/pixel/PixelPageLazy'));
+const MobileView = lazy(() => import('./components/mobile/MobileView'));
 import { ToastContainer } from './components/Toast';
 import { WorkshopModal } from './components/WorkshopModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useAgentStore, reloadAllEvents } from './store/agentStore';
 import { wsClient } from './store/wsClient';
 
-/** Layout modes: full (browser), lens (VS Code sidebar), graph (VS Code editor), analytics (reporting dashboard) */
-type ViewMode = 'full' | 'lens' | 'graph' | 'analytics' | 'pixel';
+/** Layout modes: full (browser), lens (VS Code sidebar), graph (VS Code editor), analytics, pixel, mobile */
+type ViewMode = 'full' | 'lens' | 'graph' | 'analytics' | 'pixel' | 'mobile';
 
 function getViewMode(): ViewMode {
   const params = new URLSearchParams(window.location.search);
   const view = params.get('view');
-  if (view === 'lens' || view === 'graph' || view === 'analytics' || view === 'pixel') return view;
+  if (view === 'mobile' || view === 'lens' || view === 'graph' || view === 'analytics' || view === 'pixel') return view;
+
+  // Auto-detect phone browsers (any orientation, excludes tablets/touch laptops)
+  const isCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
+  const isSmallScreen = window.matchMedia('(max-width: 1024px)').matches;
+  if (isCoarsePointer && isSmallScreen && navigator.maxTouchPoints > 0) return 'mobile';
+
   return 'full';
 }
 
@@ -35,7 +45,7 @@ export default function App() {
   // Connect WebSocket and load existing events on mount
   // In VS Code mode (lens/graph), events arrive via postMessage from the extension — skip direct WS/fetch
   useEffect(() => {
-    if (viewMode !== 'full' && viewMode !== 'pixel') return; // VS Code relay handles data delivery
+    if (viewMode !== 'full' && viewMode !== 'pixel' && viewMode !== 'mobile') return; // VS Code relay handles data delivery
 
     wsClient.connect();
     reloadAllEvents({ showLoading: true });
@@ -47,7 +57,7 @@ export default function App() {
 
   // Listen for messages from VS Code extension (cross-panel sync + event relay)
   useEffect(() => {
-    if (viewMode === 'full') return;
+    if (viewMode === 'full' || viewMode === 'mobile') return;
 
     const handleMessage = (e: MessageEvent) => {
       const msg = e.data;
@@ -77,7 +87,7 @@ export default function App() {
 
   // Broadcast selection changes back to VS Code extension host
   useEffect(() => {
-    if (viewMode === 'full') return;
+    if (viewMode === 'full' || viewMode === 'mobile') return;
 
     let prev = useAgentStore.getState().selectedNodeId;
     const unsub = useAgentStore.subscribe((state) => {
@@ -96,7 +106,7 @@ export default function App() {
   // Synthetic KeyboardEvents don't work (isTrusted: false), so the webview HTML
   // relays these messages to the extension host which calls executeCommand().
   useEffect(() => {
-    if (viewMode === 'full') return;
+    if (viewMode === 'full' || viewMode === 'mobile') return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isEditableTarget(e)) return;
@@ -141,6 +151,7 @@ export default function App() {
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (isEditableTarget(e)) return;
+      if (viewMode === 'mobile') return; // No keyboard shortcuts on mobile
 
       // ── Shortcuts available in ALL modes ──
 
@@ -152,7 +163,7 @@ export default function App() {
 
       // Number keys switch lens tabs (all modes)
       if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-        const tabKeys = ['treemap', 'heatmap', 'compaction', 'cost', 'sankey', 'tree'];
+        const tabKeys = ['treemap', 'heatmap', 'compaction', 'cost', 'sankey', 'tree', 'alerts']; // [notifications]
         const tabIdx = parseInt(e.key, 10) - 1;
         if (tabIdx >= 0 && tabIdx < tabKeys.length) {
           useAgentStore.getState().setActiveLensTab(tabKeys[tabIdx]);
@@ -256,6 +267,20 @@ export default function App() {
 
         <GraphLayout />
         <WorkshopModal />
+        <ToastContainer />
+      </div>
+    );
+  }
+
+  // ── Mobile view (phone browser) ─────────────────────────────
+  if (viewMode === 'mobile') {
+    return (
+      <div className="h-screen w-screen flex flex-col bg-[#0d1117] text-gray-200 overflow-hidden" style={{ height: '100dvh', overscrollBehavior: 'none', touchAction: 'manipulation' }}>
+        <ErrorBoundary name="MobileView">
+          <Suspense fallback={<div className="flex-1 flex items-center justify-center text-gray-500 text-sm">Loading mobile view...</div>}>
+            <MobileView />
+          </Suspense>
+        </ErrorBoundary>
         <ToastContainer />
       </div>
     );

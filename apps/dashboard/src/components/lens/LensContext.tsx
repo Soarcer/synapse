@@ -1,9 +1,12 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { createContext, useContext } from 'react';
 import type { AgentNodeData, UserPromptData, AgentEvent, TranscriptSummary } from '@synapse-ai/core';
 
 // ── Data types for the Lens Panel ───────────────────────────
 
-export type LensTab = 'tree' | 'heatmap' | 'treemap' | 'sankey' | 'compaction' | 'cost';
+export type LensTab = 'tree' | 'heatmap' | 'treemap' | 'sankey' | 'compaction' | 'cost' | 'alerts'; // [notifications]
 export type LensNodeKind = 'session' | 'prompt' | 'agent' | 'tool';
 export type ProfileMetric = 'tokens' | 'duration' | 'count';
 

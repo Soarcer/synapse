@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useLens } from './LensContext';
 import { LensTabBar } from './LensTabBar';
 import { LensBreadcrumb } from './LensBreadcrumb';
@@ -8,6 +11,7 @@ import { TreemapView } from './treemap/TreemapView';
 import { SankeyView } from './sankey/SankeyView';
 import { CompactionView } from './compaction/CompactionView';
 import { CostWaterfallView } from './cost/CostWaterfallView';
+import { AlertsView } from '../../features/notifications/AlertsView'; // [notifications]
 
 interface LensPanelProps {
   width?: number;
@@ -49,6 +53,7 @@ export function LensPanel({ width, onWidthChange, fillWidth }: LensPanelProps) {
         {activeTab === 'sankey' && <SankeyView />}
         {activeTab === 'compaction' && <CompactionView />}
         {activeTab === 'cost' && <CostWaterfallView />}
+        {activeTab === 'alerts' && <AlertsView />}  {/* [notifications] */}
       </div>
 
       <LensBreadcrumb />
