@@ -240,12 +240,11 @@ This fires 8 realistic events (session start, agent spawn, tool calls, agent sto
 |--------------|-----------------------------------------------------|
 | **Frontend** | React 19, React Flow v12, Zustand 5, Tailwind CSS 4 |
 | **Build**    | Vite 6, TypeScript 5.7                              |
-| **Backend**  | Express 5, WebSocket (ws 8), better-sqlite3          |
+| **Backend**  | Express 5, WebSocket (ws 8), sql.js (pure JS SQLite)  |
 | **Agent SDK**| @anthropic-ai/claude-agent-sdk                       |
 | **Linting**  | ESLint 9, Prettier 3, Husky + lint-staged            |
-| **Testing**  | Vitest 4 (framework installed, tests... aspirational) |
-
-> Yes, we installed the full Vitest + Testing Library stack and wrote zero tests. We'll get to it. The cobbler's children have no shoes, and the observability dashboard has no test coverage. The irony is not lost on us.
+| **Monorepo** | pnpm workspaces                                       |
+| **Testing**  | Vitest 4, 2,000+ tests                                |
 
 ---
 
@@ -253,38 +252,17 @@ This fires 8 realistic events (session start, agent spawn, tool calls, agent sto
 
 ```
 Synapse/
-├── server/                    # Express + WebSocket backend
-│   ├── index.ts               # Server entry (port 4000)
-│   ├── db.ts                  # SQLite schema & queries
-│   ├── routes/
-│   │   ├── events.ts          # POST /api/events — hook receiver
-│   │   └── agents.ts          # Agent CRUD + spawn
-│   └── services/
-│       ├── agentManager.ts    # Agent SDK wrapper
-│       ├── eventStore.ts      # SQLite event persistence
-│       └── broadcaster.ts     # WebSocket broadcast
-│
-├── src/                       # React frontend
-│   ├── App.tsx                # Layout shell
-│   ├── store/
-│   │   ├── agentStore.ts      # Zustand state (agents, events, graph)
-│   │   └── wsClient.ts        # WebSocket client + reconnect
-│   ├── components/
-│   │   ├── graph/             # React Flow canvas + custom nodes/edges
-│   │   │   ├── nodes/         # SessionNode, AgentNode, ToolCallNode
-│   │   │   └── edges/         # AnimatedEdge with data flow particles
-│   │   ├── panels/            # Detail panel, tool log, timeline, dialogs
-│   │   └── layout/            # Header, Sidebar
-│   ├── hooks/                 # useAgentStream, useAutoLayout
-│   └── types/agent.ts         # Shared type definitions
-│
-├── hooks/                     # Claude Code hook scripts
-│   └── send_event.cjs         # Reads stdin JSON, POSTs to server
-│
-├── openclaw-plugin/           # OpenClaw integration plugin
-├── vscode-extension/          # VSCode extension (embedded dashboard)
-├── docs/                      # Architecture, research, deployment docs
-└── scripts/                   # Simulation, packaging, utilities
+├── packages/
+│   ├── core/             # @synapse-ai/core — types, schemas, utilities
+│   ├── server/           # @synapse-ai/server — Express + SQLite + WebSocket
+│   └── openclaw/         # @synapse-ai/openclaw — multi-vendor monitoring plugin
+├── apps/
+│   ├── dashboard/        # React 19 + React Flow v12 frontend
+│   └── vscode/           # VS Code extension (embedded dashboard)
+├── hooks/                # Claude Code hook scripts
+├── ee/                   # Enterprise features (separate license)
+├── scripts/              # Build, simulation, and utility scripts
+└── docs/                 # Architecture and planning docs
 ```
 
 ---
@@ -348,7 +326,7 @@ An experimental integration with [OpenClaw](https://openclaw.dev) that bridges J
 Let's be honest with each other. This is a prototype, and we're putting it on the internet:
 
 - **No authentication** — The API is wide open. Don't expose this to the public internet unless you enjoy surprises.
-- **No test coverage** — We installed Vitest. We configured lint-staged. We even added test scripts to package.json. Then we shipped anyway. (See: cobbler, shoes.)
+- **Test coverage is growing** — 2,000+ tests and counting, but some areas still need coverage.
 - **WebSocket reconnect is... persistent** — If the server goes down, the client will try to reconnect. Forever. With exponential backoff. But also forever. It's loyal like that.
 - **Memory considerations** — Long-running sessions with thousands of events will accumulate in the Zustand store. If your agent tree starts looking like a fractal, maybe refresh.
 - **Windows-first** — Built on Windows, start scripts are PowerShell. Works on Linux/Mac with `npm run dev`, but the convenience scripts need adaptation.
@@ -368,7 +346,7 @@ Things we want to build (pull requests extremely welcome):
 - [ ] **Agent diff view** — See what an agent changed in your codebase, visually
 - [ ] **Multi-project support** — Monitor agents across multiple repos from one dashboard
 - [ ] **Authentication** — Because eventually someone will ask
-- [ ] **Actual tests** — The testing framework is installed and waiting, like a gym membership
+- [ ] **Expand test coverage** — 2,000+ tests in place, but more areas need coverage
 - [ ] **Performance profiling** — Flame graphs for agent execution trees
 - [ ] **Export/share** — Export session graphs as images or interactive HTML
 
@@ -376,32 +354,9 @@ Things we want to build (pull requests extremely welcome):
 
 ## Contributing
 
-This project is in its "weird prototype that works" phase, which is the *best* time to contribute.
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code style, and how to submit pull requests.
 
-```bash
-# Fork the repo, clone your fork, then:
-npm install
-
-# Run the development servers
-.\start-server.ps1   # Terminal 1
-.\start-client.ps1   # Terminal 2
-
-# Make changes, see them live (Vite HMR + tsx watch)
-```
-
-### Where to Start
-
-- **Want to add tests?** The framework is installed. Literally any test file would be an improvement. You'd be going from 0% to "not 0%", which is technically infinite improvement.
-- **Found a bug?** Check [docs/INVESTIGATION_FINDINGS.md](docs/INVESTIGATION_FINDINGS.md) first — we might already know about it. If it's new, even better.
-- **Have a feature idea?** Open an issue. We're building this to understand AI agents better, so if you have ideas about what would make that easier, we want to hear them.
-
-### Code Conventions
-
-- TypeScript throughout, strict mode
-- Shared types live in `src/types/agent.ts`
-- Backend API routes prefixed with `/api/`
-- Frontend state managed by Zustand
-- Commits follow conventional commit format
+All contributions require a [Developer Certificate of Origin](https://developercertificate.org/) sign-off. See the contributing guide for details.
 
 ---
 
@@ -419,12 +374,18 @@ Also, it looks really cool. Let's not pretend that wasn't a factor.
 
 ## License
 
-Licensed under the [Apache License 2.0](LICENSE).
+The core of Synapse is licensed under the [GNU Affero General Public License v3.0](LICENSE).
+
+Enterprise features in the [`/ee`](ee/) directory are licensed under the [Synapse Enterprise License](ee/LICENSE).
+
+See [GOVERNANCE.md](GOVERNANCE.md) for our commitment to keeping the open-source core complete and free.
 
 ---
 
 <p align="center">
-  <sub>Built with curiosity, caffeine, and an mass amount of Claude.</sub>
+  <sub>Built with curiosity, caffeine, and a mass amount of Claude.</sub>
+  <br />
+  <sub>Licensed under <a href="LICENSE">AGPL-3.0</a>. Enterprise features under <a href="ee/LICENSE">Synapse Enterprise License</a>.</sub>
   <br />
   <sub>If you're reading this, an AI agent might be watching you read this. <em>Check the graph.</em></sub>
 </p>
