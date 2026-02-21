@@ -1,5 +1,9 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { describe, it, expect } from 'vitest';
 import { Station } from '../../components/pixel/engine/Station';
+import { TILE } from '../../components/pixel/engine/types';
 import { RETRO_OFFICE } from '../../components/pixel/themes/retro-office';
 
 describe('Station', () => {
@@ -15,8 +19,8 @@ describe('Station', () => {
   it('returns correct pixel coordinates', () => {
     const def = { name: 'Test', col: 5, row: 8, icon: 'terminal' };
     const s = new Station(def, RETRO_OFFICE.palette);
-    expect(s.px).toBe(5 * 16);
-    expect(s.py).toBe(8 * 16);
+    expect(s.px).toBe(5 * TILE);
+    expect(s.py).toBe(8 * TILE);
   });
 
   it('activate/deactivate toggles state', () => {
