@@ -65,7 +65,7 @@ async function main() {
   console.log(`  Server:  ${API_URL}\n`);
 
   // ═══════════════════════════════════════════════════════════════
-  // 1. SESSION START
+  // 1. SESSION START (with git branch for session naming)
   // ═══════════════════════════════════════════════════════════════
   console.log('\x1b[36m── Session ──\x1b[0m');
   await postEvent({
@@ -75,8 +75,9 @@ async function main() {
     permission_mode: 'default',
     source: 'startup',
     model: 'claude-opus-4-6',
+    git_branch: 'feat/health-check',
     transcript_path: `~/.claude/projects/sim/${SESSION_ID}.jsonl`,
-  }, 'SessionStart');
+  }, 'SessionStart (with gitBranch)');
   await sleep(200);
 
   // ═══════════════════════════════════════════════════════════════
@@ -378,6 +379,77 @@ async function main() {
   }, 'SubagentStop (Plan)');
   await sleep(200);
 
+  // ── Task tool → child agent (exercises sidechain cost badge on edge)
+  const taskId = `toolu_task_${ts}`;
+  const TASK_AGENT = `agent-task-${ts}`;
+  await postEvent({
+    hook_event_name: 'PreToolUse',
+    session_id: SESSION_ID,
+    cwd: CWD,
+    tool_name: 'Task',
+    tool_use_id: taskId,
+    tool_input: { prompt: 'Search for auth files across the codebase', subagent_type: 'Explore' },
+  }, 'PreToolUse (Task — spawns child)');
+  await sleep(300);
+
+  await postEvent({
+    hook_event_name: 'SubagentStart',
+    session_id: SESSION_ID,
+    cwd: CWD,
+    agent_id: TASK_AGENT,
+    agent_type: 'Explore',
+    tool_use_id: taskId,
+  }, 'SubagentStart (Task child)');
+  await sleep(300);
+
+  const taskGrepId = `toolu_task_grep_${ts}`;
+  await postEvent({
+    hook_event_name: 'PreToolUse',
+    session_id: SESSION_ID,
+    cwd: CWD,
+    agent_id: TASK_AGENT,
+    tool_name: 'Grep',
+    tool_use_id: taskGrepId,
+    tool_input: { pattern: 'auth', path: 'server/' },
+  }, 'PreToolUse (Grep — Task child)');
+  await sleep(300);
+
+  await postEvent({
+    hook_event_name: 'PostToolUse',
+    session_id: SESSION_ID,
+    cwd: CWD,
+    agent_id: TASK_AGENT,
+    tool_name: 'Grep',
+    tool_use_id: taskGrepId,
+    tool_input: { pattern: 'auth' },
+    tool_response: { matches: ['server/lib/auth.ts:1:import { verify } from "jsonwebtoken"'] },
+  }, 'PostToolUse (Grep ✓ — Task child)');
+  await sleep(200);
+
+  await postEvent({
+    hook_event_name: 'SubagentStop',
+    session_id: SESSION_ID,
+    cwd: CWD,
+    agent_id: TASK_AGENT,
+    agent_type: 'Explore',
+  }, 'SubagentStop (Task child)');
+  await sleep(200);
+
+  await postEvent({
+    hook_event_name: 'PostToolUse',
+    session_id: SESSION_ID,
+    cwd: CWD,
+    tool_name: 'Task',
+    tool_use_id: taskId,
+    tool_input: { prompt: 'Search for auth files across the codebase' },
+    tool_response: {
+      agentId: TASK_AGENT,
+      result: 'Found auth.ts with JWT authentication',
+      usage: { input_tokens: 12500, output_tokens: 3800, cache_read_input_tokens: 4200 },
+    },
+  }, 'PostToolUse (Task ✓ — with token usage for cost badge)');
+  await sleep(200);
+
   // Notification (no graph node)
   await postEvent({
     hook_event_name: 'Notification',
@@ -388,13 +460,21 @@ async function main() {
   }, 'Notification — timeline only');
   await sleep(200);
 
-  // Compaction (marks latest prompt with scissor indicator)
+  // Compaction x2 (tests compaction badge count on agent)
   await postEvent({
     hook_event_name: 'PreCompact',
     session_id: SESSION_ID,
     cwd: CWD,
     trigger: 'auto',
-  }, 'PreCompact (compaction indicator on prompt #3)');
+  }, 'PreCompact #1 (compaction indicator on prompt #3)');
+  await sleep(200);
+
+  await postEvent({
+    hook_event_name: 'PreCompact',
+    session_id: SESSION_ID,
+    cwd: CWD,
+    trigger: 'auto',
+  }, 'PreCompact #2 (second compaction — badge shows ×2)');
   await sleep(200);
 
   // Stop
@@ -424,7 +504,7 @@ async function main() {
   console.log(`  Total events: ${stepNum}`);
   console.log(`  Failures:     ${failCount === 0 ? '\x1b[32m0\x1b[0m' : `\x1b[31m${failCount}\x1b[0m`}`);
   console.log(`\n\x1b[1mExpected Graph Hierarchy:\x1b[0m`);
-  console.log(`  Session (${SESSION_ID})`);
+  console.log(`  Session (${SESSION_ID}) — title: "Add a health check endpoint..." | branch: feat/health-check`);
   console.log('  ├── Prompt #1: "Add a health check endpoint..."');
   console.log('  │   ├── tool: Read (server/index.ts) ✓');
   console.log('  │   ├── tool: Edit (server/index.ts) ✓');
@@ -433,19 +513,29 @@ async function main() {
   console.log('  │   └── agent: Explore');
   console.log('  │       ├── tool: Glob (**/*.ts) ✓');
   console.log('  │       └── tool: Grep (WebSocket) ✓');
-  console.log('  └── Prompt #3: "Refactor the broadcaster..." ✂ compacted');
+  console.log('  └── Prompt #3: "Refactor the broadcaster..." ✂ compacted ×2');
   console.log('      ├── tool: Write (channels.ts) ✓');
   console.log('      ├── tool: Bash (test:channels) ✗ ERROR');
-  console.log('      └── agent: Plan');
-  console.log('          └── tool: Read (ARCHITECTURE.md) ✓');
+  console.log('      ├── agent: Plan');
+  console.log('      │   └── tool: Read (ARCHITECTURE.md) ✓');
+  console.log('      └── tool: Task → agent: Explore (Task child)  ── purple cost badge on edge');
+  console.log('              └── tool: Grep (auth) ✓');
   console.log('');
   console.log('\x1b[1mExpected Node Counts:\x1b[0m');
-  console.log('  session:    1');
+  console.log('  session:    1 (with title + gitBranch + topTools)');
   console.log('  userPrompt: 3 (one with ✂ compaction indicator)');
-  console.log('  agent:      2 (Explore + Plan)');
-  console.log('  toolCall:   8 (Read, Edit, Bash, Glob, Grep, Write, Bash-fail, Read-plan)');
+  console.log('  agent:      3 (Explore + Plan + Task-child)');
+  console.log('  toolCall:  10 (Read, Edit, Bash, Glob, Grep, Write, Bash-fail, Read-plan, Task, Grep-task)');
   console.log('  spawnAgent: 1 (always present)');
-  console.log('  TOTAL:      15 nodes');
+  console.log('  TOTAL:      18 nodes');
+  console.log('');
+  console.log('\x1b[1mSession Intelligence Features:\x1b[0m');
+  console.log('  ✓ Session title from first prompt text');
+  console.log('  ✓ Git branch chip on session node');
+  console.log('  ✓ Top tools pills (Read, Bash, Grep)');
+  console.log('  ✓ Purple cost badge on Task→Agent edge (16.5k tokens)');
+  console.log('  ✓ Orange compaction badge on agent (×2)');
+  console.log('  ✓ FIFO mismatch warning (not triggered — explicit toolUseId used)');
   console.log('');
   console.log('\x1b[1mTimeline-only events (no graph node):\x1b[0m');
   console.log('  Stop x3, PermissionRequest x1, Notification x1');

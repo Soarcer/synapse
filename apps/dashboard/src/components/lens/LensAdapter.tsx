@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useMemo, useCallback, useEffect, useRef } from 'react';
 import type { Node, Edge } from '@xyflow/react';
 import { useAgentStore } from '../../store/agentStore';
@@ -111,7 +114,7 @@ function buildTreeRoots(
       return {
         id: gNode.id,
         kind: 'session',
-        label: session.sessionId.slice(0, 8),
+        label: session.title ?? session.sessionId.slice(0, 8),
         status: session.status === 'running' ? 'running' : 'ended',
         tokens,
         count: Math.max(childCount, 1),
@@ -312,7 +315,7 @@ function groupToolChildren(children: LensTreeNode[]): LensTreeNode[] {
 
 // ── Adapter component ───────────────────────────────────────
 
-export function LensAdapter({ fillWidth }: { fillWidth?: boolean } = {}) {
+export function LensAdapter({ fillWidth, children }: { fillWidth?: boolean; children?: React.ReactNode } = {}) {
   const graphNodes = useAgentStore((s) => s.nodes);
   const graphEdges = useAgentStore((s) => s.edges);
   const agents = useAgentStore((s) => s.agents);
@@ -443,7 +446,7 @@ export function LensAdapter({ fillWidth }: { fillWidth?: boolean } = {}) {
 
   return (
     <LensProvider value={contextValue}>
-      <LensPanel width={lensPanelWidth} onWidthChange={onWidthChange} fillWidth={fillWidth} />
+      {children ?? <LensPanel width={lensPanelWidth} onWidthChange={onWidthChange} fillWidth={fillWidth} />}
     </LensProvider>
   );
 }

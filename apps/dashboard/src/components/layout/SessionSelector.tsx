@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useAgentStore } from '../../store/agentStore';
 import { formatRelativeTime, formatDuration } from '@synapse-ai/core';
@@ -47,9 +50,11 @@ export function SessionSelector() {
     : null;
 
   const triggerLabel = selectedSession
-    ? selectedSession.isRunning
-      ? `Running · ${formatDuration(selectedSession.duration)}`
-      : `${formatRelativeTime(selectedSession.startTime)} · ${formatDuration(selectedSession.duration)}`
+    ? selectedSession.title
+      ? selectedSession.title.slice(0, 24) + (selectedSession.title.length > 24 ? '...' : '')
+      : selectedSession.isRunning
+        ? `Running · ${formatDuration(selectedSession.duration)}`
+        : `${formatRelativeTime(selectedSession.startTime)} · ${formatDuration(selectedSession.duration)}`
     : 'All sessions';
 
   return (
@@ -93,14 +98,15 @@ export function SessionSelector() {
             >
               <div className="flex items-center gap-1.5">
                 <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.isRunning ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`} />
-                <span className={`text-xs ${filter.sessionId === s.sessionId ? 'text-blue-300' : 'text-gray-200'}`}>
-                  {s.isRunning ? 'Running' : formatRelativeTime(s.startTime)}
+                <span className={`text-xs truncate max-w-[160px] ${filter.sessionId === s.sessionId ? 'text-blue-300' : 'text-gray-200'}`}>
+                  {s.title ?? s.sessionId.slice(0, 8)}
                 </span>
-                <span className="text-[10px] text-gray-500">·</span>
-                <span className="text-[10px] text-gray-400">{formatDuration(s.duration)}</span>
               </div>
               <div className="flex items-center gap-2 mt-0.5 ml-3">
-                <span className="text-[10px] text-gray-500">{s.eventCount} events</span>
+                <span className="text-[10px] text-gray-500">
+                  {s.isRunning ? 'Running' : formatRelativeTime(s.startTime)} · {formatDuration(s.duration)}
+                </span>
+                {s.gitBranch && <span className="text-[10px] text-indigo-400">{s.gitBranch}</span>}
                 {s.model && <span className="text-[10px] text-gray-600">{s.model}</span>}
               </div>
             </button>

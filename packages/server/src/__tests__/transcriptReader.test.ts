@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -339,6 +342,36 @@ describe('readFullTranscript', () => {
     if (block.type === 'tool_result') {
       expect(block.content.length).toBeLessThanOrEqual(51_200); // 50KB + some margin
     }
+  });
+
+  it('should include isMeta flag on TranscriptTurn', () => {
+    const fp = writeFixture('ismeta.jsonl', [
+      {
+        type: 'user',
+        uuid: 'u1',
+        timestamp: '2026-02-20T10:00:00Z',
+        sessionId: 'sess1',
+        isMeta: true,
+        message: { role: 'user', content: [{ type: 'text', text: '/skill expansion' }] },
+      },
+      {
+        type: 'assistant',
+        uuid: 'a1',
+        timestamp: '2026-02-20T10:00:01Z',
+        sessionId: 'sess1',
+        isMeta: false,
+        message: {
+          model: 'claude-opus-4-6',
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Real response' }],
+          usage: { input_tokens: 100, output_tokens: 50 },
+        },
+      },
+    ]);
+
+    const result = readFullTranscript(fp, 'sess1');
+    expect(result.summary.turns[0].isMeta).toBe(true);
+    expect(result.summary.turns[1].isMeta).toBe(false);
   });
 
   it('skips malformed lines without crashing', () => {

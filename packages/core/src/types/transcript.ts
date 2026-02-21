@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // ─── Transcript Turn (parsed from JSONL) ──────────────────────────
 
 export interface TranscriptTurn {
@@ -22,6 +25,9 @@ export interface TranscriptTurn {
   textLength: number;              // total text output chars
   thinkingLength: number;          // thinking block chars
   promptText?: string;             // user prompt text (first 500 chars, user turns only)
+
+  // Context flags (from v2 ConversationRecord, propagated to v1 for filtering)
+  isMeta: boolean;
 
   // Derived
   totalInputTokens: number;        // input + cache_read

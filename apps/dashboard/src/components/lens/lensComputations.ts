@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { getKindColor } from '@synapse-ai/core';
 import type { AgentNodeData, UserPromptData, AgentEvent, TranscriptSummary, FullTranscript } from '@synapse-ai/core';
 import { extractUserMessage } from '../../utils/promptText';
@@ -253,10 +256,9 @@ export function buildCostPerTurn(
 
     // Get transcript turns for this session (if available)
     const transcript = transcripts.get(sessionId);
-    // TODO: When full transcript data (ConversationRecord[]) is available via LensAdapter,
-    // filter out isMeta records here to prevent /skill invocations and system-injected
+    // Filter out isMeta records to prevent /skill invocations and system-injected
     // content from appearing as user prompts in the cost lens.
-    const tTurns = transcript?.turns.filter((t) => t.type === 'assistant') ?? [];
+    const tTurns = transcript?.turns.filter((t) => t.type === 'assistant' && !t.isMeta) ?? [];
 
     for (let i = 0; i < sorted.length; i++) {
       const prompt = sorted[i];

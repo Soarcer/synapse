@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { memo, useMemo } from 'react';
 import { Handle, type NodeProps } from '@xyflow/react';
 import type { AgentNodeData } from '@synapse-ai/core';
@@ -59,6 +62,13 @@ function AgentNodeComponent({ data }: NodeProps) {
             <span className="text-green-400/60 text-[10px] font-semibold uppercase tracking-wider">Agent</span>
             {agent.parentAgentId && (
               <span className="bg-purple-900/50 text-purple-300 text-[9px] px-1.5 rounded">Task</span>
+            )}
+            {agent.compactionCount != null && agent.compactionCount > 0 && (
+              <Tooltip content={`Context compacted ${agent.compactionCount} time${agent.compactionCount > 1 ? 's' : ''}`}>
+                <span className="bg-orange-900/50 text-orange-300 text-[9px] px-1.5 rounded">
+                  {'\u2702'}{agent.compactionCount > 1 ? ` \u00d7${agent.compactionCount}` : ''}
+                </span>
+              </Tooltip>
             )}
           </div>
           <span className="text-[10px] text-gray-400">

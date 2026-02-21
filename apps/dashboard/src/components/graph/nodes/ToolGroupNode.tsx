@@ -1,8 +1,12 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { memo, useMemo } from 'react';
 import { Handle, type NodeProps } from '@xyflow/react';
 import type { ToolCallSummary } from '@synapse-ai/core';
 import { formatDuration, getToolIcon } from '@synapse-ai/core';
 import { useHandlePositions } from '../../../hooks/useHandlePositions';
+import { useTranscriptDetail, findThinkingForTool } from '../../../hooks/useTranscriptDetail';
 import { useAgentStore } from '../../../store/agentStore';
 import { Tooltip } from '../../ui/Tooltip';
 
@@ -73,12 +77,17 @@ export const PILL_MAX_ROWS = 6;
 // ── Component ────────────────────────────────────────────────
 
 function ToolGroupNodeComponent({ data }: NodeProps) {
-  const { tools, parentAgentId: _parentAgentId } = data as unknown as ToolGroupData;
+  const { tools, parentAgentId } = data as unknown as ToolGroupData;
   const showAllTools = useAgentStore((s) => s.showAllTools);
   const toolGroupMode = useAgentStore((s) => s.toolGroupMode);
   const selectedNodeId = useAgentStore((s) => s.selectedNodeId);
   const selectNode = useAgentStore((s) => s.selectNode);
+  const agents = useAgentStore((s) => s.agents);
   const { target } = useHandlePositions();
+
+  // Reasoning tooltip support
+  const agentData = agents.get(parentAgentId);
+  const { reasoning, ensureLoaded } = useTranscriptDetail(agentData?.sessionId);
 
   // Stats
   const stats = useMemo(() => {
@@ -114,7 +123,7 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
 
   if (!showAllTools) {
     return (
-      <div className="relative bg-gray-800/80 border border-gray-700/50 rounded-lg px-3 py-1.5 flex items-center gap-2 text-xs shadow-sm" style={{ minWidth: 180 }}>
+      <div onMouseEnter={ensureLoaded} className="relative bg-gray-800/80 border border-gray-700/50 rounded-lg px-3 py-1.5 flex items-center gap-2 text-xs shadow-sm" style={{ minWidth: 180 }}>
         <Handle type="target" position={target} className="!bg-purple-300 !w-2 !h-2 !border !border-gray-800" />
         <Tooltip content={`${tools.length} tool calls — click or press F to expand`} shortcut="F">
           <span className="text-gray-400 font-medium">[{tools.length}] tools</span>
@@ -135,7 +144,7 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
   // ── Expanded: render by mode ─────────────────────────────
 
   return (
-    <div className="relative bg-[#1a1d27] border border-gray-700/50 rounded-lg shadow-md" style={{ minWidth: 200 }}>
+    <div onMouseEnter={ensureLoaded} className="relative bg-[#1a1d27] border border-gray-700/50 rounded-lg shadow-md" style={{ minWidth: 200 }}>
       <Handle type="target" position={target} className="!bg-purple-300 !w-2 !h-2 !border !border-gray-800" />
 
       {/* Header */}
@@ -170,7 +179,7 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
       {/* Mode content */}
       <div className="p-2">
         {toolGroupMode === 'pillGrid' && (
-          <PillGridView tools={tools} selectedNodeId={selectedNodeId} selectNode={selectNode} />
+          <PillGridView tools={tools} selectedNodeId={selectedNodeId} selectNode={selectNode} reasoning={reasoning} />
         )}
         {toolGroupMode === 'timeline' && (
           <TimelineView tools={tools} selectedNodeId={selectedNodeId} selectNode={selectNode} />
@@ -189,10 +198,12 @@ function PillGridView({
   tools,
   selectedNodeId,
   selectNode,
+  reasoning,
 }: {
   tools: ToolCallSummary[];
   selectedNodeId: string | null;
   selectNode: (id: string | null, source?: 'graph' | 'lens') => void;
+  reasoning?: import('@synapse-ai/core').ReasoningData;
 }) {
   const numCols = Math.ceil(tools.length / PILL_MAX_ROWS);
   return (
@@ -210,29 +221,35 @@ function PillGridView({
         const nodeId = `tool-${tc.toolUseId}`;
         const isSelected = selectedNodeId === nodeId;
         const duration = tc.duration != null ? formatDuration(tc.duration) : null;
+        const thinking = findThinkingForTool(reasoning, tc.toolUseId);
         return (
-          <button
+          <Tooltip
             key={tc.toolUseId}
-            role="option"
-            aria-selected={isSelected}
-            data-tool-id={nodeId}
-            onClick={(e) => {
-              e.stopPropagation();
-              selectNode(nodeId, 'graph');
-            }}
-            className={`
-              flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-medium
-              transition-all cursor-pointer text-left truncate
-              ${getToolBgClass(tc.toolName)}
-              ${isSelected ? 'ring-1 ring-purple-400 ring-offset-1 ring-offset-gray-900' : 'hover:brightness-125'}
-            `}
+            content={thinking ? `Reasoning: ${thinking}` : `${tc.toolName} \u00b7 ${tc.status}${duration ? ` \u00b7 ${duration}` : ''}`}
           >
-            <span className="text-[8px] text-white/80 flex-shrink-0 font-mono w-3 text-right">{i + 1}</span>
-            <span className="opacity-70 flex-shrink-0">{getToolIcon(tc.toolName)}</span>
-            <span className="truncate">{tc.toolName}</span>
-            {duration && <span className="text-[8px] opacity-60 flex-shrink-0">{duration}</span>}
-            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ml-auto ${STATUS_DOT[tc.status]}`} />
-          </button>
+            <button
+              role="option"
+              aria-selected={isSelected}
+              data-tool-id={nodeId}
+              onClick={(e) => {
+                e.stopPropagation();
+                selectNode(nodeId, 'graph');
+              }}
+              className={`
+                flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-medium
+                transition-all cursor-pointer text-left truncate
+                ${getToolBgClass(tc.toolName)}
+                ${isSelected ? 'ring-1 ring-purple-400 ring-offset-1 ring-offset-gray-900' : 'hover:brightness-125'}
+              `}
+            >
+              <span className="text-[8px] text-white/80 flex-shrink-0 font-mono w-3 text-right">{i + 1}</span>
+              <span className="opacity-70 flex-shrink-0">{getToolIcon(tc.toolName)}</span>
+              <span className="truncate">{tc.toolName}</span>
+              {thinking && <span className="text-yellow-500/60 text-[8px] flex-shrink-0">{'\uD83D\uDCAD'}</span>}
+              {duration && <span className="text-[8px] opacity-60 flex-shrink-0">{duration}</span>}
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ml-auto ${STATUS_DOT[tc.status]}`} />
+            </button>
+          </Tooltip>
         );
       })}
     </div>

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import type { Node, Edge } from '@xyflow/react';
 import type {
   AgentEvent,
@@ -147,6 +150,10 @@ function handleSessionStart(event: AgentEvent, draft: StateDraft): void {
     source: event.source,
     cwd: event.cwd,
     placeholder: false,
+    // Preserve title/topTools from existing session (may have been set before SessionStart)
+    title: existing?.title,
+    gitBranch: event.gitBranch ?? existing?.gitBranch,
+    topTools: existing?.topTools,
   };
   draft.sessions.set(event.sessionId, session);
 
@@ -219,6 +226,16 @@ function handleUserPrompt(event: AgentEvent, draft: StateDraft): void {
     target: nid.prompt(event.id),
     type: 'smoothstep',
   });
+
+  // Set session title from first prompt text (if not already set)
+  const session = draft.sessions.get(event.sessionId);
+  if (session && !session.title && event.text) {
+    const maxLen = 48;
+    session.title = event.text.length > maxLen
+      ? event.text.slice(0, maxLen - 3) + '...'
+      : event.text;
+    updateNode(draft.nodes, nid.session(event.sessionId), { session });
+  }
 }
 
 function handleAgentStart(event: AgentEvent, draft: StateDraft): void {
@@ -283,6 +300,17 @@ function handleAgentStart(event: AgentEvent, draft: StateDraft): void {
         pending.splice(idx, 1);
       } else {
         taskToolUseId = pending.shift();
+        // Validate FIFO match: compare Task prompt with agent prompt
+        if (taskToolUseId && event.prompt) {
+          const taskToolNode = draft.nodes.find((n) => n.id === nid.tool(taskToolUseId!));
+          const taskPrompt = (taskToolNode?.data as { toolCall?: ToolCallSummary })?.toolCall?.toolInput?.prompt as string | undefined;
+          if (taskPrompt && event.prompt && !event.prompt.includes(taskPrompt.slice(0, 30)) && !taskPrompt.includes(event.prompt.slice(0, 30))) {
+            console.warn(
+              `[Synapse] FIFO mismatch: Task tool "${taskToolUseId}" prompt "${taskPrompt.slice(0, 50)}..." ` +
+              `does not match agent "${agentId}" prompt "${event.prompt.slice(0, 50)}..."`,
+            );
+          }
+        }
       }
       if (pending.length === 0) draft.pendingTaskTools.delete(event.sessionId);
       if (taskToolUseId) {
@@ -520,14 +548,18 @@ function handleToolEnd(event: AgentEvent, draft: StateDraft): void {
   const toolNodeId = nid.tool(toolUseId);
   const agentNodeId = nid.agent(childAgentId);
 
-  // Re-point the child agent's incoming edge to this Task tool
-  // (only needed if handleAgentStart didn't already link to the Task tool, e.g. SDK path)
+  // Re-point the child agent's incoming edge to this Task tool and tag it
+  // (re-pointing only needed if handleAgentStart didn't already link to the Task tool, e.g. SDK path)
   for (let i = 0; i < draft.edges.length; i++) {
-    if (draft.edges[i].target === agentNodeId && draft.edges[i].source !== toolNodeId) {
+    if (draft.edges[i].target === agentNodeId) {
+      const needsRepoint = draft.edges[i].source !== toolNodeId;
       draft.edges[i] = {
         ...draft.edges[i],
-        id: eid(toolNodeId, agentNodeId),
-        source: toolNodeId,
+        ...(needsRepoint ? { id: eid(toolNodeId, agentNodeId), source: toolNodeId } : {}),
+        data: {
+          ...(draft.edges[i].data as Record<string, unknown> ?? {}),
+          isTaskEdge: true,
+        },
       };
     }
   }
@@ -587,6 +619,19 @@ function handleResult(event: AgentEvent, draft: StateDraft): void {
 }
 
 function handleCompact(event: AgentEvent, draft: StateDraft): void {
+  // Increment compaction count on the latest active agent (always, even if prompt already marked)
+  const sessionActive = draft.activeAgents.get(event.sessionId);
+  if (sessionActive && sessionActive.length > 0) {
+    const agentId = sessionActive[sessionActive.length - 1];
+    const agentData = draft.agents.get(agentId);
+    if (agentData) {
+      const updated = { ...agentData, compactionCount: (agentData.compactionCount ?? 0) + 1 };
+      draft.agents.set(agentId, updated);
+      updateNode(draft.nodes, nid.agent(agentId), { agent: updated });
+    }
+  }
+
+  // Mark latest prompt as compacted (only once per prompt)
   const sessionPrompts = draft.prompts.get(event.sessionId);
   if (!sessionPrompts || sessionPrompts.length === 0) return;
 
@@ -643,7 +688,10 @@ export function processEvent(event: AgentEvent, draft: StateDraft, showHookEvent
 
 // ── Derived map helpers ──────────────────────────────────────
 
-export function buildDerivedMaps(agents: Map<string, AgentNodeData>) {
+export function buildDerivedMaps(
+  agents: Map<string, AgentNodeData>,
+  sessions?: Map<string, SessionData>,
+) {
   const agentsBySession = new Map<string, AgentNodeData[]>();
   const childAgents = new Map<string, AgentNodeData[]>();
   for (const a of agents.values()) {
@@ -658,5 +706,24 @@ export function buildDerivedMaps(agents: Map<string, AgentNodeData>) {
       else childAgents.set(a.parentAgentId, [a]);
     }
   }
+
+  // Compute topTools per session
+  if (sessions) {
+    for (const [sessionId, sessionAgents] of agentsBySession) {
+      const counts = new Map<string, number>();
+      for (const a of sessionAgents) {
+        for (const tc of a.toolCalls) {
+          counts.set(tc.toolName, (counts.get(tc.toolName) ?? 0) + 1);
+        }
+      }
+      const top3 = [...counts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([name]) => name);
+      const session = sessions.get(sessionId);
+      if (session && top3.length > 0) session.topTools = top3;
+    }
+  }
+
   return { agentsBySession, childAgents };
 }

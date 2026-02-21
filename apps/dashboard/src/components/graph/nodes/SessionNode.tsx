@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { memo, useMemo } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import type { SessionData, AgentNodeData } from '@synapse-ai/core';
@@ -126,10 +129,27 @@ function SessionNodeComponent({ data }: NodeProps) {
       <div className="flex items-center gap-2 mt-0.5">
         <Tooltip content={isEnded ? 'Session ended' : 'Session active'}>
           <div
-            className={`w-2.5 h-2.5 rounded-full ${isEnded ? 'bg-gray-500' : 'bg-blue-400 animate-pulse'}`}
+            className={`w-2.5 h-2.5 rounded-full shrink-0 ${isEnded ? 'bg-gray-500' : 'bg-blue-400 animate-pulse'}`}
           />
         </Tooltip>
-        <span className="text-sm font-semibold text-gray-100 font-mono">{shortId}</span>
+        <div className="flex flex-col min-w-0">
+          <span className="text-sm font-semibold text-gray-100 truncate max-w-[180px]">
+            {session.title ?? shortId}
+          </span>
+          <div className="flex items-center gap-1.5">
+            {session.gitBranch && (
+              <span className="text-[9px] px-1.5 rounded bg-indigo-900/50 text-indigo-300 truncate max-w-[120px]">
+                {session.gitBranch}
+              </span>
+            )}
+            {session.source === 'resume' && (
+              <span className="text-[9px] px-1 rounded bg-amber-900/40 text-amber-300">resumed</span>
+            )}
+            {session.title && (
+              <span className="text-[9px] text-gray-600 font-mono">{shortId}</span>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Stats footer */}
@@ -177,6 +197,13 @@ function SessionNodeComponent({ data }: NodeProps) {
                 {toolCount} tool{toolCount !== 1 ? 's' : ''}
               </span>
             </Tooltip>
+          )}
+          {session.topTools && session.topTools.length > 0 && (
+            <div className="flex items-center gap-0.5 ml-1">
+              {session.topTools.map((t) => (
+                <span key={t} className="px-1 py-0.5 rounded text-[8px] bg-gray-700/50 text-gray-400">{t}</span>
+              ))}
+            </div>
           )}
         </div>
       </div>

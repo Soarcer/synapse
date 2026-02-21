@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // ─── Core Event Types ───────────────────────────────────────────────
 
 export type AgentEventType =
@@ -40,6 +43,7 @@ export interface AgentEvent {
   agentTranscriptPath?: string;  // Subagent transcript path
   notificationType?: string;     // permission_prompt/idle_prompt/auth_success
   compactTrigger?: string;       // manual/auto
+  gitBranch?: string;            // Git branch from session metadata
   eventSource?: 'hook' | 'sdk' | 'openclaw';  // Where the event originated
 
   // Multi-vendor support (OpenClaw integration)
@@ -60,6 +64,9 @@ export interface SessionData {
   cwd?: string;
   placeholder?: boolean;          // true if session was auto-created (missed SessionStart)
   vendor?: string;                // Primary vendor for this session
+  title?: string;                 // Human-readable name from first prompt or slug
+  gitBranch?: string;             // Git branch from session_start metadata
+  topTools?: string[];            // Top 3 most-used tool names
 }
 
 // ─── React Flow Node Data ───────────────────────────────────────────
@@ -84,6 +91,7 @@ export interface AgentNodeData {
   streamingText?: string;        // Live text being generated
   vendor?: string;               // Inferred vendor (anthropic, openai, etc.)
   model?: string;                // e.g. "claude-opus-4-6"
+  compactionCount?: number;      // Number of times context was compacted
 }
 
 export interface ToolCallSummary {
