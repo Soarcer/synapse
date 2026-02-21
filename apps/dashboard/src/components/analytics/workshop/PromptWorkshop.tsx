@@ -66,6 +66,23 @@ function saveContext(ctx: WorkshopContext): void {
   catch { /* quota exceeded */ }
 }
 
+// ─── Favorites persistence ────────────────────────────────────────────
+
+const WORKSHOP_FAVORITES_KEY = 'synapse-workshop-favorites';
+const MAX_FAVORITES = 50;
+
+function loadFavorites(): WorkshopResult[] {
+  try {
+    const raw = localStorage.getItem(WORKSHOP_FAVORITES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveFavorites(favorites: WorkshopResult[]): void {
+  try { localStorage.setItem(WORKSHOP_FAVORITES_KEY, JSON.stringify(favorites)); }
+  catch { /* quota exceeded */ }
+}
+
 // ─── SVG Icons ───────────────────────────────────────────────────────
 
 function CopyIcon() {
@@ -127,6 +144,16 @@ function ChevronIcon({ open }: { open: boolean }) {
   );
 }
 
+function StarIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg className="w-3 h-3" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+      fill={filled ? 'currentColor' : 'none'}
+    >
+      <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+    </svg>
+  );
+}
+
 // ─── Component ───────────────────────────────────────────────────────
 
 interface PromptWorkshopProps {
@@ -150,8 +177,11 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
   const [sessionSpecificTurns, setSessionSpecificTurns] = useState<MockTurn[]>([]);
 
   // Persist history on change
+  const [favorites, setFavorites] = useState<WorkshopResult[]>(loadFavorites);
+
   useEffect(() => { saveHistory(history); }, [history]);
   useEffect(() => { saveContext(workshopCtx); }, [workshopCtx]);
+  useEffect(() => { saveFavorites(favorites); }, [favorites]);
 
   // Per-session turn fetch for explicitly selected sessions
   useEffect(() => {
@@ -415,6 +445,17 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
     setHistory([]);
   }, []);
 
+  const favoriteIds = useMemo(() => new Set(favorites.map((f) => f.id)), [favorites]);
+
+  const handleToggleFavorite = useCallback((item: WorkshopResult) => {
+    setFavorites((prev) => {
+      if (prev.some((f) => f.id === item.id)) {
+        return prev.filter((f) => f.id !== item.id);
+      }
+      return [item, ...prev].slice(0, MAX_FAVORITES);
+    });
+  }, []);
+
   const scoreColor = (score: number) =>
     score >= 8 ? 'text-emerald-400' : score >= 5 ? 'text-yellow-400' : 'text-red-400';
 
@@ -453,7 +494,7 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
           }`}
         >
           <ClockIcon />
-          History ({history.length})
+          History ({favorites.length + history.filter((h) => !favoriteIds.has(h.id)).length})
         </button>
       </div>
 
@@ -733,32 +774,86 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
                 </button>
               )}
             </div>
-            {history.length === 0 && (
+            {history.length === 0 && favorites.length === 0 && (
               <p className="text-xs text-gray-600 text-center py-4">No history yet</p>
             )}
-            {history.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => handleRestoreHistory(item)}
-                className={`w-full text-left p-2 rounded-lg transition-colors ${
-                  currentResult?.id === item.id
-                    ? 'bg-blue-500/10 border border-blue-500/20'
-                    : 'hover:bg-[#0d1117]/50 border border-transparent'
-                }`}
-              >
-                <div className="text-xs text-gray-300 truncate">{item.promptText}</div>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className={`text-[10px] font-medium ${scoreColor(item.score)}`}>
-                    {item.score}/10
-                  </span>
-                  <span className="text-[10px] text-gray-600">
-                    {item.mode === 'vibe' ? 'Vibe' : 'Dev'}
-                  </span>
-                  <span className="text-[10px] text-gray-600 ml-auto">
-                    {formatTimestamp(item.timestamp)}
-                  </span>
+
+            {/* Favorites section */}
+            {favorites.length > 0 && (
+              <>
+                <div className="text-[10px] font-medium text-amber-400/70 uppercase tracking-wider mb-1">
+                  Favorites ({favorites.length})
                 </div>
-              </button>
+                {favorites.map((item) => (
+                  <div key={`fav-${item.id}`} className="relative group">
+                    <button
+                      onClick={() => handleRestoreHistory(item)}
+                      className={`w-full text-left p-2 rounded-lg transition-colors ${
+                        currentResult?.id === item.id
+                          ? 'bg-blue-500/10 border border-blue-500/20'
+                          : 'hover:bg-[#0d1117]/50 border border-transparent'
+                      }`}
+                    >
+                      <div className="text-xs text-gray-300 truncate pr-5">{item.promptText}</div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={`text-[10px] font-medium ${scoreColor(item.score)}`}>
+                          {item.score}/10
+                        </span>
+                        <span className="text-[10px] text-gray-600">
+                          {item.mode === 'vibe' ? 'Vibe' : 'Dev'}
+                        </span>
+                        <span className="text-[10px] text-gray-600 ml-auto">
+                          {formatTimestamp(item.timestamp)}
+                        </span>
+                      </div>
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleToggleFavorite(item); }}
+                      className="absolute top-2 right-2 text-amber-400 hover:text-amber-300 transition-colors"
+                      title="Remove from favorites"
+                    >
+                      <StarIcon filled />
+                    </button>
+                  </div>
+                ))}
+                {history.filter((h) => !favoriteIds.has(h.id)).length > 0 && (
+                  <div className="border-t border-gray-800/50 my-2" />
+                )}
+              </>
+            )}
+
+            {/* Regular history (excluding favorites) */}
+            {history.filter((h) => !favoriteIds.has(h.id)).map((item) => (
+              <div key={item.id} className="relative group">
+                <button
+                  onClick={() => handleRestoreHistory(item)}
+                  className={`w-full text-left p-2 rounded-lg transition-colors ${
+                    currentResult?.id === item.id
+                      ? 'bg-blue-500/10 border border-blue-500/20'
+                      : 'hover:bg-[#0d1117]/50 border border-transparent'
+                  }`}
+                >
+                  <div className="text-xs text-gray-300 truncate pr-5">{item.promptText}</div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className={`text-[10px] font-medium ${scoreColor(item.score)}`}>
+                      {item.score}/10
+                    </span>
+                    <span className="text-[10px] text-gray-600">
+                      {item.mode === 'vibe' ? 'Vibe' : 'Dev'}
+                    </span>
+                    <span className="text-[10px] text-gray-600 ml-auto">
+                      {formatTimestamp(item.timestamp)}
+                    </span>
+                  </div>
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleToggleFavorite(item); }}
+                  className="absolute top-2 right-2 text-gray-600 opacity-0 group-hover:opacity-100 hover:text-amber-400 transition-all"
+                  title="Add to favorites"
+                >
+                  <StarIcon filled={false} />
+                </button>
+              </div>
             ))}
           </div>
         )}
