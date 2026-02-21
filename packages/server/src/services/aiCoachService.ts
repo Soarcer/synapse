@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { createHash } from 'crypto';
 import { logger } from '../lib/logger.js';
 import { resolveApiKey, getAiCoachModel, isAiCoachEnabled } from './settingsService.js';
@@ -267,11 +270,17 @@ ${convCtx.recentPrompts.map((p, i) => `  [${i + 1}] ${p.slice(0, 200)}`).join('\
 IMPORTANT: If conversational mode is active, short or referential prompts ("make it black", "yes do that", "now the header") are entirely appropriate. Do not penalize brevity when the conversation context makes the intent clear.\n`
     : '';
 
+  const projectAwareBlock = `
+NOTE: This prompt is being sent to a coding AI that has FULL access to the user's project — the entire codebase, configuration files, CLAUDE.md instructions, and file tree. The AI can read, search, and navigate the project freely. Therefore:
+- Short, context-dependent prompts ("make it darker", "fix the header", "add a test for that") are entirely normal and valid.
+- The user does NOT need to explain their project, specify languages, or provide file paths unless they want to direct attention to a specific location.
+- Judge prompts on clarity of INTENT, not completeness of context.`;
+
   const userMessage = isVibe
     ? `Rate this prompt someone sent to an AI coding assistant:
 
 "${params.promptText.slice(0, 2000)}"
-${contextBlock}
+${contextBlock}${projectAwareBlock}
 Context: This cost $${params.sessionContext.cost.toFixed(4)} and the AI used ${params.sessionContext.toolCount} tools to complete it.
 
 Was the intent clear? Could they have said it more simply?
@@ -289,7 +298,7 @@ Respond with JSON:
     : `Analyze this prompt sent to an AI coding assistant:
 
 "${params.promptText.slice(0, 2000)}"
-${contextBlock}
+${contextBlock}${projectAwareBlock}
 Context: Model=${params.sessionContext.model}, tools=${params.sessionContext.toolCount}, category=${params.sessionContext.category}, cost=$${params.sessionContext.cost.toFixed(4)}
 
 Respond with JSON: { "score": 1-10, "explanation": "why this score", "rewrite": "improved version of the prompt", "estimatedSavings": "e.g. 30% fewer tokens", "historyComparison": "how this compares to typical prompts" }`;
@@ -301,7 +310,7 @@ Respond with JSON: { "score": 1-10, "explanation": "why this score", "rewrite": 
     model: aiModel,
     system,
     userMessage,
-    maxTokens: 768,
+    maxTokens: 1024,
   });
 
   try {
