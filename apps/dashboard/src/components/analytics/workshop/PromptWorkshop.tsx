@@ -116,6 +116,17 @@ function RegenIcon() {
   );
 }
 
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      className={`w-3 h-3 transition-transform ${open ? 'rotate-90' : ''}`}
+      fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+    >
+      <path d="M9 5l7 7-7 7" />
+    </svg>
+  );
+}
+
 // ─── Component ───────────────────────────────────────────────────────
 
 interface PromptWorkshopProps {
@@ -492,6 +503,93 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
                   </button>
                 )}
               </div>
+            </div>
+
+            {/* ─── Context panel ─── */}
+            <div className="mt-3 border-t border-gray-800/50 pt-2">
+              {/* Collapsed status line — always visible */}
+              <button
+                onClick={() => setWorkshopCtx((prev) => ({ ...prev, panelOpen: !prev.panelOpen }))}
+                className="flex items-center gap-1.5 w-full text-left group"
+              >
+                <ChevronIcon open={workshopCtx.panelOpen} />
+                <span className="text-xs text-gray-500 group-hover:text-gray-300 transition-colors">
+                  Context
+                </span>
+                <span className="text-xs text-gray-600 truncate">
+                  {resolvedSession
+                    ? <>&middot; {workshopCtx.sessionId === null ? 'auto' : 'linked'} &middot; {resolvedSession.name} ({sessionTurns.length} turns)</>
+                    : workshopCtx.notes
+                      ? <>&middot; custom notes</>
+                      : <>&middot; none</>
+                  }
+                </span>
+              </button>
+
+              {/* Expanded panel */}
+              {workshopCtx.panelOpen && (
+                <div className="mt-2 space-y-3 bg-[#0d1117]/50 border border-gray-800/50 rounded-lg p-3">
+                  {/* Session picker */}
+                  <div>
+                    <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1 block">
+                      Session
+                    </label>
+                    <select
+                      value={workshopCtx.sessionId ?? 'auto'}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setWorkshopCtx((prev) => ({
+                          ...prev,
+                          sessionId: val === 'auto' ? null : val === 'none' ? '' : val,
+                        }));
+                      }}
+                      className="w-full bg-[#161b22] border border-gray-700 rounded-md px-2.5 py-1.5 text-xs text-gray-300 focus:border-blue-500/50 focus:outline-none"
+                    >
+                      <option value="auto">Auto (most recent)</option>
+                      <option value="none">None</option>
+                      {sessions.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} — {s.promptCount} prompts &middot; ${s.totalCost.toFixed(2)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Prior turns preview — only if session is linked */}
+                  {sessionTurns.length > 0 && (
+                    <div>
+                      <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1 block">
+                        Recent turns ({sessionTurns.length} total)
+                      </span>
+                      <div className="space-y-1 max-h-24 overflow-y-auto">
+                        {sessionTurns.slice(-3).map((t, i) => (
+                          <div key={i} className="flex items-start gap-2 text-[11px]">
+                            <span className="text-gray-600 flex-shrink-0 font-mono">
+                              {t.turnIndex + 1}.
+                            </span>
+                            <span className="text-gray-400 truncate">
+                              {t.promptText.slice(0, 120)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Additional notes */}
+                  <div>
+                    <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1 block">
+                      Additional context (optional)
+                    </label>
+                    <textarea
+                      value={workshopCtx.notes}
+                      onChange={(e) => setWorkshopCtx((prev) => ({ ...prev, notes: e.target.value }))}
+                      placeholder="e.g. Working on the dashboard header, fixing a CSS z-index issue..."
+                      className="w-full h-16 max-h-32 bg-[#161b22] border border-gray-700 rounded-md px-2.5 py-1.5 text-xs text-gray-300 placeholder-gray-600 resize-y focus:border-blue-500/50 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
