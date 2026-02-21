@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { AgentDetailPanel } from '../panels/AgentDetailPanel';
 import { ToolLogPanel } from '../panels/ToolLogPanel';
@@ -7,6 +10,7 @@ import { ErrorBoundary } from '../ErrorBoundary';
 import { useAgentStore } from '../../store/agentStore';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 import { Tooltip } from '../ui/Tooltip';
+import { NotificationTray } from '../../features/notifications/NotificationTray'; // [notifications]
 
 const AgentGraph = lazy(() => import('../graph/AgentGraph'));
 
@@ -71,6 +75,7 @@ export function GraphLayout() {
                 {showToolLog ? 'Hide' : 'Show'} Tool Log
               </button>
             </Tooltip>
+            <NotificationTray /> {/* [notifications] */}
           </div>
 
           {/* Detail panel: sidebar on md+, overlay sheet on sm */}
