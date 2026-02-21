@@ -1,4 +1,7 @@
-import type { ModelConfig, CharacterState, Direction } from './types';
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
+import type { ModelConfig, CharacterState, Direction, IdleBehavior } from './types';
 import { TILE } from './types';
 import { findPath, type PathNode } from './pathfinding';
 
@@ -40,6 +43,13 @@ export class Character {
   // Callback for dust particles — set by SceneManager
   onDust: ((x: number, y: number) => void) | null = null;
 
+  // Idle behavior system
+  homeDesk: { col: number; row: number } | null = null;
+  idleBehavior: IdleBehavior | null = null;
+  idleTimer = 0;
+  wanderSpeed = 0.6;
+  onIdleExpired: (() => void) | null = null;
+
   constructor(col: number, row: number, model: string, config: ModelConfig, agentId: string) {
     this.col = col;
     this.row = row;
@@ -71,6 +81,14 @@ export class Character {
     this.state = 'walking';
     this.onArrive = cb ?? null;
     this.setNextTarget();
+  }
+
+  pickIdleBehavior(): IdleBehavior {
+    const r = Math.random();
+    if (r < 0.40) return 'sit';
+    if (r < 0.60) return 'wander';
+    if (r < 0.85) return 'coffee';
+    return 'socialize';
   }
 
   private setNextTarget(): void {
@@ -119,6 +137,16 @@ export class Character {
         this.alpha = Math.max(0, 1 - this.despawnTimer / 0.8);
         break;
 
+      case 'idle':
+        if (this.idleTimer > 0) {
+          this.idleTimer -= dt;
+          if (this.idleTimer <= 0) {
+            this.idleTimer = 0;
+            if (this.onIdleExpired) this.onIdleExpired();
+          }
+        }
+        break;
+
       case 'walking': {
         const dx = this.tx - this.x, dy = this.ty - this.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
@@ -140,7 +168,7 @@ export class Character {
           this.y += (dy / dist) * step;
         }
         this.walkDist += step;
-        this.walkFrame = Math.floor(this.walkDist / 6) % 4;
+        this.walkFrame = Math.floor(this.walkDist / (6 * TILE / 16)) % 4;
         break;
       }
     }
@@ -149,54 +177,55 @@ export class Character {
   draw(ctx: CanvasRenderingContext2D): void {
     if (this.alpha <= 0) return;
     ctx.globalAlpha = this.alpha;
+    const S = TILE / 16;
     const x = Math.floor(this.x), y = Math.floor(this.y);
     const hw = this.w / 2, hh = this.h / 2;
     const bob = this.state === 'walking'
-      ? Math.sin(this.walkDist * 0.5) * 1
-      : Math.sin((this.stateTime + this.bobOffset) * 1.5) * 0.5;
+      ? Math.sin(this.walkDist * 0.5) * S
+      : Math.sin((this.stateTime + this.bobOffset) * 1.5) * 0.5 * S;
 
     // Shadow
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
     ctx.beginPath();
-    ctx.ellipse(x, y + hh + 1, hw * 0.8, 2, 0, 0, Math.PI * 2);
+    ctx.ellipse(x, y + hh + S, hw * 0.8, 2 * S, 0, 0, Math.PI * 2);
     ctx.fill();
 
     // Spawn sparkles
     if (this.state === 'spawning') {
       for (let i = 0; i < 6; i++) {
         const a = (i / 6) * Math.PI * 2 + this.spawnTimer * 4;
-        const r = (1 - this.spawnTimer / 0.5) * 16;
+        const r = (1 - this.spawnTimer / 0.5) * 16 * S;
         ctx.fillStyle = '#ffffaa';
-        ctx.fillRect(x + Math.cos(a) * r - 1, y + Math.sin(a) * r - 1, 2, 2);
+        ctx.fillRect(x + Math.cos(a) * r - S, y + Math.sin(a) * r - S, 2 * S, 2 * S);
       }
     }
 
     // Feet (walk animation)
-    const legSpread = this.state === 'walking' ? Math.sin(this.walkFrame * Math.PI / 2) * 2 : 0;
+    const legSpread = this.state === 'walking' ? Math.sin(this.walkFrame * Math.PI / 2) * 2 * S : 0;
     ctx.fillStyle = '#333';
-    ctx.fillRect(x - hw / 2 - 1, y + hh - 3 + bob, 2, 3);
-    ctx.fillRect(x + hw / 2 - 1 + legSpread, y + hh - 3 + bob, 2, 3);
+    ctx.fillRect(x - hw / 2 - S, y + hh - 3 * S + bob, 2 * S, 3 * S);
+    ctx.fillRect(x + hw / 2 - S + legSpread, y + hh - 3 * S + bob, 2 * S, 3 * S);
 
     // Body
     ctx.fillStyle = this.bodyColor;
     const bodyH = this.h * 0.45;
-    ctx.fillRect(x - hw / 2, y + hh - bodyH - 2 + bob, hw, bodyH);
+    ctx.fillRect(x - hw / 2, y + hh - bodyH - 2 * S + bob, hw, bodyH);
 
     // Model-specific details
     if (this.model === 'opus') {
       ctx.fillStyle = this.accentColor;
-      ctx.fillRect(x - hw / 2, y + hh - 5 + bob, hw, 2);
+      ctx.fillRect(x - hw / 2, y + hh - 5 * S + bob, hw, 2 * S);
       ctx.fillStyle = this.bodyColor;
-      ctx.fillRect(x - hw / 2 - 1, y + hh - 7 + bob, hw + 2, 3);
+      ctx.fillRect(x - hw / 2 - S, y + hh - 7 * S + bob, hw + 2 * S, 3 * S);
     }
     if (this.model === 'manager') {
       ctx.fillStyle = this.accentColor;
-      ctx.fillRect(x - 1, y + hh - bodyH + 2 + bob, 2, bodyH - 4);
+      ctx.fillRect(x - S, y + hh - bodyH + 2 * S + bob, 2 * S, bodyH - 4 * S);
     }
 
     // Head
     const headR = this.w * 0.25;
-    const headY = y + hh - bodyH - headR - 2 + bob;
+    const headY = y + hh - bodyH - headR - 2 * S + bob;
     ctx.fillStyle = '#f0c8a0';
     ctx.beginPath();
     ctx.arc(x, headY, headR, 0, Math.PI * 2);
@@ -204,41 +233,41 @@ export class Character {
 
     // Eyes (direction-dependent)
     ctx.fillStyle = '#333';
-    const eyeY = headY - 1;
+    const eyeY = headY - S;
     if (this.dir === 'left') {
-      ctx.fillRect(x - headR + 1, eyeY, 1, 1);
-      ctx.fillRect(x - 1, eyeY, 1, 1);
+      ctx.fillRect(x - headR + S, eyeY, S, S);
+      ctx.fillRect(x - S, eyeY, S, S);
     } else if (this.dir === 'right') {
-      ctx.fillRect(x + headR - 2, eyeY, 1, 1);
-      ctx.fillRect(x, eyeY, 1, 1);
+      ctx.fillRect(x + headR - 2 * S, eyeY, S, S);
+      ctx.fillRect(x, eyeY, S, S);
     } else {
-      ctx.fillRect(x - 2, eyeY, 1, 1);
-      ctx.fillRect(x + 1, eyeY, 1, 1);
+      ctx.fillRect(x - 2 * S, eyeY, S, S);
+      ctx.fillRect(x + S, eyeY, S, S);
     }
 
     // Opus hat/crown
     if (this.model === 'opus') {
       ctx.fillStyle = this.accentColor;
-      ctx.fillRect(x - headR - 1, headY - headR - 2, headR * 2 + 2, 3);
-      ctx.fillRect(x - headR, headY - headR - 4, 2, 3);
-      ctx.fillRect(x - 1, headY - headR - 5, 2, 4);
-      ctx.fillRect(x + headR - 2, headY - headR - 4, 2, 3);
+      ctx.fillRect(x - headR - S, headY - headR - 2 * S, headR * 2 + 2 * S, 3 * S);
+      ctx.fillRect(x - headR, headY - headR - 4 * S, 2 * S, 3 * S);
+      ctx.fillRect(x - S, headY - headR - 5 * S, 2 * S, 4 * S);
+      ctx.fillRect(x + headR - 2 * S, headY - headR - 4 * S, 2 * S, 3 * S);
     }
 
     // Haiku headband
     if (this.model === 'haiku') {
       ctx.fillStyle = this.accentColor;
-      ctx.fillRect(x - headR, headY - 1, headR * 2, 1);
+      ctx.fillRect(x - headR, headY - S, headR * 2, S);
     }
 
     // Carry paper
     if (this.carryPaper) {
       ctx.fillStyle = '#f0ece0';
-      const paperX = this.dir === 'left' ? x - hw - 3 : x + hw / 2;
-      ctx.fillRect(paperX, y + bob, 5, 6);
+      const paperX = this.dir === 'left' ? x - hw - 3 * S : x + hw / 2;
+      ctx.fillRect(paperX, y + bob, 5 * S, 6 * S);
       ctx.fillStyle = '#aaa';
-      ctx.fillRect(paperX + 1, y + 1 + bob, 3, 1);
-      ctx.fillRect(paperX + 1, y + 3 + bob, 2, 1);
+      ctx.fillRect(paperX + S, y + S + bob, 3 * S, S);
+      ctx.fillRect(paperX + S, y + 3 * S + bob, 2 * S, S);
     }
 
     // Working indicator (... dots)
@@ -247,7 +276,7 @@ export class Character {
       ctx.fillStyle = '#fff';
       for (let d = 0; d < 3; d++) {
         if (d <= dotPhase) {
-          ctx.fillRect(x - 3 + d * 3, headY - headR - 8, 2, 2);
+          ctx.fillRect(x - 3 * S + d * 3 * S, headY - headR - 8 * S, 2 * S, 2 * S);
         }
       }
     }
@@ -255,21 +284,21 @@ export class Character {
     // Status icon
     if (this.statusIcon === '!' && this.statusTimer > 0) {
       ctx.fillStyle = '#ff4444';
-      ctx.fillRect(x - 1, headY - headR - 10, 3, 6);
-      ctx.fillRect(x - 1, headY - headR - 3, 3, 2);
+      ctx.fillRect(x - S, headY - headR - 10 * S, 3 * S, 6 * S);
+      ctx.fillRect(x - S, headY - headR - 3 * S, 3 * S, 2 * S);
     }
     if (this.statusIcon === '✓' && this.statusTimer > 0) {
       ctx.fillStyle = '#44dd44';
-      ctx.font = '8px monospace';
+      ctx.font = `${8 * S}px monospace`;
       ctx.textAlign = 'center';
-      ctx.fillText('✓', x, headY - headR - 4);
+      ctx.fillText('✓', x, headY - headR - 4 * S);
     }
 
     // Name label
     ctx.fillStyle = this.accentColor;
-    ctx.font = '5px monospace';
+    ctx.font = `${5 * S}px monospace`;
     ctx.textAlign = 'center';
-    ctx.fillText(this.label, x, y - hh - 3 + bob);
+    ctx.fillText(this.label, x, y - hh - 3 * S + bob);
 
     ctx.globalAlpha = 1;
   }
