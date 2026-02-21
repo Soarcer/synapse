@@ -15,6 +15,9 @@ import { WorkshopModal } from './components/WorkshopModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useAgentStore, reloadAllEvents } from './store/agentStore';
 import { wsClient } from './store/wsClient';
+import { initNotifications, useNotificationStore } from './features/notifications'; // [notifications]
+
+initNotifications(); // [notifications]
 
 /** Layout modes: full (browser), lens (VS Code sidebar), graph (VS Code editor), analytics, pixel, mobile */
 type ViewMode = 'full' | 'lens' | 'graph' | 'analytics' | 'pixel' | 'mobile';
@@ -202,6 +205,10 @@ export default function App() {
       if (e.key === 'c' && !e.ctrlKey && !e.metaKey) {
         const store = useAgentStore.getState();
         store.setAutoClosePrompts(!store.autoClosePrompts);
+      }
+      if (e.key === 'a' && !e.ctrlKey && !e.metaKey) { // [notifications]
+        const s = useNotificationStore.getState();
+        s.setEnabled(!s.enabled);
       }
       if (e.key === 'e' && !e.ctrlKey && !e.metaKey) {
         (document.getElementById('snapshot-export-btn') as HTMLButtonElement)?.click();

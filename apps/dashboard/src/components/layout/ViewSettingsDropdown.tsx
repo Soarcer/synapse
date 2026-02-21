@@ -1,6 +1,10 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useRef, useEffect } from 'react';
 import { useAgentStore } from '../../store/agentStore';
 import { Tooltip } from '../ui/Tooltip';
+import { NotificationSettings } from '../../features/notifications/NotificationSettings'; // [notifications]
 
 const TOOL_VIEW_MODES = [
   { value: 'pillGrid' as const, label: 'Pill Grid' },
@@ -93,6 +97,7 @@ export function ViewSettingsDropdown() {
               </button>
             ))}
           </div>
+          <NotificationSettings onClose={() => setOpen(false)} /> {/* [notifications] */}
         </div>
       )}
     </div>
