@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import type { PixelTheme, SceneCommand } from './types';
 import { TILE } from './types';
 import { TileMap } from './TileMap';
@@ -39,6 +42,9 @@ export class SceneManager {
   // Called externally by DemoSequencer or ReplayController
   onUpdate: ((dt: number) => void) | null = null;
 
+  private deskAssignments: Map<string, { col: number; row: number }> = new Map();
+  private availableDesks: { col: number; row: number }[] = [];
+
   constructor(private container: HTMLElement, theme: PixelTheme) {
     this.theme = theme;
     this.canvasW = theme.grid.cols * TILE;
@@ -61,6 +67,7 @@ export class SceneManager {
     this.stations = theme.stations.map(d => new Station(d, theme.palette));
     this.stationByName = new Map(this.stations.map(s => [s.name, s]));
     this.particles = new ParticleManager();
+    this.availableDesks = [...theme.homeDesks];
 
     // Manager character (invisible initially)
     const mgrConfig = theme.models.manager ?? theme.models.sonnet;
@@ -127,8 +134,16 @@ export class SceneManager {
         ch.state = 'spawning';
         ch.alpha = 0;
         ch.onDust = (dx, dy) => this.particles.emit('dust', dx, dy, 1);
+        const desk = this.claimDesk(cmd.agentId);
+        if (desk) ch.homeDesk = desk;
         this.characters.set(cmd.agentId, ch);
         this.particles.emit('sparkle', ch.x, ch.y, 12);
+        // After spawn animation completes, start idle behavior
+        setTimeout(() => {
+          if (ch.state === 'idle' && !ch.idleBehavior) {
+            this.scheduleIdle(ch);
+          }
+        }, 600);
         break;
       }
       case 'despawnAgent': {
@@ -137,6 +152,9 @@ export class SceneManager {
         ch.state = 'despawning';
         ch.statusIcon = cmd.success ? '✓' : '!';
         ch.statusTimer = 1.5;
+        ch.onIdleExpired = null;
+        ch.idleBehavior = null;
+        this.releaseDesk(cmd.agentId);
         this.particles.emit(cmd.success ? 'sparkle' : 'error', ch.x, ch.y, 8);
         setTimeout(() => this.characters.delete(cmd.agentId), 3000);
         break;
@@ -145,6 +163,10 @@ export class SceneManager {
         const ch = this.characters.get(cmd.agentId);
         const station = this.stationByName.get(cmd.stationName);
         if (!ch || !station) break;
+        // Interrupt any idle behavior
+        ch.onIdleExpired = null;
+        ch.idleBehavior = null;
+        ch.idleTimer = 0;
         const approach = this.tileMap.getApproachTile(station);
         ch.moveTo(approach.c, approach.r, this.tileMap.getWalkabilityGrid(), () => {
           ch.state = 'working';
@@ -157,7 +179,11 @@ export class SceneManager {
         const ch = this.characters.get(cmd.agentId);
         const station = this.stationByName.get(cmd.stationName);
         if (station) station.deactivate();
-        if (ch) ch.state = 'idle';
+        if (ch) {
+          ch.state = 'idle';
+          ch.idleTimer = 1 + Math.random() * 2;
+          ch.onIdleExpired = () => this.scheduleIdle(ch);
+        }
         break;
       }
       case 'promptArrived':
@@ -180,6 +206,8 @@ export class SceneManager {
         // Reset state for new session
         this.characters.clear();
         this.currentCost = 0;
+        this.deskAssignments.clear();
+        this.availableDesks = [...this.theme.homeDesks];
         break;
       case 'sessionEnd':
         break;
@@ -187,6 +215,105 @@ export class SceneManager {
   }
 
   // ── Private ──
+
+  private claimDesk(agentId: string): { col: number; row: number } | null {
+    if (this.availableDesks.length === 0) return null;
+    const desk = this.availableDesks.shift()!;
+    this.deskAssignments.set(agentId, desk);
+    return desk;
+  }
+
+  private releaseDesk(agentId: string): void {
+    const desk = this.deskAssignments.get(agentId);
+    if (desk) {
+      this.deskAssignments.delete(agentId);
+      this.availableDesks.push(desk);
+    }
+  }
+
+  private scheduleIdle(ch: Character): void {
+    const behavior = ch.pickIdleBehavior();
+    ch.idleBehavior = behavior;
+    const grid = this.tileMap.getWalkabilityGrid();
+
+    switch (behavior) {
+      case 'sit': {
+        const desk = ch.homeDesk;
+        if (desk) {
+          ch.moveTo(desk.col, desk.row + 2, grid, () => {
+            ch.state = 'idle';
+            ch.dir = 'up';
+            ch.idleTimer = 8 + Math.random() * 7;
+            ch.onIdleExpired = () => this.scheduleIdle(ch);
+          });
+        } else {
+          this.scheduleWander(ch, grid);
+        }
+        break;
+      }
+      case 'wander':
+        this.scheduleWander(ch, grid);
+        break;
+      case 'coffee': {
+        const poi = this.theme.pointsOfInterest[
+          Math.floor(Math.random() * this.theme.pointsOfInterest.length)
+        ];
+        if (poi) {
+          ch.moveTo(poi.col, poi.row + 2, grid, () => {
+            ch.state = 'idle';
+            ch.dir = 'up';
+            ch.idleTimer = 4 + Math.random() * 4;
+            ch.onIdleExpired = () => this.scheduleIdle(ch);
+          });
+        } else {
+          this.scheduleWander(ch, grid);
+        }
+        break;
+      }
+      case 'socialize': {
+        let nearest: Character | null = null;
+        let nearestDist = Infinity;
+        for (const other of this.characters.values()) {
+          if (other.agentId === ch.agentId) continue;
+          if (other.state !== 'idle') continue;
+          const d = Math.abs(other.col - ch.col) + Math.abs(other.row - ch.row);
+          if (d < nearestDist && d <= 10) {
+            nearest = other;
+            nearestDist = d;
+          }
+        }
+        if (nearest) {
+          ch.moveTo(nearest.col + 1, nearest.row, grid, () => {
+            ch.state = 'idle';
+            ch.dir = 'left';
+            ch.idleTimer = 3 + Math.random() * 3;
+            ch.onIdleExpired = () => this.scheduleIdle(ch);
+          });
+        } else {
+          this.scheduleWander(ch, grid);
+        }
+        break;
+      }
+    }
+  }
+
+  private scheduleWander(ch: Character, grid: boolean[][]): void {
+    const cols = this.theme.grid.cols;
+    const rows = this.theme.grid.rows;
+    let tc: number, tr: number;
+    let attempts = 0;
+    do {
+      tc = 3 + Math.floor(Math.random() * (cols - 6));
+      tr = 3 + Math.floor(Math.random() * (rows - 6));
+      attempts++;
+    } while (!grid[tr]?.[tc] && attempts < 20);
+
+    ch.moveTo(tc, tr, grid, () => {
+      ch.state = 'idle';
+      ch.idleTimer = 2 + Math.random() * 3;
+      ch.onIdleExpired = () => this.scheduleIdle(ch);
+    });
+  }
 
   private resolveModel(modelStr: string): string {
     const lower = modelStr.toLowerCase();
