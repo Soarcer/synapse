@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -10,6 +13,7 @@ import { ExtensionWsClient } from './wsClient';
 import { SynapseSidebarProvider } from './sidebarProvider';
 import { SettingsPanel } from './settingsPanel';
 import { normalizeCwd } from '@synapse-ai/core';
+import { initNotificationHandler, handleNotificationEvent } from './notificationHandler'; // [notifications]
 
 let serverManager: ServerManager | undefined;
 let hookManager: HookManager | undefined;
@@ -26,7 +30,12 @@ export async function activate(context: vscode.ExtensionContext) {
   const resourcesPath = path.join(context.extensionPath, 'resources');
   workspaceCwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
-  serverManager = new ServerManager(resourcesPath, outputChannel);
+  // Use VS Code's workspace storage for per-workspace DB isolation
+  const storagePath = context.storageUri?.fsPath;
+  if (storagePath) {
+    fs.mkdirSync(storagePath, { recursive: true });
+  }
+  serverManager = new ServerManager(resourcesPath, outputChannel, storagePath);
   hookManager = new HookManager(resourcesPath);
 
   // ── TreeView ───────────────────────────────────────────────────
@@ -60,6 +69,7 @@ export async function activate(context: vscode.ExtensionContext) {
   updateStatusBar(false);
   statusBarItem.show();
   context.subscriptions.push(statusBarItem);
+  initNotificationHandler(statusBarItem, treeProvider!); // [notifications]
 
   // ── Server events ──────────────────────────────────────────────
   serverManager.onStarted(() => {
@@ -69,8 +79,10 @@ export async function activate(context: vscode.ExtensionContext) {
     sidebarProvider.updatePort(port);
     connectWsClient(context, port);
 
-    // Only configure hooks if we own the server — external servers already have hooks set
-    if (!serverManager!.isExternalServer && hookManager!.needsConfiguration(port)) {
+    // Always configure hooks for THIS workspace — each workspace needs its own
+    // .claude/settings.local.json pointing to the active server port, even when
+    // connecting to an external server started by another VS Code instance.
+    if (hookManager!.needsConfiguration(port)) {
       outputChannel.appendLine(`Configuring hooks for port ${port}...`);
       hookManager!.configureHooks(port);
     }
@@ -107,9 +119,7 @@ export async function activate(context: vscode.ExtensionContext) {
         return;
       }
 
-      // Read layout setting: "split" → graph-only in editor, "single" → full dashboard
-      const layout = vscode.workspace.getConfiguration('synapse').get<string>('layout', 'split');
-      const viewParam = layout === 'split' ? 'graph' : '';
+      const viewParam = 'graph';
       graphPanel = SynapsePanel.create(context.extensionUri, port, viewParam, workspaceCwd);
 
       // Cross-panel sync: graph panel selection → sidebar
@@ -258,6 +268,7 @@ function connectWsClient(context: vscode.ExtensionContext, port: number): void {
 
   wsClient.onEvent((event) => {
     treeProvider?.handleEvent(event);
+    handleNotificationEvent(event); // [notifications]
     updateStatusBarMetrics();
     // Relay event to both iframes
     const msg = { type: 'synapseEvent', data: event };

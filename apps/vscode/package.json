@@ -4,7 +4,7 @@
   "description": "Real-time Claude agent monitoring dashboard inside VS Code",
   "version": "0.6.0",
   "publisher": "Soarcer",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "icon": "synapse-icon.png",
   "engines": {
     "vscode": "^1.95.0"
@@ -113,6 +113,11 @@
     "configuration": {
       "title": "Synapse",
       "properties": {
+        "synapse.host": {
+          "type": "string",
+          "default": "localhost",
+          "description": "Hostname the Synapse server binds to."
+        },
         "synapse.port": {
           "type": "number",
           "default": 4000,
@@ -159,6 +164,16 @@
           "minimum": 100,
           "maximum": 10000,
           "description": "Maximum characters to send for analysis"
+        },
+        "synapse.notifications.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show VS Code notifications when Claude sessions need attention"
+        },
+        "synapse.notifications.sound": {
+          "type": "boolean",
+          "default": false,
+          "description": "Play a sound when a notification arrives (uses VS Code warning notification)"
         }
       }
     }
