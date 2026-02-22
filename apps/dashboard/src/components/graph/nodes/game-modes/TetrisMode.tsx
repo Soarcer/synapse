@@ -17,13 +17,57 @@ function getColor(name: string) { return TOOL_COLORS[name] ?? DEFAULT_COLOR; }
 const COLS = 10;
 const ROWS = 16;
 const CELL = 16;
-const BLOCK_W = 2; // cells wide
+const BLOCK_W = 2;
 
 interface BlockPlacement {
   tc: ToolCallSummary;
   col: number;
   row: number; // bottom row (0 = bottom)
-  height: number; // cells tall
+  height: number;
+}
+
+// Seeded PRNG for deterministic placement (same tools → same layout)
+function mulberry32(seed: number) {
+  return () => {
+    seed |= 0;
+    seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function hashCode(str: string): number {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = Math.imul(31, h) + str.charCodeAt(i) | 0;
+  }
+  return h;
+}
+
+/** Find the lowest row where a block of given width × height can land at col. Returns -1 if no fit. */
+function findDropRow(grid: boolean[][], col: number, width: number, height: number): number {
+  for (let startRow = 0; startRow <= ROWS - height; startRow++) {
+    let fits = true;
+    for (let dr = 0; dr < height && fits; dr++) {
+      for (let c = col; c < col + width; c++) {
+        if (grid[startRow + dr][c]) fits = false;
+      }
+    }
+    if (fits) return startRow;
+  }
+  return -1;
+}
+
+/** Count empty cells below a potential landing position — fewer gaps = better fit. */
+function countGapsBelow(grid: boolean[][], col: number, width: number, landRow: number): number {
+  let gaps = 0;
+  for (let r = 0; r < landRow; r++) {
+    for (let c = col; c < col + width && c < COLS; c++) {
+      if (!grid[r][c]) gaps++;
+    }
+  }
+  return gaps;
 }
 
 interface Props {
@@ -33,63 +77,70 @@ interface Props {
 }
 
 export function TetrisMode({ tools, selectedNodeId, selectNode }: Props) {
-  const { blocks, clearedRows } = useMemo(() => {
-    // Grid tracks occupied cells: grid[row][col] = true if occupied
+  const blocks = useMemo(() => {
     const grid: boolean[][] = Array.from({ length: ROWS }, () => Array(COLS).fill(false));
     const placements: BlockPlacement[] = [];
 
+    const seed = tools.length > 0 ? hashCode(tools[0].toolUseId) : 42;
+    const rng = mulberry32(seed);
+
     for (const tc of tools) {
       const h = Math.max(1, Math.min(4, Math.ceil((tc.duration ?? 500) / 1000)));
+      const maxCol = COLS - BLOCK_W;
 
-      // Find first column that fits this block (greedy left-to-right, bottom-up)
-      let placed = false;
-      for (let col = 0; col <= COLS - BLOCK_W && !placed; col++) {
-        // Find lowest available row at this column
-        let startRow = 0;
-        for (let r = 0; r < ROWS; r++) {
-          let blocked = false;
-          for (let c = col; c < col + BLOCK_W; c++) {
-            if (grid[r][c]) { blocked = true; break; }
-          }
-          if (blocked) {
-            startRow = r + 1;
-          } else {
-            // Check if there's room for the full height
-            let fits = true;
-            for (let dr = 0; dr < h && fits; dr++) {
-              if (startRow + dr >= ROWS) { fits = false; break; }
-              for (let c = col; c < col + BLOCK_W; c++) {
-                if (grid[startRow + dr][c]) { fits = false; break; }
-              }
-            }
-            if (fits) {
-              // Place the block
-              for (let dr = 0; dr < h; dr++) {
-                for (let c = col; c < col + BLOCK_W; c++) {
-                  grid[startRow + dr][c] = true;
-                }
-              }
-              placements.push({ tc, col, row: startRow, height: h });
-              placed = true;
-            }
+      // Step 1: Pick random start column
+      let chosenCol = Math.floor(rng() * (maxCol + 1));
+
+      // Step 2: 70% chance — scan ±3 columns for best fit (fewest gaps below)
+      if (rng() < 0.7) {
+        let bestCol = chosenCol;
+        let bestGaps = Infinity;
+        const scanMin = Math.max(0, chosenCol - 3);
+        const scanMax = Math.min(maxCol, chosenCol + 3);
+
+        for (let c = scanMin; c <= scanMax; c++) {
+          const row = findDropRow(grid, c, BLOCK_W, h);
+          if (row < 0) continue;
+          const gaps = countGapsBelow(grid, c, BLOCK_W, row);
+          if (gaps < bestGaps) {
+            bestGaps = gaps;
+            bestCol = c;
           }
         }
-        // If can't fit, skip (overflow — too many tools)
+        chosenCol = bestCol;
       }
 
-      if (!placed) {
-        // Overflow: place at top as visual indicator
-        placements.push({ tc, col: 0, row: ROWS - 1, height: 1 });
+      // Step 3: Find landing row (gravity drop)
+      const landRow = findDropRow(grid, chosenCol, BLOCK_W, h);
+      if (landRow < 0) {
+        placements.push({ tc, col: chosenCol, row: ROWS - 1, height: 1 });
+        continue;
+      }
+
+      // Place block in grid
+      for (let dr = 0; dr < h; dr++) {
+        for (let c = chosenCol; c < chosenCol + BLOCK_W; c++) {
+          if (landRow + dr < ROWS) grid[landRow + dr][c] = true;
+        }
+      }
+      placements.push({ tc, col: chosenCol, row: landRow, height: h });
+
+      // Step 4: Line clearing — detect full rows, remove, collapse above
+      for (let r = 0; r < ROWS; r++) {
+        if (grid[r].every(Boolean)) {
+          // Clear this row: shift all rows above down by 1
+          grid.splice(r, 1);
+          grid.push(Array(COLS).fill(false));
+          // Adjust placements for blocks above the cleared row
+          for (const bp of placements) {
+            if (bp.row > r) bp.row--;
+          }
+          r--; // re-check same index
+        }
       }
     }
 
-    // Detect full rows
-    const cleared: number[] = [];
-    for (let r = 0; r < ROWS; r++) {
-      if (grid[r].every(Boolean)) cleared.push(r);
-    }
-
-    return { blocks: placements, clearedRows: new Set(cleared) };
+    return placements;
   }, [tools]);
 
   return (
@@ -114,7 +165,6 @@ export function TetrisMode({ tools, selectedNodeId, selectNode }: Props) {
         const isError = tc.status === 'error';
         const color = getColor(tc.toolName);
         const dur = tc.duration != null ? formatDuration(tc.duration) : null;
-        // Y: invert because row 0 = bottom
         const y = (ROWS - row - height) * CELL;
         const x = col * CELL;
 
@@ -131,8 +181,8 @@ export function TetrisMode({ tools, selectedNodeId, selectNode }: Props) {
                 width: BLOCK_W * CELL - 1,
                 height: height * CELL - 1,
                 backgroundColor: color,
-                opacity: isRunning ? 0.6 : 0.85,
-                animation: isRunning ? 'tetris-drop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)' : undefined,
+                opacity: isRunning ? 0.5 : 0.85,
+                animation: isRunning ? undefined : 'tetris-drop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1)',
                 backgroundImage: isError
                   ? 'repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(0,0,0,0.25) 3px, rgba(0,0,0,0.25) 6px)'
                   : undefined,
@@ -146,28 +196,11 @@ export function TetrisMode({ tools, selectedNodeId, selectNode }: Props) {
         );
       })}
 
-      {/* Row clear flashes */}
-      {[...clearedRows].map((row) => (
-        <div
-          key={`clear-${row}`}
-          className="absolute left-0 right-0 pointer-events-none"
-          style={{
-            top: (ROWS - row - 1) * CELL,
-            height: CELL,
-            animation: 'tetris-row-clear 0.6s ease-out forwards',
-          }}
-        />
-      ))}
-
       <style>{`
         @keyframes tetris-drop {
-          from { transform: translateY(-${ROWS * CELL}px); opacity: 0.3; }
-          to { transform: translateY(0); opacity: 0.85; }
-        }
-        @keyframes tetris-row-clear {
-          0% { background: rgba(255,255,255,0.6); }
-          50% { background: rgba(255,255,255,0.3); }
-          100% { background: transparent; }
+          0% { transform: translateY(-${ROWS * CELL}px); opacity: 0.3; }
+          70% { transform: translateY(4px); opacity: 0.85; }
+          100% { transform: translateY(0); opacity: 0.85; }
         }
       `}</style>
     </div>
