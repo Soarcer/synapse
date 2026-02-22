@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Synapse Contributors
 
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import type { ToolCallSummary } from '@synapse-ai/core';
 
 const GRID_COLS = 32;
@@ -327,23 +327,47 @@ export function GameOfLifeMode({ tools, selectedNodeId, selectNode }: Props) {
     setTooltipInfo(null);
   }, []);
 
+  // Legend: distinct tool types currently on the board
+  const legend = useMemo(() => {
+    const seen = new Set<string>();
+    const items: { name: string; color: string }[] = [];
+    for (const t of tools) {
+      if (seen.has(t.toolName)) continue;
+      seen.add(t.toolName);
+      items.push({ name: t.toolName, color: getColor(t.toolName) });
+    }
+    return items;
+  }, [tools]);
+
   return (
-    <div className="relative" style={{ width: CONTAINER_W, height: CONTAINER_H }}>
-      <canvas
-        ref={canvasRef}
-        width={CONTAINER_W}
-        height={CONTAINER_H}
-        className="cursor-pointer"
-        onClick={handleClick}
-        onMouseMove={handleMove}
-        onMouseLeave={handleLeave}
-      />
-      {tooltipInfo && (
-        <div
-          className="absolute pointer-events-none bg-gray-900/90 text-gray-200 text-[9px] px-1.5 py-0.5 rounded border border-gray-700 whitespace-nowrap z-20"
-          style={{ left: tooltipInfo.x + 8, top: tooltipInfo.y - 20 }}
-        >
-          {tooltipInfo.text}
+    <div className="relative" style={{ width: CONTAINER_W }}>
+      <div style={{ width: CONTAINER_W, height: CONTAINER_H, position: 'relative' }}>
+        <canvas
+          ref={canvasRef}
+          width={CONTAINER_W}
+          height={CONTAINER_H}
+          className="cursor-pointer"
+          onClick={handleClick}
+          onMouseMove={handleMove}
+          onMouseLeave={handleLeave}
+        />
+        {tooltipInfo && (
+          <div
+            className="absolute pointer-events-none bg-gray-900/90 text-gray-200 text-[9px] px-1.5 py-0.5 rounded border border-gray-700 whitespace-nowrap z-20"
+            style={{ left: tooltipInfo.x + 8, top: tooltipInfo.y - 20 }}
+          >
+            {tooltipInfo.text}
+          </div>
+        )}
+      </div>
+      {legend.length > 0 && (
+        <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1 px-0.5">
+          {legend.map(({ name, color }) => (
+            <span key={name} className="flex items-center gap-1 text-[8px] text-gray-400">
+              <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: color, opacity: 0.85 }} />
+              {name}
+            </span>
+          ))}
         </div>
       )}
     </div>
