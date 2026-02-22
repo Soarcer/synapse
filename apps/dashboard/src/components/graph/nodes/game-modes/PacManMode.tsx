@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Synapse Contributors
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import type { ToolCallSummary } from '@synapse-ai/core';
 import { formatDuration } from '@synapse-ai/core';
 import { Tooltip } from '../../../ui/Tooltip';
@@ -20,8 +20,6 @@ const DOT_SIZE = 4;
 const PAC_SIZE = 24;
 const ROW_HEIGHT = 40;
 const GHOSTS_PER_ROW = 10;
-
-// Vulnerable ghost color (classic blue)
 const VULNERABLE_COLOR = '#2563eb';
 
 interface Props {
@@ -31,32 +29,85 @@ interface Props {
 }
 
 export function PacManMode({ tools, selectedNodeId, selectNode }: Props) {
-  // Find Pac-Man position: after last completed tool
-  const pacIndex = useMemo(() => {
-    let last = -1;
-    for (let i = 0; i < tools.length; i++) {
-      if (tools[i].status === 'success') last = i;
+  const allComplete = useMemo(
+    () => tools.length > 0 && tools.every((t) => t.status === 'success' || t.status === 'error'),
+    [tools],
+  );
+
+  // Sweep state
+  const [sweeping, setSweeping] = useState(false);
+  const [sweepIndex, setSweepIndex] = useState(-1);
+  const [showClear, setShowClear] = useState(false);
+  const prevAllCompleteRef = useRef(false);
+  const [eatenSet, setEatenSet] = useState<Set<number>>(new Set());
+
+  // Auto-trigger sweep when all tools first complete
+  useEffect(() => {
+    if (allComplete && !prevAllCompleteRef.current && tools.length > 0) {
+      triggerSweep();
     }
-    return last;
-  }, [tools]);
+    prevAllCompleteRef.current = allComplete;
+  }, [allComplete, tools.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const triggerSweep = useCallback(() => {
+    if (sweeping) return;
+    setSweeping(true);
+    setSweepIndex(-1);
+    setEatenSet(new Set());
+    setShowClear(false);
+
+    const speed = Math.max(80, Math.min(300, 1500 / Math.max(tools.length, 1)));
+    let idx = 0;
+
+    function advance() {
+      if (idx >= tools.length) {
+        setShowClear(true);
+        setTimeout(() => {
+          setShowClear(false);
+          setSweeping(false);
+          setSweepIndex(-1);
+        }, 800);
+        return;
+      }
+      const tool = tools[idx];
+      setSweepIndex(idx);
+      setEatenSet((prev) => new Set(prev).add(idx));
+
+      if (tool.status === 'error') {
+        // Bounce back briefly on error ghost
+        setTimeout(() => { idx++; advance(); }, 200);
+      } else {
+        idx++;
+        setTimeout(advance, speed);
+      }
+    }
+
+    setTimeout(() => advance(), speed);
+  }, [sweeping, tools]);
 
   const numRows = Math.ceil(tools.length / GHOSTS_PER_ROW) || 1;
-  const containerW = Math.min(tools.length, GHOSTS_PER_ROW) * (GHOST_SIZE + GHOST_GAP) + PAC_SIZE + 32;
+  const containerW = Math.max(Math.min(tools.length, GHOSTS_PER_ROW) * (GHOST_SIZE + GHOST_GAP) + PAC_SIZE + 48, 200);
   const containerH = numRows * ROW_HEIGHT + 16;
 
+  // Pac-Man position: during sweep follows sweepIndex; otherwise at left edge
+  const pacRow = sweeping && sweepIndex >= 0 ? Math.floor(sweepIndex / GHOSTS_PER_ROW) : 0;
+  const pacCol = sweeping && sweepIndex >= 0 ? sweepIndex % GHOSTS_PER_ROW : -1;
+  const pacLeft = pacCol >= 0 ? 16 + pacCol * (GHOST_SIZE + GHOST_GAP) + GHOST_SIZE + 4 : 4;
+  const pacTop = 8 + pacRow * ROW_HEIGHT + (ROW_HEIGHT - PAC_SIZE) / 2;
+
   return (
-    <div className="relative" style={{ width: Math.max(containerW, 200), height: Math.max(containerH, 60) }}>
-      {/* Dot path (small dots between ghosts) */}
+    <div className="relative" style={{ width: containerW, height: containerH }}>
+      {/* Dots between ghosts */}
       {tools.map((_, i) => {
         const row = Math.floor(i / GHOSTS_PER_ROW);
         const col = i % GHOSTS_PER_ROW;
         const x = 16 + col * (GHOST_SIZE + GHOST_GAP) + GHOST_SIZE / 2;
         const y = 8 + row * ROW_HEIGHT + ROW_HEIGHT / 2;
-        const isEaten = tools[i].status === 'success';
+        const isEaten = eatenSet.has(i);
         return (
           <div
             key={`dot-${i}`}
-            className="absolute rounded-full"
+            className="absolute rounded-full transition-opacity"
             style={{
               width: DOT_SIZE,
               height: DOT_SIZE,
@@ -74,11 +125,14 @@ export function PacManMode({ tools, selectedNodeId, selectNode }: Props) {
         style={{
           width: PAC_SIZE,
           height: PAC_SIZE,
-          left: 16 + (pacIndex >= 0 ? (pacIndex % GHOSTS_PER_ROW) * (GHOST_SIZE + GHOST_GAP) + GHOST_SIZE + 4 : -4),
-          top: 8 + Math.floor(Math.max(0, pacIndex) / GHOSTS_PER_ROW) * ROW_HEIGHT + (ROW_HEIGHT - PAC_SIZE) / 2,
+          left: pacLeft,
+          top: pacTop,
           borderRadius: '50%',
           backgroundColor: '#ffdd00',
+          clipPath: 'polygon(100% 50%, 50% 75%, 0% 100%, 0% 0%, 50% 25%)',
           animation: 'pacman-chomp 0.3s infinite alternate',
+          transition: sweeping ? 'left 0.15s ease-out, top 0.15s ease-out' : undefined,
+          zIndex: 5,
         }}
       />
 
@@ -90,12 +144,10 @@ export function PacManMode({ tools, selectedNodeId, selectNode }: Props) {
         const y = 8 + row * ROW_HEIGHT + (ROW_HEIGHT - GHOST_SIZE) / 2;
         const nodeId = `tool-${tc.toolUseId}`;
         const isSelected = selectedNodeId === nodeId;
-        const isEaten = tc.status === 'success';
         const isRunning = tc.status === 'running';
         const isError = tc.status === 'error';
+        const isEaten = eatenSet.has(i);
         const dur = tc.duration != null ? formatDuration(tc.duration) : null;
-
-        // Ghost color: blue if running (vulnerable), tool color if pending, red flash if error
         const ghostColor = isRunning ? VULNERABLE_COLOR : isError ? '#ef4444' : getColor(tc.toolName);
 
         return (
@@ -105,15 +157,9 @@ export function PacManMode({ tools, selectedNodeId, selectNode }: Props) {
               className={`absolute cursor-pointer transition-all ${
                 isSelected ? 'ring-1 ring-purple-400 rounded z-10' : ''
               }`}
-              style={{
-                left: x,
-                top: y,
-                width: GHOST_SIZE,
-                height: GHOST_SIZE,
-              }}
+              style={{ left: x, top: y, width: GHOST_SIZE, height: GHOST_SIZE }}
             >
-              {isEaten ? (
-                // Floating eyes (ghost was eaten)
+              {isEaten && !isError ? (
                 <div className="relative w-full h-full" style={{ animation: 'ghost-eyes-float 2s ease-in-out infinite alternate' }}>
                   <div className="absolute bg-white rounded-full" style={{ width: 5, height: 6, left: 3, top: 4 }}>
                     <div className="absolute bg-blue-900 rounded-full" style={{ width: 3, height: 3, left: 1, top: 2 }} />
@@ -123,14 +169,10 @@ export function PacManMode({ tools, selectedNodeId, selectNode }: Props) {
                   </div>
                 </div>
               ) : (
-                // Full ghost sprite
                 <div
                   className="relative w-full h-full"
-                  style={{
-                    animation: isRunning ? 'ghost-wobble 0.5s ease-in-out infinite alternate' : undefined,
-                  }}
+                  style={{ animation: isRunning ? 'ghost-wobble 0.5s ease-in-out infinite alternate' : undefined }}
                 >
-                  {/* Ghost body: dome top + wavy bottom */}
                   <div
                     className="absolute inset-0"
                     style={{
@@ -139,7 +181,6 @@ export function PacManMode({ tools, selectedNodeId, selectNode }: Props) {
                       clipPath: 'polygon(0% 0%, 100% 0%, 100% 85%, 85% 100%, 70% 85%, 50% 100%, 30% 85%, 15% 100%, 0% 85%)',
                     }}
                   />
-                  {/* Eyes */}
                   <div className="absolute bg-white rounded-full" style={{ width: 5, height: 5, left: 3, top: 5 }}>
                     <div className="absolute bg-blue-900 rounded-full" style={{ width: 2.5, height: 2.5, left: 1.5, top: 1.5 }} />
                   </div>
@@ -153,10 +194,40 @@ export function PacManMode({ tools, selectedNodeId, selectNode }: Props) {
         );
       })}
 
+      {/* CLEAR text */}
+      {showClear && (
+        <div
+          className="absolute inset-0 flex items-center justify-center pointer-events-none z-20"
+          style={{ animation: 'clear-flash 0.8s ease-out forwards' }}
+        >
+          <span className="text-yellow-300 font-bold text-lg" style={{ textShadow: '0 0 8px rgba(255,221,0,0.6)' }}>
+            CLEAR!
+          </span>
+        </div>
+      )}
+
+      {/* Replay button */}
+      {allComplete && !sweeping && (
+        <button
+          onClick={(e) => { e.stopPropagation(); setEatenSet(new Set()); triggerSweep(); }}
+          className="absolute bottom-1 right-1 w-5 h-5 flex items-center justify-center rounded-full bg-gray-700/60 hover:bg-gray-600/80 text-gray-400 hover:text-white text-[10px] z-10 transition-colors"
+          title="Replay sweep"
+        >
+          {'\u21BB'}
+        </button>
+      )}
+
+      {/* Progress text */}
+      {!allComplete && tools.length > 0 && (
+        <div className="absolute top-0.5 left-1 text-[8px] text-gray-500 pointer-events-none">
+          {tools.filter((t) => t.status !== 'running').length} / {tools.length}
+        </div>
+      )}
+
       <style>{`
         @keyframes pacman-chomp {
-          0% { clip-path: polygon(100% 50%, 50% 5%, 0% 0%, 0% 100%, 50% 95%); }
-          100% { clip-path: polygon(100% 50%, 50% 35%, 0% 0%, 0% 100%, 50% 65%); }
+          0% { clip-path: polygon(100% 50%, 80% 100%, 0% 100%, 0% 0%, 80% 0%); }
+          100% { clip-path: polygon(100% 50%, 50% 75%, 0% 100%, 0% 0%, 50% 25%); }
         }
         @keyframes ghost-wobble {
           from { transform: translateX(-1px); }
@@ -165,6 +236,12 @@ export function PacManMode({ tools, selectedNodeId, selectNode }: Props) {
         @keyframes ghost-eyes-float {
           from { transform: translateY(0) translateX(2px); opacity: 0.6; }
           to { transform: translateY(-3px) translateX(-2px); opacity: 0.4; }
+        }
+        @keyframes clear-flash {
+          0% { opacity: 0; transform: scale(0.5); }
+          20% { opacity: 1; transform: scale(1.2); }
+          80% { opacity: 1; transform: scale(1); }
+          100% { opacity: 0; transform: scale(1); }
         }
       `}</style>
     </div>
