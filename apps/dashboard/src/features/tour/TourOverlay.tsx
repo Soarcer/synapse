@@ -5,8 +5,14 @@ import { useEffect, useState, useRef } from 'react';
 import { useTourStore } from './tourStore';
 import { useAutoPlay } from './useAutoPlay';
 import { ALL_CHAPTERS } from './steps';
+import { OPTIONAL_CHAPTERS } from './constants';
 import { DEMO_EVENTS } from './demoEvents';
 import { t } from '../../i18n';
+
+/** Index of the first optional chapter in ALL_CHAPTERS */
+const FIRST_OPTIONAL_IDX = ALL_CHAPTERS.findIndex((ch) =>
+  OPTIONAL_CHAPTERS.includes(ch.id),
+);
 
 interface Rect {
   top: number;
@@ -57,10 +63,11 @@ export function TourOverlay() {
 }
 
 function ManualOverlay() {
-  const { chapterIndex, stepIndex, nextStep, prevStep, endTour } =
+  const { chapterIndex, stepIndex, nextStep, prevStep, endTour, goToChapter } =
     useTourStore();
   const globalIndex = useTourStore((s) => s.globalStepIndex());
   const totalSteps = useTourStore((s) => s.totalSteps());
+  const [showContinuation, setShowContinuation] = useState(false);
 
   const chapter = ALL_CHAPTERS[chapterIndex];
   const step = chapter?.steps[stepIndex];
@@ -68,12 +75,41 @@ function ManualOverlay() {
   const target = step?.target ?? '';
   const rect = useTargetRect(target);
 
+  // Check if we're at the boundary before optional chapters
+  const isAtOptionalBoundary =
+    FIRST_OPTIONAL_IDX > 0 &&
+    chapterIndex === FIRST_OPTIONAL_IDX - 1 &&
+    stepIndex === (chapter?.steps.length ?? 1) - 1;
+
+  const handleNext = () => {
+    if (isAtOptionalBoundary && !showContinuation) {
+      setShowContinuation(true);
+    } else {
+      setShowContinuation(false);
+      nextStep();
+    }
+  };
+
+  const handleContinue = () => {
+    setShowContinuation(false);
+    goToChapter(FIRST_OPTIONAL_IDX);
+  };
+
+  const handleFinishHere = () => {
+    setShowContinuation(false);
+    endTour();
+  };
+
   // Keyboard navigation
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (showContinuation) {
+        if (e.key === 'Escape') handleFinishHere();
+        return;
+      }
       if (e.key === 'ArrowRight' || e.key === ' ') {
         e.preventDefault();
-        nextStep();
+        handleNext();
       }
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
@@ -85,7 +121,7 @@ function ManualOverlay() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [nextStep, prevStep, endTour]);
+  }, [nextStep, prevStep, endTour, showContinuation, isAtOptionalBoundary]);
 
   // Fire onEnter when step changes
   const onEnterRef = useRef(step?.onEnter);
@@ -159,31 +195,53 @@ function ManualOverlay() {
           </span>
         </div>
 
-        {/* Buttons */}
-        <div className="flex items-center justify-between">
-          <div className="flex gap-2">
-            {!isFirst && (
+        {/* Buttons or continuation prompt */}
+        {showContinuation ? (
+          <div>
+            <div className="text-[13px] text-gray-300 leading-relaxed mb-3">
+              {t('tour.continue.body')}
+            </div>
+            <div className="flex gap-2 justify-end">
               <button
-                onClick={prevStep}
+                onClick={handleFinishHere}
                 className="px-3 py-1.5 rounded-md border border-gray-700 text-gray-400 text-xs hover:border-gray-500 hover:text-gray-200 transition-colors"
               >
-                {t('tour.prev')}
+                {t('tour.continue.no')}
               </button>
-            )}
+              <button
+                onClick={handleContinue}
+                className="px-4 py-1.5 rounded-md bg-violet-600 text-white text-xs font-semibold hover:bg-violet-500 transition-colors"
+              >
+                {t('tour.continue.yes')}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between">
+            <div className="flex gap-2">
+              {!isFirst && (
+                <button
+                  onClick={prevStep}
+                  className="px-3 py-1.5 rounded-md border border-gray-700 text-gray-400 text-xs hover:border-gray-500 hover:text-gray-200 transition-colors"
+                >
+                  {t('tour.prev')}
+                </button>
+              )}
+              <button
+                onClick={endTour}
+                className="px-3 py-1.5 text-gray-600 text-xs hover:text-gray-400 transition-colors"
+              >
+                {t('tour.skip')}
+              </button>
+            </div>
             <button
-              onClick={endTour}
-              className="px-3 py-1.5 text-gray-600 text-xs hover:text-gray-400 transition-colors"
+              onClick={handleNext}
+              className="px-4 py-1.5 rounded-md bg-violet-600 text-white text-xs font-semibold hover:bg-violet-500 transition-colors"
             >
-              {t('tour.skip')}
+              {isLast ? t('tour.finish') : t('tour.next')}
             </button>
           </div>
-          <button
-            onClick={nextStep}
-            className="px-4 py-1.5 rounded-md bg-violet-600 text-white text-xs font-semibold hover:bg-violet-500 transition-colors"
-          >
-            {isLast ? t('tour.finish') : t('tour.next')}
-          </button>
-        </div>
+        )}
       </div>
     </div>
   );
