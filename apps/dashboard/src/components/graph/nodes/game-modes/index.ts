@@ -5,12 +5,12 @@
 export const GAME_MODES_ENABLED = true;
 
 export const GAME_MODE_OPTIONS = [
-  { value: 'bubbles' as const, label: 'Bubbles' },
+  { value: 'bubbles' as const, label: 'Game of Life' },  // keep 'bubbles' value for store compat
   { value: 'tetris' as const, label: 'Tetris' },
   { value: 'pacman' as const, label: 'Pac-Man' },
 ] as const;
 
-export { BubblesMode } from './BubblesMode';
+export { GameOfLifeMode } from './GameOfLifeMode';
 export { TetrisMode } from './TetrisMode';
 export { PacManMode } from './PacManMode';
 export { ArcadeOverlay } from './ArcadeOverlay';
