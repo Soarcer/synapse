@@ -9,3 +9,8 @@ export const GAME_MODE_OPTIONS = [
   { value: 'tetris' as const, label: 'Tetris' },
   { value: 'pacman' as const, label: 'Pac-Man' },
 ] as const;
+
+export { BubblesMode } from './BubblesMode';
+export { TetrisMode } from './TetrisMode';
+export { PacManMode } from './PacManMode';
+export { ArcadeOverlay } from './ArcadeOverlay';
