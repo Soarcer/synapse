@@ -82,9 +82,14 @@ function AgentGraphInner() {
 
   const layoutNodes = useAutoLayout(visibleNodes, visibleEdges, expandedParentId);
 
-  // Compute highlighted node IDs: selected + direct children + all ancestors up the hierarchy
+  // Compute highlighted node IDs: selected + direct children + all ancestors up the hierarchy.
+  // Stabilized: return previous ref when contents haven't changed, preventing cascading re-renders.
+  const prevConnectedRef = useRef<Set<string> | null>(null);
   const connectedIds = useMemo(() => {
-    if (!selectedNodeId) return null;
+    if (!selectedNodeId) {
+      prevConnectedRef.current = null;
+      return null;
+    }
     const ids = new Set<string>([selectedNodeId]);
 
     const parentOf = buildParentMap(visibleEdges);
@@ -109,24 +114,47 @@ function AgentGraphInner() {
       collectAncestors(selectedNodeId, parentOf, ids);
     }
 
+    // Return previous ref if contents are identical
+    const prev = prevConnectedRef.current;
+    if (prev && prev.size === ids.size) {
+      let same = true;
+      for (const id of ids) { if (!prev.has(id)) { same = false; break; } }
+      if (same) return prev;
+    }
+    prevConnectedRef.current = ids;
     return ids;
   }, [selectedNodeId, visibleEdges, rawEdges]);
 
   // Merge connectedIds (from single selection) with multiHighlightIds (from heatmap etc.)
+  // Stabilized: only create a new Set when the actual contents change (not just the ref).
   const multiHighlightIds = useAgentStore((s) => s.multiHighlightIds);
+  const prevMergedRef = useRef<Set<string> | null>(null);
   const mergedHighlightIds = useMemo(() => {
-    if (!connectedIds && !multiHighlightIds) return null;
+    if (!connectedIds && !multiHighlightIds) {
+      prevMergedRef.current = null;
+      return null;
+    }
     const merged = new Set<string>();
     if (connectedIds) for (const id of connectedIds) merged.add(id);
     if (multiHighlightIds) for (const id of multiHighlightIds) merged.add(id);
+    // Return previous ref if contents are identical — prevents downstream re-renders
+    const prev = prevMergedRef.current;
+    if (prev && prev.size === merged.size) {
+      let same = true;
+      for (const id of merged) { if (!prev.has(id)) { same = false; break; } }
+      if (same) return prev;
+    }
+    prevMergedRef.current = merged;
     return merged;
   }, [connectedIds, multiHighlightIds]);
 
-  // Sync highlighted IDs to store so node components can access them
-  const setHighlightedNodeIds = useAgentStore((s) => s.setHighlightedNodeIds);
+  // Sync highlighted IDs to store so node components can access them.
+  // Use getState() to avoid including the setter function in deps — store
+  // action refs change on every render, which would cause this effect to
+  // fire in a loop and trigger cascading re-renders across all node components.
   useEffect(() => {
-    setHighlightedNodeIds(mergedHighlightIds);
-  }, [mergedHighlightIds, setHighlightedNodeIds]);
+    useAgentStore.getState().setHighlightedNodeIds(mergedHighlightIds);
+  }, [mergedHighlightIds]);
 
   // Apply dim styling to non-highlighted nodes
   const nodes = useMemo(() => {

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { create } from 'zustand';
 import type { Node, Edge } from '@xyflow/react';
 import type {
@@ -7,6 +10,7 @@ import type {
   ToolCallSummary,
   UserPromptData,
   TranscriptSummary,
+  ReasoningData,
   CoachingNudge,
 } from '@synapse-ai/core';
 import { PALETTES, normalizeCwd } from '@synapse-ai/core';
@@ -142,7 +146,10 @@ export function reloadAllEvents(options?: { showLoading?: boolean }): void {
   reloadAbort = new AbortController();
   const signal = reloadAbort.signal;
 
-  const { cwdFilter, timeRange } = useAgentStore.getState();
+  const { cwdFilter, timePresetLabel } = useAgentStore.getState();
+  // Recompute fresh time range from preset label so sliding windows stay current
+  const timeRange = computeTimeRange(timePresetLabel);
+  useAgentStore.setState({ timeRange });
   if (options?.showLoading) {
     useAgentStore.getState().setLoading(true);
     useAgentStore.getState().setLoadError(null);
@@ -211,6 +218,7 @@ interface AgentStore {
   graphSearchQuery: string;
   collapsedNodes: Set<string>;
   transcripts: Map<string, TranscriptSummary>;
+  transcriptReasoning: Map<string, ReasoningData>;
   liveNudges: CoachingNudge[];
   isLoading: boolean;
   loadError: string | null;
@@ -248,6 +256,7 @@ interface AgentStore {
   setProfileMetric: (metric: 'tokens' | 'duration' | 'count') => void;
   cyclePalette: () => void;
   setTranscript: (sessionId: string, data: TranscriptSummary) => void;
+  setTranscriptReasoning: (sessionId: string, data: ReasoningData) => void;
   setLoading: (loading: boolean) => void;
   setLoadError: (error: string | null) => void;
   updateNodeDimensions: (updates: Array<{ id: string; width: number; height: number }>) => void;
@@ -296,6 +305,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   graphSearchQuery: '',
   collapsedNodes: new Set<string>(),
   transcripts: new Map(),
+  transcriptReasoning: new Map(),
   liveNudges: EMPTY_NUDGES,
   isLoading: true,
   loadError: null,
@@ -340,7 +350,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
         const nodes = state.nodes.map((n) =>
           n.id === nid.agent(agentId) ? { ...n, data: { agent: updated } } : n,
         );
-        return { ...state, agents, nodes, events, ...buildDerivedMaps(agents) };
+        return { ...state, agents, nodes, events, ...buildDerivedMaps(agents, state.sessions) };
       }
 
       const events = insertEventSorted(state.events, event, MAX_EVENTS);
@@ -357,7 +367,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
       const draft = draftFromState(state);
       processEvent(event, draft, state.showHookEvents);
-      return { ...state, ...draft, events, ...buildDerivedMaps(draft.agents) };
+      return { ...state, ...draft, events, ...buildDerivedMaps(draft.agents, draft.sessions) };
     });
   },
 
@@ -367,7 +377,10 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
   setFilter: (filter) => set({ filter }),
 
-  setConnectionStatus: (connectionStatus) => set({ connectionStatus }),
+  setConnectionStatus: (connectionStatus) => {
+    if (connectionStatus === get().connectionStatus) return;
+    set({ connectionStatus });
+  },
 
   setShowSpawnDialog: (showSpawnDialog) => set({ showSpawnDialog }),
   setShowWorkshop: (showWorkshop) => set({ showWorkshop }),
@@ -392,7 +405,10 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     next.delete(nodeId);
     set({ collapsedNodes: next });
   },
-  setHighlightedNodeIds: (highlightedNodeIds) => set({ highlightedNodeIds }),
+  setHighlightedNodeIds: (highlightedNodeIds) => {
+    if (highlightedNodeIds === get().highlightedNodeIds) return;
+    set({ highlightedNodeIds });
+  },
   setMultiHighlight: (multiHighlightIds) => set({ multiHighlightIds }),
 
   setActiveLensTab: (activeLensTab) => set({ activeLensTab }),
@@ -405,6 +421,12 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     const transcripts = new Map(get().transcripts);
     transcripts.set(sessionId, data);
     set({ transcripts });
+  },
+
+  setTranscriptReasoning: (sessionId, data) => {
+    const transcriptReasoning = new Map(get().transcriptReasoning);
+    transcriptReasoning.set(sessionId, data);
+    set({ transcriptReasoning });
   },
 
   setShowHookEvents: (showHookEvents) => {
@@ -538,7 +560,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     set({
       sessions,
       agents,
-      ...buildDerivedMaps(agents),
+      ...buildDerivedMaps(agents, sessions),
       toolCalls,
       prompts,
       events,
@@ -598,13 +620,15 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       multiHighlightIds: null,
       collapsedNodes: new Set(),
       transcripts: new Map(),
+      transcriptReasoning: new Map(),
       liveNudges: EMPTY_NUDGES,
     });
   },
 
   loadEvents: (events) => {
     eventCapToastFired = false;
-    const { showHookEvents } = get();
+    const prevState = get();
+    const { showHookEvents } = prevState;
     const draft = createFreshDraft();
     const sorted = [...events].sort((a, b) => a.timestamp - b.timestamp);
     // Content-based dedup: the DB may contain duplicate events from multiple hook
@@ -613,16 +637,34 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     for (const event of deduped) {
       processEvent(event, draft, showHookEvents);
     }
+
+    // Preserve measured dimensions from previous state so React Flow doesn't
+    // flash nodes at default sizes before re-measuring. This prevents the
+    // double-layout flicker on periodic reloads (sliding time window refresh).
+    const prevMeasured = new Map<string, { width: number; height: number }>();
+    for (const node of prevState.nodes) {
+      if (node.measured?.width && node.measured?.height) {
+        prevMeasured.set(node.id, { width: node.measured.width, height: node.measured.height });
+      }
+    }
+    if (prevMeasured.size > 0) {
+      draft.nodes = draft.nodes.map((n) => {
+        const m = prevMeasured.get(n.id);
+        return m ? { ...n, measured: m } : n;
+      });
+    }
+
     // Events stored newest-first for timeline display
     set({
       ...draft,
-      ...buildDerivedMaps(draft.agents),
+      ...buildDerivedMaps(draft.agents, draft.sessions),
       events: deduped.reverse().slice(0, MAX_EVENTS),
       selectedNodeId: null,
       highlightedNodeIds: null,
       multiHighlightIds: null,
       collapsedNodes: new Set(),
       transcripts: new Map(),
+      transcriptReasoning: new Map(),
       liveNudges: EMPTY_NUDGES,
     });
   },
@@ -698,11 +740,12 @@ wsClient.setOnEvent((msg) => {
     const event = msg.data;
 
     // Skip events from other projects when cwd filter is active
-    const { cwdFilter, timeRange } = useAgentStore.getState();
+    const { cwdFilter, timePresetLabel } = useAgentStore.getState();
     if (cwdFilter && event.cwd && normalizeCwd(event.cwd) !== cwdFilter) return;
 
-    // Skip events outside the active time range
-    if (timeRange && event.timestamp < timeRange.from) return;
+    // Skip events outside the active time range (fresh computation for sliding windows)
+    const liveRange = computeTimeRange(timePresetLabel);
+    if (liveRange && event.timestamp < liveRange.from) return;
 
     // Content-based dedup: catch duplicate broadcasts with different event IDs
     if (isWsDuplicate(event)) return;
@@ -757,3 +800,12 @@ wsClient.setOnStatusChange((status) => {
 wsClient.setOnReconnect(() => {
   reloadAllEvents();
 });
+
+// ── Sliding time window refresh ──────────────────────────────
+// Periodically reload events so relative presets ("Last hour", etc.) evict stale data.
+const SLIDING_REFRESH_MS = 60_000;
+setInterval(() => {
+  const { timePresetLabel } = useAgentStore.getState();
+  if (timePresetLabel === 'All time') return;
+  reloadAllEvents();
+}, SLIDING_REFRESH_MS);

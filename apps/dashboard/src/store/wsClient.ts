@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import type { WsServerMessage, WsClientMessage } from '@synapse-ai/core';
 
 type ConnectionStatus = 'connected' | 'disconnected' | 'reconnecting' | 'failed';
@@ -124,6 +127,7 @@ class WSClient {
   }
 
   private setStatus(status: ConnectionStatus) {
+    if (status === this._status) return;
     this._status = status;
     this.onStatusChange?.(status);
   }
