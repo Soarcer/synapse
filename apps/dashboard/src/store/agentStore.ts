@@ -45,7 +45,7 @@ const VIEW_SETTINGS_KEY = 'synapse-view-settings';
 interface PersistedViewSettings {
   showHookEvents?: boolean;
   showAllTools?: boolean;
-  toolGroupMode?: 'pillGrid' | 'timeline' | 'heatmap' | 'bubbles' | 'tetris';
+  toolGroupMode?: string;
   lockViewport?: boolean;
   autoClosePrompts?: boolean;
   arcadeMode?: boolean;
@@ -212,7 +212,7 @@ interface AgentStore {
   paused: boolean;
   showHookEvents: boolean;
   showAllTools: boolean;
-  toolGroupMode: 'pillGrid' | 'timeline' | 'heatmap' | 'bubbles' | 'tetris';
+  toolGroupMode: string;
   arcadeMode: boolean;
   arcadeSoundEnabled: boolean;
   arcadeVolume: number;
@@ -247,7 +247,7 @@ interface AgentStore {
   setPaused: (paused: boolean) => void;
   setShowHookEvents: (show: boolean) => void;
   setShowAllTools: (show: boolean) => void;
-  setToolGroupMode: (mode: 'pillGrid' | 'timeline' | 'heatmap' | 'bubbles' | 'tetris') => void;
+  setToolGroupMode: (mode: string) => void;
   setArcadeMode: (on: boolean) => void;
   setArcadeSoundEnabled: (on: boolean) => void;
   setArcadeVolume: (vol: number) => void;

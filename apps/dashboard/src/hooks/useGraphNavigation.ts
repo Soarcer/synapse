@@ -17,7 +17,7 @@ export function getNextToolIndex(
   tools: ToolCallSummary[],
   currentIndex: number,
   key: string,
-  mode: 'pillGrid' | 'timeline' | 'heatmap' | 'bubbles' | 'tetris',
+  mode: string,
 ): number {
   const len = tools.length;
   if (len === 0) return -1;
