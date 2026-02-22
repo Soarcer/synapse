@@ -89,6 +89,7 @@ Stop either server with **Ctrl+C** in its terminal.
 | **C**     | Toggle auto-close prompts       |
 | **E**     | Export snapshot                  |
 | **I**     | Import snapshot                  |
+| **G**     | Toggle arcade mode              |
 | **/**     | Focus graph search              |
 | **1–6**  | Switch lens tab (tree, heatmap, treemap, sankey, compaction, cost) |
 
