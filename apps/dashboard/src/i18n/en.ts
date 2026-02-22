@@ -62,6 +62,8 @@ const en: Record<string, string> = {
   'tour.chapter.pixel': 'Pixel Mode',
 
   // Auto-play narrations
+  'tour.auto.title': 'Auto-Play Demo',
+  'tour.auto.exploreBtn': 'Start exploring →',
   'tour.auto.sessionStart': 'A Claude Code session just started — every session gets its own root node.',
   'tour.auto.prompt1': 'You typed a prompt — it becomes a node connected to the session.',
   'tour.auto.tools1': 'The agent reads, edits, and runs bash — tool calls appear as grouped pills.',

@@ -6,16 +6,22 @@ import { useTourStore } from './tourStore';
 import { DEMO_EVENTS } from './demoEvents';
 
 /**
- * Drives the auto-play phase: feeds demo events into agentStore
- * on a timer, advancing the narration callout at milestone events.
- * Cleans up demo session data when the tour ends.
+ * Drives the auto-play phase: clears the graph, feeds demo events into
+ * agentStore on a timer, and restores the original session data when done.
+ *
+ * Graph isolation strategy:
+ * 1. On auto-play start: save lockViewport, clear frontend graph state, unlock viewport
+ * 2. Inject demo events into the now-empty graph (only visible nodes)
+ * 3. On tour end: reload all events from backend DB, restore lockViewport
  */
 export function useAutoPlay() {
   const phase = useTourStore((s) => s.phase);
   const advanceAutoPlay = useTourStore((s) => s.advanceAutoPlay);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cleanupNeeded = useRef(false);
+  const savedLockViewport = useRef(false);
 
+  // Auto-play event injection loop
   useEffect(() => {
     if (phase !== 'autoPlay') return;
 
@@ -23,9 +29,19 @@ export function useAutoPlay() {
     let idx = 0;
     cleanupNeeded.current = true;
 
+    async function setup() {
+      const { useAgentStore } = await import('../../store/agentStore');
+      const store = useAgentStore.getState();
+
+      // Save current viewport lock state, then clear graph and unlock
+      savedLockViewport.current = store.lockViewport;
+      store.clearEvents();
+      store.setLockViewport(false);
+      store.setPaused(false);
+    }
+
     async function playNext() {
       if (cancelled || idx >= DEMO_EVENTS.length) {
-        // Auto-play complete — transition to manual if not cancelled
         if (!cancelled && idx >= DEMO_EVENTS.length) {
           useTourStore.getState().transitionToManual();
         }
@@ -33,17 +49,14 @@ export function useAutoPlay() {
       }
 
       const event = DEMO_EVENTS[idx];
-      // Wait the specified delay
       await new Promise<void>((r) => {
         timerRef.current = setTimeout(r, event.delayMs);
       });
       if (cancelled) return;
 
-      // Inject event into the real store (dynamic import to avoid circular deps)
       const { useAgentStore } = await import('../../store/agentStore');
       useAgentStore.getState().addEvent(event.payload as any);
 
-      // Advance narration if this event has one
       if (event.narrationKey) {
         advanceAutoPlay();
       }
@@ -52,7 +65,9 @@ export function useAutoPlay() {
       playNext();
     }
 
-    playNext();
+    setup().then(() => {
+      if (!cancelled) playNext();
+    });
 
     return () => {
       cancelled = true;
@@ -60,13 +75,15 @@ export function useAutoPlay() {
     };
   }, [phase, advanceAutoPlay]);
 
-  // Cleanup: remove demo session data when tour ends/becomes idle
+  // Cleanup: restore original graph data when tour ends
   useEffect(() => {
     if (phase === 'idle' && cleanupNeeded.current) {
       cleanupNeeded.current = false;
-      // Remove the demo session from the store
-      import('../../store/agentStore').then(({ useAgentStore }) => {
-        useAgentStore.getState().removeSession?.('tour-demo-session');
+      import('../../store/agentStore').then(({ useAgentStore, reloadAllEvents }) => {
+        // Restore lockViewport setting
+        useAgentStore.getState().setLockViewport(savedLockViewport.current);
+        // Reload all events from backend DB (clearEvents only cleared frontend state)
+        reloadAllEvents({ showLoading: true });
       });
     }
   }, [phase]);

@@ -270,7 +270,7 @@ function AutoPlayOverlay() {
   return (
     <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[9998] w-96 bg-gradient-to-br from-[#1a1a2e] to-[#16162a] border border-violet-500/30 rounded-xl p-5 shadow-2xl">
       <div className="text-[10px] font-semibold text-violet-400 uppercase tracking-wider mb-2">
-        Auto-Play Demo
+        {t('tour.auto.title')}
       </div>
       <div className="text-[13px] text-gray-300 leading-relaxed mb-4 transition-opacity duration-300" key={autoPlayIndex}>
         {narrationText}
@@ -286,7 +286,7 @@ function AutoPlayOverlay() {
           onClick={transitionToManual}
           className="px-4 py-1.5 rounded-md bg-violet-600 text-white text-xs font-semibold hover:bg-violet-500 transition-colors"
         >
-          Start exploring →
+          {t('tour.auto.exploreBtn')}
         </button>
       </div>
     </div>
