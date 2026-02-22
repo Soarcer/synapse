@@ -57,4 +57,60 @@ describe('TourOverlay', () => {
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(useTourStore.getState().active).toBe(false);
   });
+
+  it('renders card centered when target element is missing', () => {
+    useTourStore.getState().startTour();
+    useTourStore.getState().transitionToManual();
+    // No DOM elements matching the tour step selectors exist
+    const { container } = render(createElement(TourOverlay));
+    // The card should still render (fallback centered position)
+    const card = container.querySelector('[role="dialog"]');
+    expect(card).toBeTruthy();
+    // Next and Skip should still be present
+    expect(screen.getByText('Next')).toBeTruthy();
+    expect(screen.getByText('Skip tour')).toBeTruthy();
+  });
+
+  it('renders narration during auto-play phase', () => {
+    useTourStore.getState().startTour();
+    // phase is autoPlay by default after startTour
+    expect(useTourStore.getState().phase).toBe('autoPlay');
+
+    render(createElement(TourOverlay));
+    // AutoPlayOverlay should show the "Auto-Play Demo" heading
+    expect(screen.getByText('Auto-Play Demo')).toBeTruthy();
+    // Should show the initial narration text (tour.auto.sessionStart)
+    expect(
+      screen.getByText(
+        'A Claude Code session just started — every session gets its own root node.',
+      ),
+    ).toBeTruthy();
+    // Should show the skip button
+    expect(screen.getByText('Skip tour')).toBeTruthy();
+  });
+
+  it('Escape during auto-play ends the tour', () => {
+    useTourStore.getState().startTour();
+    expect(useTourStore.getState().phase).toBe('autoPlay');
+
+    render(createElement(TourOverlay));
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(useTourStore.getState().active).toBe(false);
+    expect(useTourStore.getState().phase).toBe('idle');
+  });
+
+  it('ArrowLeft at first step does nothing', () => {
+    useTourStore.getState().startTour();
+    useTourStore.getState().transitionToManual();
+    // Confirm we're at the very first step
+    expect(useTourStore.getState().chapterIndex).toBe(0);
+    expect(useTourStore.getState().stepIndex).toBe(0);
+
+    render(createElement(TourOverlay));
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+
+    // Should remain at the same position
+    expect(useTourStore.getState().chapterIndex).toBe(0);
+    expect(useTourStore.getState().stepIndex).toBe(0);
+  });
 });
