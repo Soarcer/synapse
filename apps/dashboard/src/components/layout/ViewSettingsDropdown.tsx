@@ -5,6 +5,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useAgentStore } from '../../store/agentStore';
 import { Tooltip } from '../ui/Tooltip';
 import { NotificationSettings } from '../../features/notifications/NotificationSettings'; // [notifications]
+import { GAME_MODES_ENABLED, GAME_MODE_OPTIONS } from '../graph/nodes/game-modes';
 
 const TOOL_VIEW_MODES = [
   { value: 'pillGrid' as const, label: 'Pill Grid' },
@@ -26,6 +27,10 @@ export function ViewSettingsDropdown() {
   const setAutoClosePrompts = useAgentStore((s) => s.setAutoClosePrompts);
   const showHookEvents = useAgentStore((s) => s.showHookEvents);
   const setShowHookEvents = useAgentStore((s) => s.setShowHookEvents);
+  const arcadeMode = useAgentStore((s) => s.arcadeMode);
+  const setArcadeMode = useAgentStore((s) => s.setArcadeMode);
+  const arcadeSoundEnabled = useAgentStore((s) => s.arcadeSoundEnabled);
+  const setArcadeSoundEnabled = useAgentStore((s) => s.setArcadeSoundEnabled);
 
   useEffect(() => {
     if (!open) return;
@@ -96,6 +101,48 @@ export function ViewSettingsDropdown() {
                 <span className="flex-1">{label}</span>
               </button>
             ))}
+          </div>
+          {/* Game modes section */}
+          {GAME_MODES_ENABLED && (
+            <div className="border-t border-gray-700/50 mt-1 pt-1">
+              <div className="px-2 py-1 text-[10px] text-gray-500 uppercase tracking-wider">Game Modes</div>
+              {GAME_MODE_OPTIONS.map(({ value, label }) => (
+                <button
+                  key={value}
+                  onClick={() => { setToolGroupMode(value); setOpen(false); }}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-800/80 transition-colors text-left text-gray-300"
+                >
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${toolGroupMode === value ? 'bg-blue-400' : 'bg-gray-600'}`} />
+                  <span className="flex-1">{label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Arcade overlay section */}
+          <div className="border-t border-gray-700/50 mt-1 pt-1">
+            <div className="px-2 py-1 text-[10px] text-gray-500 uppercase tracking-wider">Arcade</div>
+            <button
+              onClick={() => { setArcadeMode(!arcadeMode); }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-800/80 transition-colors text-left text-gray-300"
+              role="switch"
+              aria-checked={arcadeMode}
+            >
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${arcadeMode ? 'bg-green-400' : 'bg-gray-600'}`} />
+              <span className="flex-1">Arcade Mode</span>
+              <kbd className="text-[10px] text-gray-600 bg-gray-800 px-1 rounded">G</kbd>
+            </button>
+            {arcadeMode && (
+              <button
+                onClick={() => { setArcadeSoundEnabled(!arcadeSoundEnabled); }}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-800/80 transition-colors text-left text-gray-300"
+                role="switch"
+                aria-checked={arcadeSoundEnabled}
+              >
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${arcadeSoundEnabled ? 'bg-green-400' : 'bg-gray-600'}`} />
+                <span className="flex-1">Sound Effects</span>
+              </button>
+            )}
           </div>
           <NotificationSettings onClose={() => setOpen(false)} /> {/* [notifications] */}
         </div>
