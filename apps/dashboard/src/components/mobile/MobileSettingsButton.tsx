@@ -3,6 +3,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useAgentStore } from '../../store/agentStore';
+import { GAME_MODES_ENABLED, GAME_MODE_OPTIONS } from '../graph/nodes/game-modes';
 
 const TOOL_VIEW_MODES = [
   { value: 'pillGrid' as const, label: 'Pill Grid' },
@@ -145,6 +146,23 @@ export function MobileSettingsButton() {
                 </button>
               ))}
             </div>
+            {GAME_MODES_ENABLED && (
+              <div className="flex gap-1 mt-1.5">
+                {GAME_MODE_OPTIONS.map((m) => (
+                  <button
+                    key={m.value}
+                    onClick={() => useAgentStore.getState().setToolGroupMode(m.value)}
+                    className={`flex-1 px-1.5 py-1 text-[10px] rounded border transition-colors ${
+                      toolGroupMode === m.value
+                        ? 'bg-blue-600/30 border-blue-500/50 text-blue-300'
+                        : 'bg-gray-800 border-gray-700 text-gray-500'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
