@@ -11,7 +11,7 @@ import { useAgentStore } from '../../../store/agentStore';
 import { Tooltip } from '../../ui/Tooltip';
 import {
   GAME_MODES_ENABLED,
-  BubblesMode,
+  GameOfLifeMode,
   TetrisMode,
   PacManMode,
   ArcadeOverlay,
@@ -204,7 +204,7 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
             <HeatmapView tools={tools} selectedNodeId={selectedNodeId} selectNode={selectNode} />
           )}
           {GAME_MODES_ENABLED && toolGroupMode === 'bubbles' && (
-            <BubblesMode tools={tools} parentAgentId={parentAgentId} selectedNodeId={selectedNodeId} selectNode={selectNode} />
+            <GameOfLifeMode tools={tools} selectedNodeId={selectedNodeId} selectNode={selectNode} />
           )}
           {GAME_MODES_ENABLED && toolGroupMode === 'tetris' && (
             <TetrisMode tools={tools} selectedNodeId={selectedNodeId} selectNode={selectNode} />
