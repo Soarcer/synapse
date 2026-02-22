@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useAgentStore } from '../store/agentStore';
 import type { Node, Edge } from '@xyflow/react';
@@ -14,7 +17,7 @@ export function getNextToolIndex(
   tools: ToolCallSummary[],
   currentIndex: number,
   key: string,
-  mode: 'pillGrid' | 'timeline' | 'heatmap',
+  mode: 'pillGrid' | 'timeline' | 'heatmap' | 'bubbles' | 'tetris' | 'pacman',
 ): number {
   const len = tools.length;
   if (len === 0) return -1;
