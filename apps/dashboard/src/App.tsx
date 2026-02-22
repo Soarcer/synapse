@@ -16,8 +16,10 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { useAgentStore, reloadAllEvents } from './store/agentStore';
 import { wsClient } from './store/wsClient';
 import { initNotifications, useNotificationStore } from './features/notifications'; // [notifications]
+import { initTour, TourOverlay, TourLauncher } from './features/tour'; // [tour]
 
 initNotifications(); // [notifications]
+initTour(); // [tour]
 
 /** Layout modes: full (browser), lens (VS Code sidebar), graph (VS Code editor), analytics, pixel, mobile */
 type ViewMode = 'full' | 'lens' | 'graph' | 'analytics' | 'pixel' | 'mobile';
@@ -333,6 +335,8 @@ function FullView() {
 
       <WorkshopModal />
       <ToastContainer />
+      <TourOverlay /> {/* [tour] */}
+      <TourLauncher /> {/* [tour] */}
     </div>
   );
 }
