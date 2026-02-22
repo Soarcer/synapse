@@ -6,13 +6,14 @@ import { useTourStore } from './tourStore';
 import { DEMO_EVENTS } from './demoEvents';
 
 /**
- * Drives the auto-play phase: clears the graph, feeds demo events into
+ * Drives the auto-play phase: isolates the graph, feeds demo events into
  * agentStore on a timer, and restores the original session data when done.
  *
  * Graph isolation strategy:
- * 1. On auto-play start: save lockViewport, clear frontend graph state, unlock viewport
- * 2. Inject demo events into the now-empty graph (only visible nodes)
- * 3. On tour end: reload all events from backend DB, restore lockViewport
+ * 1. Disconnect WS to stop real events from contaminating the demo
+ * 2. Clear frontend graph state, unlock viewport, unpause
+ * 3. Inject demo events into the now-empty graph (only visible nodes)
+ * 4. On tour end: reconnect WS + reload all events from backend DB
  */
 export function useAutoPlay() {
   const phase = useTourStore((s) => s.phase);
@@ -30,6 +31,10 @@ export function useAutoPlay() {
     cleanupNeeded.current = true;
 
     async function setup() {
+      // Disconnect WS first to prevent real events during demo
+      const { wsClient } = await import('../../store/wsClient');
+      wsClient.disconnect();
+
       const { useAgentStore } = await import('../../store/agentStore');
       const store = useAgentStore.getState();
 
@@ -79,10 +84,14 @@ export function useAutoPlay() {
   useEffect(() => {
     if (phase === 'idle' && cleanupNeeded.current) {
       cleanupNeeded.current = false;
-      import('../../store/agentStore').then(({ useAgentStore, reloadAllEvents }) => {
+      Promise.all([
+        import('../../store/agentStore'),
+        import('../../store/wsClient'),
+      ]).then(([{ useAgentStore, reloadAllEvents }, { wsClient }]) => {
         // Restore lockViewport setting
         useAgentStore.getState().setLockViewport(savedLockViewport.current);
-        // Reload all events from backend DB (clearEvents only cleared frontend state)
+        // Reconnect WS and reload all events from backend DB
+        wsClient.connect();
         reloadAllEvents({ showLoading: true });
       });
     }

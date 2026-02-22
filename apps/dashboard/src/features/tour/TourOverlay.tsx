@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Synapse Contributors
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useTourStore } from './tourStore';
 import { useAutoPlay } from './useAutoPlay';
 import { ALL_CHAPTERS } from './steps';
@@ -49,19 +49,22 @@ function useTargetRect(selector: string): Rect | null {
 
 /**
  * Extract a React Flow node ID from a data-id CSS selector and select it,
- * triggering the built-in fitView zoom. Works for selectors like:
- *   [data-id^="session-"]  →  finds first matching node, selects it
- *   [data-id^="agent-"]    →  same
- *   [data-id^="toolgroup-"] → same
- * Non-graph selectors (header buttons, lens panels) are ignored.
+ * triggering the built-in fitView zoom. Retries a few times if the DOM
+ * element hasn't rendered yet (e.g. after layout changes from onEnter).
  */
-function focusGraphNode(selector: string): void {
+function focusGraphNode(selector: string, retries = 5): void {
   // Only handle data-id selectors (graph nodes)
   const match = selector.match(/\[data-id\^="([^"]+)"\]/);
   if (!match) return;
 
   const el = document.querySelector(selector);
-  if (!el) return;
+  if (!el) {
+    // Element not rendered yet — retry after a short delay
+    if (retries > 0) {
+      setTimeout(() => focusGraphNode(selector, retries - 1), 200);
+    }
+    return;
+  }
   const nodeId = el.getAttribute('data-id');
   if (!nodeId) return;
 
@@ -154,8 +157,9 @@ function ManualOverlay() {
   useEffect(() => {
     onEnterRef.current?.();
     // Zoom to the target node if it's a graph node — uses selectNode('lens')
-    // which triggers AgentGraph's built-in fitView animation
-    // Small delay to let onEnter actions (like setShowAllTools) take effect first
+    // which triggers AgentGraph's built-in fitView animation.
+    // Delay lets onEnter actions (like setShowAllTools) take effect first.
+    // Retries handle cases where the DOM element hasn't rendered yet.
     const timer = setTimeout(() => focusGraphNode(targetRef.current), 150);
     return () => clearTimeout(timer);
   }, [globalIndex]);
@@ -298,28 +302,34 @@ function AutoPlayOverlay() {
   }, [endTour]);
 
   return (
-    <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[9998] w-96 bg-gradient-to-br from-[#1a1a2e] to-[#16162a] border border-violet-500/30 rounded-xl p-5 shadow-2xl">
-      <div className="text-[10px] font-semibold text-violet-400 uppercase tracking-wider mb-2">
-        {t('tour.auto.title')}
+    <>
+      {/* Full-screen backdrop so the auto-play card is unmissable */}
+      <div className="fixed inset-0 z-[9997] bg-black/50 pointer-events-none" />
+
+      {/* Narration card */}
+      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[9998] w-96 bg-gradient-to-br from-[#1a1a2e] to-[#16162a] border border-violet-500/30 rounded-xl p-5 shadow-2xl tour-card-enter">
+        <div className="text-[10px] font-semibold text-violet-400 uppercase tracking-wider mb-2">
+          {t('tour.auto.title')}
+        </div>
+        <div className="text-[13px] text-gray-300 leading-relaxed mb-4 transition-opacity duration-300" key={autoPlayIndex}>
+          {narrationText}
+        </div>
+        <div className="flex justify-between">
+          <button
+            onClick={endTour}
+            className="px-3 py-1.5 text-gray-600 text-xs hover:text-gray-400 transition-colors"
+          >
+            {t('tour.skip')}
+          </button>
+          <button
+            onClick={transitionToManual}
+            className="px-4 py-1.5 rounded-md bg-violet-600 text-white text-xs font-semibold hover:bg-violet-500 transition-colors"
+          >
+            {t('tour.auto.exploreBtn')}
+          </button>
+        </div>
       </div>
-      <div className="text-[13px] text-gray-300 leading-relaxed mb-4 transition-opacity duration-300" key={autoPlayIndex}>
-        {narrationText}
-      </div>
-      <div className="flex justify-between">
-        <button
-          onClick={endTour}
-          className="px-3 py-1.5 text-gray-600 text-xs hover:text-gray-400 transition-colors"
-        >
-          {t('tour.skip')}
-        </button>
-        <button
-          onClick={transitionToManual}
-          className="px-4 py-1.5 rounded-md bg-violet-600 text-white text-xs font-semibold hover:bg-violet-500 transition-colors"
-        >
-          {t('tour.auto.exploreBtn')}
-        </button>
-      </div>
-    </div>
+    </>
   );
 }
 
