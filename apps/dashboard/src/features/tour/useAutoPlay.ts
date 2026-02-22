@@ -7,22 +7,47 @@ import { DEMO_EVENTS } from './demoEvents';
 import { useAgentStore, reloadAllEvents } from '../../store/agentStore';
 import { wsClient } from '../../store/wsClient';
 
+/** Saved viewport lock state — restored when tour ends. */
+let savedLockViewport = false;
+
 /**
- * Drives the auto-play phase: isolates the graph, feeds demo events into
- * agentStore on a timer, and restores the original session data when done.
+ * Prepare the graph for the tour demo. Must be called synchronously
+ * in the click handler BEFORE startTour() — this ensures the graph is
+ * clean before React renders the tour overlay.
+ */
+export function prepareTourDemo(): void {
+  // Disconnect WS to prevent real events during demo
+  wsClient.disconnect();
+
+  const store = useAgentStore.getState();
+  savedLockViewport = store.lockViewport;
+  store.clearEvents();
+  store.setLockViewport(false);
+  store.setPaused(false);
+}
+
+/**
+ * Restore the graph after the tour ends. Called from the cleanup effect.
+ */
+function restoreGraph(): void {
+  useAgentStore.getState().setLockViewport(savedLockViewport);
+  wsClient.connect();
+  reloadAllEvents({ showLoading: true });
+}
+
+/**
+ * Drives the auto-play phase: feeds demo events into agentStore on a
+ * timer, advancing the narration callout at milestone events.
  *
- * Graph isolation strategy:
- * 1. Disconnect WS to stop real events from contaminating the demo
- * 2. Clear frontend graph state, unlock viewport, unpause
- * 3. Inject demo events into the now-empty graph (only visible nodes)
- * 4. On tour end: reconnect WS + reload all events from backend DB
+ * IMPORTANT: Graph isolation (clearEvents, WS disconnect) is handled by
+ * prepareTourDemo() which runs in the click handler before startTour().
+ * This hook only handles event injection and cleanup.
  */
 export function useAutoPlay() {
   const phase = useTourStore((s) => s.phase);
   const advanceAutoPlay = useTourStore((s) => s.advanceAutoPlay);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cleanupNeeded = useRef(false);
-  const savedLockViewport = useRef(false);
 
   // Auto-play event injection loop
   useEffect(() => {
@@ -31,14 +56,6 @@ export function useAutoPlay() {
     let cancelled = false;
     let idx = 0;
     cleanupNeeded.current = true;
-
-    // Synchronous setup — no dynamic imports, no race conditions
-    wsClient.disconnect();
-    const store = useAgentStore.getState();
-    savedLockViewport.current = store.lockViewport;
-    store.clearEvents();
-    store.setLockViewport(false);
-    store.setPaused(false);
 
     function playNext() {
       if (cancelled || idx >= DEMO_EVENTS.length) {
@@ -75,11 +92,7 @@ export function useAutoPlay() {
   useEffect(() => {
     if (phase === 'idle' && cleanupNeeded.current) {
       cleanupNeeded.current = false;
-      // Restore lockViewport setting
-      useAgentStore.getState().setLockViewport(savedLockViewport.current);
-      // Reconnect WS and reload all events from backend DB
-      wsClient.connect();
-      reloadAllEvents({ showLoading: true });
+      restoreGraph();
     }
   }, [phase]);
 }

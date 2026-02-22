@@ -4,7 +4,7 @@
 export { useTourStore } from './tourStore';
 export { TourOverlay } from './TourOverlay';
 export { TourLauncher } from './TourLauncher';
-export { useAutoPlay } from './useAutoPlay';
+export { useAutoPlay, prepareTourDemo } from './useAutoPlay';
 export { TOUR_ENABLED } from './constants';
 
 let initialized = false;

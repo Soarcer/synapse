@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Synapse Contributors
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTourStore } from './tourStore';
+import { prepareTourDemo } from './useAutoPlay';
 import { TOUR_ENABLED } from './constants';
 import { t } from '../../i18n';
 
@@ -16,6 +17,14 @@ export function TourLauncher() {
   const startTour = useTourStore((s) => s.startTour);
   const hasCompleted = useTourStore((s) => s.hasCompleted);
   const [showWelcome, setShowWelcome] = useState(false);
+
+  // Prepare graph + start tour in one synchronous click handler.
+  // prepareTourDemo() clears the graph and disconnects WS BEFORE
+  // startTour() triggers the React re-render cycle.
+  const handleStart = useCallback(() => {
+    prepareTourDemo();
+    startTour();
+  }, [startTour]);
 
   // Show welcome card on first load if tour hasn't been completed
   useEffect(() => {
@@ -38,7 +47,7 @@ export function TourLauncher() {
           <div className="text-xs text-gray-400 mb-4">{t('tour.launcher.body')}</div>
           <div className="flex gap-2">
             <button
-              onClick={() => { setShowWelcome(false); startTour(); }}
+              onClick={() => { setShowWelcome(false); handleStart(); }}
               className="flex-1 px-3 py-1.5 rounded-md bg-violet-600 text-white text-xs font-semibold hover:bg-violet-500 transition-colors"
             >
               {t('tour.launcher.start')}
@@ -55,7 +64,7 @@ export function TourLauncher() {
 
       {/* Persistent restart button */}
       <button
-        onClick={startTour}
+        onClick={handleStart}
         title="Start guided tour"
         className="fixed bottom-4 right-4 z-[9980] w-8 h-8 rounded-full bg-violet-600/20 border border-violet-500/30 text-violet-400 text-xs font-bold hover:bg-violet-600/40 transition-colors flex items-center justify-center"
       >
