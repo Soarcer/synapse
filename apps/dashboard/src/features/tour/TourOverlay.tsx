@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Synapse Contributors
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useTourStore } from './tourStore';
 import { useAutoPlay } from './useAutoPlay';
 import { ALL_CHAPTERS } from './steps';
@@ -30,21 +30,44 @@ function getTargetRect(selector: string): Rect | null {
   return { top: r.top, left: r.left, width: r.width, height: r.height };
 }
 
+/** Continuously track a DOM element's position (accounts for zoom/pan animations). */
 function useTargetRect(selector: string): Rect | null {
   const [rect, setRect] = useState<Rect | null>(null);
   useEffect(() => {
     const update = () => setRect(getTargetRect(selector));
     update();
-    const interval = setInterval(update, 200);
-    const timeout = setTimeout(() => clearInterval(interval), 3000);
+    // Poll continuously — React Flow zoom/pan animations move elements over time
+    const interval = setInterval(update, 120);
     window.addEventListener('resize', update);
     return () => {
       clearInterval(interval);
-      clearTimeout(timeout);
       window.removeEventListener('resize', update);
     };
   }, [selector]);
   return rect;
+}
+
+/**
+ * Extract a React Flow node ID from a data-id CSS selector and select it,
+ * triggering the built-in fitView zoom. Works for selectors like:
+ *   [data-id^="session-"]  →  finds first matching node, selects it
+ *   [data-id^="agent-"]    →  same
+ *   [data-id^="toolgroup-"] → same
+ * Non-graph selectors (header buttons, lens panels) are ignored.
+ */
+function focusGraphNode(selector: string): void {
+  // Only handle data-id selectors (graph nodes)
+  const match = selector.match(/\[data-id\^="([^"]+)"\]/);
+  if (!match) return;
+
+  const el = document.querySelector(selector);
+  if (!el) return;
+  const nodeId = el.getAttribute('data-id');
+  if (!nodeId) return;
+
+  import('../../store/agentStore').then(({ useAgentStore }) => {
+    useAgentStore.getState().selectNode(nodeId, 'lens');
+  });
 }
 
 export function TourOverlay() {
@@ -123,11 +146,18 @@ function ManualOverlay() {
     return () => window.removeEventListener('keydown', handler);
   }, [nextStep, prevStep, endTour, showContinuation, isAtOptionalBoundary]);
 
-  // Fire onEnter when step changes
+  // Fire onEnter + zoom to graph node when step changes
   const onEnterRef = useRef(step?.onEnter);
   onEnterRef.current = step?.onEnter;
+  const targetRef = useRef(target);
+  targetRef.current = target;
   useEffect(() => {
     onEnterRef.current?.();
+    // Zoom to the target node if it's a graph node — uses selectNode('lens')
+    // which triggers AgentGraph's built-in fitView animation
+    // Small delay to let onEnter actions (like setShowAllTools) take effect first
+    const timer = setTimeout(() => focusGraphNode(targetRef.current), 150);
+    return () => clearTimeout(timer);
   }, [globalIndex]);
 
   if (!chapter || !step) return null;
