@@ -67,7 +67,7 @@ export default function App() {
       if (!msg || typeof msg !== 'object') return;
 
       if (msg.type === 'selectNode') {
-        useAgentStore.getState().selectNode(msg.nodeId ?? null);
+        useAgentStore.getState().selectNode(msg.nodeId ?? null, msg.source ?? null);
       }
       if (msg.type === 'switchLens' && msg.lens) {
         useAgentStore.getState().setActiveLensTab(msg.lens);
@@ -93,11 +93,13 @@ export default function App() {
     if (viewMode === 'full' || viewMode === 'mobile') return;
 
     let prev = useAgentStore.getState().selectedNodeId;
+    let prevSource = useAgentStore.getState().selectSource;
     const unsub = useAgentStore.subscribe((state) => {
-      if (state.selectedNodeId !== prev) {
+      if (state.selectedNodeId !== prev || state.selectSource !== prevSource) {
         prev = state.selectedNodeId;
+        prevSource = state.selectSource;
         // VS Code webview requires '*' (cross-origin iframe); this effect only runs for non-full modes
-        window.parent.postMessage({ type: 'selectionChanged', nodeId: prev }, '*');
+        window.parent.postMessage({ type: 'selectionChanged', nodeId: prev, source: state.selectSource }, '*');
       }
     });
     return unsub;
@@ -209,6 +211,10 @@ export default function App() {
       if (e.key === 'a' && !e.ctrlKey && !e.metaKey) { // [notifications]
         const s = useNotificationStore.getState();
         s.setEnabled(!s.enabled);
+      }
+      if (e.key === 'g' && !e.ctrlKey && !e.metaKey) {
+        const store = useAgentStore.getState();
+        store.setArcadeMode(!store.arcadeMode);
       }
       if (e.key === 'e' && !e.ctrlKey && !e.metaKey) {
         (document.getElementById('snapshot-export-btn') as HTMLButtonElement)?.click();
