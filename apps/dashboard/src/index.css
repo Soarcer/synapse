@@ -138,6 +138,25 @@
   animation: compactionPulse 2s ease-in-out infinite;
 }
 
+/* ── Tour animations ── [tour] */
+@keyframes tour-card-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes tour-spotlight-pulse {
+  0%, 100% { box-shadow: 0 0 12px rgba(139, 92, 246, 0.2); }
+  50% { box-shadow: 0 0 24px rgba(139, 92, 246, 0.5); }
+}
+
+.tour-card-enter {
+  animation: tour-card-enter 0.3s ease-out;
+}
+
+.tour-spotlight-pulse {
+  animation: tour-spotlight-pulse 2s ease-in-out infinite;
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;

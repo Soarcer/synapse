@@ -160,14 +160,14 @@ function ManualOverlay() {
       {/* Spotlight ring */}
       {rect && (
         <div
-          className="absolute border-2 border-violet-500/50 rounded-xl pointer-events-none transition-all duration-400"
+          className="absolute border-2 border-violet-500/50 rounded-xl pointer-events-none transition-all duration-400 tour-spotlight-pulse"
           style={{ top: sy, left: sx, width: sw, height: sh }}
         />
       )}
 
       {/* Floating card */}
       <div
-        className="absolute w-80 bg-gradient-to-br from-[#1a1a2e] to-[#16162a] border border-violet-500/30 rounded-xl p-5 shadow-2xl transition-all duration-400"
+        className="absolute w-80 bg-gradient-to-br from-[#1a1a2e] to-[#16162a] border border-violet-500/30 rounded-xl p-5 shadow-2xl transition-all duration-400 tour-card-enter"
         style={cardStyle}
       >
         <div className="text-[10px] font-semibold text-violet-400 uppercase tracking-wider mb-1">
