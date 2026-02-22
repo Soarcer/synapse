@@ -3,7 +3,9 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useTourStore } from './tourStore';
+import { useAutoPlay } from './useAutoPlay';
 import { ALL_CHAPTERS } from './steps';
+import { DEMO_EVENTS } from './demoEvents';
 import { t } from '../../i18n';
 
 interface Rect {
@@ -40,6 +42,8 @@ function useTargetRect(selector: string): Rect | null {
 }
 
 export function TourOverlay() {
+  useAutoPlay(); // drives auto-play event injection
+
   const active = useTourStore((s) => s.active);
   const phase = useTourStore((s) => s.phase);
 
@@ -188,12 +192,30 @@ function ManualOverlay() {
 function AutoPlayOverlay() {
   const endTour = useTourStore((s) => s.endTour);
   const transitionToManual = useTourStore((s) => s.transitionToManual);
+  const autoPlayIndex = useTourStore((s) => s.autoPlayIndex);
+
+  // Find the current narration key based on autoPlayIndex
+  // autoPlayIndex counts how many narrated events have fired so far
+  const narratedEvents = DEMO_EVENTS.filter((e) => e.narrationKey !== null);
+  const currentNarration = narratedEvents[autoPlayIndex - 1]?.narrationKey;
+  const narrationText = currentNarration ? t(currentNarration) : t('tour.auto.sessionStart');
+
+  // Keyboard: only Escape works during auto-play
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') endTour();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [endTour]);
 
   return (
     <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[9998] w-96 bg-gradient-to-br from-[#1a1a2e] to-[#16162a] border border-violet-500/30 rounded-xl p-5 shadow-2xl">
-      <div className="text-[13px] text-gray-300 leading-relaxed mb-4">
-        {/* Narration text will be wired in Task 9 */}
-        Auto-play in progress...
+      <div className="text-[10px] font-semibold text-violet-400 uppercase tracking-wider mb-2">
+        Auto-Play Demo
+      </div>
+      <div className="text-[13px] text-gray-300 leading-relaxed mb-4 transition-opacity duration-300" key={autoPlayIndex}>
+        {narrationText}
       </div>
       <div className="flex justify-between">
         <button
@@ -206,7 +228,7 @@ function AutoPlayOverlay() {
           onClick={transitionToManual}
           className="px-4 py-1.5 rounded-md bg-violet-600 text-white text-xs font-semibold hover:bg-violet-500 transition-colors"
         >
-          Start exploring &rarr;
+          Start exploring →
         </button>
       </div>
     </div>
