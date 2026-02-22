@@ -13,7 +13,6 @@ import {
   GAME_MODES_ENABLED,
   GameOfLifeMode,
   TetrisMode,
-  PacManMode,
   ArcadeOverlay,
 } from './game-modes';
 
@@ -208,9 +207,6 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
           )}
           {GAME_MODES_ENABLED && toolGroupMode === 'tetris' && (
             <TetrisMode tools={tools} selectedNodeId={selectedNodeId} selectNode={selectNode} />
-          )}
-          {GAME_MODES_ENABLED && toolGroupMode === 'pacman' && (
-            <PacManMode tools={tools} selectedNodeId={selectedNodeId} selectNode={selectNode} />
           )}
         </div>
       </ArcadeOverlay>
