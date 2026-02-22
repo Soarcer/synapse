@@ -2,9 +2,23 @@
 // Copyright (c) 2026 Synapse Contributors
 
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { createElement } from 'react';
+
+// Mock wsClient before importing TourOverlay (prevents WebSocket in jsdom)
+vi.mock('../../../store/wsClient', () => ({
+  wsClient: {
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+    setOnEvent: vi.fn(),
+    setOnStatusChange: vi.fn(),
+    setOnReconnect: vi.fn(),
+    send: vi.fn(),
+    get status() { return 'disconnected'; },
+  },
+}));
+
 import { TourOverlay } from '../TourOverlay';
 import { useTourStore } from '../tourStore';
 

@@ -7,6 +7,7 @@ import { useAutoPlay } from './useAutoPlay';
 import { ALL_CHAPTERS } from './steps';
 import { OPTIONAL_CHAPTERS } from './constants';
 import { DEMO_EVENTS } from './demoEvents';
+import { useAgentStore } from '../../store/agentStore';
 import { t } from '../../i18n';
 
 /** Index of the first optional chapter in ALL_CHAPTERS */
@@ -68,9 +69,7 @@ function focusGraphNode(selector: string, retries = 5): void {
   const nodeId = el.getAttribute('data-id');
   if (!nodeId) return;
 
-  import('../../store/agentStore').then(({ useAgentStore }) => {
-    useAgentStore.getState().selectNode(nodeId, 'lens');
-  });
+  useAgentStore.getState().selectNode(nodeId, 'lens');
 }
 
 export function TourOverlay() {
