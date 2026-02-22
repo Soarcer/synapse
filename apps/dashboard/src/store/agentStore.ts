@@ -45,9 +45,12 @@ const VIEW_SETTINGS_KEY = 'synapse-view-settings';
 interface PersistedViewSettings {
   showHookEvents?: boolean;
   showAllTools?: boolean;
-  toolGroupMode?: 'pillGrid' | 'timeline' | 'heatmap';
+  toolGroupMode?: 'pillGrid' | 'timeline' | 'heatmap' | 'bubbles' | 'tetris' | 'pacman';
   lockViewport?: boolean;
   autoClosePrompts?: boolean;
+  arcadeMode?: boolean;
+  arcadeSoundEnabled?: boolean;
+  arcadeVolume?: number;
 }
 
 const savedViewSettings: PersistedViewSettings = (() => {
@@ -209,7 +212,10 @@ interface AgentStore {
   paused: boolean;
   showHookEvents: boolean;
   showAllTools: boolean;
-  toolGroupMode: 'pillGrid' | 'timeline' | 'heatmap';
+  toolGroupMode: 'pillGrid' | 'timeline' | 'heatmap' | 'bubbles' | 'tetris' | 'pacman';
+  arcadeMode: boolean;
+  arcadeSoundEnabled: boolean;
+  arcadeVolume: number;
   lockViewport: boolean;
   autoClosePrompts: boolean;
   cwdFilter: string | null;
@@ -241,7 +247,10 @@ interface AgentStore {
   setPaused: (paused: boolean) => void;
   setShowHookEvents: (show: boolean) => void;
   setShowAllTools: (show: boolean) => void;
-  setToolGroupMode: (mode: 'pillGrid' | 'timeline' | 'heatmap') => void;
+  setToolGroupMode: (mode: 'pillGrid' | 'timeline' | 'heatmap' | 'bubbles' | 'tetris' | 'pacman') => void;
+  setArcadeMode: (on: boolean) => void;
+  setArcadeSoundEnabled: (on: boolean) => void;
+  setArcadeVolume: (vol: number) => void;
   setLockViewport: (lock: boolean) => void;
   setAutoClosePrompts: (v: boolean) => void;
   setTimeRange: (range: { from: number; to: number } | null, label: string) => void;
@@ -297,6 +306,9 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   showHookEvents: savedViewSettings.showHookEvents ?? true,
   showAllTools: savedViewSettings.showAllTools ?? true,
   toolGroupMode: savedViewSettings.toolGroupMode ?? 'heatmap',
+  arcadeMode: savedViewSettings.arcadeMode ?? false,
+  arcadeSoundEnabled: savedViewSettings.arcadeSoundEnabled ?? false,
+  arcadeVolume: savedViewSettings.arcadeVolume ?? 15,
   lockViewport: savedViewSettings.lockViewport ?? false,
   autoClosePrompts: savedViewSettings.autoClosePrompts ?? false,
   cwdFilter: projectCwd,
@@ -437,6 +449,9 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
   setShowAllTools: (showAllTools) => { persistViewSettings({ showAllTools }); set({ showAllTools }); },
   setToolGroupMode: (toolGroupMode) => { persistViewSettings({ toolGroupMode }); set({ toolGroupMode }); },
+  setArcadeMode: (arcadeMode) => { persistViewSettings({ arcadeMode }); set({ arcadeMode }); },
+  setArcadeSoundEnabled: (arcadeSoundEnabled) => { persistViewSettings({ arcadeSoundEnabled }); set({ arcadeSoundEnabled }); },
+  setArcadeVolume: (arcadeVolume) => { persistViewSettings({ arcadeVolume }); set({ arcadeVolume }); },
 
   setLockViewport: (lockViewport) => { persistViewSettings({ lockViewport }); set({ lockViewport }); },
 
