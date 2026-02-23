@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import * as vscode from 'vscode';
 import { ChildProcess, spawn, execSync } from 'child_process';
 import * as path from 'path';
@@ -5,8 +8,10 @@ import * as http from 'http';
 
 export class ServerManager {
   private process: ChildProcess | null = null;
+  private _host: string;
   private _port: number;
   private resourcesPath: string;
+  private storagePath: string | undefined;
   private outputChannel: vscode.OutputChannel;
   private killTimer: ReturnType<typeof setTimeout> | null = null;
   private _isExternalServer = false;
@@ -21,10 +26,17 @@ export class ServerManager {
   readonly onStopped = this._onStopped.event;
   readonly onError = this._onError.event;
 
-  constructor(resourcesPath: string, outputChannel: vscode.OutputChannel) {
+  constructor(resourcesPath: string, outputChannel: vscode.OutputChannel, storagePath?: string) {
     this.resourcesPath = resourcesPath;
+    this.storagePath = storagePath;
     this.outputChannel = outputChannel;
-    this._port = vscode.workspace.getConfiguration('synapse').get('port', 4000);
+    const cfg = vscode.workspace.getConfiguration('synapse');
+    this._host = cfg.get('host', 'localhost');
+    this._port = cfg.get('port', 4000);
+  }
+
+  get host(): string {
+    return this._host;
   }
 
   get port(): number {
@@ -52,13 +64,10 @@ export class ServerManager {
 
     // Check for Node.js before attempting to start
     if (!this.hasNode()) {
-      const msg = 'Node.js is not installed or not on your PATH. Synapse requires Node.js 20+ to run.';
+      const msg =
+        'Node.js is not installed or not on your PATH. Synapse requires Node.js 20+ to run.';
       this.outputChannel.appendLine(`ERROR: ${msg}`);
-      const action = await vscode.window.showErrorMessage(
-        msg,
-        'Download Node.js',
-        'Dismiss',
-      );
+      const action = await vscode.window.showErrorMessage(msg, 'Download Node.js', 'Dismiss');
       if (action === 'Download Node.js') {
         vscode.env.openExternal(vscode.Uri.parse('https://nodejs.org/'));
       }
@@ -66,31 +75,34 @@ export class ServerManager {
       return;
     }
 
-    // Check if a server is already running on the preferred port
-    this._port = vscode.workspace.getConfiguration('synapse').get('port', 4000);
-    const alreadyRunning = await this.checkHealth(this._port);
-    if (alreadyRunning) {
-      this.outputChannel.appendLine(`Synapse server already running on port ${this._port} — connecting as client`);
-      this._isExternalServer = true;
-      this._startTime = Date.now();
-      this._onStarted.fire();
-      return;
-    }
+    // Always spawn our own server — each VS Code instance needs isolation.
+    // The server auto-increments the port if the preferred one is busy.
+    const cfg = vscode.workspace.getConfiguration('synapse');
+    this._host = cfg.get('host', 'localhost');
+    this._port = cfg.get('port', 4000);
 
     const serverDir = path.join(this.resourcesPath, 'synapse-server');
     const serverEntry = path.join(serverDir, 'server.mjs');
     const dashboardDir = path.join(serverDir, 'dashboard');
 
+    // Use workspace-specific storage for the DB so multiple instances don't collide.
+    // Falls back to server directory if no storage path is available.
+    const dbPath = this.storagePath
+      ? path.join(this.storagePath, 'synapse.db')
+      : path.join(serverDir, 'synapse.db');
+
     this.outputChannel.appendLine(`Starting Synapse on port ${this._port}...`);
     this.outputChannel.appendLine(`Server entry: ${serverEntry}`);
+    this.outputChannel.appendLine(`Database: ${dbPath}`);
 
     const env = {
       ...process.env,
+      HOST: this._host,
       PORT: String(this._port),
       CLIENT_ORIGIN: '*',
       NODE_ENV: 'production',
       SYNAPSE_DASHBOARD_DIR: dashboardDir,
-      SYNAPSE_DB_PATH: path.join(serverDir, 'synapse.db'),
+      SYNAPSE_DB_PATH: dbPath,
     };
 
     // Use 'node' from PATH (required prerequisite — Claude Code already needs Node.js)
@@ -119,7 +131,8 @@ export class ServerManager {
 
     this.process.on('error', (err: NodeJS.ErrnoException) => {
       if (err.code === 'ENOENT') {
-        const msg = 'Node.js was not found. Please install Node.js 20+ and ensure it is on your PATH.';
+        const msg =
+          'Node.js was not found. Please install Node.js 20+ and ensure it is on your PATH.';
         this.outputChannel.appendLine(`ERROR: ${msg}`);
         vscode.window.showErrorMessage(msg, 'Download Node.js').then((action) => {
           if (action === 'Download Node.js') {
@@ -185,13 +198,16 @@ export class ServerManager {
     if (!this.process || this.process.killed) return Promise.resolve();
     return new Promise((resolve) => {
       const timer = setTimeout(resolve, 12_000);
-      this.process?.on('exit', () => { clearTimeout(timer); resolve(); });
+      this.process?.on('exit', () => {
+        clearTimeout(timer);
+        resolve();
+      });
     });
   }
 
   async restart(): Promise<void> {
     this.stop();
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     await this.start();
   }
 

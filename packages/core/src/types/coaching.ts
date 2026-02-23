@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // ─── Coaching Types ─────────────────────────────────────────────────
 
 // Dimensions & Report Card
@@ -13,19 +16,19 @@ export type CoachingDimension =
   | 'configuration';
 
 export interface DetectorResult {
-  id: string;                    // e.g. "planning.read-before-edit"
+  id: string; // e.g. "planning.read-before-edit"
   dimension: CoachingDimension;
   name: string;
   passed: boolean;
-  score: number;                 // 0-100
-  weight: number;                // 0-1
+  score: number; // 0-100
+  weight: number; // 0-1
   evidence?: string;
   recommendation?: string;
 }
 
 export interface DimensionScore {
   dimension: CoachingDimension;
-  score: number;                 // 0-100
+  score: number; // 0-100
   label: string;
   detectors: DetectorResult[];
   recommendation: string;
@@ -35,7 +38,7 @@ export interface ReportCard {
   sessionId: string;
   computedAt: number;
   overallScore: number;
-  grade: string;                 // A+ through F
+  grade: string; // A+ through F
   dimensions: DimensionScore[];
   summary: string;
   topStrengths: string[];
@@ -56,15 +59,15 @@ export type NudgeRuleCategory =
   | 'orchestration';
 
 export interface NudgeRuleMeta {
-  id: string;                          // e.g., "tool.bash-file-ops"
-  name: string;                        // "Bash for File Operations"
-  description: string;                 // User-facing explanation
-  dimension: CoachingDimension;        // Links to report card dimension
+  id: string; // e.g., "tool.bash-file-ops"
+  name: string; // "Bash for File Operations"
+  description: string; // User-facing explanation
+  dimension: CoachingDimension; // Links to report card dimension
   defaultSeverity: NudgeSeverity;
   defaultCooldownMs: number;
   category: NudgeRuleCategory;
   tags: string[];
-  minEvents?: number;                  // Minimum events before rule can fire
+  minEvents?: number; // Minimum events before rule can fire
 }
 
 export interface CoachingNudge {
@@ -77,7 +80,7 @@ export interface CoachingNudge {
   recommendation: string;
   firedAt: number;
   dismissed: boolean;
-  triggerPrompt?: string;              // Prompt text that caused this nudge (for display)
+  triggerPrompt?: string; // Prompt text that caused this nudge (for display)
 }
 
 export interface NudgeCandidate {
@@ -113,22 +116,22 @@ export interface SessionAccumulator {
   promptCount: number;
   promptTimestamps: number[];
   lastPromptTime: number;
-  lastPromptText: string;              // Last user prompt (first 500 chars) for attribution
-  recentPromptTexts: string[];         // Sliding window: last 3 prompts (500 chars each)
-  sessionGoalSummary: string;          // First sentence / first 100 chars of prompt 1
-  conversationMode: boolean;           // True when prompts <2min apart AND avg word count <15
+  lastPromptText: string; // Last user prompt (first 500 chars) for attribution
+  recentPromptTexts: string[]; // Sliding window: last 3 prompts (500 chars each)
+  sessionGoalSummary: string; // First sentence / first 100 chars of prompt 1
+  conversationMode: boolean; // True when prompts <2min apart AND avg word count <15
   totalPromptTokens: number;
 
   // Token/cost tracking
   totalInputTokens: number;
   totalOutputTokens: number;
   totalCostUsd: number;
-  turnCosts: number[];                 // cost per tool call, for averaging
+  turnCosts: number[]; // cost per tool call, for averaging
 
   // Agent tracking
   subagentCount: number;
   activeSubagents: Set<string>;
-  subagentFiles: Map<string, Set<string>>;  // agentId → files accessed
+  subagentFiles: Map<string, Set<string>>; // agentId → files accessed
 
   // Planning signals
   usedPlanMode: boolean;
@@ -204,7 +207,7 @@ export interface Playbook {
 // ─── AI Coaching Types ─────────────────────────────────────────────
 
 export interface PromptAnalysis {
-  score: number;           // 1-10
+  score: number; // 1-10
   explanation: string;
   rewrite: string;
   estimatedSavings: string;

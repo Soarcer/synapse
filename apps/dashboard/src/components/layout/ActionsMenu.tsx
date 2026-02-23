@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useRef, useEffect } from 'react';
 import { Tooltip } from '../ui/Tooltip';
 
@@ -41,14 +44,20 @@ export function ActionsMenu({ onExport, onImportClick, onClear }: ActionsMenuPro
         <div className="absolute right-0 top-full mt-1 w-48 bg-[#1c2128] border border-gray-700 rounded-lg shadow-xl z-30 py-1">
           <button
             id="snapshot-export-btn"
-            onClick={() => { onExport(); setOpen(false); }}
+            onClick={() => {
+              onExport();
+              setOpen(false);
+            }}
             className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-green-400 hover:bg-gray-800/80 transition-colors text-left"
           >
             <span className="flex-1">Export Snapshot</span>
             <kbd className="text-[10px] text-gray-600 bg-gray-800 px-1 rounded">E</kbd>
           </button>
           <button
-            onClick={() => { onImportClick(); setOpen(false); }}
+            onClick={() => {
+              onImportClick();
+              setOpen(false);
+            }}
             className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-blue-400 hover:bg-gray-800/80 transition-colors text-left"
           >
             <span className="flex-1">Import Snapshot</span>
@@ -56,7 +65,10 @@ export function ActionsMenu({ onExport, onImportClick, onClear }: ActionsMenuPro
           </button>
           <div className="border-t border-gray-700 my-1" />
           <button
-            onClick={() => { onClear(); setOpen(false); }}
+            onClick={() => {
+              onClear();
+              setOpen(false);
+            }}
             className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-400 hover:bg-gray-800/80 transition-colors text-left"
           >
             Clear All

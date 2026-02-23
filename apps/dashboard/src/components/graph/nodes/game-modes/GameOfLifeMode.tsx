@@ -3,6 +3,7 @@
 
 import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import type { ToolCallSummary } from '@synapse-ai/core';
+import { formatDuration } from '@synapse-ai/core';
 
 const GRID_COLS = 32;
 const GRID_ROWS = 20;
@@ -12,12 +13,21 @@ const CONTAINER_H = GRID_ROWS * CELL_SIZE;
 const SIM_INTERVAL = 200; // ms per generation
 
 const TOOL_COLORS: Record<string, string> = {
-  Read: '#0d9488', Edit: '#7c3aed', Bash: '#ea580c', Grep: '#2563eb',
-  Glob: '#0891b2', Write: '#9333ea', Task: '#059669', WebSearch: '#d97706',
-  WebFetch: '#d97706', TodoWrite: '#4f46e5',
+  Read: '#0d9488',
+  Edit: '#7c3aed',
+  Bash: '#ea580c',
+  Grep: '#2563eb',
+  Glob: '#0891b2',
+  Write: '#9333ea',
+  Task: '#059669',
+  WebSearch: '#d97706',
+  WebFetch: '#d97706',
+  TodoWrite: '#4f46e5',
 };
 const DEFAULT_COLOR = '#6b7280';
-function getColor(name: string) { return TOOL_COLORS[name] ?? DEFAULT_COLOR; }
+function getColor(name: string) {
+  return TOOL_COLORS[name] ?? DEFAULT_COLOR;
+}
 
 interface Cell {
   alive: boolean;
@@ -34,12 +44,52 @@ function emptyCell(): Cell {
 
 // Predefined Conway patterns (relative [col, row] coords)
 const PATTERNS: Record<string, [number, number][]> = {
-  Read:  [[0, 0], [1, 0], [2, 0], [2, 1], [1, 2]],                                     // Glider
-  Edit:  [[0, 0], [1, 0], [0, 1], [1, 1]],                                               // Block (still life)
-  Bash:  [[0, 0], [1, 0], [2, 0]],                                                       // Blinker
-  Grep:  [[1, 0], [4, 0], [0, 1], [0, 2], [4, 2], [0, 3], [1, 3], [2, 3], [3, 3]],     // LWSS
-  Write: [[0, 0], [1, 0], [0, 1], [1, 1], [2, 2], [3, 2], [2, 3], [3, 3]],             // Beacon
-  Task:  [[1, 0], [2, 0], [0, 1], [1, 1], [1, 2]],                                     // R-pentomino
+  Read: [
+    [0, 0],
+    [1, 0],
+    [2, 0],
+    [2, 1],
+    [1, 2],
+  ], // Glider
+  Edit: [
+    [0, 0],
+    [1, 0],
+    [0, 1],
+    [1, 1],
+  ], // Block (still life)
+  Bash: [
+    [0, 0],
+    [1, 0],
+    [2, 0],
+  ], // Blinker
+  Grep: [
+    [1, 0],
+    [4, 0],
+    [0, 1],
+    [0, 2],
+    [4, 2],
+    [0, 3],
+    [1, 3],
+    [2, 3],
+    [3, 3],
+  ], // LWSS
+  Write: [
+    [0, 0],
+    [1, 0],
+    [0, 1],
+    [1, 1],
+    [2, 2],
+    [3, 2],
+    [2, 3],
+    [3, 3],
+  ], // Beacon
+  Task: [
+    [1, 0],
+    [2, 0],
+    [0, 1],
+    [1, 1],
+    [1, 2],
+  ], // R-pentomino
 };
 
 function getPattern(toolName: string): [number, number][] {
@@ -51,7 +101,10 @@ function getPattern(toolName: string): [number, number][] {
     const r = Math.floor(Math.random() * 3);
     const c = Math.floor(Math.random() * 3);
     const key = `${r},${c}`;
-    if (!used.has(key)) { used.add(key); cells.push([c, r]); }
+    if (!used.has(key)) {
+      used.add(key);
+      cells.push([c, r]);
+    }
   }
   return cells;
 }
@@ -84,7 +137,11 @@ function countNeighbors(grid: Cell[][], r: number, c: number): number {
   return n;
 }
 
-function majorityNeighbor(grid: Cell[][], r: number, c: number): { color: string; toolUseId: string } {
+function majorityNeighbor(
+  grid: Cell[][],
+  r: number,
+  c: number,
+): { color: string; toolUseId: string } {
   const counts = new Map<string, { count: number; color: string; toolUseId: string }>();
   for (let dr = -1; dr <= 1; dr++) {
     for (let dc = -1; dc <= 1; dc++) {
@@ -94,7 +151,11 @@ function majorityNeighbor(grid: Cell[][], r: number, c: number): { color: string
       if (nr >= 0 && nr < GRID_ROWS && nc >= 0 && nc < GRID_COLS) {
         const cell = grid[nr][nc];
         if (cell.alive && cell.toolUseId) {
-          const e = counts.get(cell.toolUseId) ?? { count: 0, color: cell.color, toolUseId: cell.toolUseId };
+          const e = counts.get(cell.toolUseId) ?? {
+            count: 0,
+            color: cell.color,
+            toolUseId: cell.toolUseId,
+          };
           e.count++;
           counts.set(cell.toolUseId, e);
         }
@@ -104,7 +165,10 @@ function majorityNeighbor(grid: Cell[][], r: number, c: number): { color: string
   let best = { color: DEFAULT_COLOR, toolUseId: '' };
   let max = 0;
   for (const e of counts.values()) {
-    if (e.count > max) { max = e.count; best = e; }
+    if (e.count > max) {
+      max = e.count;
+      best = e;
+    }
   }
   return best;
 }
@@ -125,11 +189,17 @@ export function GameOfLifeMode({ tools, selectedNodeId, selectNode }: Props) {
   const [hoveredToolId, setHoveredToolId] = useState<string | null>(null);
   const hoveredToolIdRef = useRef<string | null>(null);
   const selectedNodeIdRef = useRef<string | null>(null);
-  const [tooltipInfo, setTooltipInfo] = useState<{ text: string; x: number; y: number } | null>(null);
+  const [tooltipInfo, setTooltipInfo] = useState<{ text: string; x: number; y: number } | null>(
+    null,
+  );
 
   // Keep refs in sync
-  useEffect(() => { hoveredToolIdRef.current = hoveredToolId; }, [hoveredToolId]);
-  useEffect(() => { selectedNodeIdRef.current = selectedNodeId; }, [selectedNodeId]);
+  useEffect(() => {
+    hoveredToolIdRef.current = hoveredToolId;
+  }, [hoveredToolId]);
+  useEffect(() => {
+    selectedNodeIdRef.current = selectedNodeId;
+  }, [selectedNodeId]);
 
   // Seed new tools and handle status changes
   useEffect(() => {
@@ -148,7 +218,14 @@ export function GameOfLifeMode({ tools, selectedNodeId, selectNode }: Props) {
           const r = oy + dy;
           const c = ox + dx;
           if (r >= 0 && r < GRID_ROWS && c >= 0 && c < GRID_COLS) {
-            grid[r][c] = { alive: true, frozen: false, color, toolUseId: tc.toolUseId, age: 0, dying: 0 };
+            grid[r][c] = {
+              alive: true,
+              frozen: false,
+              color,
+              toolUseId: tc.toolUseId,
+              age: 0,
+              dying: 0,
+            };
           }
         }
       } else if (tc.status !== prevStatus) {
@@ -164,7 +241,11 @@ export function GameOfLifeMode({ tools, selectedNodeId, selectNode }: Props) {
         } else if (tc.status === 'error') {
           for (let r = 0; r < GRID_ROWS; r++) {
             for (let c = 0; c < GRID_COLS; c++) {
-              if (grid[r][c].toolUseId === tc.toolUseId && grid[r][c].alive && grid[r][c].dying === 0) {
+              if (
+                grid[r][c].toolUseId === tc.toolUseId &&
+                grid[r][c].alive &&
+                grid[r][c].dying === 0
+              ) {
                 grid[r][c].color = '#ef4444';
                 grid[r][c].dying = 3;
                 grid[r][c].frozen = false;
@@ -189,10 +270,16 @@ export function GameOfLifeMode({ tools, selectedNodeId, selectNode }: Props) {
     ctx.strokeStyle = 'rgba(255,255,255,0.02)';
     ctx.lineWidth = 0.5;
     for (let r = 0; r <= GRID_ROWS; r++) {
-      ctx.beginPath(); ctx.moveTo(0, r * CELL_SIZE); ctx.lineTo(CONTAINER_W, r * CELL_SIZE); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, r * CELL_SIZE);
+      ctx.lineTo(CONTAINER_W, r * CELL_SIZE);
+      ctx.stroke();
     }
     for (let c = 0; c <= GRID_COLS; c++) {
-      ctx.beginPath(); ctx.moveTo(c * CELL_SIZE, 0); ctx.lineTo(c * CELL_SIZE, CONTAINER_H); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(c * CELL_SIZE, 0);
+      ctx.lineTo(c * CELL_SIZE, CONTAINER_H);
+      ctx.stroke();
     }
 
     const grid = gridRef.current;
@@ -213,7 +300,7 @@ export function GameOfLifeMode({ tools, selectedNodeId, selectNode }: Props) {
 
         if (cell.dying > 0) {
           const scale = cell.dying / 3;
-          const inset = CELL_SIZE * (1 - scale) / 2;
+          const inset = (CELL_SIZE * (1 - scale)) / 2;
           ctx.globalAlpha = scale * 0.7;
           ctx.fillRect(x + inset, y + inset, CELL_SIZE * scale, CELL_SIZE * scale);
         } else if (cell.frozen) {
@@ -284,43 +371,56 @@ export function GameOfLifeMode({ tools, selectedNodeId, selectNode }: Props) {
   }, [renderGrid]);
 
   // Re-render on hover/selection changes
-  useEffect(() => { renderGrid(); }, [hoveredToolId, selectedNodeId, renderGrid]);
+  useEffect(() => {
+    renderGrid();
+  }, [hoveredToolId, selectedNodeId, renderGrid]);
 
-  const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    e.stopPropagation();
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const col = Math.floor((e.clientX - rect.left) / CELL_SIZE);
-    const row = Math.floor((e.clientY - rect.top) / CELL_SIZE);
-    if (row >= 0 && row < GRID_ROWS && col >= 0 && col < GRID_COLS) {
-      const cell = gridRef.current[row][col];
-      if (cell.alive && cell.toolUseId) {
-        selectNode(`tool-${cell.toolUseId}`, 'graph');
-      }
-    }
-  }, [selectNode]);
-
-  const handleMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const col = Math.floor((e.clientX - rect.left) / CELL_SIZE);
-    const row = Math.floor((e.clientY - rect.top) / CELL_SIZE);
-    if (row >= 0 && row < GRID_ROWS && col >= 0 && col < GRID_COLS) {
-      const cell = gridRef.current[row][col];
-      if (cell.alive && cell.toolUseId) {
-        setHoveredToolId(cell.toolUseId);
-        const tc = tools.find((t) => t.toolUseId === cell.toolUseId);
-        if (tc) {
-          setTooltipInfo({ text: `${tc.toolName} \u00b7 ${tc.status}`, x: e.clientX - rect.left, y: e.clientY - rect.top });
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      e.stopPropagation();
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const col = Math.floor((e.clientX - rect.left) / CELL_SIZE);
+      const row = Math.floor((e.clientY - rect.top) / CELL_SIZE);
+      if (row >= 0 && row < GRID_ROWS && col >= 0 && col < GRID_COLS) {
+        const cell = gridRef.current[row][col];
+        if (cell.alive && cell.toolUseId) {
+          selectNode(`tool-${cell.toolUseId}`, 'graph');
         }
-        return;
       }
-    }
-    setHoveredToolId(null);
-    setTooltipInfo(null);
-  }, [tools]);
+    },
+    [selectNode],
+  );
+
+  const handleMove = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const col = Math.floor((e.clientX - rect.left) / CELL_SIZE);
+      const row = Math.floor((e.clientY - rect.top) / CELL_SIZE);
+      if (row >= 0 && row < GRID_ROWS && col >= 0 && col < GRID_COLS) {
+        const cell = gridRef.current[row][col];
+        if (cell.alive && cell.toolUseId) {
+          setHoveredToolId(cell.toolUseId);
+          const tc = tools.find((t) => t.toolUseId === cell.toolUseId);
+          if (tc) {
+            const dur = tc.duration != null ? ` \u00b7 ${formatDuration(tc.duration)}` : '';
+            setTooltipInfo({
+              text: `${tc.toolName} \u00b7 ${tc.status}${dur}`,
+              x: e.clientX - rect.left,
+              y: e.clientY - rect.top,
+            });
+          }
+          return;
+        }
+      }
+      setHoveredToolId(null);
+      setTooltipInfo(null);
+    },
+    [tools],
+  );
 
   const handleLeave = useCallback(() => {
     setHoveredToolId(null);
@@ -364,7 +464,10 @@ export function GameOfLifeMode({ tools, selectedNodeId, selectNode }: Props) {
         <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1 px-0.5">
           {legend.map(({ name, color }) => (
             <span key={name} className="flex items-center gap-1 text-[8px] text-gray-400">
-              <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: color, opacity: 0.85 }} />
+              <span
+                className="w-2 h-2 rounded-sm flex-shrink-0"
+                style={{ backgroundColor: color, opacity: 0.85 }}
+              />
               {name}
             </span>
           ))}

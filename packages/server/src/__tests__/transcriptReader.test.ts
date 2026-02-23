@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -15,12 +18,12 @@ afterAll(() => {
 
 function writeFixture(name: string, lines: unknown[]): string {
   const filePath = path.join(FIXTURE_DIR, name);
-  fs.writeFileSync(filePath, lines.map(l => JSON.stringify(l)).join('\n'));
+  fs.writeFileSync(filePath, lines.map((l) => JSON.stringify(l)).join('\n'));
   return filePath;
 }
 
 describe('readFullTranscript', () => {
-  it('parses assistant record with thinking block', () => {
+  it('parses assistant record with thinking block', async () => {
     const fp = writeFixture('thinking.jsonl', [
       {
         type: 'assistant',
@@ -47,7 +50,7 @@ describe('readFullTranscript', () => {
       },
     ]);
 
-    const result = readFullTranscript(fp, 'sess1');
+    const result = await readFullTranscript(fp, 'sess1');
 
     expect(result.conversations).toHaveLength(1);
     const conv = result.conversations[0];
@@ -74,7 +77,7 @@ describe('readFullTranscript', () => {
     expect(conv.usage.cacheReadTokens).toBe(80);
   });
 
-  it('parses tool_use and tool_result blocks', () => {
+  it('parses tool_use and tool_result blocks', async () => {
     const fp = writeFixture('tools.jsonl', [
       {
         type: 'assistant',
@@ -83,9 +86,7 @@ describe('readFullTranscript', () => {
         sessionId: 'sess1',
         message: {
           role: 'assistant',
-          content: [
-            { type: 'tool_use', id: 'tu1', name: 'bash', input: { command: 'ls -la' } },
-          ],
+          content: [{ type: 'tool_use', id: 'tu1', name: 'bash', input: { command: 'ls -la' } }],
           usage: { input_tokens: 50, output_tokens: 10 },
         },
       },
@@ -97,13 +98,18 @@ describe('readFullTranscript', () => {
         message: {
           role: 'user',
           content: [
-            { type: 'tool_result', tool_use_id: 'tu1', content: 'total 42\ndrwxr-xr-x ...', is_error: false },
+            {
+              type: 'tool_result',
+              tool_use_id: 'tu1',
+              content: 'total 42\ndrwxr-xr-x ...',
+              is_error: false,
+            },
           ],
         },
       },
     ]);
 
-    const result = readFullTranscript(fp, 'sess1');
+    const result = await readFullTranscript(fp, 'sess1');
 
     expect(result.conversations).toHaveLength(2);
     const toolUse = result.conversations[0].content[0];
@@ -121,7 +127,7 @@ describe('readFullTranscript', () => {
     }
   });
 
-  it('parses system compact_boundary record', () => {
+  it('parses system compact_boundary record', async () => {
     const fp = writeFixture('system.jsonl', [
       {
         type: 'system',
@@ -132,7 +138,7 @@ describe('readFullTranscript', () => {
       },
     ]);
 
-    const result = readFullTranscript(fp, 'sess1');
+    const result = await readFullTranscript(fp, 'sess1');
     expect(result.system).toHaveLength(1);
     expect(result.system[0].type).toBe('compact_boundary');
     if (result.system[0].type === 'compact_boundary') {
@@ -141,7 +147,7 @@ describe('readFullTranscript', () => {
     }
   });
 
-  it('parses progress bash_progress record', () => {
+  it('parses progress bash_progress record', async () => {
     const fp = writeFixture('progress.jsonl', [
       {
         type: 'progress',
@@ -158,7 +164,7 @@ describe('readFullTranscript', () => {
       },
     ]);
 
-    const result = readFullTranscript(fp, 'sess1');
+    const result = await readFullTranscript(fp, 'sess1');
     expect(result.progress).toHaveLength(1);
     expect(result.progress[0].type).toBe('bash_progress');
     if (result.progress[0].type === 'bash_progress') {
@@ -167,7 +173,7 @@ describe('readFullTranscript', () => {
     }
   });
 
-  it('parses file-history-snapshot record', () => {
+  it('parses file-history-snapshot record', async () => {
     const fp = writeFixture('filehistory.jsonl', [
       {
         type: 'file-history-snapshot',
@@ -177,19 +183,23 @@ describe('readFullTranscript', () => {
           messageId: 'msg1',
           timestamp: '2026-02-19T10:01:00.000Z',
           trackedFileBackups: {
-            'src/auth.ts': { backupFileName: 'auth.ts.bak', version: 1, backupTime: '2026-02-19T10:01:00.000Z' },
+            'src/auth.ts': {
+              backupFileName: 'auth.ts.bak',
+              version: 1,
+              backupTime: '2026-02-19T10:01:00.000Z',
+            },
           },
         },
       },
     ]);
 
-    const result = readFullTranscript(fp, 'sess1');
+    const result = await readFullTranscript(fp, 'sess1');
     expect(result.fileHistory).toHaveLength(1);
     expect(result.fileHistory[0].files).toHaveLength(1);
     expect(result.fileHistory[0].files[0].filePath).toBe('src/auth.ts');
   });
 
-  it('parses queue-operation record', () => {
+  it('parses queue-operation record', async () => {
     const fp = writeFixture('queue.jsonl', [
       {
         type: 'queue-operation',
@@ -200,13 +210,13 @@ describe('readFullTranscript', () => {
       },
     ]);
 
-    const result = readFullTranscript(fp, 'sess1');
+    const result = await readFullTranscript(fp, 'sess1');
     expect(result.queueOps).toHaveLength(1);
     expect(result.queueOps[0].operation).toBe('enqueue');
     expect(result.queueOps[0].content).toBe('follow-up prompt text');
   });
 
-  it('preserves context flags on conversation records', () => {
+  it('preserves context flags on conversation records', async () => {
     const fp = writeFixture('flags.jsonl', [
       {
         type: 'assistant',
@@ -232,7 +242,7 @@ describe('readFullTranscript', () => {
       },
     ]);
 
-    const result = readFullTranscript(fp, 'sess1');
+    const result = await readFullTranscript(fp, 'sess1');
     const conv = result.conversations[0];
     expect(conv.isSidechain).toBe(true);
     expect(conv.isApiErrorMessage).toBe(true);
@@ -244,7 +254,7 @@ describe('readFullTranscript', () => {
     expect(conv.version).toBe('2.1.47');
   });
 
-  it('preserves extended usage fields', () => {
+  it('preserves extended usage fields', async () => {
     const fp = writeFixture('usage.jsonl', [
       {
         type: 'assistant',
@@ -272,7 +282,7 @@ describe('readFullTranscript', () => {
       },
     ]);
 
-    const result = readFullTranscript(fp, 'sess1');
+    const result = await readFullTranscript(fp, 'sess1');
     const usage = result.conversations[0].usage;
     expect(usage.ephemeral5mTokens).toBe(15);
     expect(usage.ephemeral1hTokens).toBe(5);
@@ -280,7 +290,7 @@ describe('readFullTranscript', () => {
     expect(usage.serverToolUse.webFetchRequests).toBe(1);
   });
 
-  it('still produces a valid backward-compatible summary', () => {
+  it('still produces a valid backward-compatible summary', async () => {
     const fp = writeFixture('compat.jsonl', [
       {
         type: 'user',
@@ -304,12 +314,17 @@ describe('readFullTranscript', () => {
             { type: 'thinking', thinking: 'Let me look at the code.' },
             { type: 'text', text: 'I found the issue.' },
           ],
-          usage: { input_tokens: 100, output_tokens: 50, cache_read_input_tokens: 80, cache_creation_input_tokens: 20 },
+          usage: {
+            input_tokens: 100,
+            output_tokens: 50,
+            cache_read_input_tokens: 80,
+            cache_creation_input_tokens: 20,
+          },
         },
       },
     ]);
 
-    const result = readFullTranscript(fp, 'sess1');
+    const result = await readFullTranscript(fp, 'sess1');
 
     // Summary should be identical to what readTranscript() produces
     expect(result.summary.sessionId).toBe('sess1');
@@ -319,7 +334,7 @@ describe('readFullTranscript', () => {
     expect(result.summary.totalInputTokens).toBe(100);
   });
 
-  it('truncates tool result content at 50KB', () => {
+  it('truncates tool result content at 50KB', async () => {
     const largeOutput = 'x'.repeat(60_000);
     const fp = writeFixture('large.jsonl', [
       {
@@ -329,28 +344,72 @@ describe('readFullTranscript', () => {
         sessionId: 'sess1',
         message: {
           role: 'user',
-          content: [{ type: 'tool_result', tool_use_id: 'tu1', content: largeOutput, is_error: false }],
+          content: [
+            { type: 'tool_result', tool_use_id: 'tu1', content: largeOutput, is_error: false },
+          ],
         },
       },
     ]);
 
-    const result = readFullTranscript(fp, 'sess1');
+    const result = await readFullTranscript(fp, 'sess1');
     const block = result.conversations[0].content[0];
     if (block.type === 'tool_result') {
       expect(block.content.length).toBeLessThanOrEqual(51_200); // 50KB + some margin
     }
   });
 
-  it('skips malformed lines without crashing', () => {
-    const filePath = path.join(FIXTURE_DIR, 'malformed.jsonl');
-    fs.writeFileSync(filePath, [
-      'not json at all',
-      '{"type": "user", "uuid": "u1", "timestamp": "2026-02-19T10:00:00.000Z", "sessionId": "sess1", "message": {"role": "user", "content": [{"type": "text", "text": "hello"}]}}',
-      '{malformed json',
-    ].join('\n'));
+  it('should include isMeta flag on TranscriptTurn', async () => {
+    const fp = writeFixture('ismeta.jsonl', [
+      {
+        type: 'user',
+        uuid: 'u1',
+        timestamp: '2026-02-20T10:00:00Z',
+        sessionId: 'sess1',
+        isMeta: true,
+        message: { role: 'user', content: [{ type: 'text', text: '/skill expansion' }] },
+      },
+      {
+        type: 'assistant',
+        uuid: 'a1',
+        timestamp: '2026-02-20T10:00:01Z',
+        sessionId: 'sess1',
+        isMeta: false,
+        message: {
+          model: 'claude-opus-4-6',
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Real response' }],
+          usage: { input_tokens: 100, output_tokens: 50 },
+        },
+      },
+    ]);
 
-    const result = readFullTranscript(filePath, 'sess1');
+    const result = await readFullTranscript(fp, 'sess1');
+    expect(result.summary.turns[0].isMeta).toBe(true);
+    expect(result.summary.turns[1].isMeta).toBe(false);
+  });
+
+  it('skips malformed lines without crashing', async () => {
+    const filePath = path.join(FIXTURE_DIR, 'malformed.jsonl');
+    fs.writeFileSync(
+      filePath,
+      [
+        'not json at all',
+        '{"type": "user", "uuid": "u1", "timestamp": "2026-02-19T10:00:00.000Z", "sessionId": "sess1", "message": {"role": "user", "content": [{"type": "text", "text": "hello"}]}}',
+        '{malformed json',
+      ].join('\n'),
+    );
+
+    const result = await readFullTranscript(filePath, 'sess1');
     expect(result.conversations).toHaveLength(1);
     expect(result.conversations[0].uuid).toBe('u1');
+  });
+
+  it('readFullTranscript returns a promise', async () => {
+    const fp = writeFixture('async-check.jsonl', [
+      { type: 'summary', sessionId: 'sess1', timestamp: '2026-02-22T00:00:00Z' },
+    ]);
+    const result = readFullTranscript(fp, 'sess1');
+    expect(result).toBeInstanceOf(Promise);
+    await result; // should resolve without error
   });
 });

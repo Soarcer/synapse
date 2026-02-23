@@ -54,8 +54,8 @@ export async function activate(context: vscode.ExtensionContext) {
   );
 
   // Cross-panel sync: sidebar selection → graph panel
-  sidebarProvider.onSelectionChanged((nodeId) => {
-    graphPanel?.postSelectNode(nodeId);
+  sidebarProvider.onSelectionChanged((nodeId, source) => {
+    graphPanel?.postSelectNode(nodeId, source);
   });
 
   // Re-hydrate iframes when they signal readiness (they may load after WS connects)
@@ -123,8 +123,8 @@ export async function activate(context: vscode.ExtensionContext) {
       graphPanel = SynapsePanel.create(context.extensionUri, port, viewParam, workspaceCwd);
 
       // Cross-panel sync: graph panel selection → sidebar
-      graphPanel.onSelectionChanged((nodeId) => {
-        sidebarProvider.postMessage({ type: 'selectNode', nodeId });
+      graphPanel.onSelectionChanged((nodeId, source) => {
+        sidebarProvider.postMessage({ type: 'selectNode', nodeId, source: source ?? null });
       });
 
       // Re-hydrate graph panel when its iframe is ready
@@ -138,7 +138,7 @@ export async function activate(context: vscode.ExtensionContext) {
       if (!fs.existsSync(serverEntry)) {
         vscode.window.showErrorMessage(
           'Synapse server bundle not found. The extension may not be properly packaged. ' +
-          `Expected: ${serverEntry}`,
+            `Expected: ${serverEntry}`,
         );
         return;
       }
@@ -185,14 +185,12 @@ export async function activate(context: vscode.ExtensionContext) {
     }),
 
     vscode.commands.registerCommand('synapse.openSettings', () => {
-      settingsPanel = SettingsPanel.create(
-        context.extensionUri,
-        serverManager!,
-        hookManager!,
-      );
+      settingsPanel = SettingsPanel.create(context.extensionUri, serverManager!, hookManager!);
     }),
 
-    vscode.commands.registerCommand('synapse.improveTextDev', () => improveSelectedText('developer')),
+    vscode.commands.registerCommand('synapse.improveTextDev', () =>
+      improveSelectedText('developer'),
+    ),
     vscode.commands.registerCommand('synapse.improveTextVibe', () => improveSelectedText('vibe')),
 
     vscode.commands.registerCommand('synapse.sendToClaudeTerminal', (text: string) => {
@@ -214,7 +212,9 @@ export async function activate(context: vscode.ExtensionContext) {
       claudeTerminal.show();
       // sendText with false = types text WITHOUT pressing Enter, so user can review
       claudeTerminal.sendText(text, false);
-      vscode.window.showInformationMessage('Prompt sent to Claude terminal. Press Enter to submit.');
+      vscode.window.showInformationMessage(
+        'Prompt sent to Claude terminal. Press Enter to submit.',
+      );
     }),
   );
 
@@ -233,7 +233,9 @@ export async function activate(context: vscode.ExtensionContext) {
   if (autoStart) {
     outputChannel.appendLine('Auto-starting Synapse server...');
     serverManager.start().catch((err) => {
-      outputChannel.appendLine(`Server start error: ${err instanceof Error ? err.message : String(err)}`);
+      outputChannel.appendLine(
+        `Server start error: ${err instanceof Error ? err.message : String(err)}`,
+      );
     });
   } else {
     // Check if an external server is already running and auto-open
@@ -253,10 +255,7 @@ export async function deactivate() {
   if (serverManager?.isRunning) {
     serverManager.stop();
     // Wait up to 5s for graceful shutdown
-    await Promise.race([
-      serverManager.waitForExit(),
-      new Promise((r) => setTimeout(r, 5000)),
-    ]);
+    await Promise.race([serverManager.waitForExit(), new Promise((r) => setTimeout(r, 5000))]);
   }
   serverManager?.dispose();
   // Don't remove hooks on deactivate — they survive VS Code restarts.
@@ -292,7 +291,9 @@ function connectWsClient(context: vscode.ExtensionContext, port: number): void {
 let hydrateTimer: ReturnType<typeof setTimeout> | undefined;
 function debouncedHydrateIframes(port: number): void {
   if (hydrateTimer) clearTimeout(hydrateTimer);
-  hydrateTimer = setTimeout(() => { fetchAndHydrateIframes(port); }, 2000);
+  hydrateTimer = setTimeout(() => {
+    fetchAndHydrateIframes(port);
+  }, 2000);
 }
 
 async function fetchAndHydrateIframes(port: number): Promise<void> {
@@ -301,11 +302,16 @@ async function fetchAndHydrateIframes(port: number): Promise<void> {
     const body = await new Promise<string>((resolve, reject) => {
       const req = http.get(`http://localhost:${port}/api/events?limit=2000${cwdParam}`, (res) => {
         let data = '';
-        res.on('data', (chunk: Buffer) => { data += chunk.toString(); });
+        res.on('data', (chunk: Buffer) => {
+          data += chunk.toString();
+        });
         res.on('end', () => resolve(data));
       });
       req.on('error', reject);
-      req.setTimeout(5000, () => { req.destroy(); reject(new Error('timeout')); });
+      req.setTimeout(5000, () => {
+        req.destroy();
+        reject(new Error('timeout'));
+      });
     });
     const parsed = JSON.parse(body);
     const events = Array.isArray(parsed) ? parsed : parsed?.events;
@@ -313,6 +319,9 @@ async function fetchAndHydrateIframes(port: number): Promise<void> {
       const msg = { type: 'hydrateEvents', events };
       sidebarProvider.postMessage(msg);
       graphPanel?.postMessage(msg);
+      // Also hydrate the tree view so historical events show up immediately
+      treeProvider?.loadEvents(events);
+      updateStatusBarMetrics();
     }
   } catch {
     // Server not ready yet; iframes will show loading state
@@ -349,9 +358,27 @@ function findClaudeTerminal(): vscode.Terminal | undefined {
   // Claude Code VS Code extension creates pseudo-terminals named after the
   // first few words of each prompt — so we can't match by name alone.
   // Strategy: 1) exact "claude" match, 2) pseudo-terminals from the Claude extension
-  const SHELL_NAMES = ['powershell', 'pwsh', 'bash', 'zsh', 'sh', 'cmd', 'fish',
-    'node', 'python', 'ruby', 'java', 'cargo', 'npm', 'pnpm', 'yarn', 'git',
-    'synapse', 'task -', 'javascript debug'];
+  const SHELL_NAMES = [
+    'powershell',
+    'pwsh',
+    'bash',
+    'zsh',
+    'sh',
+    'cmd',
+    'fish',
+    'node',
+    'python',
+    'ruby',
+    'java',
+    'cargo',
+    'npm',
+    'pnpm',
+    'yarn',
+    'git',
+    'synapse',
+    'task -',
+    'javascript debug',
+  ];
 
   // Pass 1: terminal with "claude" in the name (explicit match)
   for (const terminal of vscode.window.terminals) {
@@ -388,8 +415,9 @@ let scoreRestoreTimer: ReturnType<typeof setTimeout> | undefined;
 async function improveSelectedText(mode: 'developer' | 'vibe'): Promise<void> {
   // activeTextEditor is undefined when a terminal/webview is focused —
   // fall back to the first visible editor that has a non-empty selection.
-  const editor = vscode.window.activeTextEditor
-    ?? vscode.window.visibleTextEditors.find((e) => !e.selection.isEmpty);
+  const editor =
+    vscode.window.activeTextEditor ??
+    vscode.window.visibleTextEditors.find((e) => !e.selection.isEmpty);
   if (!editor) {
     vscode.window.showWarningMessage('No active editor.');
     return;
@@ -460,9 +488,7 @@ async function improveSelectedText(mode: 'developer' | 'vibe'): Promise<void> {
     }
 
     if (showScore && typeof data.score === 'number') {
-      const scoreLabel = mode === 'vibe'
-        ? vibeScoreLabel(data.score)
-        : `${data.score}/10`;
+      const scoreLabel = mode === 'vibe' ? vibeScoreLabel(data.score) : `${data.score}/10`;
       statusBarItem.text = `$(sparkle) ${scoreLabel}`;
       statusBarItem.tooltip = data.explanation || `Score: ${scoreLabel}`;
 
@@ -504,7 +530,9 @@ function httpPost(port: number, urlPath: string, body: string): Promise<string> 
       },
       (res) => {
         let data = '';
-        res.on('data', (chunk: Buffer) => { data += chunk.toString(); });
+        res.on('data', (chunk: Buffer) => {
+          data += chunk.toString();
+        });
         res.on('end', () => {
           if (res.statusCode && res.statusCode >= 400) {
             reject(new Error(`Server returned ${res.statusCode}: ${data.slice(0, 200)}`));
@@ -515,7 +543,10 @@ function httpPost(port: number, urlPath: string, body: string): Promise<string> 
       },
     );
     req.on('error', reject);
-    req.setTimeout(30000, () => { req.destroy(); reject(new Error('Request timed out')); });
+    req.setTimeout(30000, () => {
+      req.destroy();
+      reject(new Error('Request timed out'));
+    });
     req.write(body);
     req.end();
   });

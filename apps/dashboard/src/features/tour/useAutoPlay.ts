@@ -10,10 +10,16 @@ import { wsClient } from '../../store/wsClient';
 /** Saved viewport lock state — restored when tour ends. */
 let savedLockViewport = false;
 
+/** Narration entries extracted once — only events with a narrationKey */
+const NARRATIONS = DEMO_EVENTS.filter((e) => e.narrationKey !== null).map((e) => e.narrationKey!);
+
+/** Delay between narration captions (ms) */
+const NARRATION_INTERVAL = 800;
+
 /**
  * Prepare the graph for the tour demo. Must be called synchronously
  * in the click handler BEFORE startTour() — this ensures the graph is
- * clean before React renders the tour overlay.
+ * fully built before React renders the tour overlay.
  */
 export function prepareTourDemo(): void {
   // Disconnect WS to prevent real events during demo
@@ -24,6 +30,11 @@ export function prepareTourDemo(): void {
   store.clearEvents();
   store.setLockViewport(false);
   store.setPaused(false);
+
+  // Pre-inject ALL demo events so every node exists immediately
+  for (const event of DEMO_EVENTS) {
+    store.addEvent(event.payload);
+  }
 }
 
 /**
@@ -36,12 +47,12 @@ function restoreGraph(): void {
 }
 
 /**
- * Drives the auto-play phase: feeds demo events into agentStore on a
- * timer, advancing the narration callout at milestone events.
+ * Drives the auto-play phase: cycles through narration captions on a
+ * fast timer. All graph nodes are pre-injected by prepareTourDemo().
  *
- * IMPORTANT: Graph isolation (clearEvents, WS disconnect) is handled by
- * prepareTourDemo() which runs in the click handler before startTour().
- * This hook only handles event injection and cleanup.
+ * IMPORTANT: Graph isolation (clearEvents, WS disconnect, event injection)
+ * is handled by prepareTourDemo() which runs in the click handler before
+ * startTour(). This hook only handles narration cycling and cleanup.
  */
 export function useAutoPlay() {
   const phase = useTourStore((s) => s.phase);
@@ -49,7 +60,7 @@ export function useAutoPlay() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cleanupNeeded = useRef(false);
 
-  // Auto-play event injection loop
+  // Auto-play narration loop
   useEffect(() => {
     if (phase !== 'autoPlay') return;
 
@@ -57,30 +68,23 @@ export function useAutoPlay() {
     let idx = 0;
     cleanupNeeded.current = true;
 
-    function playNext() {
-      if (cancelled || idx >= DEMO_EVENTS.length) {
-        if (!cancelled && idx >= DEMO_EVENTS.length) {
+    function showNext() {
+      if (cancelled || idx >= NARRATIONS.length) {
+        if (!cancelled) {
           useTourStore.getState().transitionToManual();
         }
         return;
       }
 
-      const event = DEMO_EVENTS[idx];
       timerRef.current = setTimeout(() => {
         if (cancelled) return;
-
-        useAgentStore.getState().addEvent(event.payload as any);
-
-        if (event.narrationKey) {
-          advanceAutoPlay();
-        }
-
+        advanceAutoPlay();
         idx++;
-        playNext();
-      }, event.delayMs);
+        showNext();
+      }, NARRATION_INTERVAL);
     }
 
-    playNext();
+    showNext();
 
     return () => {
       cancelled = true;

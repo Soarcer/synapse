@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useCallback } from 'react';
 import type { MockData } from '../mockData';
 
@@ -24,29 +27,54 @@ function generateCsv(data: MockData, sections: Set<ExportSection>): string {
 
   if (sections.has('sessions')) {
     lines.push('# Sessions');
-    lines.push('id,name,model,vendor,start_time,end_time,input_tokens,output_tokens,cache_read_tokens,cost_usd,tool_calls,prompts,compactions,avg_latency_ms');
+    lines.push(
+      'id,name,model,vendor,start_time,end_time,input_tokens,output_tokens,cache_read_tokens,cost_usd,tool_calls,prompts,compactions,avg_latency_ms',
+    );
     for (const s of data.sessions) {
-      lines.push([
-        s.id, `"${s.name}"`, s.model, s.vendor,
-        new Date(s.startTime).toISOString(), new Date(s.endTime).toISOString(),
-        s.totalInputTokens, s.totalOutputTokens, s.totalCacheReadTokens,
-        s.totalCost.toFixed(6), s.toolCalls, s.promptCount, s.compactions, s.avgLatencyMs,
-      ].join(','));
+      lines.push(
+        [
+          s.id,
+          `"${s.name}"`,
+          s.model,
+          s.vendor,
+          new Date(s.startTime).toISOString(),
+          new Date(s.endTime).toISOString(),
+          s.totalInputTokens,
+          s.totalOutputTokens,
+          s.totalCacheReadTokens,
+          s.totalCost.toFixed(6),
+          s.toolCalls,
+          s.promptCount,
+          s.compactions,
+          s.avgLatencyMs,
+        ].join(','),
+      );
     }
     lines.push('');
   }
 
   if (sections.has('turns')) {
     lines.push('# Turns');
-    lines.push('session_id,turn_index,timestamp,prompt,input_tokens,output_tokens,cache_read_tokens,cost_usd,tool_count,tools,model,latency_ms');
+    lines.push(
+      'session_id,turn_index,timestamp,prompt,input_tokens,output_tokens,cache_read_tokens,cost_usd,tool_count,tools,model,latency_ms',
+    );
     for (const t of data.turns) {
-      lines.push([
-        t.sessionId, t.turnIndex, new Date(t.timestamp).toISOString(),
-        `"${t.promptText.replace(/"/g, '""')}"`,
-        t.inputTokens, t.outputTokens, t.cacheReadTokens,
-        t.costUsd.toFixed(6), t.toolCount, `"${t.toolNames.join(';')}"`,
-        t.model, t.latencyMs,
-      ].join(','));
+      lines.push(
+        [
+          t.sessionId,
+          t.turnIndex,
+          new Date(t.timestamp).toISOString(),
+          `"${t.promptText.replace(/"/g, '""')}"`,
+          t.inputTokens,
+          t.outputTokens,
+          t.cacheReadTokens,
+          t.costUsd.toFixed(6),
+          t.toolCount,
+          `"${t.toolNames.join(';')}"`,
+          t.model,
+          t.latencyMs,
+        ].join(','),
+      );
     }
     lines.push('');
   }
@@ -55,7 +83,15 @@ function generateCsv(data: MockData, sections: Set<ExportSection>): string {
     lines.push('# Tool Calls');
     lines.push('session_id,tool_name,timestamp,duration_ms,status');
     for (const tc of data.toolCalls) {
-      lines.push([tc.sessionId, tc.toolName, new Date(tc.timestamp).toISOString(), tc.durationMs, tc.status].join(','));
+      lines.push(
+        [
+          tc.sessionId,
+          tc.toolName,
+          new Date(tc.timestamp).toISOString(),
+          tc.durationMs,
+          tc.status,
+        ].join(','),
+      );
     }
   }
 
@@ -97,7 +133,10 @@ function generateJson(data: MockData, sections: Set<ExportSection>): string {
 
 function generateHtml(data: MockData, sections: Set<ExportSection>): string {
   const totalCost = data.sessions.reduce((s, sess) => s + sess.totalCost, 0);
-  const totalTokens = data.sessions.reduce((s, sess) => s + sess.totalInputTokens + sess.totalOutputTokens, 0);
+  const totalTokens = data.sessions.reduce(
+    (s, sess) => s + sess.totalInputTokens + sess.totalOutputTokens,
+    0,
+  );
 
   let html = `<!DOCTYPE html>
 <html lang="en">
@@ -225,14 +264,19 @@ export function ExportDialog({ data, onClose }: ExportDialogProps) {
   }, [data, format, selectedSections]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
       <div
         className="bg-[#161b22] border border-gray-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-gray-100">Export Analytics</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-300 text-lg">&times;</button>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-300 text-lg">
+            &times;
+          </button>
         </div>
 
         {/* Format Selector */}
@@ -268,7 +312,9 @@ export function ExportDialog({ data, onClose }: ExportDialogProps) {
                   className="rounded border-gray-600 bg-[#0d1117] text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
                 />
                 <div>
-                  <span className="text-xs text-gray-300 group-hover:text-gray-100">{section.label}</span>
+                  <span className="text-xs text-gray-300 group-hover:text-gray-100">
+                    {section.label}
+                  </span>
                   <span className="text-[10px] text-gray-600 ml-2">{section.description}</span>
                 </div>
               </label>
@@ -279,8 +325,8 @@ export function ExportDialog({ data, onClose }: ExportDialogProps) {
         {/* Preview info */}
         <div className="bg-[#0d1117] border border-gray-800 rounded-lg p-3 mb-4">
           <div className="text-[10px] text-gray-500">
-            {data.sessions.length} sessions, {data.turns.length} turns, {data.toolCalls.length} tool calls
-            — {selectedSections.size} section(s) selected
+            {data.sessions.length} sessions, {data.turns.length} turns, {data.toolCalls.length} tool
+            calls — {selectedSections.size} section(s) selected
           </div>
         </div>
 

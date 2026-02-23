@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // ─── Velocity Service ───────────────────────────────────────────────
 // Computes token velocity, cost velocity, context utilization, and efficiency scores.
 
@@ -7,9 +10,9 @@ import { computeCostUsd } from './costService.js';
 export interface VelocityMetrics {
   tokensPerMinute: number;
   costPerMinute: number;
-  contextUtilization: number;   // 0-1 ratio of tokens used vs context window
-  efficiencyScore: number;      // 0-100 composite score
-  cacheHitRate: number;         // 0-1
+  contextUtilization: number; // 0-1 ratio of tokens used vs context window
+  efficiencyScore: number; // 0-100 composite score
+  cacheHitRate: number; // 0-1
   avgTurnLatencyMs: number;
   turnsPerSession: number;
 }
@@ -30,7 +33,7 @@ const CONTEXT_WINDOWS: Record<string, number> = {
   'claude-haiku-4': 200_000,
   'gpt-4o': 128_000,
   'gpt-4o-mini': 128_000,
-  'o1': 200_000,
+  o1: 200_000,
   'o3-mini': 200_000,
   'gemini-2.5-pro': 1_000_000,
   'gemini-2.5-flash': 1_000_000,
@@ -47,15 +50,26 @@ function getContextWindow(model: string): number {
 // ─── Session Velocity ───────────────────────────────────────────────
 
 export function computeSessionVelocity(sessionId: string): VelocityMetrics {
-  const rows = analyticsQueryAll(`
+  const rows = analyticsQueryAll(
+    `
     SELECT token_input, token_output, duration_ms, model, created_at, event_type
     FROM events
     WHERE session_id = ? AND (token_input > 0 OR event_type = 'user_prompt')
     ORDER BY created_at ASC
-  `, [sessionId]) as Array<Record<string, unknown>>;
+  `,
+    [sessionId],
+  ) as Array<Record<string, unknown>>;
 
   if (rows.length === 0) {
-    return { tokensPerMinute: 0, costPerMinute: 0, contextUtilization: 0, efficiencyScore: 0, cacheHitRate: 0, avgTurnLatencyMs: 0, turnsPerSession: 0 };
+    return {
+      tokensPerMinute: 0,
+      costPerMinute: 0,
+      contextUtilization: 0,
+      efficiencyScore: 0,
+      cacheHitRate: 0,
+      avgTurnLatencyMs: 0,
+      turnsPerSession: 0,
+    };
   }
 
   let totalInput = 0;
@@ -98,7 +112,7 @@ export function computeSessionVelocity(sessionId: string): VelocityMetrics {
   const tokensPerDollar = totalCost > 0 ? totalTokens / totalCost : 0;
   const normalizedTpd = Math.min(1, tokensPerDollar / 500_000); // 500k tokens/$ is "good"
   const efficiencyScore = Math.round(
-    (cacheHitRate * 40 + normalizedTpd * 35 + (1 - contextUtilization) * 25)
+    cacheHitRate * 40 + normalizedTpd * 35 + (1 - contextUtilization) * 25,
   );
 
   return {
@@ -115,12 +129,15 @@ export function computeSessionVelocity(sessionId: string): VelocityMetrics {
 // ─── Per-Turn Velocity (for sparkline) ──────────────────────────────
 
 export function computeTurnVelocity(sessionId: string): TurnVelocity[] {
-  const rows = analyticsQueryAll(`
+  const rows = analyticsQueryAll(
+    `
     SELECT token_input, token_output, created_at, event_type
     FROM events
     WHERE session_id = ? AND token_input > 0
     ORDER BY created_at ASC
-  `, [sessionId]) as Array<Record<string, unknown>>;
+  `,
+    [sessionId],
+  ) as Array<Record<string, unknown>>;
 
   if (rows.length === 0) return [];
 
@@ -169,7 +186,8 @@ export function computeAggregateVelocity(from: number, to: number, cwd?: string)
   }
   const clause = conditions.join(' AND ');
 
-  const row = analyticsQueryAll(`
+  const row = analyticsQueryAll(
+    `
     SELECT
       SUM(COALESCE(token_input, 0)) as totalInput,
       SUM(COALESCE(token_output, 0)) as totalOutput,
@@ -180,10 +198,20 @@ export function computeAggregateVelocity(from: number, to: number, cwd?: string)
       MIN(created_at) as firstTs,
       MAX(created_at) as lastTs
     FROM events WHERE ${clause}
-  `, params)[0] as Record<string, unknown> | undefined;
+  `,
+    params,
+  )[0] as Record<string, unknown> | undefined;
 
   if (!row || !row.totalInput) {
-    return { tokensPerMinute: 0, costPerMinute: 0, contextUtilization: 0, efficiencyScore: 0, cacheHitRate: 0, avgTurnLatencyMs: 0, turnsPerSession: 0 };
+    return {
+      tokensPerMinute: 0,
+      costPerMinute: 0,
+      contextUtilization: 0,
+      efficiencyScore: 0,
+      cacheHitRate: 0,
+      avgTurnLatencyMs: 0,
+      turnsPerSession: 0,
+    };
   }
 
   const totalInput = Number(row.totalInput);

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { memo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { useAgentStore } from '../../store/agentStore';
@@ -24,9 +27,7 @@ function CollapsibleSourceHandleInner({ nodeId, position, style, baseClassName }
   });
 
   if (!hasChildren) {
-    return (
-      <Handle type="source" position={position} className={baseClassName} style={style} />
-    );
+    return <Handle type="source" position={position} className={baseClassName} style={style} />;
   }
 
   return (

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useCallback } from 'react';
 
 interface LensResizeHandleProps {
@@ -16,7 +19,10 @@ export function LensResizeHandle({ width, onWidthChange }: LensResizeHandleProps
       const startWidth = width;
 
       const onMove = (ev: MouseEvent) => {
-        const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + (ev.clientX - startX)));
+        const newWidth = Math.min(
+          MAX_WIDTH,
+          Math.max(MIN_WIDTH, startWidth + (ev.clientX - startX)),
+        );
         onWidthChange(newWidth);
       };
 

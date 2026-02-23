@@ -29,4 +29,4 @@ export interface TourChapter {
 }
 
 /** Chapter IDs for optional continuation prompt */
-export const OPTIONAL_CHAPTERS = ['analytics', 'pixel'];
+export const OPTIONAL_CHAPTERS = ['analytics'];

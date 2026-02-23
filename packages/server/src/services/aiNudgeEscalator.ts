@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { escalateNudge, isAvailable } from './aiCoachService.js';
 import { logger } from '../lib/logger.js';
 import type { CoachingNudge, EnrichedNudge } from '@synapse-ai/core';
@@ -43,21 +46,22 @@ function recordAiCall(sessionId: string): void {
 
 // ─── Sensitivity Thresholds ─────────────────────────────────────────
 
-export type Sensitivity = 'low' | 'medium' | 'high';
+export type Sensitivity = 'off' | 'low' | 'medium' | 'high';
 
 interface SensitivityConfig {
-  periodicInterval: number;  // Every N tool calls
-  errorSpiralThreshold: number;  // N errors to trigger
-  costSpikeMultiplier: number;   // N times average to trigger
+  periodicInterval: number; // Every N tool calls
+  errorSpiralThreshold: number; // N errors to trigger
+  costSpikeMultiplier: number; // N times average to trigger
 }
 
 const SENSITIVITY_CONFIGS: Record<Sensitivity, SensitivityConfig> = {
+  off: { periodicInterval: 0, errorSpiralThreshold: Infinity, costSpikeMultiplier: Infinity },
   low: { periodicInterval: 20, errorSpiralThreshold: 5, costSpikeMultiplier: 3.0 },
   medium: { periodicInterval: 10, errorSpiralThreshold: 3, costSpikeMultiplier: 2.0 },
   high: { periodicInterval: 5, errorSpiralThreshold: 2, costSpikeMultiplier: 1.5 },
 };
 
-let currentSensitivity: Sensitivity = 'medium';
+let currentSensitivity: Sensitivity = 'off';
 
 export function getSensitivity(): Sensitivity {
   return currentSensitivity;
@@ -88,8 +92,9 @@ export function getToolCallCount(sessionId: string): number {
 }
 
 export function shouldRunPeriodicCheck(sessionId: string): boolean {
-  const count = getToolCallCount(sessionId);
   const config = getSensitivityConfig();
+  if (config.periodicInterval <= 0) return false;
+  const count = getToolCallCount(sessionId);
   return count > 0 && count % config.periodicInterval === 0;
 }
 
@@ -145,7 +150,10 @@ export async function tryEscalateNudge(
   try {
     recordAiCall(nudge.sessionId);
     const enriched = await escalateNudge(nudge, recentEvents);
-    logger.info({ sessionId: nudge.sessionId, detectorId: nudge.detectorId }, 'Nudge escalated with AI');
+    logger.info(
+      { sessionId: nudge.sessionId, detectorId: nudge.detectorId },
+      'Nudge escalated with AI',
+    );
     return enriched;
   } catch (err) {
     logger.warn({ err, sessionId: nudge.sessionId }, 'AI nudge escalation failed');

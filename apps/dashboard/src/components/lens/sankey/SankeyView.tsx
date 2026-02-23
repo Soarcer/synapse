@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useMemo, useCallback, useRef, useEffect, useLayoutEffect } from 'react';
 import { useLens } from '../LensContext';
 import type { SankeyNode, SankeyLink } from '../LensContext';
@@ -25,7 +28,15 @@ interface LayoutLink extends SankeyLink {
 }
 
 export function SankeyView() {
-  const { treeRoots, paletteIndex, profileMetric, onProfileMetricChange, selectedId, onSelect, hasTokenData } = useLens();
+  const {
+    treeRoots,
+    paletteIndex,
+    profileMetric,
+    onProfileMetricChange,
+    selectedId,
+    onSelect,
+    hasTokenData,
+  } = useLens();
 
   // Compute sankey data locally (only when sankey tab is active)
   const sankeyData = useMemo(
@@ -55,8 +66,8 @@ export function SankeyView() {
       const newZoom = Math.max(0.5, Math.min(5, oldZoom + delta));
       if (newZoom === oldZoom) return;
 
-      const newScrollLeft = (el.scrollLeft + mouseX) * newZoom / oldZoom - mouseX;
-      const newScrollTop = (el.scrollTop + mouseY) * newZoom / oldZoom - mouseY;
+      const newScrollLeft = ((el.scrollLeft + mouseX) * newZoom) / oldZoom - mouseX;
+      const newScrollTop = ((el.scrollTop + mouseY) * newZoom) / oldZoom - mouseY;
 
       zoomRef.current = newZoom;
       pendingScrollRef.current = { left: newScrollLeft, top: newScrollTop };
@@ -118,7 +129,12 @@ export function SankeyView() {
   }, []);
 
   const formatValue = useCallback(
-    (v: number) => profileMetric === 'tokens' ? formatTokens(v) : profileMetric === 'duration' ? formatDuration(v) : formatCount(v),
+    (v: number) =>
+      profileMetric === 'tokens'
+        ? formatTokens(v)
+        : profileMetric === 'duration'
+          ? formatDuration(v)
+          : formatCount(v),
     [profileMetric],
   );
 
@@ -220,7 +236,9 @@ export function SankeyView() {
           <button
             onClick={() => onProfileMetricChange('tokens')}
             className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
-              profileMetric === 'tokens' ? 'bg-gray-700 text-gray-100' : 'text-gray-500 hover:text-gray-300'
+              profileMetric === 'tokens'
+                ? 'bg-gray-700 text-gray-100'
+                : 'text-gray-500 hover:text-gray-300'
             }`}
           >
             Tokens
@@ -228,7 +246,9 @@ export function SankeyView() {
           <button
             onClick={() => onProfileMetricChange('duration')}
             className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
-              profileMetric === 'duration' ? 'bg-gray-700 text-gray-100' : 'text-gray-500 hover:text-gray-300'
+              profileMetric === 'duration'
+                ? 'bg-gray-700 text-gray-100'
+                : 'text-gray-500 hover:text-gray-300'
             }`}
           >
             Duration
@@ -236,16 +256,22 @@ export function SankeyView() {
           <button
             onClick={() => onProfileMetricChange('count')}
             className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
-              profileMetric === 'count' ? 'bg-gray-700 text-gray-100' : 'text-gray-500 hover:text-gray-300'
+              profileMetric === 'count'
+                ? 'bg-gray-700 text-gray-100'
+                : 'text-gray-500 hover:text-gray-300'
             }`}
           >
             Count
           </button>
         </div>
         <span className="text-[10px] text-gray-500">
-          {profileMetric === 'tokens' && !hasTokenData
-            ? <span className="text-yellow-600" title="Hook sessions don't provide token data">no token data</span>
-            : 'Shift+scroll zoom'}
+          {profileMetric === 'tokens' && !hasTokenData ? (
+            <span className="text-yellow-600" title="Hook sessions don't provide token data">
+              no token data
+            </span>
+          ) : (
+            'Shift+scroll zoom'
+          )}
         </span>
       </div>
 
@@ -260,7 +286,10 @@ export function SankeyView() {
           {LAYER_LABELS.map((label, i) => {
             const layerCount = Math.max(...sankeyData.nodes.map((n) => n.layer)) + 1;
             if (i >= layerCount) return null;
-            const x = layerCount > 1 ? i * ((viewW - 20 - NODE_WIDTH) / (layerCount - 1)) + NODE_WIDTH / 2 : viewW / 2;
+            const x =
+              layerCount > 1
+                ? i * ((viewW - 20 - NODE_WIDTH) / (layerCount - 1)) + NODE_WIDTH / 2
+                : viewW / 2;
             return (
               <text
                 key={label}
@@ -373,7 +402,9 @@ export function SankeyView() {
           style={{ left: tooltip.x, top: tooltip.y }}
         >
           {tooltip.text.map((line, i) => (
-            <div key={i} className={i === 0 ? 'font-medium text-gray-100' : ''}>{line}</div>
+            <div key={i} className={i === 0 ? 'font-medium text-gray-100' : ''}>
+              {line}
+            </div>
           ))}
         </div>
       )}

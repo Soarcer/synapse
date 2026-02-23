@@ -1,7 +1,19 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useMemo, useState, useEffect, useCallback } from 'react';
 import {
-  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  CartesianGrid, ReferenceLine, BarChart, Bar, Cell,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+  ReferenceLine,
+  BarChart,
+  Bar,
+  Cell,
 } from 'recharts';
 import { ChartCard } from '../shared/ChartCard';
 import { TokenBreakdownBar } from '../shared/TokenBreakdownBar';
@@ -54,7 +66,9 @@ function TurnCard({
           <div className="w-[17px] h-[17px] rounded-full bg-yellow-900/50 border border-yellow-600/50 flex items-center justify-center z-10">
             <span className="text-[9px]">{'\u26A0'}</span>
           </div>
-          <span className="text-[10px] text-yellow-500/80 font-medium uppercase tracking-wider">Context Compacted</span>
+          <span className="text-[10px] text-yellow-500/80 font-medium uppercase tracking-wider">
+            Context Compacted
+          </span>
         </div>
       )}
 
@@ -82,7 +96,9 @@ function TurnCard({
           {/* Prompt text card */}
           {turn.promptText ? (
             <div className="mb-2 px-2.5 py-2 bg-[#0d1117] border border-gray-800/70 rounded-md">
-              <p className="text-[11px] text-gray-300 leading-relaxed line-clamp-3">{turn.promptText}</p>
+              <p className="text-[11px] text-gray-300 leading-relaxed line-clamp-3">
+                {turn.promptText}
+              </p>
             </div>
           ) : (
             <div className="mb-2 px-2.5 py-1.5 bg-[#0d1117]/50 border border-gray-800/40 rounded-md">
@@ -109,10 +125,14 @@ function TurnCard({
             <span className="text-[10px] text-gray-500">{fmtMs(turn.latencyMs)} latency</span>
             <span className="text-[10px] text-gray-500">{cacheRate.toFixed(0)}% cached</span>
             {turn.toolCount > 0 && (
-              <span className="text-[10px] text-gray-500">{turn.toolCount} tool{turn.toolCount > 1 ? 's' : ''}</span>
+              <span className="text-[10px] text-gray-500">
+                {turn.toolCount} tool{turn.toolCount > 1 ? 's' : ''}
+              </span>
             )}
             {turn.thinkingTokens > 0 && (
-              <span className="text-[10px] text-purple-400/70">{fmtTokens(turn.thinkingTokens)} thinking</span>
+              <span className="text-[10px] text-purple-400/70">
+                {fmtTokens(turn.thinkingTokens)} thinking
+              </span>
             )}
           </div>
 
@@ -138,20 +158,24 @@ function TurnCard({
 }
 
 export function SessionReplay({ data }: Props) {
-  const [selectedSession, setSelectedSession] = useState<string>(data.sessions[data.sessions.length - 1]?.id ?? '');
+  const [selectedSession, setSelectedSession] = useState<string>(
+    data.sessions[data.sessions.length - 1]?.id ?? '',
+  );
   const [expandedTurn, setExpandedTurn] = useState<number | null>(null);
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortAsc, setSortAsc] = useState(false);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
 
-  const fetchSessionSummary = useCallback((sessionId: string) => {
+  const fetchSessionSummary = useCallback((_sessionId: string) => {
     setAiSummaryLoading(true);
     setAiSummary(null);
     const now = Date.now();
     fetch(`/api/analytics/ai-summary?from=${now - 30 * 86_400_000}&to=${now}`)
       .then((r) => r.json())
-      .then((d) => { if (d.data?.summary) setAiSummary(d.data.summary); })
+      .then((d) => {
+        if (d.data?.summary) setAiSummary(d.data.summary);
+      })
       .catch(() => {})
       .finally(() => setAiSummaryLoading(false));
   }, []);
@@ -167,10 +191,19 @@ export function SessionReplay({ data }: Props) {
     arr.sort((a, b) => {
       let cmp = 0;
       switch (sortField) {
-        case 'date': cmp = a.startTime - b.startTime; break;
-        case 'cost': cmp = a.totalCost - b.totalCost; break;
-        case 'tokens': cmp = (a.totalInputTokens + a.totalOutputTokens) - (b.totalInputTokens + b.totalOutputTokens); break;
-        case 'turns': cmp = a.promptCount - b.promptCount; break;
+        case 'date':
+          cmp = a.startTime - b.startTime;
+          break;
+        case 'cost':
+          cmp = a.totalCost - b.totalCost;
+          break;
+        case 'tokens':
+          cmp =
+            a.totalInputTokens + a.totalOutputTokens - (b.totalInputTokens + b.totalOutputTokens);
+          break;
+        case 'turns':
+          cmp = a.promptCount - b.promptCount;
+          break;
       }
       return sortAsc ? cmp : -cmp;
     });
@@ -182,7 +215,11 @@ export function SessionReplay({ data }: Props) {
     const groups: { date: string; sessions: MockSession[] }[] = [];
     let currentDate = '';
     for (const s of sortedSessions) {
-      const dateKey = new Date(s.startTime).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+      const dateKey = new Date(s.startTime).toLocaleDateString(undefined, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+      });
       if (dateKey !== currentDate) {
         currentDate = dateKey;
         groups.push({ date: dateKey, sessions: [] });
@@ -192,13 +229,13 @@ export function SessionReplay({ data }: Props) {
     return groups;
   }, [sortedSessions]);
 
-  const session = useMemo(() =>
-    data.sessions.find((s) => s.id === selectedSession),
+  const session = useMemo(
+    () => data.sessions.find((s) => s.id === selectedSession),
     [data.sessions, selectedSession],
   );
 
-  const sessionTurns = useMemo(() =>
-    data.turns.filter((t) => t.sessionId === selectedSession),
+  const sessionTurns = useMemo(
+    () => data.turns.filter((t) => t.sessionId === selectedSession),
     [data.turns, selectedSession],
   );
 
@@ -244,8 +281,8 @@ export function SessionReplay({ data }: Props) {
   }, [sessionTurns]);
 
   // Compaction turn indices for reference lines
-  const compactionTurns = useMemo(() =>
-    sessionTurns.filter((t) => t.compactionBefore).map((t) => t.turnIndex + 1),
+  const compactionTurns = useMemo(
+    () => sessionTurns.filter((t) => t.compactionBefore).map((t) => t.turnIndex + 1),
     [sessionTurns],
   );
 
@@ -268,9 +305,18 @@ export function SessionReplay({ data }: Props) {
       <div className="w-[420px] flex-shrink-0 border-r border-gray-800 flex flex-col overflow-hidden">
         {/* Sort controls */}
         <div className="p-3 border-b border-gray-800 bg-[#0d1117]">
-          <label className="text-[10px] text-gray-500 uppercase tracking-wider font-medium block mb-1.5">Sort by</label>
+          <label className="text-[10px] text-gray-500 uppercase tracking-wider font-medium block mb-1.5">
+            Sort by
+          </label>
           <div className="flex items-center gap-1">
-            {([['date', 'Date'], ['cost', 'Cost'], ['tokens', 'Tokens'], ['turns', 'Turns']] as const).map(([field, label]) => (
+            {(
+              [
+                ['date', 'Date'],
+                ['cost', 'Cost'],
+                ['tokens', 'Tokens'],
+                ['turns', 'Turns'],
+              ] as const
+            ).map(([field, label]) => (
               <button
                 key={field}
                 onClick={() => handleSortChange(field)}
@@ -297,12 +343,17 @@ export function SessionReplay({ data }: Props) {
           <div className="space-y-2">
             {groupedSessions.map((group) => (
               <div key={group.date}>
-                <div className="text-[10px] text-gray-600 font-medium mb-1 sticky top-0 bg-[#0d1117] py-0.5">{group.date}</div>
+                <div className="text-[10px] text-gray-600 font-medium mb-1 sticky top-0 bg-[#0d1117] py-0.5">
+                  {group.date}
+                </div>
                 <div className="space-y-0.5">
                   {group.sessions.map((s) => (
                     <button
                       key={s.id}
-                      onClick={() => { setSelectedSession(s.id); setExpandedTurn(null); }}
+                      onClick={() => {
+                        setSelectedSession(s.id);
+                        setExpandedTurn(null);
+                      }}
                       className={`w-full text-left px-2.5 py-1.5 rounded-md text-[11px] transition-all ${
                         selectedSession === s.id
                           ? 'bg-blue-500/15 border border-blue-500/30 text-gray-200'
@@ -311,7 +362,9 @@ export function SessionReplay({ data }: Props) {
                     >
                       <div className="flex items-center justify-between">
                         <span className="truncate flex-1 mr-2">{s.name}</span>
-                        <span className="text-amber-400 font-medium flex-shrink-0">{fmtUsd(s.totalCost)}</span>
+                        <span className="text-amber-400 font-medium flex-shrink-0">
+                          {fmtUsd(s.totalCost)}
+                        </span>
                       </div>
                       <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-600">
                         <span>{s.promptCount} turns</span>
@@ -371,8 +424,12 @@ export function SessionReplay({ data }: Props) {
         {(aiSummary || aiSummaryLoading) && (
           <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-xl p-3">
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-[10px] font-medium text-blue-400 uppercase tracking-wider">AI Summary</span>
-              <span className="px-1.5 py-0.5 text-[8px] font-medium rounded bg-blue-500/20 text-blue-300">AI</span>
+              <span className="text-[10px] font-medium text-blue-400 uppercase tracking-wider">
+                AI Summary
+              </span>
+              <span className="px-1.5 py-0.5 text-[8px] font-medium rounded bg-blue-500/20 text-blue-300">
+                AI
+              </span>
             </div>
             {aiSummaryLoading ? (
               <div className="space-y-1.5 animate-pulse">
@@ -389,7 +446,11 @@ export function SessionReplay({ data }: Props) {
         <ArtifactPanel turns={sessionTurns} />
 
         {/* Cumulative cost chart */}
-        <ChartCard title="Cumulative Cost" subtitle={`Total: ${fmtUsd(session.totalCost)}`} height={200}>
+        <ChartCard
+          title="Cumulative Cost"
+          subtitle={`Total: ${fmtUsd(session.totalCost)}`}
+          height={200}
+        >
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={costTimeline} margin={{ top: 8, right: 12, bottom: 0, left: 8 }}>
               <defs>
@@ -399,17 +460,52 @@ export function SessionReplay({ data }: Props) {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2a3a" />
-              <XAxis dataKey="turn" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} label={{ value: 'Turn', position: 'insideBottomRight', fill: '#6b7280', fontSize: 10 }} />
-              <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => fmtUsd(v)} />
+              <XAxis
+                dataKey="turn"
+                tick={{ fill: '#6b7280', fontSize: 10 }}
+                axisLine={false}
+                tickLine={false}
+                label={{
+                  value: 'Turn',
+                  position: 'insideBottomRight',
+                  fill: '#6b7280',
+                  fontSize: 10,
+                }}
+              />
+              <YAxis
+                tick={{ fill: '#6b7280', fontSize: 10 }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v: number) => fmtUsd(v)}
+              />
               <Tooltip
-                contentStyle={{ backgroundColor: '#1c2128', border: '1px solid #30363d', borderRadius: 8, fontSize: 11 }}
+                contentStyle={{
+                  backgroundColor: '#1c2128',
+                  border: '1px solid #30363d',
+                  borderRadius: 8,
+                  fontSize: 11,
+                }}
                 formatter={(v: number = 0) => [fmtUsd(v), 'Cumulative Cost']}
                 labelStyle={{ color: '#8b949e' }}
               />
               {compactionTurns.map((turn) => (
-                <ReferenceLine key={turn} x={turn} stroke="#eab308" strokeDasharray="4 4" strokeWidth={1} label={{ value: 'Compact', fill: '#eab308', fontSize: 9, position: 'top' }} />
+                <ReferenceLine
+                  key={turn}
+                  x={turn}
+                  stroke="#eab308"
+                  strokeDasharray="4 4"
+                  strokeWidth={1}
+                  label={{ value: 'Compact', fill: '#eab308', fontSize: 9, position: 'top' }}
+                />
               ))}
-              <Area type="monotone" dataKey="cost" stroke="#f59e0b" strokeWidth={2} fill="url(#cumCostGrad)" isAnimationActive={false} />
+              <Area
+                type="monotone"
+                dataKey="cost"
+                stroke="#f59e0b"
+                strokeWidth={2}
+                fill="url(#cumCostGrad)"
+                isAnimationActive={false}
+              />
             </AreaChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -429,31 +525,93 @@ export function SessionReplay({ data }: Props) {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2a3a" />
-              <XAxis dataKey="turn" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => fmtTokens(v)} />
+              <XAxis
+                dataKey="turn"
+                tick={{ fill: '#6b7280', fontSize: 10 }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                tick={{ fill: '#6b7280', fontSize: 10 }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v: number) => fmtTokens(v)}
+              />
               <Tooltip
-                contentStyle={{ backgroundColor: '#1c2128', border: '1px solid #30363d', borderRadius: 8, fontSize: 11 }}
+                contentStyle={{
+                  backgroundColor: '#1c2128',
+                  border: '1px solid #30363d',
+                  borderRadius: 8,
+                  fontSize: 11,
+                }}
                 formatter={(v: number = 0) => [fmtTokens(v), '']}
                 labelStyle={{ color: '#8b949e' }}
               />
               {compactionTurns.map((turn) => (
-                <ReferenceLine key={turn} x={turn} stroke="#eab308" strokeDasharray="4 4" strokeWidth={1} />
+                <ReferenceLine
+                  key={turn}
+                  x={turn}
+                  stroke="#eab308"
+                  strokeDasharray="4 4"
+                  strokeWidth={1}
+                />
               ))}
-              <Area type="monotone" dataKey="inputTokens" stroke="#3b82f6" fill="url(#cumInGrad)" strokeWidth={1.5} name="Input" isAnimationActive={false} />
-              <Area type="monotone" dataKey="outputTokens" stroke="#10b981" fill="url(#cumOutGrad)" strokeWidth={1.5} name="Output" isAnimationActive={false} />
+              <Area
+                type="monotone"
+                dataKey="inputTokens"
+                stroke="#3b82f6"
+                fill="url(#cumInGrad)"
+                strokeWidth={1.5}
+                name="Input"
+                isAnimationActive={false}
+              />
+              <Area
+                type="monotone"
+                dataKey="outputTokens"
+                stroke="#10b981"
+                fill="url(#cumOutGrad)"
+                strokeWidth={1.5}
+                name="Output"
+                isAnimationActive={false}
+              />
             </AreaChart>
           </ResponsiveContainer>
         </ChartCard>
 
         {/* Tool usage for session */}
-        <ChartCard title="Tools Used" subtitle={`${sessionToolData.length} unique tools`} height={180}>
+        <ChartCard
+          title="Tools Used"
+          subtitle={`${sessionToolData.length} unique tools`}
+          height={180}
+        >
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={sessionToolData} layout="vertical" margin={{ top: 4, right: 12, bottom: 0, left: 4 }}>
+            <BarChart
+              data={sessionToolData}
+              layout="vertical"
+              margin={{ top: 4, right: 12, bottom: 0, left: 4 }}
+            >
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2a3a" horizontal={false} />
-              <XAxis type="number" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis type="category" dataKey="name" tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} width={65} />
+              <XAxis
+                type="number"
+                tick={{ fill: '#6b7280', fontSize: 10 }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                type="category"
+                dataKey="name"
+                tick={{ fill: '#9ca3af', fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                width={65}
+              />
               <Tooltip
-                contentStyle={{ backgroundColor: '#1c2128', border: '1px solid #30363d', borderRadius: 8, fontSize: 11 }}
+                contentStyle={{
+                  backgroundColor: '#1c2128',
+                  border: '1px solid #30363d',
+                  borderRadius: 8,
+                  fontSize: 11,
+                }}
                 labelStyle={{ color: '#8b949e' }}
               />
               <Bar dataKey="count" radius={[0, 4, 4, 0]} isAnimationActive={false}>
@@ -468,18 +626,42 @@ export function SessionReplay({ data }: Props) {
         {/* Per-turn latency bar */}
         <ChartCard title="Response Latency" subtitle="Per-turn response time" height={160}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={sessionTurns.map((t) => ({ turn: t.turnIndex + 1, latency: t.latencyMs }))} margin={{ top: 4, right: 12, bottom: 0, left: 8 }}>
+            <BarChart
+              data={sessionTurns.map((t) => ({ turn: t.turnIndex + 1, latency: t.latencyMs }))}
+              margin={{ top: 4, right: 12, bottom: 0, left: 8 }}
+            >
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2a3a" />
-              <XAxis dataKey="turn" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => fmtMs(v)} />
+              <XAxis
+                dataKey="turn"
+                tick={{ fill: '#6b7280', fontSize: 10 }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                tick={{ fill: '#6b7280', fontSize: 10 }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v: number) => fmtMs(v)}
+              />
               <Tooltip
-                contentStyle={{ backgroundColor: '#1c2128', border: '1px solid #30363d', borderRadius: 8, fontSize: 11 }}
+                contentStyle={{
+                  backgroundColor: '#1c2128',
+                  border: '1px solid #30363d',
+                  borderRadius: 8,
+                  fontSize: 11,
+                }}
                 formatter={(v: number = 0) => [fmtMs(v), 'Latency']}
                 labelStyle={{ color: '#8b949e' }}
               />
               <Bar dataKey="latency" radius={[4, 4, 0, 0]} isAnimationActive={false}>
                 {sessionTurns.map((t, i) => (
-                  <Cell key={i} fill={t.latencyMs > 3000 ? '#ef4444' : t.latencyMs > 2000 ? '#f59e0b' : '#06b6d4'} fillOpacity={0.6} />
+                  <Cell
+                    key={i}
+                    fill={
+                      t.latencyMs > 3000 ? '#ef4444' : t.latencyMs > 2000 ? '#f59e0b' : '#06b6d4'
+                    }
+                    fillOpacity={0.6}
+                  />
                 ))}
               </Bar>
             </BarChart>

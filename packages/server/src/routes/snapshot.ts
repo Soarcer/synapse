@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import fs from 'fs';
 import { Router, type Request, type Response } from 'express';
 import { logger } from '../lib/logger.js';
@@ -29,11 +32,12 @@ export function createSnapshotRouter(): Router {
   const router = Router();
 
   // GET /api/snapshot/export — export all sessions (or one via ?sessionId=...)
-  router.get('/export', (req: Request, res: Response) => {
+  router.get('/export', async (req: Request, res: Response) => {
     try {
       const rawSessionId = req.query.sessionId as string | undefined;
       const SESSION_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
-      const filterSessionId = rawSessionId && SESSION_ID_PATTERN.test(rawSessionId) ? rawSessionId : undefined;
+      const filterSessionId =
+        rawSessionId && SESSION_ID_PATTERN.test(rawSessionId) ? rawSessionId : undefined;
       const allSessions = listSessions();
       const sessions = filterSessionId
         ? allSessions.filter((s) => s.session_id === filterSessionId)
@@ -60,15 +64,19 @@ export function createSnapshotRouter(): Router {
               if (raw.transcript_path && fs.existsSync(raw.transcript_path)) {
                 transcriptPath = raw.transcript_path;
               }
-            } catch { /* ignore */ }
+            } catch {
+              /* ignore */
+            }
           }
           if (!transcriptPath) {
-            transcriptPath = findTranscriptPath(s.session_id, process.cwd());
+            transcriptPath = await findTranscriptPath(s.session_id, process.cwd());
           }
           if (transcriptPath && fs.existsSync(transcriptPath)) {
-            transcript = readTranscript(transcriptPath, s.session_id);
+            transcript = await readTranscript(transcriptPath, s.session_id);
           }
-        } catch { /* transcript not available */ }
+        } catch {
+          /* transcript not available */
+        }
 
         snapshots.push({
           sessionId: s.session_id,
@@ -113,13 +121,24 @@ export function createSnapshotRouter(): Router {
           try {
             // Validate event structure and reject oversized events
             const parsed = AgentEventSchema.safeParse(event);
-            if (!parsed.success) { skippedEvents++; continue; }
-            if (JSON.stringify(event).length > 100_000) { skippedEvents++; continue; }
+            if (!parsed.success) {
+              skippedEvents++;
+              continue;
+            }
+            if (JSON.stringify(event).length > 100_000) {
+              skippedEvents++;
+              continue;
+            }
 
             insertEvent({
               event_id: event.id,
               session_id: event.sessionId,
-              hook_event_name: event.eventSource === 'hook' ? (event.type === 'session_start' ? 'SessionStart' : event.type) : 'imported',
+              hook_event_name:
+                event.eventSource === 'hook'
+                  ? event.type === 'session_start'
+                    ? 'SessionStart'
+                    : event.type
+                  : 'imported',
               event_type: event.type,
               agent_id: event.agentId ?? null,
               agent_type: event.agentType ?? null,

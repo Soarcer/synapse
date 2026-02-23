@@ -1,14 +1,12 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // Set DB path to a non-existent temp location BEFORE any server imports
 // so sql.js creates a fresh in-memory database.
 import path from 'path';
 import os from 'os';
-import { fileURLToPath } from 'url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-process.env.SYNAPSE_DB_PATH = path.join(
-  os.tmpdir(),
-  'synapse-test-routes-' + Date.now() + '.db',
-);
+process.env.SYNAPSE_DB_PATH = path.join(os.tmpdir(), 'synapse-test-routes-' + Date.now() + '.db');
 
 import request from 'supertest';
 import type { Express } from 'express';
@@ -16,7 +14,8 @@ import { initDb, deleteAllEvents } from '../db.js';
 import { createApp } from '../app.js';
 import { Broadcaster } from '../services/broadcaster.js';
 import { AgentManager } from '../services/agentManager.js';
-import { clearDedupeCache } from '../services/eventStore.js';
+import { registry } from '../routes/events.js';
+const clearDedupeCache = () => registry.clearDedupeCache();
 
 // ─── Shared Fixtures ──────────────────────────────────────────────────
 
@@ -83,10 +82,7 @@ afterAll(() => {
 
 describe('POST /api/events', () => {
   it('returns 200 with eventId for a valid hook event', async () => {
-    const res = await request(app)
-      .post('/api/events')
-      .send(VALID_HOOK_EVENT)
-      .expect(200);
+    const res = await request(app).post('/api/events').send(VALID_HOOK_EVENT).expect(200);
 
     expect(res.body.ok).toBe(true);
     expect(typeof res.body.eventId).toBe('string');
@@ -95,10 +91,7 @@ describe('POST /api/events', () => {
 
   it('returns 400 for a malformed body (non-object payload)', async () => {
     // Sending a JSON array instead of an object fails Zod's z.object() validation
-    const res = await request(app)
-      .post('/api/events')
-      .send([1, 2, 3])
-      .expect(400);
+    const res = await request(app).post('/api/events').send([1, 2, 3]).expect(400);
 
     expect(res.body.error).toBeDefined();
     expect(res.body.error).toBe('Validation failed');
@@ -182,8 +175,14 @@ describe('GET /api/events/sessions', () => {
 
 describe('DELETE /api/events', () => {
   it('clears all events and returns deleted count', async () => {
-    await request(app).post('/api/events').send({ ...VALID_HOOK_EVENT, session_id: 'del-a' }).expect(200);
-    await request(app).post('/api/events').send({ ...VALID_HOOK_EVENT, session_id: 'del-b' }).expect(200);
+    await request(app)
+      .post('/api/events')
+      .send({ ...VALID_HOOK_EVENT, session_id: 'del-a' })
+      .expect(200);
+    await request(app)
+      .post('/api/events')
+      .send({ ...VALID_HOOK_EVENT, session_id: 'del-b' })
+      .expect(200);
 
     const delRes = await request(app).delete('/api/events').expect(200);
 
@@ -211,17 +210,13 @@ describe('DELETE /api/events/session/:id', () => {
       .send({ ...VALID_HOOK_EVENT, session_id: 'del-sess-2' })
       .expect(200);
 
-    const delRes = await request(app)
-      .delete('/api/events/session/del-sess-1')
-      .expect(200);
+    const delRes = await request(app).delete('/api/events/session/del-sess-1').expect(200);
 
     expect(delRes.body.ok).toBe(true);
     expect(delRes.body.deleted).toBe(1);
 
     // Session 2 should still exist
-    const getRes = await request(app)
-      .get('/api/events?sessionId=del-sess-2')
-      .expect(200);
+    const getRes = await request(app).get('/api/events?sessionId=del-sess-2').expect(200);
     expect(getRes.body.length).toBe(1);
   });
 });
@@ -245,9 +240,7 @@ describe('GET /api/agents', () => {
 
 describe('DELETE /api/agents/:id', () => {
   it('returns 404 for a nonexistent agent', async () => {
-    const res = await request(app)
-      .delete('/api/agents/nonexistent')
-      .expect(404);
+    const res = await request(app).delete('/api/agents/nonexistent').expect(404);
 
     expect(res.body.error).toBe('Agent not found');
   });
@@ -313,10 +306,7 @@ describe('POST /api/snapshot/import', () => {
       makeSnapshotEvent('import-evt-2', { type: 'stop' }),
     ]);
 
-    const res = await request(app)
-      .post('/api/snapshot/import')
-      .send(snapshot)
-      .expect(200);
+    const res = await request(app).post('/api/snapshot/import').send(snapshot).expect(200);
 
     expect(res.body.imported).toBe(true);
     expect(res.body.events).toBe(2);
@@ -334,10 +324,7 @@ describe('POST /api/snapshot/import', () => {
     await request(app).post('/api/snapshot/import').send(snapshot).expect(200);
 
     // Second import — same event IDs should be skipped
-    const res = await request(app)
-      .post('/api/snapshot/import')
-      .send(snapshot)
-      .expect(200);
+    const res = await request(app).post('/api/snapshot/import').send(snapshot).expect(200);
 
     expect(res.body.imported).toBe(true);
     expect(res.body.events).toBe(0);
@@ -394,10 +381,7 @@ describe('Authentication via SYNAPSE_API_KEY', () => {
   });
 
   it('returns 401 for POST /api/events without auth', async () => {
-    const res = await request(authedApp)
-      .post('/api/events')
-      .send(VALID_HOOK_EVENT)
-      .expect(401);
+    const res = await request(authedApp).post('/api/events').send(VALID_HOOK_EVENT).expect(401);
 
     expect(res.body.error).toBe('Unauthorized');
   });

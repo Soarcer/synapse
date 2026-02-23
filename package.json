@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Synapse — Interactive Agent Orchestration Dashboard (monorepo)",
   "private": true,
+  "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
     "dev": "concurrently \"pnpm --filter @synapse-ai/server dev\" \"pnpm --filter @synapse-ai/dashboard dev\"",
@@ -22,7 +23,8 @@
     "format:check": "prettier --check 'packages/**/*.ts' 'apps/**/*.{ts,tsx}'",
     "clean": "pnpm -r clean",
     "audit": "pnpm audit --audit-level=high",
-    "typecheck": "pnpm -r --parallel exec tsc --noEmit"
+    "typecheck": "pnpm -r --parallel exec tsc --noEmit",
+    "prepare": "husky"
   },
   "lint-staged": {
     "*.{ts,tsx}": [

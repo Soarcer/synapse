@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useMemo } from 'react';
 import { useLens, type LensTreeNode } from './LensContext';
 
@@ -27,9 +30,10 @@ export function LensBreadcrumb() {
 
   // If path is too long, collapse middle segments
   const maxSegments = 4;
-  const display = path.length > maxSegments
-    ? [...path.slice(0, 1), null, ...path.slice(-(maxSegments - 1))]
-    : path;
+  const display =
+    path.length > maxSegments
+      ? [...path.slice(0, 1), null, ...path.slice(-(maxSegments - 1))]
+      : path;
 
   return (
     <div className="flex items-center gap-1 px-3 py-1.5 border-t border-gray-800 text-[10px] text-gray-500 flex-shrink-0 min-h-[28px] overflow-hidden">

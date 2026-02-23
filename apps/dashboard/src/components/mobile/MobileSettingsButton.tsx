@@ -3,7 +3,6 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useAgentStore } from '../../store/agentStore';
-import { GAME_MODES_ENABLED, GAME_MODE_OPTIONS } from '../graph/nodes/game-modes';
 
 const TOOL_VIEW_MODES = [
   { value: 'pillGrid' as const, label: 'Pill Grid' },
@@ -80,7 +79,9 @@ export function MobileSettingsButton() {
         <div className="absolute top-10 right-0 w-56 max-h-[70vh] overflow-y-auto bg-[#1c2333] border border-gray-700 rounded-lg shadow-xl p-3 space-y-3">
           {/* Time range filter */}
           <div>
-            <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5">Time range</div>
+            <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5">
+              Time range
+            </div>
             <div className="flex flex-wrap gap-1">
               {TIME_PRESETS.map((p) => (
                 <button
@@ -130,7 +131,9 @@ export function MobileSettingsButton() {
           </div>
 
           <div className="border-t border-gray-700 pt-2">
-            <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5">Tool view</div>
+            <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5">
+              Tool view
+            </div>
             <div className="flex gap-1">
               {TOOL_VIEW_MODES.map((m) => (
                 <button
@@ -146,23 +149,6 @@ export function MobileSettingsButton() {
                 </button>
               ))}
             </div>
-            {GAME_MODES_ENABLED && (
-              <div className="flex gap-1 mt-1.5">
-                {GAME_MODE_OPTIONS.map((m) => (
-                  <button
-                    key={m.value}
-                    onClick={() => useAgentStore.getState().setToolGroupMode(m.value)}
-                    className={`flex-1 px-1.5 py-1 text-[10px] rounded border transition-colors ${
-                      toolGroupMode === m.value
-                        ? 'bg-blue-600/30 border-blue-500/50 text-blue-300'
-                        : 'bg-gray-800 border-gray-700 text-gray-500'
-                    }`}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -170,7 +156,15 @@ export function MobileSettingsButton() {
   );
 }
 
-function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+function Toggle({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
   return (
     <button
       onClick={() => onChange(!checked)}

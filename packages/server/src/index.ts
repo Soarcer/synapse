@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { IncomingMessage } from 'http';
@@ -10,10 +13,11 @@ import { logger } from './lib/logger.js';
 import { Broadcaster } from './services/broadcaster.js';
 import { AgentManager } from './services/agentManager.js';
 import { createApp } from './app.js';
-import { initDb, closeDb, startPruneTimer, getDbStats } from './db.js';
+import { initDb, closeDb, startPruneTimer } from './db.js';
 import { seedBuiltInTemplates } from './services/playbookService.js';
 import { registerAllRules } from './services/rules/index.js';
 
+const HOST = process.env.HOST || 'localhost';
 const PORT = parseInt(process.env.PORT || '4000', 10);
 
 // --- Initialize database (async — sql.js requires WASM init) ---
@@ -43,9 +47,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const explicitDashDir = process.env.SYNAPSE_DASHBOARD_DIR;
 const defaultDistPath = path.resolve(__dirname, '..', '..', '..', 'apps', 'dashboard', 'dist');
 
-const dashDir = (explicitDashDir && fs.existsSync(explicitDashDir))
-  ? explicitDashDir
-  : fs.existsSync(defaultDistPath) ? defaultDistPath : null;
+const dashDir =
+  explicitDashDir && fs.existsSync(explicitDashDir)
+    ? explicitDashDir
+    : fs.existsSync(defaultDistPath)
+      ? defaultDistPath
+      : null;
 
 if (dashDir) {
   // Serve the built dashboard (production, VS Code extension, or local dist)
@@ -58,7 +65,6 @@ if (dashDir) {
 } else {
   // No built dashboard found — show minimal status page
   app.get('/', (_req, res) => {
-    const dbStats = getDbStats();
     res.type('html').send(`<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>Synapse Server</title>
 <style>
@@ -87,7 +93,7 @@ const server = createServer(app);
 
 const MAX_PORT_RETRIES = 20;
 
-function tryListen(preferredPort: number): Promise<number> {
+function tryListen(preferredPort: number, host: string): Promise<number> {
   return new Promise((resolve, reject) => {
     let attempt = 0;
     const tryPort = (port: number) => {
@@ -107,16 +113,16 @@ function tryListen(preferredPort: number): Promise<number> {
       };
       server.once('error', onError);
       server.once('listening', onListening);
-      server.listen(port);
+      server.listen(port, host);
     };
     tryPort(preferredPort);
   });
 }
 
-const actualPort = await tryListen(PORT);
+const actualPort = await tryListen(PORT, HOST);
 // Stdout protocol: VS Code extension parses this to learn the actual port
 process.stdout.write(`SYNAPSE_PORT=${actualPort}\n`);
-logger.info({ port: actualPort }, 'Synapse server started');
+logger.info({ host: HOST, port: actualPort }, 'Synapse server started');
 
 // Attach WebSocket server AFTER port is bound (avoids WSS catching EADDRINUSE errors)
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 1 * 1024 * 1024 }); // 1MB max message

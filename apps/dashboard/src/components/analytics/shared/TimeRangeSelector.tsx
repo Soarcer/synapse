@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 interface TimeRangeSelectorProps {
   value: string;
   onChange: (range: string) => void;
@@ -21,9 +24,11 @@ export function TimeRangeSelector({ value, onChange }: TimeRangeSelectorProps) {
           onClick={() => onChange(r.value)}
           className={`
             px-2.5 py-1 text-xs font-medium rounded-md transition-all
-            ${value === r.value
-              ? 'bg-gray-700 text-gray-100 shadow-sm'
-              : 'text-gray-500 hover:text-gray-300'}
+            ${
+              value === r.value
+                ? 'bg-gray-700 text-gray-100 shadow-sm'
+                : 'text-gray-500 hover:text-gray-300'
+            }
           `}
         >
           {r.label}

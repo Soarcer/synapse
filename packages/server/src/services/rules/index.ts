@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // ─── Rule Registry ───────────────────────────────────────────────────
 // Imports all rules and provides a single registration function
 
@@ -14,14 +17,14 @@ import { orchestrationRules } from './orchestrationRules.js';
 
 // All rules organized by category
 export const ALL_RULES: NudgeRule[] = [
-  ...toolUsageRules,     // 7 rules
-  ...planningRules,      // 5 rules
-  ...verificationRules,  // 5 rules
-  ...gitRules,           // 5 rules
-  ...securityRules,      // 3 rules
-  ...efficiencyRules,    // 3 rules
+  ...toolUsageRules, // 7 rules
+  ...planningRules, // 5 rules
+  ...verificationRules, // 5 rules
+  ...gitRules, // 5 rules
+  ...securityRules, // 3 rules
+  ...efficiencyRules, // 3 rules
   ...orchestrationRules, // 2 rules
-];                       // Total: 30 rules
+]; // Total: 30 rules
 
 /**
  * Register all nudge rules with the engine.

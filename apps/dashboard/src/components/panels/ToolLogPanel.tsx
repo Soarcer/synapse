@@ -1,4 +1,8 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
+import { useState, useRef, useCallback } from 'react';
+import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import { useAgentStore } from '../../store/agentStore';
 import { SkeletonLoader } from '../SkeletonLoader';
 import type { AgentEvent } from '@synapse-ai/core';
@@ -10,8 +14,7 @@ export function ToolLogPanel() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [filterTool, setFilterTool] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<string>('');
-  const [autoScroll, setAutoScroll] = useState(true);
-  const listRef = useRef<HTMLDivElement>(null);
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
 
   // Filter tool events
   const toolEvents = events.filter(
@@ -24,19 +27,6 @@ export function ToolLogPanel() {
   // Unique tool names for filter
   const toolNames = [...new Set(events.filter((e) => e.toolName).map((e) => e.toolName!))];
 
-  // Auto-scroll
-  useEffect(() => {
-    if (autoScroll && listRef.current) {
-      listRef.current.scrollTop = listRef.current.scrollHeight;
-    }
-  }, [toolEvents.length, autoScroll]);
-
-  const handleScroll = useCallback(() => {
-    if (!listRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = listRef.current;
-    setAutoScroll(scrollHeight - scrollTop - clientHeight < 50);
-  }, []);
-
   const toggleExpand = useCallback((id: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -47,7 +37,7 @@ export function ToolLogPanel() {
   }, []);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full" aria-label="Tool log panel">
       {/* Filters */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-800 flex-shrink-0">
         <span className="text-xs text-gray-500">Filter:</span>
@@ -59,7 +49,9 @@ export function ToolLogPanel() {
         >
           <option value="">All tools</option>
           {toolNames.map((t) => (
-            <option key={t} value={t}>{t}</option>
+            <option key={t} value={t}>
+              {t}
+            </option>
           ))}
         </select>
         <select
@@ -76,24 +68,30 @@ export function ToolLogPanel() {
         <span className="ml-auto text-xs text-gray-600">{toolEvents.length} events</span>
       </div>
 
-      {/* List */}
-      <div ref={listRef} onScroll={handleScroll} className="flex-1 overflow-auto">
+      {/* List — virtualized */}
+      <div className="flex-1 overflow-hidden">
         {isLoading && toolEvents.length === 0 ? (
           <SkeletonLoader rows={4} />
         ) : toolEvents.length === 0 ? (
           <div className="p-8 text-center text-gray-600 text-sm">No tool events yet</div>
         ) : (
-          <div className="divide-y divide-gray-800/50">
-            {toolEvents.map((event) => (
-              <ToolEventRow
-                key={event.id}
-                event={event}
-                agentType={agents.get(event.agentId ?? '')?.agentType}
-                isExpanded={expanded.has(event.id)}
-                onToggle={() => toggleExpand(event.id)}
-              />
-            ))}
-          </div>
+          <Virtuoso
+            ref={virtuosoRef}
+            data={toolEvents}
+            followOutput="smooth"
+            overscan={200}
+            itemContent={(_idx, event) => (
+              <div className="border-b border-gray-800/50">
+                <ToolEventRow
+                  key={event.id}
+                  event={event}
+                  agentType={agents.get(event.agentId ?? '')?.agentType}
+                  isExpanded={expanded.has(event.id)}
+                  onToggle={() => toggleExpand(event.id)}
+                />
+              </div>
+            )}
+          />
         )}
       </div>
     </div>
@@ -112,11 +110,13 @@ function ToolEventRow({
   onToggle: () => void;
 }) {
   const time = new Date(event.timestamp).toLocaleTimeString();
-  const statusBadge = ({
-    tool_start: { text: 'running', cls: 'bg-purple-900/50 text-purple-300' },
-    tool_end: { text: 'success', cls: 'bg-teal-900/50 text-teal-300' },
-    tool_error: { text: 'error', cls: 'bg-red-900/50 text-red-300' },
-  } as Record<string, { text: string; cls: string }>)[event.type] ?? { text: event.type, cls: 'bg-gray-700 text-gray-300' };
+  const statusBadge = (
+    {
+      tool_start: { text: 'running', cls: 'bg-purple-900/50 text-purple-300' },
+      tool_end: { text: 'success', cls: 'bg-teal-900/50 text-teal-300' },
+      tool_error: { text: 'error', cls: 'bg-red-900/50 text-red-300' },
+    } as Record<string, { text: string; cls: string }>
+  )[event.type] ?? { text: event.type, cls: 'bg-gray-700 text-gray-300' };
 
   const duration = event.duration != null ? `${(event.duration / 1000).toFixed(2)}s` : null;
 

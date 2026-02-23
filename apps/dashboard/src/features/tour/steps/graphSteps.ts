@@ -27,44 +27,9 @@ export const graphChapter: TourChapter = {
     },
     {
       target: '[data-id^="toolgroup-"]',
-      titleKey: 'tour.graph.toolGroupCollapsed.title',
-      bodyKey: 'tour.graph.toolGroupCollapsed.body',
+      titleKey: 'tour.graph.toolGroup.title',
+      bodyKey: 'tour.graph.toolGroup.body',
       placement: 'bottom',
-    },
-    {
-      target: '[data-id^="toolgroup-"]',
-      titleKey: 'tour.graph.toolGroupExpanded.title',
-      bodyKey: 'tour.graph.toolGroupExpanded.body',
-      placement: 'bottom',
-      onEnter: () => {
-        import('../../../store/agentStore').then(({ useAgentStore }) => {
-          useAgentStore.getState().setShowAllTools(true);
-        });
-      },
-    },
-    {
-      target: '[data-id^="tool-"]',
-      titleKey: 'tour.graph.structuralTool.title',
-      bodyKey: 'tour.graph.structuralTool.body',
-      placement: 'right',
-    },
-    {
-      target: '.react-flow__edge',
-      titleKey: 'tour.graph.edges.title',
-      bodyKey: 'tour.graph.edges.body',
-      placement: 'top',
-    },
-    {
-      target: '.edge-cost-badge',
-      titleKey: 'tour.graph.costBadge.title',
-      bodyKey: 'tour.graph.costBadge.body',
-      placement: 'top',
-    },
-    {
-      target: '[data-id^="spawn-"]',
-      titleKey: 'tour.graph.spawnAgent.title',
-      bodyKey: 'tour.graph.spawnAgent.body',
-      placement: 'left',
     },
     {
       target: '#graph-search-input',

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // Mock data generators for analytics prototypes
 // Produces realistic AI coding assistant usage data
 
@@ -67,23 +70,28 @@ export interface MockData {
 
 // ── Pricing ──────────────────────────────────────────────────
 
-const MODEL_INFO: Record<string, { inputPer1M: number; outputPer1M: number; cachedPer1M: number; vendor: string }> = {
-  'claude-opus-4-6':            { inputPer1M: 15, outputPer1M: 75, cachedPer1M: 1.5, vendor: 'anthropic' },
-  'claude-sonnet-4-5':          { inputPer1M: 3,  outputPer1M: 15, cachedPer1M: 0.3, vendor: 'anthropic' },
-  'claude-haiku-4-5':           { inputPer1M: 0.8, outputPer1M: 4, cachedPer1M: 0.08, vendor: 'anthropic' },
+const MODEL_INFO: Record<
+  string,
+  { inputPer1M: number; outputPer1M: number; cachedPer1M: number; vendor: string }
+> = {
+  'claude-opus-4-6': { inputPer1M: 15, outputPer1M: 75, cachedPer1M: 1.5, vendor: 'anthropic' },
+  'claude-sonnet-4-5': { inputPer1M: 3, outputPer1M: 15, cachedPer1M: 0.3, vendor: 'anthropic' },
+  'claude-haiku-4-5': { inputPer1M: 0.8, outputPer1M: 4, cachedPer1M: 0.08, vendor: 'anthropic' },
 };
-
-const MODELS = Object.keys(MODEL_INFO);
-
-const TOOL_NAMES = [
-  'Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob',
-  'Task', 'WebFetch', 'WebSearch', 'TodoWrite', 'NotebookEdit',
-];
 
 // Tool probability weights (Read is most common)
 const TOOL_WEIGHTS: Record<string, number> = {
-  Read: 30, Grep: 18, Glob: 12, Edit: 15, Write: 8,
-  Bash: 10, Task: 4, WebFetch: 2, WebSearch: 1, TodoWrite: 3, NotebookEdit: 1,
+  Read: 30,
+  Grep: 18,
+  Glob: 12,
+  Edit: 15,
+  Write: 8,
+  Bash: 10,
+  Task: 4,
+  WebFetch: 2,
+  WebSearch: 1,
+  TodoWrite: 3,
+  NotebookEdit: 1,
 };
 
 const PROMPT_TEMPLATES = [
@@ -202,9 +210,12 @@ export function generateMockData(seed = 42): MockData {
 
       // Model selection: 40% Sonnet, 35% Opus, 25% Haiku
       const modelRoll = rand();
-      const model = modelRoll < 0.40 ? 'claude-sonnet-4-5'
-        : modelRoll < 0.75 ? 'claude-opus-4-6'
-        : 'claude-haiku-4-5';
+      const model =
+        modelRoll < 0.4
+          ? 'claude-sonnet-4-5'
+          : modelRoll < 0.75
+            ? 'claude-opus-4-6'
+            : 'claude-haiku-4-5';
       const vendor = MODEL_INFO[model].vendor;
 
       const sessionId = `session-${dateKey}-${s}`;
@@ -357,7 +368,9 @@ export function totalToolCalls(data: MockData): number {
   return data.toolCalls.length;
 }
 
-export function toolBreakdown(data: MockData): { name: string; count: number; avgDuration: number; errorRate: number }[] {
+export function toolBreakdown(
+  data: MockData,
+): { name: string; count: number; avgDuration: number; errorRate: number }[] {
   const map = new Map<string, { count: number; totalDuration: number; errors: number }>();
   for (const tc of data.toolCalls) {
     const entry = map.get(tc.toolName) ?? { count: 0, totalDuration: 0, errors: 0 };
@@ -376,7 +389,9 @@ export function toolBreakdown(data: MockData): { name: string; count: number; av
     .sort((a, b) => b.count - a.count);
 }
 
-export function modelBreakdown(data: MockData): { model: string; sessions: number; cost: number; tokens: number }[] {
+export function modelBreakdown(
+  data: MockData,
+): { model: string; sessions: number; cost: number; tokens: number }[] {
   const map = new Map<string, { sessions: number; cost: number; tokens: number }>();
   for (const s of data.sessions) {
     const entry = map.get(s.model) ?? { sessions: 0, cost: 0, tokens: 0 };

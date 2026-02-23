@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 
 interface KpiCardProps {
@@ -34,9 +37,11 @@ export function KpiCard({
       onClick={onClick}
       className={`
         group relative flex flex-col gap-1 p-4 rounded-xl border transition-all text-left w-full
-        ${selected
-          ? 'border-blue-500/60 bg-blue-500/10'
-          : 'border-gray-800 bg-[#161b22] hover:border-gray-700 hover:bg-[#1c2128]'}
+        ${
+          selected
+            ? 'border-blue-500/60 bg-blue-500/10'
+            : 'border-gray-800 bg-[#161b22] hover:border-gray-700 hover:bg-[#1c2128]'
+        }
       `}
     >
       {/* Label row */}
@@ -56,9 +61,7 @@ export function KpiCard({
       </div>
 
       {/* Subtitle */}
-      {subtitle && (
-        <div className="text-[11px] text-gray-500">{subtitle}</div>
-      )}
+      {subtitle && <div className="text-[11px] text-gray-500">{subtitle}</div>}
 
       {/* Sparkline */}
       {chartData && chartData.length > 1 && (
@@ -66,7 +69,13 @@ export function KpiCard({
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
               <defs>
-                <linearGradient id={`spark-${label.replace(/\s/g, '')}`} x1="0" y1="0" x2="0" y2="1">
+                <linearGradient
+                  id={`spark-${label.replace(/\s/g, '')}`}
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
                   <stop offset="0%" stopColor={color} stopOpacity={0.3} />
                   <stop offset="100%" stopColor={color} stopOpacity={0} />
                 </linearGradient>

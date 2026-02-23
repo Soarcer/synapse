@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { fmtTokens } from './constants';
 
 interface TokenBreakdownBarProps {
@@ -29,29 +32,36 @@ export function TokenBreakdownBar({
       {/* Label + counts on one row */}
       <div className="flex items-center justify-center gap-3 mb-1.5">
         <span className="text-xs text-gray-500">Token breakdown</span>
-        {cacheReadTokens > 0 && (
-          hasCacheTiers
-            ? <>
-                <span className="text-[11px] text-cyan-400 flex items-center gap-1">
-                  <span className="inline-block w-2 h-2 rounded-sm bg-cyan-600" /> 5m {fmtTokens(ephemeral5mTokens!)}
-                </span>
-                <span className="text-[11px] text-cyan-300 flex items-center gap-1">
-                  <span className="inline-block w-2 h-2 rounded-sm bg-cyan-800" /> 1h {fmtTokens(ephemeral1hTokens!)}
-                </span>
-              </>
-            : <span className="text-[11px] text-purple-400 flex items-center gap-1">
-                <span className="inline-block w-2 h-2 rounded-sm bg-purple-500" /> cached {fmtTokens(cacheReadTokens)}
+        {cacheReadTokens > 0 &&
+          (hasCacheTiers ? (
+            <>
+              <span className="text-[11px] text-cyan-400 flex items-center gap-1">
+                <span className="inline-block w-2 h-2 rounded-sm bg-cyan-600" /> 5m{' '}
+                {fmtTokens(ephemeral5mTokens!)}
               </span>
-        )}
+              <span className="text-[11px] text-cyan-300 flex items-center gap-1">
+                <span className="inline-block w-2 h-2 rounded-sm bg-cyan-800" /> 1h{' '}
+                {fmtTokens(ephemeral1hTokens!)}
+              </span>
+            </>
+          ) : (
+            <span className="text-[11px] text-purple-400 flex items-center gap-1">
+              <span className="inline-block w-2 h-2 rounded-sm bg-purple-500" /> cached{' '}
+              {fmtTokens(cacheReadTokens)}
+            </span>
+          ))}
         <span className="text-[11px] text-blue-400 flex items-center gap-1">
-          <span className="inline-block w-2 h-2 rounded-sm bg-blue-500" /> input {fmtTokens(freshInput)}
+          <span className="inline-block w-2 h-2 rounded-sm bg-blue-500" /> input{' '}
+          {fmtTokens(freshInput)}
         </span>
         <span className="text-[11px] text-emerald-400 flex items-center gap-1">
-          <span className="inline-block w-2 h-2 rounded-sm bg-emerald-500" /> output {fmtTokens(outputTokens)}
+          <span className="inline-block w-2 h-2 rounded-sm bg-emerald-500" /> output{' '}
+          {fmtTokens(outputTokens)}
         </span>
         {thinking > 0 && (
           <span className="text-[11px] text-pink-400 flex items-center gap-1">
-            <span className="inline-block w-2 h-2 rounded-sm bg-pink-500" /> thinking {fmtTokens(thinking)}
+            <span className="inline-block w-2 h-2 rounded-sm bg-pink-500" /> thinking{' '}
+            {fmtTokens(thinking)}
           </span>
         )}
       </div>

@@ -1,7 +1,18 @@
-import { normalizeHookPayload, rowToAgentEvent } from '../services/eventStore';
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
+import { rowToAgentEvent } from '../services/eventStore';
+import { ClaudeAdapter } from '../adapters/claude';
 import type { EventRow } from '../db';
 
-// ─── normalizeHookPayload ────────────────────────────────────────────
+const adapter = new ClaudeAdapter();
+
+// Helper that matches the old normalizeHookPayload signature
+function normalizeHookPayload(raw: Record<string, unknown>) {
+  return adapter.normalize(raw);
+}
+
+// ─── normalizeHookPayload (via ClaudeAdapter) ────────────────────────
 
 describe('normalizeHookPayload', () => {
   // ── Hook event type mapping ──
@@ -332,6 +343,12 @@ describe('rowToAgentEvent', () => {
     expect(event.eventSource).toBe('hook');
   });
 
+  it('sets eventSource to hook for adapter id values', () => {
+    expect(rowToAgentEvent(makeRow({ hook_event_name: 'claude' })).eventSource).toBe('hook');
+    expect(rowToAgentEvent(makeRow({ hook_event_name: 'gemini' })).eventSource).toBe('hook');
+    expect(rowToAgentEvent(makeRow({ hook_event_name: 'codex' })).eventSource).toBe('hook');
+  });
+
   it('sets eventSource to sdk for unknown hook event names', () => {
     const event = rowToAgentEvent(makeRow({ hook_event_name: 'custom_sdk_event' }));
     expect(event.eventSource).toBe('sdk');
@@ -343,23 +360,27 @@ describe('rowToAgentEvent', () => {
   });
 
   it('maps agent fields from the row', () => {
-    const event = rowToAgentEvent(makeRow({
-      agent_id: 'agent-7',
-      agent_type: 'Plan',
-      parent_agent_id: 'agent-0',
-    }));
+    const event = rowToAgentEvent(
+      makeRow({
+        agent_id: 'agent-7',
+        agent_type: 'Plan',
+        parent_agent_id: 'agent-0',
+      }),
+    );
     expect(event.agentId).toBe('agent-7');
     expect(event.agentType).toBe('Plan');
     expect(event.parentAgentId).toBe('agent-0');
   });
 
   it('maps tool fields from the row', () => {
-    const event = rowToAgentEvent(makeRow({
-      tool_name: 'Edit',
-      tool_use_id: 'tu-99',
-      tool_input: '{"file":"a.ts"}',
-      tool_response: '{"ok":true}',
-    }));
+    const event = rowToAgentEvent(
+      makeRow({
+        tool_name: 'Edit',
+        tool_use_id: 'tu-99',
+        tool_input: '{"file":"a.ts"}',
+        tool_response: '{"ok":true}',
+      }),
+    );
     expect(event.toolName).toBe('Edit');
     expect(event.toolUseId).toBe('tu-99');
     expect(event.toolInput).toEqual({ file: 'a.ts' });
@@ -422,10 +443,12 @@ describe('rowToAgentEvent', () => {
 
   it('restores notification text from raw_payload for notification events', () => {
     const raw = { message: 'Idle timeout', notification_type: 'idle_prompt' };
-    const event = rowToAgentEvent(makeRow({
-      event_type: 'notification',
-      raw_payload: JSON.stringify(raw),
-    }));
+    const event = rowToAgentEvent(
+      makeRow({
+        event_type: 'notification',
+        raw_payload: JSON.stringify(raw),
+      }),
+    );
     expect(event.text).toBe('Idle timeout');
     expect(event.notificationType).toBe('idle_prompt');
   });

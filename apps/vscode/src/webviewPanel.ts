@@ -1,7 +1,10 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import * as vscode from 'vscode';
 import { executeForwardedKeybinding } from './keybindings';
 
-type SelectionHandler = (nodeId: string | null) => void;
+type SelectionHandler = (nodeId: string | null, source?: string | null) => void;
 type VoidHandler = () => void;
 
 export class SynapsePanel {
@@ -26,7 +29,7 @@ export class SynapsePanel {
     this.panel.webview.onDidReceiveMessage(
       (message) => {
         if (message.type === 'selectionChanged' && this._onSelectionChanged) {
-          this._onSelectionChanged(message.nodeId ?? null);
+          this._onSelectionChanged(message.nodeId ?? null, message.source ?? null);
         }
         if (message.type === 'iframeReady' && this._onIframeReady) {
           this._onIframeReady();
@@ -45,7 +48,12 @@ export class SynapsePanel {
     this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
   }
 
-  static create(extensionUri: vscode.Uri, port: number, viewParam = '', cwd?: string): SynapsePanel {
+  static create(
+    extensionUri: vscode.Uri,
+    port: number,
+    viewParam = '',
+    cwd?: string,
+  ): SynapsePanel {
     if (SynapsePanel.currentPanel) {
       SynapsePanel.currentPanel.panel.reveal(vscode.ViewColumn.One);
       return SynapsePanel.currentPanel;
@@ -71,8 +79,8 @@ export class SynapsePanel {
   }
 
   /** Forward a selectNode message into the iframe */
-  postSelectNode(nodeId: string | null): void {
-    this.panel.webview.postMessage({ type: 'selectNode', nodeId });
+  postSelectNode(nodeId: string | null, source?: string | null): void {
+    this.panel.webview.postMessage({ type: 'selectNode', nodeId, source: source ?? null });
   }
 
   /** Forward any message to the iframe */

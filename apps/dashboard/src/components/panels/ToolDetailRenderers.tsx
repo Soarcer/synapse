@@ -1,11 +1,25 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useMemo } from 'react';
 import { highlightJSON, highlightShell, detectLang } from '../../utils/syntaxHighlight';
 import { useAgentStore } from '../../store/agentStore';
 import {
-  CopyButton, CollapsibleBlock, FilePath, CodeBlock, Badge,
-  ErrorBanner, SizeIndicator, RunningIndicator, DefaultResponseBlock, FileList,
-  GrepContentBlock, SearchResultCard, parseWebSearchResults,
-  stripAnsi, shortPath,
+  CopyButton,
+  CollapsibleBlock,
+  FilePath,
+  CodeBlock,
+  Badge,
+  ErrorBanner,
+  SizeIndicator,
+  RunningIndicator,
+  DefaultResponseBlock,
+  FileList,
+  GrepContentBlock,
+  SearchResultCard,
+  parseWebSearchResults,
+  stripAnsi,
+  shortPath,
 } from './renderers/shared';
 import { ToolSummaryLine, type AskQuestion, type TodoItem } from './renderers/ToolSummary';
 
@@ -45,7 +59,10 @@ function ReadRenderer({ input, response, status }: ToolRendererProps) {
   // Build the line range badge
   let lineBadge: { label: string; color: 'gray' | 'amber' | 'blue' } | null = null;
   if (isPartial && startLine != null && numLines != null) {
-    lineBadge = { label: `${startLine}–${startLine + numLines - 1} of ${totalLines}`, color: 'amber' };
+    lineBadge = {
+      label: `${startLine}–${startLine + numLines - 1} of ${totalLines}`,
+      color: 'amber',
+    };
   } else if (totalLines != null) {
     lineBadge = { label: `${totalLines} lines`, color: 'gray' };
   } else if (offset != null || limit != null) {
@@ -62,7 +79,11 @@ function ReadRenderer({ input, response, status }: ToolRendererProps) {
       )}
 
       {content ? (
-        <CollapsibleBlock label="Content" count={`${numLines ?? content.split('\n').length} lines`} defaultOpen>
+        <CollapsibleBlock
+          label="Content"
+          count={`${numLines ?? content.split('\n').length} lines`}
+          defaultOpen
+        >
           <CodeBlock code={content} lang={lang} />
         </CollapsibleBlock>
       ) : response ? (
@@ -92,18 +113,26 @@ function EditRenderer({ input, response, status }: ToolRendererProps) {
       {(oldStr != null || newStr != null) && (
         <CollapsibleBlock label="Changes" defaultOpen>
           <div className="bg-gray-950 rounded border border-gray-800 overflow-auto max-h-72 text-xs font-mono">
-            {oldStr && oldStr.split('\n').map((line, i) => (
-              <div key={`old-${i}`} className="bg-red-950/30 border-l-2 border-red-700/50 px-2 py-px">
-                <span className="text-red-400/60 select-none mr-2">−</span>
-                <span className="text-red-300/80">{line}</span>
-              </div>
-            ))}
-            {newStr && newStr.split('\n').map((line, i) => (
-              <div key={`new-${i}`} className="bg-green-950/30 border-l-2 border-green-700/50 px-2 py-px">
-                <span className="text-green-400/60 select-none mr-2">+</span>
-                <span className="text-green-300/80">{line}</span>
-              </div>
-            ))}
+            {oldStr &&
+              oldStr.split('\n').map((line, i) => (
+                <div
+                  key={`old-${i}`}
+                  className="bg-red-950/30 border-l-2 border-red-700/50 px-2 py-px"
+                >
+                  <span className="text-red-400/60 select-none mr-2">−</span>
+                  <span className="text-red-300/80">{line}</span>
+                </div>
+              ))}
+            {newStr &&
+              newStr.split('\n').map((line, i) => (
+                <div
+                  key={`new-${i}`}
+                  className="bg-green-950/30 border-l-2 border-green-700/50 px-2 py-px"
+                >
+                  <span className="text-green-400/60 select-none mr-2">+</span>
+                  <span className="text-green-300/80">{line}</span>
+                </div>
+              ))}
           </div>
         </CollapsibleBlock>
       )}
@@ -134,7 +163,11 @@ function WriteRenderer({ input, response, status }: ToolRendererProps) {
         <Badge color="blue">Write</Badge>
       </div>
       {content && (
-        <CollapsibleBlock label="Content" count={`${content.split('\n').length} lines`} defaultOpen={content.split('\n').length <= 30}>
+        <CollapsibleBlock
+          label="Content"
+          count={`${content.split('\n').length} lines`}
+          defaultOpen={content.split('\n').length <= 30}
+        >
           <CodeBlock code={content} lang={lang} />
         </CollapsibleBlock>
       )}
@@ -155,9 +188,7 @@ function BashRenderer({ input, response, status }: ToolRendererProps) {
 
   return (
     <div className="space-y-2">
-      {description && (
-        <p className="text-xs text-gray-400 italic">{description}</p>
-      )}
+      {description && <p className="text-xs text-gray-400 italic">{description}</p>}
 
       {command && (
         <div className="bg-gray-950 rounded border border-gray-800 p-2 overflow-x-auto">
@@ -177,15 +208,17 @@ function BashRenderer({ input, response, status }: ToolRendererProps) {
         <>
           {exitCode != null && (
             <div className="flex items-center gap-2">
-              <Badge color={exitCode === 0 ? 'green' : 'red'}>
-                exit {exitCode}
-              </Badge>
+              <Badge color={exitCode === 0 ? 'green' : 'red'}>exit {exitCode}</Badge>
               {stdout && <SizeIndicator text={`${stdout.split('\n').length} lines`} />}
             </div>
           )}
 
           {stdout && (
-            <CollapsibleBlock label="stdout" count={`${stdout.split('\n').length} lines`} defaultOpen>
+            <CollapsibleBlock
+              label="stdout"
+              count={`${stdout.split('\n').length} lines`}
+              defaultOpen
+            >
               <pre className="text-xs font-mono text-gray-300 bg-gray-950 rounded border border-gray-800 p-2 overflow-auto max-h-60 whitespace-pre-wrap">
                 {stdout}
               </pre>
@@ -193,7 +226,11 @@ function BashRenderer({ input, response, status }: ToolRendererProps) {
           )}
 
           {stderr && stderr.trim() && (
-            <CollapsibleBlock label="stderr" count={`${stderr.split('\n').length} lines`} defaultOpen={false}>
+            <CollapsibleBlock
+              label="stderr"
+              count={`${stderr.split('\n').length} lines`}
+              defaultOpen={false}
+            >
               <pre className="text-xs font-mono text-red-300/80 bg-red-950/20 rounded border border-red-800/30 p-2 overflow-auto max-h-40 whitespace-pre-wrap">
                 {stderr}
               </pre>
@@ -209,7 +246,9 @@ function BashRenderer({ input, response, status }: ToolRendererProps) {
 function GlobRenderer({ input, response, status }: ToolRendererProps) {
   const pattern = input?.pattern as string | undefined;
   const path = input?.path as string | undefined;
-  const files = (response?.files ?? response?.result ?? (Array.isArray(response) ? response : null)) as string[] | null;
+  const files = (response?.files ??
+    response?.result ??
+    (Array.isArray(response) ? response : null)) as string[] | null;
 
   if (status === 'running') return <RunningIndicator />;
 
@@ -335,9 +374,7 @@ function WebSearchRenderer({ input, response, status }: ToolRendererProps) {
         </CollapsibleBlock>
       )}
 
-      {!links.length && !summary && response && (
-        <DefaultResponseBlock response={response} />
-      )}
+      {!links.length && !summary && response && <DefaultResponseBlock response={response} />}
 
       {response?.durationSeconds != null && (
         <span className="text-[10px] text-gray-600">
@@ -355,7 +392,11 @@ function WebFetchRenderer({ input, response, status }: ToolRendererProps) {
   const content = (response?.content ?? response?.result ?? response?.text) as string | undefined;
 
   let domain = '';
-  try { if (url) domain = new URL(url).hostname; } catch { /* ignore */ }
+  try {
+    if (url) domain = new URL(url).hostname;
+  } catch {
+    /* ignore */
+  }
 
   if (status === 'running') return <RunningIndicator />;
 
@@ -378,7 +419,11 @@ function WebFetchRenderer({ input, response, status }: ToolRendererProps) {
       )}
 
       {content ? (
-        <CollapsibleBlock label="Response" count={`${String(content).split('\n').length} lines`} defaultOpen>
+        <CollapsibleBlock
+          label="Response"
+          count={`${String(content).split('\n').length} lines`}
+          defaultOpen
+        >
           <pre className="text-xs text-gray-300 bg-gray-950 rounded border border-gray-800 p-2 overflow-auto max-h-60 whitespace-pre-wrap">
             {content}
           </pre>
@@ -401,7 +446,11 @@ function TaskRenderer({ input, response, status }: ToolRendererProps) {
     typeof rawResult === 'string'
       ? rawResult
       : Array.isArray(rawResult)
-        ? rawResult.map((b: unknown) => (b && typeof b === 'object' && 'text' in b ? (b as { text: string }).text : String(b))).join('\n')
+        ? rawResult
+            .map((b: unknown) =>
+              b && typeof b === 'object' && 'text' in b ? (b as { text: string }).text : String(b),
+            )
+            .join('\n')
         : rawResult != null
           ? String(rawResult)
           : undefined;
@@ -418,7 +467,11 @@ function TaskRenderer({ input, response, status }: ToolRendererProps) {
       ) : (
         <>
           {prompt && (
-            <CollapsibleBlock label="Prompt" count={`${prompt.split('\n').length} lines`} defaultOpen={prompt.split('\n').length <= 10}>
+            <CollapsibleBlock
+              label="Prompt"
+              count={`${prompt.split('\n').length} lines`}
+              defaultOpen={prompt.split('\n').length <= 10}
+            >
               <pre className="text-xs text-gray-300 bg-gray-950 rounded border border-gray-800 p-2 overflow-auto max-h-40 whitespace-pre-wrap font-mono">
                 {prompt}
               </pre>
@@ -426,7 +479,11 @@ function TaskRenderer({ input, response, status }: ToolRendererProps) {
           )}
 
           {result ? (
-            <CollapsibleBlock label="Result" count={`${String(result).split('\n').length} lines`} defaultOpen={String(result).split('\n').length <= 20}>
+            <CollapsibleBlock
+              label="Result"
+              count={`${String(result).split('\n').length} lines`}
+              defaultOpen={String(result).split('\n').length <= 20}
+            >
               <pre className="text-xs text-gray-300 bg-gray-950 rounded border border-gray-800 p-2 overflow-auto max-h-60 whitespace-pre-wrap">
                 {result}
               </pre>
@@ -470,11 +527,12 @@ function NotebookEditRenderer({ input, response, status }: ToolRendererProps) {
       </div>
 
       {newSource && (
-        <CollapsibleBlock label="New Source" count={`${newSource.split('\n').length} lines`} defaultOpen>
-          <CodeBlock
-            code={newSource}
-            lang={cellType === 'markdown' ? 'md' : 'py'}
-          />
+        <CollapsibleBlock
+          label="New Source"
+          count={`${newSource.split('\n').length} lines`}
+          defaultOpen
+        >
+          <CodeBlock code={newSource} lang={cellType === 'markdown' ? 'md' : 'py'} />
         </CollapsibleBlock>
       )}
 
@@ -490,7 +548,15 @@ function AskUserQuestionRenderer({ input, response, status }: ToolRendererProps)
   const [activeTab, setActiveTab] = useState(0);
 
   if (status === 'running') return <RunningIndicator />;
-  if (!questions || questions.length === 0) return <DefaultRenderer input={input} response={response} status={status} toolName="AskUserQuestion" />;
+  if (!questions || questions.length === 0)
+    return (
+      <DefaultRenderer
+        input={input}
+        response={response}
+        status={status}
+        toolName="AskUserQuestion"
+      />
+    );
 
   const activeQ = questions[activeTab];
   const selectedAnswer = answers?.[activeQ.question];
@@ -512,15 +578,21 @@ function AskUserQuestionRenderer({ input, response, status }: ToolRendererProps)
                   key={i}
                   onClick={(e) => {
                     setActiveTab(i);
-                    (e.currentTarget as HTMLElement).scrollIntoView({ inline: 'center', behavior: 'smooth', block: 'nearest' });
+                    (e.currentTarget as HTMLElement).scrollIntoView({
+                      inline: 'center',
+                      behavior: 'smooth',
+                      block: 'nearest',
+                    });
                   }}
                   className={`
                     px-2.5 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider shrink-0 transition-colors
-                    ${isActive
-                      ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
-                      : hasAnswer
-                        ? 'bg-green-900/20 text-green-400/70 border border-green-700/30 hover:bg-green-900/30'
-                        : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800 border border-transparent'}
+                    ${
+                      isActive
+                        ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
+                        : hasAnswer
+                          ? 'bg-green-900/20 text-green-400/70 border border-green-700/30 hover:bg-green-900/30'
+                          : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800 border border-transparent'
+                    }
                   `}
                 >
                   {hasAnswer && <span className="mr-1">✓</span>}
@@ -548,25 +620,31 @@ function AskUserQuestionRenderer({ input, response, status }: ToolRendererProps)
                   key={i}
                   className={`
                     flex items-start gap-2.5 rounded-lg px-3 py-2 border transition-colors
-                    ${isSelected
-                      ? 'bg-green-950/30 border-green-600/40'
-                      : isDimmed
-                        ? 'bg-gray-950/30 border-gray-800/50 opacity-50'
-                        : 'bg-gray-950/50 border-gray-800'}
+                    ${
+                      isSelected
+                        ? 'bg-green-950/30 border-green-600/40'
+                        : isDimmed
+                          ? 'bg-gray-950/30 border-gray-800/50 opacity-50'
+                          : 'bg-gray-950/50 border-gray-800'
+                    }
                   `}
                 >
                   {/* Radio/checkbox indicator */}
                   <div className="mt-0.5 shrink-0">
                     {activeQ.multiSelect ? (
-                      <div className={`w-3.5 h-3.5 rounded-sm border-2 flex items-center justify-center ${
-                        isSelected ? 'border-green-500 bg-green-600' : 'border-gray-600'
-                      }`}>
+                      <div
+                        className={`w-3.5 h-3.5 rounded-sm border-2 flex items-center justify-center ${
+                          isSelected ? 'border-green-500 bg-green-600' : 'border-gray-600'
+                        }`}
+                      >
                         {isSelected && <span className="text-white text-[8px] font-bold">✓</span>}
                       </div>
                     ) : (
-                      <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${
-                        isSelected ? 'border-green-500' : 'border-gray-600'
-                      }`}>
+                      <div
+                        className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${
+                          isSelected ? 'border-green-500' : 'border-gray-600'
+                        }`}
+                      >
                         {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-green-500" />}
                       </div>
                     )}
@@ -574,11 +652,15 @@ function AskUserQuestionRenderer({ input, response, status }: ToolRendererProps)
 
                   {/* Label + description */}
                   <div className="min-w-0 flex-1">
-                    <p className={`text-xs font-medium ${isSelected ? 'text-green-300' : 'text-gray-200'}`}>
+                    <p
+                      className={`text-xs font-medium ${isSelected ? 'text-green-300' : 'text-gray-200'}`}
+                    >
                       {opt.label}
                     </p>
                     {opt.description && (
-                      <p className={`text-[10px] leading-relaxed mt-0.5 ${isSelected ? 'text-green-400/60' : 'text-gray-500'}`}>
+                      <p
+                        className={`text-[10px] leading-relaxed mt-0.5 ${isSelected ? 'text-green-400/60' : 'text-gray-500'}`}
+                      >
                         {opt.description}
                       </p>
                     )}
@@ -612,7 +694,11 @@ function AskUserQuestionRenderer({ input, response, status }: ToolRendererProps)
       </div>
 
       {/* Raw input — always visible */}
-      <CollapsibleBlock label="Raw Input" count={`${JSON.stringify(input ?? {}).length} bytes`} defaultOpen={false}>
+      <CollapsibleBlock
+        label="Raw Input"
+        count={`${JSON.stringify(input ?? {}).length} bytes`}
+        defaultOpen={false}
+      >
         <pre className="text-xs bg-gray-950 rounded border border-gray-800 p-2 text-gray-300 overflow-auto max-h-52 font-mono whitespace-pre-wrap">
           {highlightJSON(JSON.stringify(input, null, 2))}
         </pre>
@@ -751,19 +837,21 @@ function TodoWriteRenderer({ input, status, toolUseId }: ToolRendererProps) {
               key={i}
               className={`
                 flex items-start gap-2.5 rounded-lg px-3 py-2 border transition-colors
-                ${isNewlyCompleted
-                  ? 'bg-green-950/30 border-green-600/40 shadow-md shadow-green-500/10'
-                  : isNewlyStarted
-                    ? 'bg-purple-950/30 border-purple-600/40'
-                    : isNew
-                      ? 'bg-blue-950/20 border-blue-700/30'
-                      : isReverted
-                        ? 'bg-amber-950/20 border-amber-700/30'
-                        : item.status === 'completed'
-                          ? 'bg-gray-900/30 border-gray-800/50'
-                          : item.status === 'in_progress'
-                            ? 'bg-gray-900/50 border-gray-700'
-                            : 'bg-gray-950/30 border-gray-800'}
+                ${
+                  isNewlyCompleted
+                    ? 'bg-green-950/30 border-green-600/40 shadow-md shadow-green-500/10'
+                    : isNewlyStarted
+                      ? 'bg-purple-950/30 border-purple-600/40'
+                      : isNew
+                        ? 'bg-blue-950/20 border-blue-700/30'
+                        : isReverted
+                          ? 'bg-amber-950/20 border-amber-700/30'
+                          : item.status === 'completed'
+                            ? 'bg-gray-900/30 border-gray-800/50'
+                            : item.status === 'in_progress'
+                              ? 'bg-gray-900/50 border-gray-700'
+                              : 'bg-gray-950/30 border-gray-800'
+                }
               `}
             >
               {/* Status indicator */}
@@ -831,13 +919,15 @@ function TodoWriteRenderer({ input, status, toolUseId }: ToolRendererProps) {
 
       {/* Diff indicator */}
       {hasPrev && (
-        <p className="text-[9px] text-gray-600 italic">
-          Compared with previous snapshot
-        </p>
+        <p className="text-[9px] text-gray-600 italic">Compared with previous snapshot</p>
       )}
 
       {/* Raw JSON */}
-      <CollapsibleBlock label="Raw Input" count={`${JSON.stringify(input ?? {}).length} bytes`} defaultOpen>
+      <CollapsibleBlock
+        label="Raw Input"
+        count={`${JSON.stringify(input ?? {}).length} bytes`}
+        defaultOpen
+      >
         <pre className="text-xs bg-gray-950 rounded border border-gray-800 p-2 text-gray-300 overflow-auto max-h-52 font-mono whitespace-pre-wrap">
           {highlightJSON(JSON.stringify(input, null, 2))}
         </pre>
@@ -860,7 +950,11 @@ function DefaultRenderer({ input, response, status }: ToolRendererProps) {
         </CollapsibleBlock>
       )}
       {response && (
-        <CollapsibleBlock label="Response" count={`${JSON.stringify(response).length} bytes`} defaultOpen={JSON.stringify(response).length < 500}>
+        <CollapsibleBlock
+          label="Response"
+          count={`${JSON.stringify(response).length} bytes`}
+          defaultOpen={JSON.stringify(response).length < 500}
+        >
           <pre className="text-xs bg-gray-950 rounded border border-gray-800 p-2 text-gray-300 overflow-auto max-h-52 font-mono whitespace-pre-wrap">
             {highlightJSON(JSON.stringify(response, null, 2))}
           </pre>
@@ -896,7 +990,13 @@ export function ToolRenderer({ input, response, status, toolName, toolUseId }: T
   return (
     <div className="space-y-2">
       {errorMsg && <ErrorBanner error={errorMsg.error} context={errorMsg.context} />}
-      <Renderer input={input} response={response} status={status} toolName={toolName} toolUseId={toolUseId} />
+      <Renderer
+        input={input}
+        response={response}
+        status={status}
+        toolName={toolName}
+        toolUseId={toolUseId}
+      />
     </div>
   );
 }

@@ -1,9 +1,19 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // ─── Security Rules (3 rules) ────────────────────────────────────────
 // Detect security anti-patterns: secrets, env files, destructive commands
 
 import type { AgentEventType } from '@synapse-ai/core';
 import type { NudgeRule, RuleContext } from '../nudgeEngine.js';
-import { extractBashCommand, extractFilePath, SECRET_PATTERN_RE, BEARER_RE, SENSITIVE_FILES_RE, PROCESS_KILL_ALL_RE } from '../nudgeEngine.js';
+import {
+  extractBashCommand,
+  extractFilePath,
+  SECRET_PATTERN_RE,
+  BEARER_RE,
+  SENSITIVE_FILES_RE,
+  PROCESS_KILL_ALL_RE,
+} from '../nudgeEngine.js';
 
 // ── security.hardcoded-secret ────────────────────────────────────────
 
@@ -37,7 +47,8 @@ export const hardcodedSecret: NudgeRule = {
       severity: 'warning',
       title: 'Possible hardcoded secret',
       message: `"${fileName}" may contain a hardcoded secret (API key, password, or token). Secrets should never be in source code.`,
-      recommendation: 'Use environment variables instead of hardcoded secrets:\n```typescript\n// Bad: const key = "sk-abc123...";\n// Good: const key = process.env.API_KEY;\n```\nStore secrets in `.env` (gitignored) and load with `dotenv`:\n```\nnpm install dotenv\n```\nAdd to `.gitignore`:\n```\n.env\n.env.local\n```',
+      recommendation:
+        'Use environment variables instead of hardcoded secrets:\n```typescript\n// Bad: const key = "sk-abc123...";\n// Good: const key = process.env.API_KEY;\n```\nStore secrets in `.env` (gitignored) and load with `dotenv`:\n```\nnpm install dotenv\n```\nAdd to `.gitignore`:\n```\n.env\n.env.local\n```',
     };
   },
 };
@@ -71,7 +82,8 @@ export const envInCommit: NudgeRule = {
       severity: 'warning',
       title: 'Sensitive file staged',
       message: `A sensitive file (${fileName}) is being staged for commit. This could expose credentials in your repository.`,
-      recommendation: 'Remove from staging and add to .gitignore:\n```\ngit reset HEAD .env\necho ".env" >> .gitignore\necho "*.pem" >> .gitignore\necho "*.key" >> .gitignore\ngit add .gitignore\n```',
+      recommendation:
+        'Remove from staging and add to .gitignore:\n```\ngit reset HEAD .env\necho ".env" >> .gitignore\necho "*.pem" >> .gitignore\necho "*.key" >> .gitignore\ngit add .gitignore\n```',
     };
   },
 };
@@ -82,7 +94,8 @@ export const processKillAll: NudgeRule = {
   meta: {
     id: 'security.process-kill-all',
     name: 'Blanket Process Kill',
-    description: 'Using taskkill with //IM kills ALL processes of that type across the system, not just the target.',
+    description:
+      'Using taskkill with //IM kills ALL processes of that type across the system, not just the target.',
     dimension: 'sessionStrategy',
     defaultSeverity: 'warning',
     defaultCooldownMs: 5 * 60 * 1000,
@@ -98,14 +111,12 @@ export const processKillAll: NudgeRule = {
     return {
       severity: 'warning',
       title: 'Blanket process kill',
-      message: 'Using "taskkill //IM" kills ALL processes with that name across every project, terminal, and tool on the system.',
-      recommendation: 'Kill only the specific process by PID instead:\n```bash\n# Find the right PID:\nwmic process where "commandline like \'%your-script%\'" get processid\n\n# Kill only that process:\ntaskkill //F //PID <pid>\n```',
+      message:
+        'Using "taskkill //IM" kills ALL processes with that name across every project, terminal, and tool on the system.',
+      recommendation:
+        'Kill only the specific process by PID instead:\n```bash\n# Find the right PID:\nwmic process where "commandline like \'%your-script%\'" get processid\n\n# Kill only that process:\ntaskkill //F //PID <pid>\n```',
     };
   },
 };
 
-export const securityRules: NudgeRule[] = [
-  hardcodedSecret,
-  envInCommit,
-  processKillAll,
-];
+export const securityRules: NudgeRule[] = [hardcodedSecret, envInCommit, processKillAll];

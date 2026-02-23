@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { z } from 'zod';
 
 // ---------------------------------------------------------------------------
@@ -23,9 +26,7 @@ export const SpawnAgentRequestSchema = z.object({
   prompt: z.string().min(1).max(100_000),
   model: z.enum(['opus', 'sonnet', 'haiku']).optional(),
   tools: z.array(z.string()).max(50).optional(),
-  permissionMode: z
-    .enum(['acceptEdits', 'bypassPermissions', 'default'])
-    .optional(),
+  permissionMode: z.enum(['acceptEdits', 'bypassPermissions', 'default']).optional(),
   systemPrompt: z.string().max(100_000).optional(),
   mcpServers: z
     .record(

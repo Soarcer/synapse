@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useEffect, useState, useCallback } from 'react';
 import { t } from '../i18n';
 
@@ -39,11 +42,7 @@ function dismissToast(id: number) {
   notify(toasts);
 }
 
-export function toast(
-  message: string,
-  type: ToastItem['type'] = 'info',
-  nodeId?: string,
-) {
+export function toast(message: string, type: ToastItem['type'] = 'info', nodeId?: string) {
   const item: ToastItem = { id: nextId++, message, type, nodeId };
   toasts = [...toasts, item];
   notify(toasts);
@@ -76,7 +75,12 @@ export function ToastContainer() {
   if (items.length === 0) return null;
 
   return (
-    <div className="fixed top-14 right-4 z-50 space-y-2 pointer-events-none" role="status" aria-live="polite" aria-atomic="true">
+    <div
+      className="fixed top-14 right-4 z-50 space-y-2 pointer-events-none"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
       {items.map((item) => (
         <div
           key={item.id}

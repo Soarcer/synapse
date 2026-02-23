@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { MODEL_COLORS, MODEL_LABELS } from './constants';
 
 interface ModelBadgeProps {

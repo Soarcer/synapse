@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useMemo, useCallback, useState, type ReactNode } from 'react';
 import type { ToolCallSummary } from '@synapse-ai/core';
+import type { GameScorer, GameScore } from './types';
 import {
   computeScore,
   ensurePixelFont,
@@ -20,22 +21,26 @@ interface Props {
   soundEnabled: boolean;
   volume: number;
   tools: ToolCallSummary[];
+  /** Optional game-mode-specific scorer. Falls back to generic arcade scoring. */
+  scorer?: GameScorer;
   children: ReactNode;
 }
 
-export function ArcadeOverlay({ enabled, soundEnabled, volume, tools, children }: Props) {
+export function ArcadeOverlay({ enabled, soundEnabled, volume, tools, scorer, children }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const particlesRef = useRef<Particle[]>([]);
   const prevCountRef = useRef(tools.length);
   const [shaking, setShaking] = useState(false);
 
   // Load pixel font on first enable
-  useEffect(() => { if (enabled) ensurePixelFont(); }, [enabled]);
+  useEffect(() => {
+    if (enabled) ensurePixelFont();
+  }, [enabled]);
 
-  // Score
-  const { score, combo } = useMemo(
-    () => computeScore(tools.map((t) => t.status)),
-    [tools],
+  // Score — use mode-specific scorer if provided, else generic
+  const { score, combo, comboLabel } = useMemo<GameScore>(
+    () => (scorer ? scorer(tools) : computeScore(tools.map((t) => t.status))),
+    [tools, scorer],
   );
 
   // Spawn particles + play sounds on tool count changes
@@ -43,7 +48,10 @@ export function ArcadeOverlay({ enabled, soundEnabled, volume, tools, children }
     if (!enabled) return;
     const prev = prevCountRef.current;
     const curr = tools.length;
-    if (curr <= prev) { prevCountRef.current = curr; return; }
+    if (curr <= prev) {
+      prevCountRef.current = curr;
+      return;
+    }
 
     for (let i = prev; i < curr; i++) {
       const tc = tools[i];
@@ -68,7 +76,9 @@ export function ArcadeOverlay({ enabled, soundEnabled, volume, tools, children }
     prevCountRef.current = curr;
   }, [enabled, tools, soundEnabled, volume, combo]);
 
-  useEffect(() => { handleNewTools(); }, [handleNewTools]);
+  useEffect(() => {
+    handleNewTools();
+  }, [handleNewTools]);
 
   // Particle animation loop
   useEffect(() => {
@@ -129,7 +139,10 @@ export function ArcadeOverlay({ enabled, soundEnabled, volume, tools, children }
       />
 
       {/* Phosphor glow on text */}
-      <div className="absolute inset-0 pointer-events-none" style={{ textShadow: '0 0 4px currentColor', zIndex: 99 }} />
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ textShadow: '0 0 4px currentColor', zIndex: 99 }}
+      />
 
       {/* Particle canvas */}
       <canvas
@@ -152,7 +165,7 @@ export function ArcadeOverlay({ enabled, soundEnabled, volume, tools, children }
               fontSize: '6px',
             }}
           >
-            x{combo} COMBO!
+            x{combo} {comboLabel ?? 'COMBO!'}
           </div>
         )}
       </div>

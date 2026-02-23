@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { logger } from '../lib/logger.js';
 import { findTranscriptPath, readTranscript } from './transcriptReader.js';
 import { analyticsQueryAll } from '../db.js';
@@ -15,7 +18,10 @@ const MAX_CACHE_SIZE = 10_000;
 const cache = new Map<string, CacheEntry>();
 
 /** Get a single session transcript summary (cached). Returns null if transcript not found. */
-export function getTranscriptSummary(sessionId: string, cwd?: string): TranscriptSummary | null {
+export async function getTranscriptSummary(
+  sessionId: string,
+  cwd?: string,
+): Promise<TranscriptSummary | null> {
   const cached = cache.get(sessionId);
   if (cached && Date.now() < cached.expiry) return cached.summary;
 
@@ -29,18 +35,20 @@ export function getTranscriptSummary(sessionId: string, cwd?: string): Transcrip
     try {
       const raw = JSON.parse(rows[0].raw_payload as string);
       if (raw.transcript_path) transcriptPath = raw.transcript_path;
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   // Fallback: scan project dirs
   if (!transcriptPath) {
-    transcriptPath = findTranscriptPath(sessionId, cwd ?? process.cwd());
+    transcriptPath = await findTranscriptPath(sessionId, cwd ?? process.cwd());
   }
 
   if (!transcriptPath) return null;
 
   try {
-    const summary = readTranscript(transcriptPath, sessionId);
+    const summary = await readTranscript(transcriptPath, sessionId);
     // Evict oldest entry if cache is full
     if (cache.size >= MAX_CACHE_SIZE) {
       const oldestKey = cache.keys().next().value;
@@ -55,12 +63,17 @@ export function getTranscriptSummary(sessionId: string, cwd?: string): Transcrip
 }
 
 /** Batch-read transcript summaries for multiple sessions. */
-export function getTranscriptSummaries(sessionIds: string[], cwd?: string): Map<string, TranscriptSummary> {
+export async function getTranscriptSummaries(
+  sessionIds: string[],
+  cwd?: string,
+): Promise<Map<string, TranscriptSummary>> {
   const result = new Map<string, TranscriptSummary>();
-  for (const id of sessionIds) {
-    const summary = getTranscriptSummary(id, cwd);
-    if (summary) result.set(id, summary);
-  }
+  await Promise.all(
+    sessionIds.map(async (id) => {
+      const summary = await getTranscriptSummary(id, cwd);
+      if (summary) result.set(id, summary);
+    }),
+  );
   return result;
 }
 
@@ -78,7 +91,9 @@ export interface TranscriptOverview {
 }
 
 /** Aggregate overview metrics from transcript summaries. */
-export function aggregateTranscripts(summaries: Map<string, TranscriptSummary>): TranscriptOverview {
+export function aggregateTranscripts(
+  summaries: Map<string, TranscriptSummary>,
+): TranscriptOverview {
   let totalCost = 0;
   let totalInput = 0;
   let totalOutput = 0;
@@ -87,7 +102,10 @@ export function aggregateTranscripts(summaries: Map<string, TranscriptSummary>):
   let cacheHitSum = 0;
   let latencySum = 0;
   let latencyCount = 0;
-  const modelBreakdown = new Map<string, { sessions: number; cost: number; tokens: number; vendor: string }>();
+  const modelBreakdown = new Map<
+    string,
+    { sessions: number; cost: number; tokens: number; vendor: string }
+  >();
 
   for (const summary of summaries.values()) {
     totalCost += summary.estimatedCostUsd;
@@ -113,10 +131,13 @@ export function aggregateTranscripts(summaries: Map<string, TranscriptSummary>):
           sessions: 1,
           cost: 0, // will be computed below
           tokens,
-          vendor: mu.model.startsWith('claude') ? 'anthropic'
-            : mu.model.startsWith('gpt') || mu.model.startsWith('o1') || mu.model.startsWith('o3') ? 'openai'
-            : mu.model.startsWith('gemini') ? 'google'
-            : 'unknown',
+          vendor: mu.model.startsWith('claude')
+            ? 'anthropic'
+            : mu.model.startsWith('gpt') || mu.model.startsWith('o1') || mu.model.startsWith('o3')
+              ? 'openai'
+              : mu.model.startsWith('gemini')
+                ? 'google'
+                : 'unknown',
         });
       }
     }

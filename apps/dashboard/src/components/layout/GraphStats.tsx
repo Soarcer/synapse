@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useMemo } from 'react';
 import { useAgentStore } from '../../store/agentStore';
 import { formatTokens, formatDuration } from '@synapse-ai/core';
@@ -66,7 +69,7 @@ export function GraphStats() {
   if (stats.total === 0) return null;
 
   return (
-    <div className="flex items-center gap-1.5 text-xs text-gray-500 min-w-0">
+    <div className="flex items-center gap-1.5 text-xs text-gray-500 min-w-0 graph-stats">
       <Tooltip content="Total nodes in current view">
         <span className="tabular-nums whitespace-nowrap">
           {stats.total} node{stats.total !== 1 ? 's' : ''}

@@ -1,10 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import type { Node } from '@xyflow/react';
-import type {
-  AgentNodeData,
-  SessionData,
-  ToolCallSummary,
-  UserPromptData,
-} from '@synapse-ai/core';
+import type { AgentNodeData, SessionData, ToolCallSummary, UserPromptData } from '@synapse-ai/core';
 
 export function nodeMatchesSearch(node: Node, query: string): boolean {
   if (node.id === '__spawn__') return false;
@@ -13,9 +11,7 @@ export function nodeMatchesSearch(node: Node, query: string): boolean {
   switch (node.type) {
     case 'session': {
       const s = d.session as SessionData;
-      return [s.sessionId, s.model, s.cwd].some((v) =>
-        v?.toLowerCase().includes(query),
-      );
+      return [s.sessionId, s.model, s.cwd].some((v) => v?.toLowerCase().includes(query));
     }
     case 'userPrompt': {
       const p = d.prompt as UserPromptData;
@@ -23,19 +19,19 @@ export function nodeMatchesSearch(node: Node, query: string): boolean {
     }
     case 'agent': {
       const a = d.agent as AgentNodeData;
-      return [a.agentType, a.agentId].some((v) =>
-        v?.toLowerCase().includes(query),
-      );
+      return [a.agentType, a.agentId].some((v) => v?.toLowerCase().includes(query));
     }
     case 'toolCall': {
       const t = d.toolCall as ToolCallSummary;
-      return [t.toolName, t.inputPreview].some((v) =>
-        v?.toLowerCase().includes(query),
-      );
+      return [t.toolName, t.inputPreview].some((v) => v?.toLowerCase().includes(query));
     }
     case 'toolGroup': {
       const tools = d.tools as ToolCallSummary[] | undefined;
-      return tools?.some((t) => [t.toolName, t.inputPreview].some((v) => v?.toLowerCase().includes(query))) ?? false;
+      return (
+        tools?.some((t) =>
+          [t.toolName, t.inputPreview].some((v) => v?.toLowerCase().includes(query)),
+        ) ?? false
+      );
     }
     default:
       return false;
@@ -52,7 +48,11 @@ export function buildParentMap(edges: { source: string; target: string }[]): Map
 }
 
 /** Collect a node's ancestors by walking up the parent map */
-export function collectAncestors(id: string, parentOf: Map<string, string>, into: Set<string>): void {
+export function collectAncestors(
+  id: string,
+  parentOf: Map<string, string>,
+  into: Set<string>,
+): void {
   let current = id;
   while (parentOf.has(current)) {
     current = parentOf.get(current)!;
@@ -61,7 +61,9 @@ export function collectAncestors(id: string, parentOf: Map<string, string>, into
 }
 
 /** Build a parent->children map from edges */
-export function buildChildrenMap(edges: { source: string; target: string }[]): Map<string, string[]> {
+export function buildChildrenMap(
+  edges: { source: string; target: string }[],
+): Map<string, string[]> {
   const childrenOf = new Map<string, string[]>();
   for (const edge of edges) {
     const kids = childrenOf.get(edge.source) ?? [];

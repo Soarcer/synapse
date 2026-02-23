@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import * as vscode from 'vscode';
 import * as http from 'http';
 import * as fs from 'fs';
@@ -104,7 +107,12 @@ export class SettingsPanel {
         const status = this.hookManager.getHookStatus(this.serverManager.port);
         this.panel.webview.postMessage({
           type: 'hookStatus',
-          data: { ...status, isExternalServer: this.serverManager.isExternalServer, allSyncEvents: SYNC_EVENTS, allAsyncEvents: ASYNC_EVENTS },
+          data: {
+            ...status,
+            isExternalServer: this.serverManager.isExternalServer,
+            allSyncEvents: SYNC_EVENTS,
+            allAsyncEvents: ASYNC_EVENTS,
+          },
         });
         break;
       }
@@ -113,7 +121,12 @@ export class SettingsPanel {
         const status = this.hookManager.getHookStatus(this.serverManager.port);
         this.panel.webview.postMessage({
           type: 'hookStatus',
-          data: { ...status, isExternalServer: this.serverManager.isExternalServer, allSyncEvents: SYNC_EVENTS, allAsyncEvents: ASYNC_EVENTS },
+          data: {
+            ...status,
+            isExternalServer: this.serverManager.isExternalServer,
+            allSyncEvents: SYNC_EVENTS,
+            allAsyncEvents: ASYNC_EVENTS,
+          },
         });
         break;
       }
@@ -122,13 +135,64 @@ export class SettingsPanel {
         const status = this.hookManager.getHookStatus(this.serverManager.port);
         this.panel.webview.postMessage({
           type: 'hookStatus',
-          data: { ...status, isExternalServer: this.serverManager.isExternalServer, allSyncEvents: SYNC_EVENTS, allAsyncEvents: ASYNC_EVENTS },
+          data: {
+            ...status,
+            isExternalServer: this.serverManager.isExternalServer,
+            allSyncEvents: SYNC_EVENTS,
+            allAsyncEvents: ASYNC_EVENTS,
+          },
         });
         this.panel.webview.postMessage({
           type: 'actionResult',
           action: 'repairHooks',
           success: true,
           message: 'Hooks repaired successfully',
+        });
+        break;
+      }
+
+      // Server Configuration
+      case 'getServerConfig': {
+        const cfg = vscode.workspace.getConfiguration('synapse');
+        this.panel.webview.postMessage({
+          type: 'serverConfig',
+          data: {
+            host: cfg.get('host', 'localhost'),
+            configuredPort: cfg.get('port', 4000),
+            actualPort: this.serverManager.isRunning ? this.serverManager.port : null,
+          },
+        });
+        break;
+      }
+      case 'setServerConfig': {
+        const cfg = vscode.workspace.getConfiguration('synapse');
+        const newHost = msg.host as string;
+        const newPort = msg.port as number;
+        await cfg.update('host', newHost, vscode.ConfigurationTarget.Global);
+        await cfg.update('port', newPort, vscode.ConfigurationTarget.Global);
+        await this.serverManager.restart();
+        const actualPort = this.serverManager.isRunning ? this.serverManager.port : newPort;
+        // Persist actual port back to settings so it stays consistent after auto-increment
+        if (actualPort !== newPort) {
+          await cfg.update('port', actualPort, vscode.ConfigurationTarget.Global);
+        }
+        // Always reconfigure hooks after port/host change
+        await this.hookManager.configureHooks(actualPort);
+        // Send back updated config after restart
+        this.panel.webview.postMessage({
+          type: 'serverConfig',
+          data: {
+            host: newHost,
+            configuredPort: actualPort,
+            actualPort: this.serverManager.isRunning ? this.serverManager.port : null,
+          },
+        });
+        await this.fetchHealthAndSend();
+        this.panel.webview.postMessage({
+          type: 'actionResult',
+          action: 'setServerConfig',
+          success: true,
+          message: `Server running on ${newHost}:${actualPort} — hooks reconfigured`,
         });
         break;
       }
@@ -157,7 +221,10 @@ export class SettingsPanel {
       case 'clearAllEvents':
         await this.proxyDelete(`/api/events`);
         this.panel.webview.postMessage({
-          type: 'actionResult', action: 'clearAllEvents', success: true, message: 'All events cleared',
+          type: 'actionResult',
+          action: 'clearAllEvents',
+          success: true,
+          message: 'All events cleared',
         });
         break;
       case 'clearSession':
@@ -180,7 +247,9 @@ export class SettingsPanel {
         await this.proxyPutJson(`/api/settings`, { anthropic_api_key: apiKey });
         await this.fetchAiStatusAndSend();
         this.panel.webview.postMessage({
-          type: 'actionResult', action: 'setApiKey', success: true,
+          type: 'actionResult',
+          action: 'setApiKey',
+          success: true,
           message: apiKey ? 'API key saved' : 'API key removed',
         });
         break;
@@ -205,7 +274,9 @@ export class SettingsPanel {
         const value = msg.value;
         await config.update(`promptLab.${key}`, value, vscode.ConfigurationTarget.Global);
         this.panel.webview.postMessage({
-          type: 'actionResult', action: 'setPromptLabSetting', success: true,
+          type: 'actionResult',
+          action: 'setPromptLabSetting',
+          success: true,
           message: `${key} updated`,
         });
         break;
@@ -253,7 +324,10 @@ export class SettingsPanel {
     try {
       const body = await this.httpGet(`/api/events/sessions`);
       const sessions = JSON.parse(body);
-      this.panel.webview.postMessage({ type: 'sessions', data: Array.isArray(sessions) ? sessions : [] });
+      this.panel.webview.postMessage({
+        type: 'sessions',
+        data: Array.isArray(sessions) ? sessions : [],
+      });
     } catch {
       this.panel.webview.postMessage({ type: 'sessions', data: [] });
     }
@@ -264,17 +338,23 @@ export class SettingsPanel {
       const body = await this.httpGet(`/api/events?limit=2000`);
       const uri = await vscode.window.showSaveDialog({
         defaultUri: vscode.Uri.file('synapse-export.json'),
-        filters: { 'JSON': ['json'] },
+        filters: { JSON: ['json'] },
       });
       if (uri) {
         fs.writeFileSync(uri.fsPath, body, 'utf-8');
         this.panel.webview.postMessage({
-          type: 'actionResult', action: 'exportData', success: true, message: `Exported to ${path.basename(uri.fsPath)}`,
+          type: 'actionResult',
+          action: 'exportData',
+          success: true,
+          message: `Exported to ${path.basename(uri.fsPath)}`,
         });
       }
     } catch (err) {
       this.panel.webview.postMessage({
-        type: 'actionResult', action: 'exportData', success: false, message: String(err),
+        type: 'actionResult',
+        action: 'exportData',
+        success: false,
+        message: String(err),
       });
     }
   }
@@ -283,11 +363,16 @@ export class SettingsPanel {
     return new Promise((resolve, reject) => {
       const req = http.get(`http://localhost:${this.serverManager.port}${urlPath}`, (res) => {
         let data = '';
-        res.on('data', (chunk: Buffer) => { data += chunk.toString(); });
+        res.on('data', (chunk: Buffer) => {
+          data += chunk.toString();
+        });
         res.on('end', () => resolve(data));
       });
       req.on('error', reject);
-      req.setTimeout(5000, () => { req.destroy(); reject(new Error('timeout')); });
+      req.setTimeout(5000, () => {
+        req.destroy();
+        reject(new Error('timeout'));
+      });
     });
   }
 
@@ -302,7 +387,10 @@ export class SettingsPanel {
         },
       );
       req.on('error', reject);
-      req.setTimeout(5000, () => { req.destroy(); reject(new Error('timeout')); });
+      req.setTimeout(5000, () => {
+        req.destroy();
+        reject(new Error('timeout'));
+      });
       req.end();
     });
   }
@@ -354,7 +442,10 @@ export class SettingsPanel {
         },
       );
       req.on('error', reject);
-      req.setTimeout(5000, () => { req.destroy(); reject(new Error('timeout')); });
+      req.setTimeout(5000, () => {
+        req.destroy();
+        reject(new Error('timeout'));
+      });
       req.write(data);
       req.end();
     });
@@ -703,6 +794,22 @@ export class SettingsPanel {
   <!-- ════════════════════════════════════════════════════════════ -->
   <div id="tab-server" class="tab-content">
     <div class="card">
+      <h3>Server Configuration</h3>
+      <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label for="cfg-host">Host</label>
+          <input type="text" id="cfg-host" value="localhost" style="width:160px;">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label for="cfg-port">Port</label>
+          <input type="number" id="cfg-port" value="4000" min="1024" max="65535" style="width:100px;">
+        </div>
+        <button onclick="applyServerConfig()">Apply &amp; Restart</button>
+      </div>
+      <div id="cfg-actual-port" style="font-size:11px;color:var(--vscode-descriptionForeground);margin-top:8px;"></div>
+    </div>
+
+    <div class="card">
       <h3>Server Status</h3>
       <div class="status-row">
         <div id="server-dot" class="status-dot red"></div>
@@ -881,7 +988,7 @@ export class SettingsPanel {
 
         // Load data for the tab
         if (tab.dataset.tab === 'hooks') send({ type: 'getHookStatus' });
-        if (tab.dataset.tab === 'server') { send({ type: 'getServerHealth' }); send({ type: 'getAiStatus' }); }
+        if (tab.dataset.tab === 'server') { send({ type: 'getServerConfig' }); send({ type: 'getServerHealth' }); send({ type: 'getAiStatus' }); }
         if (tab.dataset.tab === 'data') send({ type: 'getSessions' });
         if (tab.dataset.tab === 'promptlab') send({ type: 'getPromptLabSettings' });
       });
@@ -897,6 +1004,7 @@ export class SettingsPanel {
       switch (msg.type) {
         case 'hookStatus': renderHookStatus(msg.data); break;
         case 'serverHealth': renderServerHealth(msg.data); break;
+        case 'serverConfig': renderServerConfig(msg.data); break;
         case 'sessions': renderSessions(msg.data); break;
         case 'aiStatus': renderAiStatus(msg.data); break;
         case 'promptLabSettings': renderPromptLabSettings(msg.data); break;
@@ -1173,9 +1281,35 @@ export class SettingsPanel {
       if (maxChars) maxChars.value = data.maxChars || 4000;
     }
 
+    /* ── Server config ── */
+    function renderServerConfig(data) {
+      if (!data) return;
+      document.getElementById('cfg-host').value = data.host || 'localhost';
+      // Show the actual running port so "Apply & Restart" uses the right value
+      document.getElementById('cfg-port').value = data.actualPort || data.configuredPort || 4000;
+      const actual = document.getElementById('cfg-actual-port');
+      if (data.actualPort && data.actualPort !== data.configuredPort) {
+        actual.textContent = 'Preferred port ' + data.configuredPort + ' was busy — auto-incremented to ' + data.actualPort;
+        actual.style.color = 'var(--vscode-editorWarning-foreground, #d29922)';
+      } else if (data.actualPort) {
+        actual.textContent = 'Running on port ' + data.actualPort;
+        actual.style.color = 'var(--vscode-descriptionForeground)';
+      } else {
+        actual.textContent = 'Server not running';
+        actual.style.color = 'var(--vscode-editorWarning-foreground, #d29922)';
+      }
+    }
+
+    function applyServerConfig() {
+      const host = document.getElementById('cfg-host').value.trim() || 'localhost';
+      const port = parseInt(document.getElementById('cfg-port').value, 10) || 4000;
+      send({ type: 'setServerConfig', host: host, port: port });
+    }
+
     /* ── Init: load Hooks tab data ── */
     send({ type: 'getHookStatus' });
     send({ type: 'getServerHealth' });
+    send({ type: 'getServerConfig' });
     send({ type: 'getAiStatus' });
     send({ type: 'getPromptLabSettings' });
   </script>

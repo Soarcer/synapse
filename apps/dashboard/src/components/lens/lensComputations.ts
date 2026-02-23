@@ -1,5 +1,14 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { getKindColor } from '@synapse-ai/core';
-import type { AgentNodeData, UserPromptData, AgentEvent, TranscriptSummary, FullTranscript } from '@synapse-ai/core';
+import type {
+  AgentNodeData,
+  UserPromptData,
+  AgentEvent,
+  TranscriptSummary,
+  FullTranscript,
+} from '@synapse-ai/core';
 import { extractUserMessage } from '../../utils/promptText';
 import type {
   LensTreeNode,
@@ -71,7 +80,14 @@ export function buildHeatmapData(
   waterfallSpans: WaterfallSpan[],
   timeRange: { min: number; max: number; duration: number },
 ): HeatmapData {
-  const empty: HeatmapData = { actions: [], bucketLabels: [], grid: [], maxCount: 0, tokenGrid: [], maxTokens: 0 };
+  const empty: HeatmapData = {
+    actions: [],
+    bucketLabels: [],
+    grid: [],
+    maxCount: 0,
+    tokenGrid: [],
+    maxTokens: 0,
+  };
   // Only consider tool and agent spans
   const actionSpans = waterfallSpans.filter((s) => s.kind === 'tool' || s.kind === 'agent');
   if (actionSpans.length === 0) return empty;
@@ -253,10 +269,9 @@ export function buildCostPerTurn(
 
     // Get transcript turns for this session (if available)
     const transcript = transcripts.get(sessionId);
-    // TODO: When full transcript data (ConversationRecord[]) is available via LensAdapter,
-    // filter out isMeta records here to prevent /skill invocations and system-injected
+    // Filter out isMeta records to prevent /skill invocations and system-injected
     // content from appearing as user prompts in the cost lens.
-    const tTurns = transcript?.turns.filter((t) => t.type === 'assistant') ?? [];
+    const tTurns = transcript?.turns.filter((t) => t.type === 'assistant' && !t.isMeta) ?? [];
 
     for (let i = 0; i < sorted.length; i++) {
       const prompt = sorted[i];
@@ -291,9 +306,7 @@ export function buildCostPerTurn(
         // Find transcript assistant turns in this prompt's time window
         const windowStart = prompt.timestamp - 2000;
         const windowEnd = next ? next.timestamp : prompt.timestamp + 600_000;
-        const matched = tTurns.filter(
-          (t) => t.timestamp >= windowStart && t.timestamp < windowEnd,
-        );
+        const matched = tTurns.filter((t) => t.timestamp >= windowStart && t.timestamp < windowEnd);
 
         if (matched.length > 0) {
           let txInput = 0;
@@ -339,7 +352,8 @@ export function buildCostPerTurn(
       // Check if a compaction happened between previous turn and this one
       const prevTime = i > 0 ? sorted[i - 1].timestamp : 0;
       const compactionBefore = compactEvents.some(
-        (c) => c.sessionId === sessionId && c.timestamp > prevTime && c.timestamp <= prompt.timestamp,
+        (c) =>
+          c.sessionId === sessionId && c.timestamp > prevTime && c.timestamp <= prompt.timestamp,
       );
 
       turns.push({

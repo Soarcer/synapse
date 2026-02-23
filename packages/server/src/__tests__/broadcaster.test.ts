@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { Broadcaster } from '../services/broadcaster';
 import type { AgentEvent, ActiveAgentInfo } from '@synapse-ai/core';
 

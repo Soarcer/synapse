@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useMemo, useRef, useEffect } from 'react';
 import { useLens } from '../LensContext';
 import type { CompactEvent } from '../LensContext';
@@ -19,7 +22,7 @@ function ContextGrowthChart({
 
   const points = turns.map((t, i) => {
     const x = (i / (turns.length - 1)) * (w - 8) + 4;
-    const y = height - 8 - ((t.cumulativeInput / maxTokens) * (height - 16));
+    const y = height - 8 - (t.cumulativeInput / maxTokens) * (height - 16);
     return { x, y, compactionBefore: t.compactionBefore };
   });
 
@@ -35,10 +38,12 @@ function ContextGrowthChart({
         {[0.25, 0.5, 0.75].map((frac) => (
           <line
             key={frac}
-            x1={4} x2={w - 4}
+            x1={4}
+            x2={w - 4}
             y1={height - 8 - frac * (height - 16)}
             y2={height - 8 - frac * (height - 16)}
-            stroke="#1e293b" strokeWidth={1}
+            stroke="#1e293b"
+            strokeWidth={1}
           />
         ))}
 
@@ -46,8 +51,16 @@ function ContextGrowthChart({
         {points.map((p, i) =>
           p.compactionBefore ? (
             <g key={`c-${i}`}>
-              <line x1={p.x} x2={p.x} y1={4} y2={height - 4}
-                stroke="#ef4444" strokeWidth={1.5} strokeDasharray="3 2" opacity={0.6} />
+              <line
+                x1={p.x}
+                x2={p.x}
+                y1={4}
+                y2={height - 4}
+                stroke="#ef4444"
+                strokeWidth={1.5}
+                strokeDasharray="3 2"
+                opacity={0.6}
+              />
               <text x={p.x} y={10} textAnchor="middle" fill="#ef4444" fontSize={9} opacity={0.8}>
                 C
               </text>
@@ -63,13 +76,22 @@ function ContextGrowthChart({
 
         {/* Dots */}
         {points.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r={2.5}
-            fill={p.compactionBefore ? '#ef4444' : '#22c55e'} />
+          <circle
+            key={i}
+            cx={p.x}
+            cy={p.y}
+            r={2.5}
+            fill={p.compactionBefore ? '#ef4444' : '#22c55e'}
+          />
         ))}
 
         {/* Y-axis labels */}
-        <text x={4} y={height - 4} fill="#6b7280" fontSize={8} textAnchor="start">0</text>
-        <text x={4} y={12} fill="#6b7280" fontSize={8} textAnchor="start">{formatTokens(maxTokens)}</text>
+        <text x={4} y={height - 4} fill="#6b7280" fontSize={8} textAnchor="start">
+          0
+        </text>
+        <text x={4} y={12} fill="#6b7280" fontSize={8} textAnchor="start">
+          {formatTokens(maxTokens)}
+        </text>
 
         <defs>
           <linearGradient id="growthGrad" x1="0" y1="0" x2="0" y2="1">
@@ -126,9 +148,8 @@ export function CompactionView() {
         intervals.push(sorted[i] - sorted[i - 1]);
       }
     }
-    const avgInterval = intervals.length > 0
-      ? intervals.reduce((a, b) => a + b, 0) / intervals.length
-      : 0;
+    const avgInterval =
+      intervals.length > 0 ? intervals.reduce((a, b) => a + b, 0) / intervals.length : 0;
 
     // Prompts before first compaction (per session)
     const promptsBeforeFirst: number[] = [];
@@ -139,9 +160,10 @@ export function CompactionView() {
       ).length;
       promptsBeforeFirst.push(promptsBefore);
     }
-    const avgPromptsBefore = promptsBeforeFirst.length > 0
-      ? Math.round(promptsBeforeFirst.reduce((a, b) => a + b, 0) / promptsBeforeFirst.length)
-      : 0;
+    const avgPromptsBefore =
+      promptsBeforeFirst.length > 0
+        ? Math.round(promptsBeforeFirst.reduce((a, b) => a + b, 0) / promptsBeforeFirst.length)
+        : 0;
 
     // Token accumulation rate
     const totalInput = costPerTurn.reduce((s, t) => s + t.inputTokens, 0);
@@ -157,9 +179,10 @@ export function CompactionView() {
     // Cache stats (from transcript data)
     const totalCacheRead = costPerTurn.reduce((s, t) => s + (t.cacheReadTokens ?? 0), 0);
     const totalCacheWrite = costPerTurn.reduce((s, t) => s + (t.cacheCreationTokens ?? 0), 0);
-    const cacheHitRate = totalInput > 0 && totalCacheRead > 0
-      ? (totalCacheRead / (totalInput + totalCacheRead)) * 100
-      : 0;
+    const cacheHitRate =
+      totalInput > 0 && totalCacheRead > 0
+        ? (totalCacheRead / (totalInput + totalCacheRead)) * 100
+        : 0;
     const hasTranscript = costPerTurn.some((t) => t.dataSource === 'transcript');
 
     // Estimated cost from transcripts
@@ -188,9 +211,7 @@ export function CompactionView() {
 
   if (!stats || (stats.totalCompactions === 0 && stats.totalTurns === 0)) {
     return (
-      <div className="p-4 text-center text-gray-600 text-xs">
-        No compaction or prompt data yet.
-      </div>
+      <div className="p-4 text-center text-gray-600 text-xs">No compaction or prompt data yet.</div>
     );
   }
 
@@ -204,32 +225,65 @@ export function CompactionView() {
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto p-3 space-y-3">
         {/* Stats grid */}
         <div className="grid grid-cols-2 gap-2">
-          <StatCard label="Compactions" value={String(stats.totalCompactions)}
-            sub={stats.totalCompactions > 0 ? `across ${stats.sessionsWithCompaction} session${stats.sessionsWithCompaction !== 1 ? 's' : ''}` : 'none yet'}
-            color="text-red-400" />
-          <StatCard label="Sessions" value={`${stats.sessionsWithCompaction}/${stats.sessionsWithCompaction + stats.sessionsWithout}`}
-            sub="with compaction" color="text-blue-400" />
+          <StatCard
+            label="Compactions"
+            value={String(stats.totalCompactions)}
+            sub={
+              stats.totalCompactions > 0
+                ? `across ${stats.sessionsWithCompaction} session${stats.sessionsWithCompaction !== 1 ? 's' : ''}`
+                : 'none yet'
+            }
+            color="text-red-400"
+          />
+          <StatCard
+            label="Sessions"
+            value={`${stats.sessionsWithCompaction}/${stats.sessionsWithCompaction + stats.sessionsWithout}`}
+            sub="with compaction"
+            color="text-blue-400"
+          />
           {stats.avgInterval > 0 && (
-            <StatCard label="Avg interval" value={formatDuration(stats.avgInterval)}
-              sub="between compactions" color="text-amber-400" />
+            <StatCard
+              label="Avg interval"
+              value={formatDuration(stats.avgInterval)}
+              sub="between compactions"
+              color="text-amber-400"
+            />
           )}
           {stats.avgPromptsBefore > 0 && (
-            <StatCard label="Turns before 1st" value={String(stats.avgPromptsBefore)}
-              sub="prompts avg" color="text-purple-400" />
+            <StatCard
+              label="Turns before 1st"
+              value={String(stats.avgPromptsBefore)}
+              sub="prompts avg"
+              color="text-purple-400"
+            />
           )}
-          <StatCard label="Tokens/turn" value={formatTokens(stats.tokensPerTurn)}
-            sub="input avg" color="text-cyan-400" />
-          <StatCard label="Total turns" value={String(stats.totalTurns)}
+          <StatCard
+            label="Tokens/turn"
+            value={formatTokens(stats.tokensPerTurn)}
+            sub="input avg"
+            color="text-cyan-400"
+          />
+          <StatCard
+            label="Total turns"
+            value={String(stats.totalTurns)}
             sub={`${formatTokens(stats.totalInput)} total input`}
-            color="text-green-400" />
+            color="text-green-400"
+          />
           {stats.hasTranscript && stats.cacheHitRate > 0 && (
-            <StatCard label="Cache hit" value={`${stats.cacheHitRate.toFixed(0)}%`}
+            <StatCard
+              label="Cache hit"
+              value={`${stats.cacheHitRate.toFixed(0)}%`}
               sub={`R: ${formatTokens(stats.totalCacheRead)} / W: ${formatTokens(stats.totalCacheWrite)}`}
-              color="text-green-400" />
+              color="text-green-400"
+            />
           )}
           {stats.hasTranscript && stats.estimatedCost > 0 && (
-            <StatCard label="Est. cost" value={`$${stats.estimatedCost.toFixed(2)}`}
-              sub="from JSONL" color="text-yellow-400" />
+            <StatCard
+              label="Est. cost"
+              value={`$${stats.estimatedCost.toFixed(2)}`}
+              sub="from JSONL"
+              color="text-yellow-400"
+            />
           )}
         </div>
 
@@ -239,7 +293,10 @@ export function CompactionView() {
             <div className="text-[10px] text-gray-500 font-medium mb-1">Trigger types</div>
             <div className="flex gap-1.5 flex-wrap">
               {[...stats.triggers.entries()].map(([trigger, count]) => (
-                <span key={trigger} className="px-2 py-0.5 rounded-full text-[10px] bg-red-900/30 text-red-300 border border-red-800/30">
+                <span
+                  key={trigger}
+                  className="px-2 py-0.5 rounded-full text-[10px] bg-red-900/30 text-red-300 border border-red-800/30"
+                >
                   {trigger}: {count}
                 </span>
               ))}
@@ -252,9 +309,11 @@ export function CompactionView() {
           <div>
             <div className="text-[10px] text-gray-500 font-medium mb-1">Compaction events</div>
             <div className="space-y-0.5">
-              {compactEvents.filter((c) => c.preTokens != null).map((c) => (
-                <CompactionEventRow key={c.id} event={c} />
-              ))}
+              {compactEvents
+                .filter((c) => c.preTokens != null)
+                .map((c) => (
+                  <CompactionEventRow key={c.id} event={c} />
+                ))}
             </div>
           </div>
         )}
@@ -273,7 +332,11 @@ export function CompactionView() {
                 <span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> token growth
               </span>
               <span className="flex items-center gap-1">
-                <span className="w-2 h-0.5 bg-red-500 inline-block" style={{ borderTop: '1px dashed' }} /> compaction
+                <span
+                  className="w-2 h-0.5 bg-red-500 inline-block"
+                  style={{ borderTop: '1px dashed' }}
+                />{' '}
+                compaction
               </span>
             </div>
           </div>
@@ -297,15 +360,31 @@ export function CompactionView() {
                     onClick={() => onSelect(nodeId)}
                   >
                     {turn.compactionBefore && (
-                      <span className="text-red-400 text-[9px]" title="Compaction occurred">C</span>
+                      <span className="text-red-400 text-[9px]" title="Compaction occurred">
+                        C
+                      </span>
                     )}
-                    <span className="text-gray-500 w-4 text-right font-mono">{turn.turnIndex + 1}</span>
-                    <span className={`truncate flex-1 ${isSelected ? 'text-blue-200' : 'text-gray-400'}`}>{turn.promptText.slice(0, 30) || '(empty)'}</span>
-                    <span className="text-cyan-400/60 font-mono" title="Input tokens">{formatTokens(turn.inputTokens)}</span>
-                    <span className="text-orange-400/60 font-mono" title="Output tokens">{formatTokens(turn.outputTokens)}</span>
-                    <span className="text-gray-600 font-mono" title="Cumulative input">{formatTokens(turn.cumulativeInput)}</span>
+                    <span className="text-gray-500 w-4 text-right font-mono">
+                      {turn.turnIndex + 1}
+                    </span>
+                    <span
+                      className={`truncate flex-1 ${isSelected ? 'text-blue-200' : 'text-gray-400'}`}
+                    >
+                      {turn.promptText.slice(0, 30) || '(empty)'}
+                    </span>
+                    <span className="text-cyan-400/60 font-mono" title="Input tokens">
+                      {formatTokens(turn.inputTokens)}
+                    </span>
+                    <span className="text-orange-400/60 font-mono" title="Output tokens">
+                      {formatTokens(turn.outputTokens)}
+                    </span>
+                    <span className="text-gray-600 font-mono" title="Cumulative input">
+                      {formatTokens(turn.cumulativeInput)}
+                    </span>
                     {turn.dataSource === 'transcript' && (
-                      <span className="text-[7px] text-green-400/50" title="From JSONL transcript">J</span>
+                      <span className="text-[7px] text-green-400/50" title="From JSONL transcript">
+                        J
+                      </span>
                     )}
                   </div>
                 );
@@ -334,7 +413,17 @@ function CompactionEventRow({ event }: { event: CompactEvent }) {
   );
 }
 
-function StatCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
+function StatCard({
+  label,
+  value,
+  sub,
+  color,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  color: string;
+}) {
   return (
     <div className="bg-gray-900/50 rounded-lg px-2.5 py-2 border border-gray-800">
       <div className="text-[9px] text-gray-500 uppercase tracking-wider">{label}</div>

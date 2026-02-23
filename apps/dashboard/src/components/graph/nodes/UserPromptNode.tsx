@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { memo, useMemo } from 'react';
 import { Handle, type NodeProps } from '@xyflow/react';
 import type { UserPromptData, AgentNodeData } from '@synapse-ai/core';
@@ -13,11 +16,10 @@ const EMPTY_AGENTS: AgentNodeData[] = [];
 function UserPromptNodeComponent({ data }: NodeProps) {
   const prompt = (data as { prompt: UserPromptData }).prompt;
   const userText = extractUserMessage(prompt.text);
-  const preview = userText.length > 80
-    ? userText.slice(0, 80) + '...'
-    : userText;
+  const preview = userText.length > 80 ? userText.slice(0, 80) + '...' : userText;
   const { source, target, sourceStyle } = useHandlePositions();
-  const sessionAgents = useAgentStore((s) => s.agentsBySession.get(prompt.sessionId)) ?? EMPTY_AGENTS;
+  const sessionAgents =
+    useAgentStore((s) => s.agentsBySession.get(prompt.sessionId)) ?? EMPTY_AGENTS;
   const prompts = useAgentStore((s) => s.prompts);
   const selectedNodeId = useAgentStore((s) => s.selectedNodeId);
   const highlightedNodeIds = useAgentStore((s) => s.highlightedNodeIds);
@@ -36,10 +38,7 @@ function UserPromptNodeComponent({ data }: NodeProps) {
     let ac = 0;
     let tc = 0;
     for (const a of sessionAgents) {
-      if (
-        a.startTime >= prompt.timestamp &&
-        (!next || a.startTime < next.timestamp)
-      ) {
+      if (a.startTime >= prompt.timestamp && (!next || a.startTime < next.timestamp)) {
         inp += a.tokenUsage.input;
         out += a.tokenUsage.output;
         ac++;
@@ -66,16 +65,20 @@ function UserPromptNodeComponent({ data }: NodeProps) {
   }, [sessionAgents, prompts, prompt, transcripts]);
 
   return (
-    <div className={`relative rounded-lg px-3 py-2 min-w-[200px] max-w-[260px] shadow-md border border-amber-600/40 bg-gradient-to-br from-amber-900/60 to-yellow-900/40 ${isSelected ? 'node-selected' : isHighlighted ? 'node-highlighted' : ''}`}>
-      <Handle type="target" position={target} className="!bg-amber-400 !w-2.5 !h-2.5 !border-2 !border-gray-900" />
+    <div
+      className={`relative rounded-lg px-3 py-2 min-w-[200px] max-w-[260px] shadow-md border border-amber-600/40 bg-gradient-to-br from-amber-900/60 to-yellow-900/40 ${isSelected ? 'node-selected' : isHighlighted ? 'node-highlighted' : ''}`}
+    >
+      <Handle
+        type="target"
+        position={target}
+        className="!bg-amber-400 !w-2.5 !h-2.5 !border-2 !border-gray-900"
+      />
 
       <div className="flex items-center justify-between mb-1">
         <span className="text-amber-300 text-xs font-semibold">Prompt</span>
         <span className="text-[10px] text-gray-400">{formatTime(prompt.timestamp)}</span>
       </div>
-      <p className="text-xs text-gray-300 leading-relaxed line-clamp-3">
-        {preview || '(empty)'}
-      </p>
+      <p className="text-xs text-gray-300 leading-relaxed line-clamp-3">{preview || '(empty)'}</p>
 
       {/* Compaction indicator */}
       {prompt.compactedAfter && (
@@ -89,17 +92,24 @@ function UserPromptNodeComponent({ data }: NodeProps) {
       {/* Stats footer */}
       {(inputTokens > 0 || outputTokens > 0 || agentCount > 0 || toolCount > 0) && (
         <div className="flex items-center justify-between mt-1.5">
-          {(inputTokens > 0 || outputTokens > 0) ? (
+          {inputTokens > 0 || outputTokens > 0 ? (
             <span className="text-[10px] font-mono">
               <Tooltip content="Input tokens">
-                <span className="text-cyan-400/60">{formatTokens(inputTokens)}{'\u2193'}</span>
-              </Tooltip>
-              {' '}
+                <span className="text-cyan-400/60">
+                  {formatTokens(inputTokens)}
+                  {'\u2193'}
+                </span>
+              </Tooltip>{' '}
               <Tooltip content="Output tokens">
-                <span className="text-orange-400/60">{formatTokens(outputTokens)}{'\u2191'}</span>
+                <span className="text-orange-400/60">
+                  {formatTokens(outputTokens)}
+                  {'\u2191'}
+                </span>
               </Tooltip>
             </span>
-          ) : <span />}
+          ) : (
+            <span />
+          )}
           <div className="flex items-center gap-1">
             {agentCount > 0 && (
               <Tooltip content="Agents spawned from this prompt">
@@ -119,7 +129,12 @@ function UserPromptNodeComponent({ data }: NodeProps) {
         </div>
       )}
 
-      <CollapsibleSourceHandle nodeId={nodeId} position={source} style={sourceStyle} baseClassName="!bg-amber-400 !w-2.5 !h-2.5 !border-2 !border-gray-900" />
+      <CollapsibleSourceHandle
+        nodeId={nodeId}
+        position={source}
+        style={sourceStyle}
+        baseClassName="!bg-amber-400 !w-2.5 !h-2.5 !border-2 !border-gray-900"
+      />
     </div>
   );
 }

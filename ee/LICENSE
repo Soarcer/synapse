@@ -1,0 +1,49 @@
+Synapse Enterprise License
+Version 1.0
+
+Copyright (c) 2026 Synapse Contributors. All rights reserved.
+
+The code in this directory and its subdirectories ("Enterprise Software") is
+provided under the following terms. By using the Enterprise Software, you agree
+to these terms.
+
+1. GRANT OF RIGHTS
+
+   (a) You may view, read, and study the Enterprise Software for any purpose.
+
+   (b) You may copy, modify, and create derivative works of the Enterprise
+       Software for development, testing, and evaluation purposes.
+
+   (c) You may run the Enterprise Software in non-production environments
+       (development, staging, CI/CD) without a subscription.
+
+2. PRODUCTION USE
+
+   Use of the Enterprise Software in a production environment requires a valid
+   Synapse Enterprise subscription. "Production environment" means any system
+   that serves end users, processes live data, or is part of a deployed
+   application or service.
+
+3. RESTRICTIONS
+
+   (a) You may not redistribute the Enterprise Software outside your
+       organization without prior written consent.
+
+   (b) You may not remove or alter any license, copyright, or attribution
+       notices in the Enterprise Software.
+
+   (c) You may not offer the Enterprise Software as part of a hosted or managed
+       service to third parties.
+
+4. DISCLAIMER
+
+   THE ENTERPRISE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+
+5. LIMITATION OF LIABILITY
+
+   IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+   DAMAGES OR OTHER LIABILITY ARISING FROM THE USE OF THE ENTERPRISE SOFTWARE.
+
+For licensing inquiries: synapse-enterprise@example.com

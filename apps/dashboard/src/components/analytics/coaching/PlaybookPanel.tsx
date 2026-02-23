@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useEffect } from 'react';
 import { apiUrl } from '../../../utils/api';
 import type { Playbook, PlaybookCategory } from '@synapse-ai/core';
@@ -20,7 +23,15 @@ const CATEGORY_COLORS: Record<PlaybookCategory, string> = {
   custom: 'bg-gray-500/20 text-gray-400',
 };
 
-const ALL_CATEGORIES: PlaybookCategory[] = ['feature', 'bugfix', 'refactor', 'test', 'review', 'debug', 'custom'];
+const ALL_CATEGORIES: PlaybookCategory[] = [
+  'feature',
+  'bugfix',
+  'refactor',
+  'test',
+  'review',
+  'debug',
+  'custom',
+];
 
 export function PlaybookPanel({ playbooks, sessionId, onRefresh }: PlaybookPanelProps) {
   const [search, setSearch] = useState('');
@@ -34,17 +45,19 @@ export function PlaybookPanel({ playbooks, sessionId, onRefresh }: PlaybookPanel
       if (!localStorage.getItem(ONBOARDING_KEY) && playbooks.length === 0) {
         setShowOnboarding(true);
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [playbooks.length]);
 
-  const filtered = playbooks.filter(p => {
+  const filtered = playbooks.filter((p) => {
     if (selectedCategory && p.category !== selectedCategory) return false;
     if (search) {
       const q = search.toLowerCase();
       return (
         p.name.toLowerCase().includes(q) ||
         p.description.toLowerCase().includes(q) ||
-        p.tags.some(t => t.toLowerCase().includes(q))
+        p.tags.some((t) => t.toLowerCase().includes(q))
       );
     }
     return true;
@@ -54,11 +67,18 @@ export function PlaybookPanel({ playbooks, sessionId, onRefresh }: PlaybookPanel
     if (!sessionId) return;
     setIsSaving(true);
     try {
-      await fetch(apiUrl(`/api/analytics/coaching/playbooks/from-session?sessionId=${encodeURIComponent(sessionId)}`), {
-        method: 'POST',
-      });
+      await fetch(
+        apiUrl(
+          `/api/analytics/coaching/playbooks/from-session?sessionId=${encodeURIComponent(sessionId)}`,
+        ),
+        {
+          method: 'POST',
+        },
+      );
       onRefresh();
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     setIsSaving(false);
   };
 
@@ -66,7 +86,9 @@ export function PlaybookPanel({ playbooks, sessionId, onRefresh }: PlaybookPanel
     try {
       await fetch(apiUrl(`/api/analytics/coaching/playbooks/${id}`), { method: 'DELETE' });
       onRefresh();
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   };
 
   return (
@@ -123,21 +145,36 @@ export function PlaybookPanel({ playbooks, sessionId, onRefresh }: PlaybookPanel
         <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-xl p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h4 className="text-sm font-medium text-gray-200 mb-1">What are Session Templates?</h4>
+              <h4 className="text-sm font-medium text-gray-200 mb-1">
+                What are Session Templates?
+              </h4>
               <p className="text-xs text-gray-400 leading-relaxed mb-2">
-                Session Templates capture the patterns of your best coding sessions — which tools were used, in what order,
-                how many turns it took, and whether tests were run after edits. Use them as benchmarks to replicate successful workflows.
+                Session Templates capture the patterns of your best coding sessions — which tools
+                were used, in what order, how many turns it took, and whether tests were run after
+                edits. Use them as benchmarks to replicate successful workflows.
               </p>
               <ul className="space-y-1 text-xs text-gray-400">
-                <li className="flex items-center gap-1.5"><span className="text-blue-400">1.</span> Complete a coding session with Claude</li>
-                <li className="flex items-center gap-1.5"><span className="text-blue-400">2.</span> Click "Save Session as Template" to capture the pattern</li>
-                <li className="flex items-center gap-1.5"><span className="text-blue-400">3.</span> Compare future sessions against your best templates</li>
+                <li className="flex items-center gap-1.5">
+                  <span className="text-blue-400">1.</span> Complete a coding session with Claude
+                </li>
+                <li className="flex items-center gap-1.5">
+                  <span className="text-blue-400">2.</span> Click "Save Session as Template" to
+                  capture the pattern
+                </li>
+                <li className="flex items-center gap-1.5">
+                  <span className="text-blue-400">3.</span> Compare future sessions against your
+                  best templates
+                </li>
               </ul>
             </div>
             <button
               onClick={() => {
                 setShowOnboarding(false);
-                try { localStorage.setItem(ONBOARDING_KEY, '1'); } catch { /* ignore */ }
+                try {
+                  localStorage.setItem(ONBOARDING_KEY, '1');
+                } catch {
+                  /* ignore */
+                }
               }}
               className="text-gray-600 hover:text-gray-400 transition-colors text-xs flex-shrink-0"
             >
@@ -153,7 +190,9 @@ export function PlaybookPanel({ playbooks, sessionId, onRefresh }: PlaybookPanel
           <div className="text-center">
             <div className="text-gray-600 text-3xl mb-3">&#x1f4d6;</div>
             <p className="text-sm text-gray-400">No session templates yet</p>
-            <p className="text-xs text-gray-600 mt-1">Save a session as a template to build your collection</p>
+            <p className="text-xs text-gray-600 mt-1">
+              Save a session as a template to build your collection
+            </p>
           </div>
         </div>
       ) : filtered.length === 0 ? null : (
@@ -193,7 +232,9 @@ function PlaybookCard({
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className={`px-1.5 py-0.5 text-[10px] rounded capitalize ${CATEGORY_COLORS[playbook.category]}`}>
+              <span
+                className={`px-1.5 py-0.5 text-[10px] rounded capitalize ${CATEGORY_COLORS[playbook.category]}`}
+              >
                 {playbook.category}
               </span>
               <h4 className="text-xs font-medium text-gray-200 truncate">{playbook.name}</h4>
@@ -209,7 +250,10 @@ function PlaybookCard({
         {playbook.tags.length > 0 && (
           <div className="flex items-center gap-1 mt-2 flex-wrap">
             {playbook.tags.slice(0, 5).map((tag) => (
-              <span key={tag} className="px-1.5 py-0.5 text-[10px] bg-gray-800 text-gray-400 rounded">
+              <span
+                key={tag}
+                className="px-1.5 py-0.5 text-[10px] bg-gray-800 text-gray-400 rounded"
+              >
                 {tag}
               </span>
             ))}
@@ -224,7 +268,10 @@ function PlaybookCard({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <MetricItem label="Avg Turns" value={String(playbook.pattern.avgTurns)} />
             <MetricItem label="Duration" value={`${playbook.pattern.avgDurationMinutes}m`} />
-            <MetricItem label="Model" value={playbook.pattern.modelStrategy.split('-').pop() ?? '?'} />
+            <MetricItem
+              label="Model"
+              value={playbook.pattern.modelStrategy.split('-').pop() ?? '?'}
+            />
             <MetricItem label="Compactions" value={String(playbook.pattern.compactionCount)} />
           </div>
 
@@ -238,15 +285,22 @@ function PlaybookCard({
           {/* Tool sequence preview */}
           {playbook.pattern.toolSequence.length > 0 && (
             <div>
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Tool Sequence</span>
+              <span className="text-[10px] text-gray-500 uppercase tracking-wider">
+                Tool Sequence
+              </span>
               <div className="flex items-center gap-1 mt-1 flex-wrap">
                 {playbook.pattern.toolSequence.slice(0, 15).map((tool, i) => (
-                  <span key={i} className="px-1.5 py-0.5 text-[10px] bg-gray-800/50 text-gray-400 rounded font-mono">
+                  <span
+                    key={i}
+                    className="px-1.5 py-0.5 text-[10px] bg-gray-800/50 text-gray-400 rounded font-mono"
+                  >
                     {tool}
                   </span>
                 ))}
                 {playbook.pattern.toolSequence.length > 15 && (
-                  <span className="text-[10px] text-gray-600">+{playbook.pattern.toolSequence.length - 15} more</span>
+                  <span className="text-[10px] text-gray-600">
+                    +{playbook.pattern.toolSequence.length - 15} more
+                  </span>
                 )}
               </div>
             </div>
@@ -255,12 +309,17 @@ function PlaybookCard({
           {/* Source + actions */}
           <div className="flex items-center justify-between pt-2 border-t border-gray-800/50">
             <span className="text-[10px] text-gray-600">
-              {playbook.sourceSessionId ? `From session ${playbook.sourceSessionId.slice(0, 8)}` : 'Manual template'}
+              {playbook.sourceSessionId
+                ? `From session ${playbook.sourceSessionId.slice(0, 8)}`
+                : 'Manual template'}
               {' \u00b7 '}
               {new Date(playbook.createdAt).toLocaleDateString()}
             </span>
             <button
-              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
               className="text-[10px] text-red-500/60 hover:text-red-400 transition-colors"
             >
               Delete

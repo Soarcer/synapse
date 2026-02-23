@@ -48,6 +48,7 @@ interface PersistedViewSettings {
   toolGroupMode?: string;
   lockViewport?: boolean;
   autoClosePrompts?: boolean;
+  arcadeUnlocked?: boolean;
   arcadeMode?: boolean;
   arcadeSoundEnabled?: boolean;
   arcadeVolume?: number;
@@ -66,7 +67,9 @@ function persistViewSettings(partial: Partial<PersistedViewSettings>) {
   try {
     const current = JSON.parse(localStorage.getItem(VIEW_SETTINGS_KEY) ?? '{}');
     localStorage.setItem(VIEW_SETTINGS_KEY, JSON.stringify({ ...current, ...partial }));
-  } catch { /* quota exceeded */ }
+  } catch {
+    /* quota exceeded */
+  }
 }
 
 // ── Time filter persistence ──────────────────────────────────
@@ -177,9 +180,9 @@ export function reloadAllEvents(options?: { showLoading?: boolean }): void {
     .catch((err: unknown) => {
       if (err instanceof Error && err.name === 'AbortError') return;
       if (options?.showLoading) {
-        useAgentStore.getState().setLoadError(
-          err instanceof Error ? err.message : 'Failed to connect to server',
-        );
+        useAgentStore
+          .getState()
+          .setLoadError(err instanceof Error ? err.message : 'Failed to connect to server');
         useAgentStore.getState().setLoading(false);
       }
     });
@@ -206,13 +209,14 @@ interface AgentStore {
   highlightedNodeIds: Set<string> | null;
   multiHighlightIds: Set<string> | null;
   connectionStatus: 'connected' | 'disconnected' | 'reconnecting' | 'failed';
-  filter: { sessionId?: string; agentType?: string };
+  filter: { sessionId?: string; agentType?: string; vendor?: string };
   showSpawnDialog: boolean;
   showWorkshop: boolean;
   paused: boolean;
   showHookEvents: boolean;
   showAllTools: boolean;
   toolGroupMode: string;
+  arcadeUnlocked: boolean;
   arcadeMode: boolean;
   arcadeSoundEnabled: boolean;
   arcadeVolume: number;
@@ -240,7 +244,7 @@ interface AgentStore {
   // Actions
   addEvent: (event: AgentEvent) => void;
   selectNode: (id: string | null, source?: 'graph' | 'lens') => void;
-  setFilter: (filter: { sessionId?: string; agentType?: string }) => void;
+  setFilter: (filter: { sessionId?: string; agentType?: string; vendor?: string }) => void;
   setConnectionStatus: (s: 'connected' | 'disconnected' | 'reconnecting' | 'failed') => void;
   setShowSpawnDialog: (show: boolean) => void;
   setShowWorkshop: (show: boolean) => void;
@@ -248,6 +252,7 @@ interface AgentStore {
   setShowHookEvents: (show: boolean) => void;
   setShowAllTools: (show: boolean) => void;
   setToolGroupMode: (mode: string) => void;
+  setArcadeUnlocked: (unlocked: boolean) => void;
   setArcadeMode: (on: boolean) => void;
   setArcadeSoundEnabled: (on: boolean) => void;
   setArcadeVolume: (vol: number) => void;
@@ -306,6 +311,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   showHookEvents: savedViewSettings.showHookEvents ?? true,
   showAllTools: savedViewSettings.showAllTools ?? true,
   toolGroupMode: savedViewSettings.toolGroupMode ?? 'heatmap',
+  arcadeUnlocked: savedViewSettings.arcadeUnlocked ?? savedViewSettings.arcadeMode ?? false,
   arcadeMode: savedViewSettings.arcadeMode ?? false,
   arcadeSoundEnabled: savedViewSettings.arcadeSoundEnabled ?? false,
   arcadeVolume: savedViewSettings.arcadeVolume ?? 15,
@@ -385,7 +391,8 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
   // ── Simple setters ───────────────────────────────────────
 
-  selectNode: (id, source) => set({ selectedNodeId: id, selectSource: source ?? null, multiHighlightIds: null }),
+  selectNode: (id, source) =>
+    set({ selectedNodeId: id, selectSource: source ?? null, multiHighlightIds: null }),
 
   setFilter: (filter) => set({ filter }),
 
@@ -400,7 +407,10 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   setLoading: (loading) => set({ isLoading: loading }),
   setLoadError: (error) => set({ loadError: error }),
 
-  setAutoClosePrompts: (autoClosePrompts) => { persistViewSettings({ autoClosePrompts }); set({ autoClosePrompts }); },
+  setAutoClosePrompts: (autoClosePrompts) => {
+    persistViewSettings({ autoClosePrompts });
+    set({ autoClosePrompts });
+  },
   setGraphSearchQuery: (graphSearchQuery) => set({ graphSearchQuery }),
 
   toggleCollapsed: (nodeId) => {
@@ -447,16 +457,42 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     reloadAllEvents();
   },
 
-  setShowAllTools: (showAllTools) => { persistViewSettings({ showAllTools }); set({ showAllTools }); },
-  setToolGroupMode: (toolGroupMode) => { persistViewSettings({ toolGroupMode }); set({ toolGroupMode }); },
-  setArcadeMode: (arcadeMode) => { persistViewSettings({ arcadeMode }); set({ arcadeMode }); },
-  setArcadeSoundEnabled: (arcadeSoundEnabled) => { persistViewSettings({ arcadeSoundEnabled }); set({ arcadeSoundEnabled }); },
-  setArcadeVolume: (arcadeVolume) => { persistViewSettings({ arcadeVolume }); set({ arcadeVolume }); },
+  setShowAllTools: (showAllTools) => {
+    persistViewSettings({ showAllTools });
+    set({ showAllTools });
+  },
+  setToolGroupMode: (toolGroupMode) => {
+    persistViewSettings({ toolGroupMode });
+    set({ toolGroupMode });
+  },
+  setArcadeUnlocked: (arcadeUnlocked) => {
+    persistViewSettings({ arcadeUnlocked });
+    set({ arcadeUnlocked });
+  },
+  setArcadeMode: (arcadeMode) => {
+    persistViewSettings({ arcadeMode });
+    set({ arcadeMode });
+  },
+  setArcadeSoundEnabled: (arcadeSoundEnabled) => {
+    persistViewSettings({ arcadeSoundEnabled });
+    set({ arcadeSoundEnabled });
+  },
+  setArcadeVolume: (arcadeVolume) => {
+    persistViewSettings({ arcadeVolume });
+    set({ arcadeVolume });
+  },
 
-  setLockViewport: (lockViewport) => { persistViewSettings({ lockViewport }); set({ lockViewport }); },
+  setLockViewport: (lockViewport) => {
+    persistViewSettings({ lockViewport });
+    set({ lockViewport });
+  },
 
   setTimeRange: (range, label) => {
-    try { localStorage.setItem(TIME_FILTER_KEY, label); } catch { /* quota exceeded */ }
+    try {
+      localStorage.setItem(TIME_FILTER_KEY, label);
+    } catch {
+      /* quota exceeded */
+    }
     set({ timeRange: range, timePresetLabel: label });
     reloadAllEvents();
   },
@@ -549,18 +585,14 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
     // Sync agent.toolCalls for remaining agents
     for (const [aid, agent] of agents) {
-      const filtered = agent.toolCalls.filter(
-        (tc) => !removeIds.has(nid.tool(tc.toolUseId)),
-      );
+      const filtered = agent.toolCalls.filter((tc) => !removeIds.has(nid.tool(tc.toolUseId)));
       if (filtered.length !== agent.toolCalls.length) {
         agents.set(aid, { ...agent, toolCalls: filtered });
       }
     }
 
     const nodes = state.nodes.filter((n) => !removeIds.has(n.id));
-    const edges = state.edges.filter(
-      (e) => !removeIds.has(e.source) && !removeIds.has(e.target),
-    );
+    const edges = state.edges.filter((e) => !removeIds.has(e.source) && !removeIds.has(e.target));
 
     // Filter events for removed sessions
     const removedSessionIds = new Set<string>();
@@ -582,9 +614,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       nodes,
       edges,
       selectedNodeId:
-        state.selectedNodeId && removeIds.has(state.selectedNodeId)
-          ? null
-          : state.selectedNodeId,
+        state.selectedNodeId && removeIds.has(state.selectedNodeId) ? null : state.selectedNodeId,
     });
   },
 
@@ -693,7 +723,8 @@ function eventFingerprint(event: AgentEvent): string {
   if (event.toolUseId) return `${event.sessionId}:${event.type}:${event.toolUseId}`;
   if (event.agentId) return `${event.sessionId}:${event.type}:${event.agentId}`;
   // For prompts, include text so two different rapid prompts aren't falsely deduped
-  if (event.type === 'user_prompt') return `${event.sessionId}:user_prompt:${(event.text ?? '').slice(0, 200)}`;
+  if (event.type === 'user_prompt')
+    return `${event.sessionId}:user_prompt:${(event.text ?? '').slice(0, 200)}`;
   // Fallback: session-level events (session_start, session_end, compact, etc.)
   return `${event.sessionId}:${event.type}`;
 }

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useAgentStore } from '../../../store/agentStore';
 import { apiUrl } from '../../../utils/api';
 import type { CoachingNudge, NudgeSeverity } from '@synapse-ai/core';
@@ -7,7 +10,10 @@ interface NudgePanelProps {
   sessionId: string | null;
 }
 
-const SEVERITY_STYLES: Record<NudgeSeverity, { border: string; bg: string; icon: string; text: string }> = {
+const SEVERITY_STYLES: Record<
+  NudgeSeverity,
+  { border: string; bg: string; icon: string; text: string }
+> = {
   info: {
     border: 'border-blue-500/30',
     bg: 'bg-blue-500/5',
@@ -29,14 +35,14 @@ const SEVERITY_STYLES: Record<NudgeSeverity, { border: string; bg: string; icon:
 };
 
 const SEVERITY_ICONS: Record<NudgeSeverity, string> = {
-  info: '\u2139',      // ℹ
+  info: '\u2139', // ℹ
   suggestion: '\u26A0', // ⚠
-  warning: '\u26D4',    // ⛔
+  warning: '\u26D4', // ⛔
 };
 
 export function NudgePanel({ nudges, sessionId }: NudgePanelProps) {
-  const liveNudges = useAgentStore(s => s.liveNudges);
-  const dismissNudge = useAgentStore(s => s.dismissNudge);
+  const liveNudges = useAgentStore((s) => s.liveNudges);
+  const dismissNudge = useAgentStore((s) => s.dismissNudge);
 
   // Combine live nudges (from WS) with historical nudges (from API)
   // Deduplicate by nudge ID
@@ -60,8 +66,8 @@ export function NudgePanel({ nudges, sessionId }: NudgePanelProps) {
   // Sort by timestamp, newest first
   allNudges.sort((a, b) => b.firedAt - a.firedAt);
 
-  const activeNudges = allNudges.filter(n => !n.dismissed);
-  const dismissedNudges = allNudges.filter(n => n.dismissed);
+  const activeNudges = allNudges.filter((n) => !n.dismissed);
+  const dismissedNudges = allNudges.filter((n) => n.dismissed);
 
   const handleDismiss = (nudge: CoachingNudge) => {
     dismissNudge(nudge.id);
@@ -71,7 +77,9 @@ export function NudgePanel({ nudges, sessionId }: NudgePanelProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId, nudgeId: nudge.id }),
-      }).catch(() => { /* ignore */ });
+      }).catch(() => {
+        /* ignore */
+      });
     }
   };
 
@@ -81,7 +89,9 @@ export function NudgePanel({ nudges, sessionId }: NudgePanelProps) {
         <div className="text-center">
           <div className="text-gray-600 text-3xl mb-3">&#x2705;</div>
           <p className="text-sm text-gray-400">No coaching nudges</p>
-          <p className="text-xs text-gray-600 mt-1">Nudges appear in real-time during active sessions</p>
+          <p className="text-xs text-gray-600 mt-1">
+            Nudges appear in real-time during active sessions
+          </p>
         </div>
       </div>
     );
@@ -129,7 +139,9 @@ function NudgeCard({
   const icon = SEVERITY_ICONS[nudge.severity];
 
   return (
-    <div className={`rounded-lg border ${styles.border} ${styles.bg} p-3 ${dismissed ? 'opacity-50' : ''}`}>
+    <div
+      className={`rounded-lg border ${styles.border} ${styles.bg} p-3 ${dismissed ? 'opacity-50' : ''}`}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-start gap-2 flex-1">
           <span className={`${styles.icon} text-sm mt-0.5`}>{icon}</span>

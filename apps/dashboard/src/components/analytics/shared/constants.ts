@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // Shared color maps and formatters used by SessionReplay, PromptAnalyzer, and shared components
 
 export const MODEL_COLORS: Record<string, string> = {
@@ -31,8 +34,15 @@ export const TOOL_COLORS: Record<string, string> = {
 };
 
 export const CATEGORY_COLORS: Record<string, string> = {
-  feature: '#3b82f6', bugfix: '#ef4444', refactor: '#a855f7', test: '#22c55e',
-  docs: '#eab308', debug: '#f97316', review: '#06b6d4', config: '#6b7280', other: '#475569',
+  feature: '#3b82f6',
+  bugfix: '#ef4444',
+  refactor: '#a855f7',
+  test: '#22c55e',
+  docs: '#eab308',
+  debug: '#f97316',
+  review: '#06b6d4',
+  config: '#6b7280',
+  other: '#475569',
 };
 
 export function fmtTokens(n: number): string {

@@ -1,6 +1,17 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useMemo } from 'react';
 import {
-  Treemap, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  Treemap,
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
 } from 'recharts';
 import type { MockSession, MockDailyRollup } from '../mockData';
 
@@ -19,7 +30,10 @@ const VENDOR_COLORS: Record<string, string> = {
 
 export function VendorBreakdown({ sessions, dailyRollups }: VendorBreakdownProps) {
   const vendorData = useMemo(() => {
-    const vendorMap = new Map<string, { cost: number; sessions: number; tokens: number; models: Map<string, number> }>();
+    const vendorMap = new Map<
+      string,
+      { cost: number; sessions: number; tokens: number; models: Map<string, number> }
+    >();
 
     for (const s of sessions) {
       const vendor = s.vendor || 'anthropic';
@@ -56,7 +70,8 @@ export function VendorBreakdown({ sessions, dailyRollups }: VendorBreakdownProps
       // In real data we'd have per-vendor breakdown; for now estimate from models
       for (const [model, stats] of Object.entries(d.models)) {
         let vendor = 'anthropic';
-        if (model.includes('gpt') || model.includes('o1') || model.includes('o3')) vendor = 'openai';
+        if (model.includes('gpt') || model.includes('o1') || model.includes('o3'))
+          vendor = 'openai';
         else if (model.includes('gemini')) vendor = 'google';
         entry[vendor] = ((entry[vendor] as number) || 0) + stats.cost;
       }
@@ -106,8 +121,23 @@ export function VendorBreakdown({ sessions, dailyRollups }: VendorBreakdownProps
                 if (width < 40 || height < 25) return <g />;
                 return (
                   <g>
-                    <rect x={x} y={y} width={width} height={height} fill={fill} rx={4} opacity={0.85} />
-                    <text x={x + width / 2} y={y + height / 2} textAnchor="middle" dominantBaseline="middle" fill="#fff" fontSize={10}>
+                    <rect
+                      x={x}
+                      y={y}
+                      width={width}
+                      height={height}
+                      fill={fill}
+                      rx={4}
+                      opacity={0.85}
+                    />
+                    <text
+                      x={x + width / 2}
+                      y={y + height / 2}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fill="#fff"
+                      fontSize={10}
+                    >
                       {name}
                     </text>
                   </g>
@@ -123,10 +153,22 @@ export function VendorBreakdown({ sessions, dailyRollups }: VendorBreakdownProps
           <ResponsiveContainer width="100%" height={250}>
             <AreaChart data={dailyByVendor}>
               <CartesianGrid strokeDasharray="3 3" stroke="#21262d" />
-              <XAxis dataKey="date" tick={{ fill: '#8b949e', fontSize: 10 }} tickFormatter={(v: string) => v.slice(5)} />
-              <YAxis tick={{ fill: '#8b949e', fontSize: 10 }} tickFormatter={(v: number = 0) => `$${v.toFixed(1)}`} />
+              <XAxis
+                dataKey="date"
+                tick={{ fill: '#8b949e', fontSize: 10 }}
+                tickFormatter={(v: string) => v.slice(5)}
+              />
+              <YAxis
+                tick={{ fill: '#8b949e', fontSize: 10 }}
+                tickFormatter={(v: number = 0) => `$${v.toFixed(1)}`}
+              />
               <Tooltip
-                contentStyle={{ backgroundColor: '#161b22', border: '1px solid #30363d', borderRadius: '8px', fontSize: '11px' }}
+                contentStyle={{
+                  backgroundColor: '#161b22',
+                  border: '1px solid #30363d',
+                  borderRadius: '8px',
+                  fontSize: '11px',
+                }}
                 formatter={(v: number = 0) => [`$${v.toFixed(4)}`, undefined]}
               />
               <Legend wrapperStyle={{ fontSize: '11px' }} />

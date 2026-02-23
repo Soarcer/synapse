@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { Router, type Request, type Response } from 'express';
 import { logger } from '../lib/logger.js';
 import {
@@ -93,7 +96,11 @@ export function createSettingsRouter(): Router {
         res.json({ ok: true, model: status.model });
       } else {
         const errorText = await response.text();
-        res.json({ ok: false, error: `API returned ${response.status}`, details: errorText.slice(0, 200) });
+        res.json({
+          ok: false,
+          error: `API returned ${response.status}`,
+          details: errorText.slice(0, 200),
+        });
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown error';

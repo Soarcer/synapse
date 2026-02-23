@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { memo, useMemo } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import type { SessionData, AgentNodeData } from '@synapse-ai/core';
@@ -14,7 +17,8 @@ function SessionNodeComponent({ data }: NodeProps) {
   const shortId = session.sessionId.slice(0, 8);
   const isEnded = session.status === 'ended';
   const { source, sourceStyle } = useHandlePositions();
-  const sessionAgents = useAgentStore((s) => s.agentsBySession.get(session.sessionId)) ?? EMPTY_AGENTS;
+  const sessionAgents =
+    useAgentStore((s) => s.agentsBySession.get(session.sessionId)) ?? EMPTY_AGENTS;
   const allPrompts = useAgentStore((s) => s.prompts);
   const selectedNodeId = useAgentStore((s) => s.selectedNodeId);
   const highlightedNodeIds = useAgentStore((s) => s.highlightedNodeIds);
@@ -60,10 +64,7 @@ function SessionNodeComponent({ data }: NodeProps) {
       const next = sorted[i + 1];
       let turnInput = 0;
       for (const a of sessionAgents) {
-        if (
-          a.startTime >= prompt.timestamp &&
-          (!next || a.startTime < next.timestamp)
-        ) {
+        if (a.startTime >= prompt.timestamp && (!next || a.startTime < next.timestamp)) {
           turnInput += a.tokenUsage.input;
         }
       }
@@ -111,25 +112,50 @@ function SessionNodeComponent({ data }: NodeProps) {
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <span className="text-blue-300/60 text-[10px] font-semibold uppercase tracking-wider">Session</span>
+          <span className="text-blue-300/60 text-[10px] font-semibold uppercase tracking-wider">
+            Session
+          </span>
           {session.vendor && (
             <span
               className="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase leading-none"
-              style={{ backgroundColor: getVendorColor(session.vendor) + '25', color: getVendorColor(session.vendor) }}
+              style={{
+                backgroundColor: getVendorColor(session.vendor) + '25',
+                color: getVendorColor(session.vendor),
+              }}
             >
               {session.vendor}
             </span>
           )}
         </div>
-        <span className="text-[10px] text-gray-400">{formatTime(session.startTime)} <span className="text-gray-600">{formatRelativeTime(session.startTime)}</span></span>
+        <span className="text-[10px] text-gray-400">
+          {formatTime(session.startTime)}{' '}
+          <span className="text-gray-600">{formatRelativeTime(session.startTime)}</span>
+        </span>
       </div>
       <div className="flex items-center gap-2 mt-0.5">
         <Tooltip content={isEnded ? 'Session ended' : 'Session active'}>
           <div
-            className={`w-2.5 h-2.5 rounded-full ${isEnded ? 'bg-gray-500' : 'bg-blue-400 animate-pulse'}`}
+            className={`w-2.5 h-2.5 rounded-full shrink-0 ${isEnded ? 'bg-gray-500' : 'bg-blue-400 animate-pulse'}`}
           />
         </Tooltip>
-        <span className="text-sm font-semibold text-gray-100 font-mono">{shortId}</span>
+        <div className="flex flex-col min-w-0">
+          <span className="text-sm font-semibold text-gray-100 truncate max-w-[180px]">
+            {session.title ?? shortId}
+          </span>
+          <div className="flex items-center gap-1.5">
+            {session.gitBranch && (
+              <span className="text-[9px] px-1.5 rounded bg-indigo-900/50 text-indigo-300 truncate max-w-[120px]">
+                {session.gitBranch}
+              </span>
+            )}
+            {session.source === 'resume' && (
+              <span className="text-[9px] px-1 rounded bg-amber-900/40 text-amber-300">
+                resumed
+              </span>
+            )}
+            {session.title && <span className="text-[9px] text-gray-600 font-mono">{shortId}</span>}
+          </div>
+        </div>
       </div>
 
       {/* Stats footer */}
@@ -138,22 +164,29 @@ function SessionNodeComponent({ data }: NodeProps) {
           {(inputTokens > 0 || outputTokens > 0) && (
             <span className="text-[10px] font-mono">
               <Tooltip content="Input tokens">
-                <span className="text-cyan-400/60">{formatTokens(inputTokens)}{'\u2193'}</span>
-              </Tooltip>
-              {' '}
+                <span className="text-cyan-400/60">
+                  {formatTokens(inputTokens)}
+                  {'\u2193'}
+                </span>
+              </Tooltip>{' '}
               <Tooltip content="Output tokens">
-                <span className="text-orange-400/60">{formatTokens(outputTokens)}{'\u2191'}</span>
+                <span className="text-orange-400/60">
+                  {formatTokens(outputTokens)}
+                  {'\u2191'}
+                </span>
               </Tooltip>
             </span>
           )}
           {sparkData && (
             <svg width={60} height={16} className="inline-block align-middle">
               <polyline
-                points={sparkData.map((v, i) => {
-                  const x = (i / (sparkData.length - 1)) * 56 + 2;
-                  const y = 14 - (v / sparkData[sparkData.length - 1]) * 12;
-                  return `${x},${y}`;
-                }).join(' ')}
+                points={sparkData
+                  .map((v, i) => {
+                    const x = (i / (sparkData.length - 1)) * 56 + 2;
+                    const y = 14 - (v / sparkData[sparkData.length - 1]) * 12;
+                    return `${x},${y}`;
+                  })
+                  .join(' ')}
                 fill="none"
                 stroke="#22c55e"
                 strokeWidth={1.5}
@@ -178,10 +211,27 @@ function SessionNodeComponent({ data }: NodeProps) {
               </span>
             </Tooltip>
           )}
+          {session.topTools && session.topTools.length > 0 && (
+            <div className="flex items-center gap-0.5 ml-1">
+              {session.topTools.map((t) => (
+                <span
+                  key={t}
+                  className="px-1 py-0.5 rounded text-[8px] bg-gray-700/50 text-gray-400"
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      <CollapsibleSourceHandle nodeId={nodeId} position={source} style={sourceStyle} baseClassName="!bg-blue-400 !w-3 !h-3 !border-2 !border-blue-900" />
+      <CollapsibleSourceHandle
+        nodeId={nodeId}
+        position={source}
+        style={sourceStyle}
+        baseClassName="!bg-blue-400 !w-3 !h-3 !border-2 !border-blue-900"
+      />
     </div>
   );
 }

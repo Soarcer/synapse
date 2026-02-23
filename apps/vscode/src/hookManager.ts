@@ -1,16 +1,26 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 
 export const SYNC_EVENTS = [
-  'SessionStart', 'UserPromptSubmit',
-  'SubagentStart', 'SubagentStop',
-  'Stop', 'SessionEnd',
+  'SessionStart',
+  'UserPromptSubmit',
+  'SubagentStart',
+  'SubagentStop',
+  'Stop',
+  'SessionEnd',
 ];
 
 export const ASYNC_EVENTS = [
-  'PreToolUse', 'PostToolUse', 'PostToolUseFailure',
-  'PermissionRequest', 'Notification', 'PreCompact',
+  'PreToolUse',
+  'PostToolUse',
+  'PostToolUseFailure',
+  'PermissionRequest',
+  'Notification',
+  'PreCompact',
 ];
 
 export class HookManager {
@@ -20,22 +30,38 @@ export class HookManager {
     this.resourcesPath = resourcesPath;
   }
 
-  /** Returns true if the workspace needs Synapse hooks configured (or port changed). */
+  /** Returns true if the workspace needs Synapse hooks configured (script path changed or missing). */
   needsConfiguration(port: number): boolean {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) return false;
 
-    const settingsFile = path.join(workspaceFolder.uri.fsPath, '.claude', 'settings.local.json');
+    const claudeDir = path.join(workspaceFolder.uri.fsPath, '.claude');
+    const settingsFile = path.join(claudeDir, 'settings.local.json');
     if (!fs.existsSync(settingsFile)) return true;
 
     try {
       const content = fs.readFileSync(settingsFile, 'utf-8');
       if (!content.includes('send_event.cjs')) return true;
-      // Check if port matches
-      if (!content.includes(`--port ${port}`)) return true;
+      // Check if hook script path matches current extension (catches stale old-version paths)
+      const expectedScript = path
+        .join(this.resourcesPath, 'synapse-server', 'hooks', 'send_event.cjs')
+        .replace(/\\/g, '/');
+      if (!content.includes(expectedScript)) return true;
+      // Always update port file even when hooks don't need reconfiguration
+      this.writePortFile(claudeDir, port);
       return false;
     } catch {
       return true;
+    }
+  }
+
+  /** Write the current port to .claude/.synapse-port so the hook script can read it at runtime. */
+  writePortFile(claudeDir: string, port: number): void {
+    try {
+      fs.mkdirSync(claudeDir, { recursive: true });
+      fs.writeFileSync(path.join(claudeDir, '.synapse-port'), String(port));
+    } catch {
+      /* best effort */
     }
   }
 
@@ -46,10 +72,12 @@ export class HookManager {
     enabledEvents: string[];
   } {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-    if (!workspaceFolder) return { configured: false, port: null, portMatch: false, enabledEvents: [] };
+    if (!workspaceFolder)
+      return { configured: false, port: null, portMatch: false, enabledEvents: [] };
 
     const settingsFile = path.join(workspaceFolder.uri.fsPath, '.claude', 'settings.local.json');
-    if (!fs.existsSync(settingsFile)) return { configured: false, port: null, portMatch: false, enabledEvents: [] };
+    if (!fs.existsSync(settingsFile))
+      return { configured: false, port: null, portMatch: false, enabledEvents: [] };
 
     try {
       const content = JSON.parse(fs.readFileSync(settingsFile, 'utf-8'));
@@ -69,10 +97,22 @@ export class HookManager {
           if (cmd && cmd.includes('send_event.cjs')) {
             enabledEvents.push(eventName);
             if (detectedPort === null) {
+              // Try --port in command (legacy), then fall back to port file
               const match = cmd.match(/--port\s+(\d+)/);
               if (match) detectedPort = parseInt(match[1], 10);
             }
           }
+        }
+      }
+
+      // If no --port in command, read from port file
+      if (detectedPort === null) {
+        try {
+          const portFile = path.join(workspaceFolder.uri.fsPath, '.claude', '.synapse-port');
+          const content = fs.readFileSync(portFile, 'utf-8').trim();
+          detectedPort = parseInt(content, 10) || null;
+        } catch {
+          /* no port file */
         }
       }
 
@@ -102,15 +142,20 @@ export class HookManager {
       return;
     }
 
-    const hookCmd = `node "${hookScript.replace(/\\/g, '/')}" --port ${port}`;
+    // Hook command no longer includes --port; the script reads .claude/.synapse-port at runtime.
+    // This survives extension reinstalls — cached commands still work.
+    const hookCmd = `node "${hookScript.replace(/\\/g, '/')}"`;
     const claudeDir = path.join(target, '.claude');
     const settingsFile = path.join(claudeDir, 'settings.local.json');
 
+    // Write port file so the hook script always knows the current port
+    this.writePortFile(claudeDir, port);
+
     const syncToEnable = enabledEvents
-      ? SYNC_EVENTS.filter(e => enabledEvents.includes(e))
+      ? SYNC_EVENTS.filter((e) => enabledEvents.includes(e))
       : SYNC_EVENTS;
     const asyncToEnable = enabledEvents
-      ? ASYNC_EVENTS.filter(e => enabledEvents.includes(e))
+      ? ASYNC_EVENTS.filter((e) => enabledEvents.includes(e))
       : ASYNC_EVENTS;
 
     // Build hooks
@@ -127,7 +172,9 @@ export class HookManager {
     if (fs.existsSync(settingsFile)) {
       try {
         settings = JSON.parse(fs.readFileSync(settingsFile, 'utf-8'));
-      } catch { /* start fresh */ }
+      } catch {
+        /* start fresh */
+      }
     }
 
     // Remove all existing Synapse hook events, then add enabled ones

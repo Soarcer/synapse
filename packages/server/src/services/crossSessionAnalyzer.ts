@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // ─── Cross-Session Pattern Analyzer ──────────────────────────────────
 // Detects patterns that only emerge across multiple sessions:
 // - Recurring bad habits (same rule fires repeatedly)
@@ -88,16 +91,22 @@ function detectImprovementTrends(cards: ReportCardSummary[]): CrossSessionInsigh
   if (cards.length < 3) return insights;
 
   const dimensions: CoachingDimension[] = [
-    'planning', 'precision', 'toolCraft', 'contextManagement',
-    'costEfficiency', 'verification', 'sessionStrategy', 'configuration',
+    'planning',
+    'precision',
+    'toolCraft',
+    'contextManagement',
+    'costEfficiency',
+    'verification',
+    'sessionStrategy',
+    'configuration',
   ];
 
-  const recent = cards.slice(0, 3);   // most recent 3
-  const older = cards.slice(-3);       // oldest 3 of our window
+  const recent = cards.slice(0, 3); // most recent 3
+  const older = cards.slice(-3); // oldest 3 of our window
 
   for (const dim of dimensions) {
-    const recentAvg = average(recent.map(c => getDimensionScore(c, dim)));
-    const olderAvg = average(older.map(c => getDimensionScore(c, dim)));
+    const recentAvg = average(recent.map((c) => getDimensionScore(c, dim)));
+    const olderAvg = average(older.map((c) => getDimensionScore(c, dim)));
 
     if (recentAvg - olderAvg >= 10) {
       insights.push({
@@ -122,16 +131,22 @@ function detectRegressions(cards: ReportCardSummary[]): CrossSessionInsight[] {
   if (cards.length < 3) return insights;
 
   const dimensions: CoachingDimension[] = [
-    'planning', 'precision', 'toolCraft', 'contextManagement',
-    'costEfficiency', 'verification', 'sessionStrategy', 'configuration',
+    'planning',
+    'precision',
+    'toolCraft',
+    'contextManagement',
+    'costEfficiency',
+    'verification',
+    'sessionStrategy',
+    'configuration',
   ];
 
   const recent = cards.slice(0, 3);
   const older = cards.slice(-3);
 
   for (const dim of dimensions) {
-    const recentAvg = average(recent.map(c => getDimensionScore(c, dim)));
-    const olderAvg = average(older.map(c => getDimensionScore(c, dim)));
+    const recentAvg = average(recent.map((c) => getDimensionScore(c, dim)));
+    const olderAvg = average(older.map((c) => getDimensionScore(c, dim)));
 
     if (olderAvg - recentAvg >= 15) {
       insights.push({
@@ -156,7 +171,7 @@ function detectPersonalBests(cards: ReportCardSummary[]): CrossSessionInsight[] 
   if (cards.length < 2) return insights;
 
   const latest = cards[0];
-  const previousBest = Math.max(...cards.slice(1).map(c => c.overall_score));
+  const previousBest = Math.max(...cards.slice(1).map((c) => c.overall_score));
 
   if (latest.overall_score > previousBest && latest.overall_score >= 70) {
     insights.push({
@@ -178,7 +193,7 @@ interface ReportCardSummary {
   session_id: string;
   computed_at: number;
   overall_score: number;
-  dimension_scores: string;  // JSON
+  dimension_scores: string; // JSON
 }
 
 function getRecentReportCards(limit: number): ReportCardSummary[] {
@@ -188,7 +203,7 @@ function getRecentReportCards(limit: number): ReportCardSummary[] {
 function getDimensionScore(card: ReportCardSummary, dimension: CoachingDimension): number {
   try {
     const scores = JSON.parse(card.dimension_scores) as Array<{ dimension: string; score: number }>;
-    const match = scores.find(s => s.dimension === dimension);
+    const match = scores.find((s) => s.dimension === dimension);
     return match?.score ?? 50;
   } catch {
     return 50;

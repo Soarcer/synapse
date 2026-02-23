@@ -1,0 +1,25 @@
+{
+  "name": "@synapse-ai/cli",
+  "version": "0.9.0",
+  "description": "Synapse CLI — monitor AI coding agents from the terminal",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "bin": {
+    "synapse": "./bin/synapse.mjs"
+  },
+  "files": [
+    "bin/",
+    "dist/"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "npx tsx src/cli.ts"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -14,6 +14,20 @@ export interface GameModeProps {
   selectNode: (id: string | null, source?: 'graph' | 'lens') => void;
 }
 
+/** Score result returned by a game mode's scoring function. */
+export interface GameScore {
+  score: number;
+  combo: number;
+  /** Short label shown next to combo, e.g. "COMBO!", "ROWS!", "CHAIN!" */
+  comboLabel?: string;
+}
+
+/**
+ * Scoring function type. Receives the tool list and returns the
+ * current score + combo for that game mode.
+ */
+export type GameScorer = (tools: ToolCallSummary[]) => GameScore;
+
 /**
  * Registry entry for a game mode.
  *
@@ -29,4 +43,6 @@ export interface GameModeDefinition {
   label: string;
   /** React component to render. */
   component: ComponentType<GameModeProps>;
+  /** Optional custom scoring. Falls back to generic arcade scoring if omitted. */
+  scorer?: GameScorer;
 }

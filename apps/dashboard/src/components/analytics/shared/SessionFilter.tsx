@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useEffect, useRef } from 'react';
 import type { MockSession } from '../mockData';
 
@@ -39,7 +42,7 @@ export function SessionFilter({ sessions, value, onChange }: SessionFilterProps)
   const label = isAllSelected
     ? 'All Sessions'
     : value.length === 1
-      ? sessions.find((s) => s.id === value[0])?.name.slice(0, 20) ?? '1 session'
+      ? (sessions.find((s) => s.id === value[0])?.name.slice(0, 20) ?? '1 session')
       : `${value.length} sessions`;
 
   return (
@@ -70,7 +73,10 @@ export function SessionFilter({ sessions, value, onChange }: SessionFilterProps)
 
           {/* All sessions option */}
           <button
-            onClick={() => { onChange([]); setOpen(false); }}
+            onClick={() => {
+              onChange([]);
+              setOpen(false);
+            }}
             className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-800/50 transition-colors ${
               isAllSelected ? 'text-blue-400 bg-blue-500/5' : 'text-gray-300'
             }`}
@@ -86,13 +92,17 @@ export function SessionFilter({ sessions, value, onChange }: SessionFilterProps)
                 onClick={() => toggle(s.id)}
                 className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-800/50 transition-colors text-left"
               >
-                <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${
-                  value.includes(s.id) ? 'bg-blue-500 border-blue-500' : 'border-gray-600'
-                }`}>
+                <span
+                  className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${
+                    value.includes(s.id) ? 'bg-blue-500 border-blue-500' : 'border-gray-600'
+                  }`}
+                >
                   {value.includes(s.id) && <span className="text-white text-[9px]">&#x2713;</span>}
                 </span>
                 <span className="truncate flex-1 text-gray-300">{s.name}</span>
-                <span className="text-[10px] text-gray-600 flex-shrink-0">${s.totalCost.toFixed(2)}</span>
+                <span className="text-[10px] text-gray-600 flex-shrink-0">
+                  ${s.totalCost.toFixed(2)}
+                </span>
               </button>
             ))}
           </div>

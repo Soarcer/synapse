@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useEffect, useRef } from 'react';
 import { t } from '../i18n';
 
@@ -10,7 +13,14 @@ interface ConfirmDialogProps {
   onCancel: () => void;
 }
 
-export function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', onConfirm, onCancel }: ConfirmDialogProps) {
+export function ConfirmDialog({
+  open,
+  title,
+  message,
+  confirmLabel = 'Confirm',
+  onConfirm,
+  onCancel,
+}: ConfirmDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
 
@@ -21,7 +31,10 @@ export function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', 
     document.body.style.overflow = 'hidden';
 
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { onCancel(); return; }
+      if (e.key === 'Escape') {
+        onCancel();
+        return;
+      }
       // Focus trap
       if (e.key === 'Tab' && dialogRef.current) {
         const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
@@ -31,9 +44,11 @@ export function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', 
         const first = focusable[0];
         const last = focusable[focusable.length - 1];
         if (e.shiftKey && document.activeElement === first) {
-          last.focus(); e.preventDefault();
+          last.focus();
+          e.preventDefault();
         } else if (!e.shiftKey && document.activeElement === last) {
-          first.focus(); e.preventDefault();
+          first.focus();
+          e.preventDefault();
         }
       }
     };
@@ -47,9 +62,21 @@ export function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onCancel}>
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title" className="bg-[#1c2333] rounded-lg p-6 max-w-sm shadow-xl border border-gray-700" onClick={e => e.stopPropagation()}>
-        <h3 id="confirm-dialog-title" className="text-gray-200 text-sm font-medium mb-2">{title}</h3>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onCancel}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-dialog-title"
+        className="bg-[#1c2333] rounded-lg p-6 max-w-sm shadow-xl border border-gray-700"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 id="confirm-dialog-title" className="text-gray-200 text-sm font-medium mb-2">
+          {title}
+        </h3>
         <p className="text-gray-400 text-xs mb-6">{message}</p>
         <div className="flex justify-end gap-3">
           <button

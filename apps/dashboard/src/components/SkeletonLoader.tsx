@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 interface SkeletonProps {
   /** Number of skeleton rows to render */
   rows?: number;
@@ -6,11 +9,7 @@ interface SkeletonProps {
 }
 
 function SkeletonBar({ className }: { className?: string }) {
-  return (
-    <div
-      className={`h-3 rounded bg-gray-800 animate-pulse ${className ?? ''}`}
-    />
-  );
+  return <div className={`h-3 rounded bg-gray-800 animate-pulse ${className ?? ''}`} />;
 }
 
 export function SkeletonLoader({ rows = 3, showHeader = false }: SkeletonProps) {
@@ -18,10 +17,7 @@ export function SkeletonLoader({ rows = 3, showHeader = false }: SkeletonProps) 
     <div className="flex flex-col gap-3 p-4">
       {showHeader && <SkeletonBar className="w-2/5 h-4 mb-1" />}
       {Array.from({ length: rows }, (_, i) => (
-        <SkeletonBar
-          key={i}
-          className={i % 2 === 0 ? 'w-4/5' : 'w-3/5'}
-        />
+        <SkeletonBar key={i} className={i % 2 === 0 ? 'w-4/5' : 'w-3/5'} />
       ))}
     </div>
   );

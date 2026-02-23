@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -8,27 +11,27 @@ import { getSetting, setSetting } from '../db.js';
 
 export interface ClaudePlan {
   plan: string;
-  monthlyLimit: number | null;  // null = unlimited (API pay-as-you-go)
+  monthlyLimit: number | null; // null = unlimited (API pay-as-you-go)
   detected: boolean;
   source: 'auto' | 'manual';
 }
 
 const PLAN_LIMITS: Record<string, number | null> = {
-  free:     0,
-  pro:      20,     // $20/mo
-  max_5x:   100,    // $100/mo
-  max_20x:  200,    // $200/mo
-  team:     30,     // $30/user/mo
-  api:      null,   // pay-as-you-go, no fixed limit
+  free: 0,
+  pro: 20, // $20/mo
+  max_5x: 100, // $100/mo
+  max_20x: 200, // $200/mo
+  team: 30, // $30/user/mo
+  api: null, // pay-as-you-go, no fixed limit
 };
 
 const PLAN_LABELS: Record<string, string> = {
-  free:     'Free',
-  pro:      'Pro ($20/mo)',
-  max_5x:   'Max 5x ($100/mo)',
-  max_20x:  'Max 20x ($200/mo)',
-  team:     'Team ($30/user/mo)',
-  api:      'API (pay-as-you-go)',
+  free: 'Free',
+  pro: 'Pro ($20/mo)',
+  max_5x: 'Max 5x ($100/mo)',
+  max_20x: 'Max 20x ($200/mo)',
+  team: 'Team ($30/user/mo)',
+  api: 'API (pay-as-you-go)',
 };
 
 // ─── Detection ──────────────────────────────────────────────────────
@@ -135,7 +138,7 @@ export function detectPlan(): ClaudePlan {
 }
 
 export function setPlan(plan: string): ClaudePlan {
-  if (!PLAN_LIMITS.hasOwnProperty(plan)) {
+  if (!Object.hasOwn(PLAN_LIMITS, plan)) {
     throw new Error(`Unknown plan: ${plan}. Valid: ${Object.keys(PLAN_LIMITS).join(', ')}`);
   }
   setSetting(SETTING_KEY, plan);

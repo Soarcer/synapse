@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 interface MetricDeltaProps {
   value: number; // percentage change
   size?: 'sm' | 'md';
@@ -11,7 +14,9 @@ export function MetricDelta({ value, size = 'sm' }: MetricDeltaProps) {
   const textSize = size === 'sm' ? 'text-[10px]' : 'text-xs';
 
   return (
-    <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full ${bg} ${color} ${textSize} font-medium`}>
+    <span
+      className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full ${bg} ${color} ${textSize} font-medium`}
+    >
       {arrow} {Math.abs(value).toFixed(1)}%
     </span>
   );

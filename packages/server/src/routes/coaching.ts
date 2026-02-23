@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { Router, type Request, type Response } from 'express';
 import { logger } from '../lib/logger.js';
 import { validateQuery, validateBody } from '../lib/validate.js';
@@ -8,8 +11,19 @@ import {
   NudgeDismissSchema,
   AnalyticsQuerySchema,
 } from '@synapse-ai/core';
-import { getNudgesBySession, dismissNudge as dbDismissNudge, getNudgeStats, getAllRuleConfigs, upsertRuleConfig, resetAllRuleConfigs } from '../db.js';
-import { computeReportCard, computeMultiReportCard, getReportCardHistory } from '../services/reportCardEngine.js';
+import {
+  getNudgesBySession,
+  dismissNudge as dbDismissNudge,
+  getNudgeStats,
+  getAllRuleConfigs,
+  upsertRuleConfig,
+  resetAllRuleConfigs,
+} from '../db.js';
+import {
+  computeReportCard,
+  computeMultiReportCard,
+  getReportCardHistory,
+} from '../services/reportCardEngine.js';
 import { getSensitivity, setSensitivity, type Sensitivity } from '../services/aiNudgeEscalator.js';
 import { getRegisteredRules } from '../services/nudgeEngine.js';
 import { analyzeCrossSessions } from '../services/crossSessionAnalyzer.js';
@@ -54,44 +68,55 @@ export function createCoachingRouter(): Router {
   });
 
   // GET /report-card/multi?sessionIds=id1,id2,id3 — merged report card
-  router.get('/report-card/multi', validateQuery(CoachingMultiQuerySchema), (req: Request, res: Response) => {
-    try {
-      const raw = req.query.sessionIds as string;
-      const sessionIds = raw.split(',').map(s => s.trim()).filter(Boolean);
-      if (sessionIds.length === 0) {
-        res.status(400).json({ error: 'No session IDs provided' });
-        return;
+  router.get(
+    '/report-card/multi',
+    validateQuery(CoachingMultiQuerySchema),
+    (req: Request, res: Response) => {
+      try {
+        const raw = req.query.sessionIds as string;
+        const sessionIds = raw
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        if (sessionIds.length === 0) {
+          res.status(400).json({ error: 'No session IDs provided' });
+          return;
+        }
+        if (sessionIds.length > 20) {
+          res.status(400).json({ error: 'Maximum 20 session IDs allowed' });
+          return;
+        }
+        const reportCard = computeMultiReportCard(sessionIds);
+        res.json(envelope(reportCard));
+      } catch (err: unknown) {
+        logger.error({ err }, 'Error computing multi-session report card');
+        res.status(500).json({ error: 'Failed to compute report card' });
       }
-      if (sessionIds.length > 20) {
-        res.status(400).json({ error: 'Maximum 20 session IDs allowed' });
-        return;
-      }
-      const reportCard = computeMultiReportCard(sessionIds);
-      res.json(envelope(reportCard));
-    } catch (err: unknown) {
-      logger.error({ err }, 'Error computing multi-session report card');
-      res.status(500).json({ error: 'Failed to compute report card' });
-    }
-  });
+    },
+  );
 
   // GET /report-cards?from=X&to=Y — cached report cards for time range
-  router.get('/report-cards', validateQuery(AnalyticsQuerySchema), (req: Request, res: Response) => {
-    try {
-      const { from, to } = parseTimeRange(req.query);
-      const reportCards = getReportCardHistory(from, to);
-      res.json(envelope(reportCards, { from, to, totalCount: reportCards.length }));
-    } catch (err: unknown) {
-      logger.error({ err }, 'Error fetching report card history');
-      res.status(500).json({ error: 'Failed to fetch report cards' });
-    }
-  });
+  router.get(
+    '/report-cards',
+    validateQuery(AnalyticsQuerySchema),
+    (req: Request, res: Response) => {
+      try {
+        const { from, to } = parseTimeRange(req.query);
+        const reportCards = getReportCardHistory(from, to);
+        res.json(envelope(reportCards, { from, to, totalCount: reportCards.length }));
+      } catch (err: unknown) {
+        logger.error({ err }, 'Error fetching report card history');
+        res.status(500).json({ error: 'Failed to fetch report cards' });
+      }
+    },
+  );
 
   // GET /nudges?sessionId=X — historical nudges for a session
   router.get('/nudges', validateQuery(CoachingQuerySchema), (req: Request, res: Response) => {
     try {
       const sessionId = req.query.sessionId as string;
       const rows = getNudgesBySession(sessionId);
-      const nudges = rows.map(row => ({
+      const nudges = rows.map((row) => ({
         id: row.nudge_id,
         sessionId: row.session_id,
         detectorId: row.detector_id,
@@ -110,16 +135,20 @@ export function createCoachingRouter(): Router {
   });
 
   // POST /nudges/dismiss — dismiss a nudge
-  router.post('/nudges/dismiss', validateBody(NudgeDismissSchema), (req: Request, res: Response) => {
-    try {
-      const { sessionId, nudgeId } = req.body;
-      const updated = dbDismissNudge(sessionId, nudgeId);
-      res.json({ ok: true, updated });
-    } catch (err: unknown) {
-      logger.error({ err }, 'Error dismissing nudge');
-      res.status(500).json({ error: 'Failed to dismiss nudge' });
-    }
-  });
+  router.post(
+    '/nudges/dismiss',
+    validateBody(NudgeDismissSchema),
+    (req: Request, res: Response) => {
+      try {
+        const { sessionId, nudgeId } = req.body;
+        const updated = dbDismissNudge(sessionId, nudgeId);
+        res.json({ ok: true, updated });
+      } catch (err: unknown) {
+        logger.error({ err }, 'Error dismissing nudge');
+        res.status(500).json({ error: 'Failed to dismiss nudge' });
+      }
+    },
+  );
 
   // GET /nudges/stats — aggregate nudge statistics
   router.get('/nudges/stats', (_req: Request, res: Response) => {
@@ -176,22 +205,26 @@ export function createCoachingRouter(): Router {
   });
 
   // POST /playbooks/from-session?sessionId=X — auto-generate from session
-  router.post('/playbooks/from-session', validateQuery(CoachingQuerySchema), (req: Request, res: Response) => {
-    try {
-      const sessionId = req.query.sessionId as string;
-      const pattern = generatePlaybookFromSession(sessionId);
-      const playbook = createPlaybook({
-        name: `Session ${sessionId.slice(0, 8)} Playbook`,
-        description: `Auto-generated from session ${sessionId}`,
-        category: 'custom',
-        sourceSessionId: sessionId,
-      });
-      res.status(201).json(envelope(playbook));
-    } catch (err: unknown) {
-      logger.error({ err }, 'Error generating playbook from session');
-      res.status(500).json({ error: 'Failed to generate playbook' });
-    }
-  });
+  router.post(
+    '/playbooks/from-session',
+    validateQuery(CoachingQuerySchema),
+    (req: Request, res: Response) => {
+      try {
+        const sessionId = req.query.sessionId as string;
+        generatePlaybookFromSession(sessionId);
+        const playbook = createPlaybook({
+          name: `Session ${sessionId.slice(0, 8)} Playbook`,
+          description: `Auto-generated from session ${sessionId}`,
+          category: 'custom',
+          sourceSessionId: sessionId,
+        });
+        res.status(201).json(envelope(playbook));
+      } catch (err: unknown) {
+        logger.error({ err }, 'Error generating playbook from session');
+        res.status(500).json({ error: 'Failed to generate playbook' });
+      }
+    },
+  );
 
   // DELETE /playbooks/:id — delete a playbook
   router.delete('/playbooks/:id', (req: Request, res: Response) => {
@@ -216,9 +249,9 @@ export function createCoachingRouter(): Router {
     try {
       const rules = getRegisteredRules();
       const configs = getAllRuleConfigs();
-      const configMap = new Map(configs.map(c => [c.rule_id, c]));
+      const configMap = new Map(configs.map((c) => [c.rule_id, c]));
 
-      const result = rules.map(rule => {
+      const result = rules.map((rule) => {
         const config = configMap.get(rule.meta.id);
         return {
           ...rule.meta,
@@ -246,7 +279,7 @@ export function createCoachingRouter(): Router {
 
       // Verify rule exists
       const rules = getRegisteredRules();
-      const rule = rules.find(r => r.meta.id === ruleId);
+      const rule = rules.find((r) => r.meta.id === ruleId);
       if (!rule) {
         res.status(404).json({ error: `Rule "${ruleId}" not found` });
         return;
@@ -261,7 +294,9 @@ export function createCoachingRouter(): Router {
 
       // Validate severity if provided
       if (severity !== undefined && !['info', 'suggestion', 'warning', null].includes(severity)) {
-        res.status(400).json({ error: 'Invalid severity. Must be: info, suggestion, warning, or null' });
+        res
+          .status(400)
+          .json({ error: 'Invalid severity. Must be: info, suggestion, warning, or null' });
         return;
       }
 
@@ -321,8 +356,8 @@ export function createCoachingRouter(): Router {
   router.put('/sensitivity', (req: Request, res: Response) => {
     try {
       const { level } = req.body as { level: string };
-      if (!['low', 'medium', 'high'].includes(level)) {
-        res.status(400).json({ error: 'Invalid level. Must be: low, medium, high' });
+      if (!['off', 'low', 'medium', 'high'].includes(level)) {
+        res.status(400).json({ error: 'Invalid level. Must be: off, low, medium, high' });
         return;
       }
       setSensitivity(level as Sensitivity);

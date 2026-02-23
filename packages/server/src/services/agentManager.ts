@@ -1,12 +1,11 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { nanoid } from 'nanoid';
 import { logger } from '../lib/logger.js';
 import type { Broadcaster } from './broadcaster.js';
 import { insertEvent } from '../db.js';
-import type {
-  AgentEvent,
-  SpawnAgentRequest,
-  ActiveAgentInfo,
-} from '@synapse-ai/core';
+import type { AgentEvent, SpawnAgentRequest, ActiveAgentInfo } from '@synapse-ai/core';
 
 // Lazy-load the agent SDK so the server can start without it
 // (e.g. in the VS Code extension bundle where the 69MB SDK is not included)
@@ -42,11 +41,10 @@ interface RunningAgent {
 export class AgentManager {
   private agents = new Map<string, RunningAgent>();
 
-  async spawn(
-    request: SpawnAgentRequest,
-    broadcaster: Broadcaster,
-  ): Promise<string> {
-    const runningCount = Array.from(this.agents.values()).filter((a) => a.status === 'running').length;
+  async spawn(request: SpawnAgentRequest, broadcaster: Broadcaster): Promise<string> {
+    const runningCount = Array.from(this.agents.values()).filter(
+      (a) => a.status === 'running',
+    ).length;
     if (runningCount >= MAX_CONCURRENT_AGENTS) {
       throw new Error('Max concurrent agents reached');
     }
@@ -147,9 +145,13 @@ export class AgentManager {
         if (msg.type === 'result') {
           const result = msg;
           const endTime = Date.now();
-          const tokenUsage = result.cost_usd != null
-            ? { input: (result.input_tokens as number) ?? 0, output: (result.output_tokens as number) ?? 0 }
-            : undefined;
+          const tokenUsage =
+            result.cost_usd != null
+              ? {
+                  input: (result.input_tokens as number) ?? 0,
+                  output: (result.output_tokens as number) ?? 0,
+                }
+              : undefined;
 
           agent.status = 'success';
           if (agent.timeoutTimer) clearTimeout(agent.timeoutTimer);
@@ -270,11 +272,7 @@ export class AgentManager {
     return true;
   }
 
-  async sendMessage(
-    agentId: string,
-    message: string,
-    broadcaster: Broadcaster,
-  ): Promise<boolean> {
+  async sendMessage(agentId: string, message: string, broadcaster: Broadcaster): Promise<boolean> {
     const agent = this.agents.get(agentId);
     if (!agent || agent.status !== 'success') return false;
 
@@ -301,8 +299,8 @@ export class AgentManager {
     this.persistAndBroadcast(resumeEvent, 'AgentResume', { message }, broadcaster);
 
     // Run in background
-    this.runAgent(agentId, { prompt: message } as SpawnAgentRequest, broadcaster).catch(
-      (err) => logger.error({ err, agentId }, 'Resume error'),
+    this.runAgent(agentId, { prompt: message } as SpawnAgentRequest, broadcaster).catch((err) =>
+      logger.error({ err, agentId }, 'Resume error'),
     );
 
     return true;
@@ -352,8 +350,11 @@ export class AgentManager {
       clearTimeout(agent.timeoutTimer);
       agent.timeoutTimer = undefined;
     }
-    agent.cleanupTimer = setTimeout(() => {
-      this.agents.delete(agentId);
-    }, 5 * 60 * 1000); // 5 minutes
+    agent.cleanupTimer = setTimeout(
+      () => {
+        this.agents.delete(agentId);
+      },
+      5 * 60 * 1000,
+    ); // 5 minutes
   }
 }

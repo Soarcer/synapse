@@ -1,15 +1,33 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  BarChart, Bar, PieChart, Pie, Cell, CartesianGrid, ComposedChart,
-  Legend,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  CartesianGrid,
+  ComposedChart,
 } from 'recharts';
 import { KpiCard } from '../shared/KpiCard';
 import { ChartCard } from '../shared/ChartCard';
 import type { MockData } from '../mockData';
 import {
-  totalCost, totalTokens, totalToolCalls,
-  toolBreakdown, modelBreakdown, latencyPercentiles, avgCacheHitRate,
+  totalCost,
+  totalTokens,
+  totalToolCalls,
+  toolBreakdown,
+  modelBreakdown,
+  latencyPercentiles,
+  avgCacheHitRate,
 } from '../mockData';
 
 interface AiSummary {
@@ -34,8 +52,17 @@ const MODEL_LABELS: Record<string, string> = {
 };
 
 const TOOL_COLORS = [
-  '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981',
-  '#06b6d4', '#f97316', '#84cc16', '#e879f9', '#6366f1', '#14b8a6',
+  '#3b82f6',
+  '#8b5cf6',
+  '#ec4899',
+  '#f59e0b',
+  '#10b981',
+  '#06b6d4',
+  '#f97316',
+  '#84cc16',
+  '#e879f9',
+  '#6366f1',
+  '#14b8a6',
 ];
 
 function formatUsd(n: number): string {
@@ -65,7 +92,9 @@ export function ExecutiveOverview({ data }: Props) {
     const { start, end } = data.timeRange;
     fetch(`/api/analytics/ai-summary?from=${start}&to=${end}`)
       .then((r) => r.json())
-      .then((d) => { if (d.data) setAiSummary(d.data); })
+      .then((d) => {
+        if (d.data) setAiSummary(d.data);
+      })
       .catch(() => {})
       .finally(() => setAiLoading(false));
   }, [data.timeRange]);
@@ -116,35 +145,48 @@ export function ExecutiveOverview({ data }: Props) {
   // KPI sparklines (cumulative)
   const costSpark = useMemo(() => {
     let cum = 0;
-    return data.dailyRollups.map((d) => { cum += d.totalCost; return cum; });
+    return data.dailyRollups.map((d) => {
+      cum += d.totalCost;
+      return cum;
+    });
   }, [data]);
   const tokenSpark = useMemo(() => {
     let cum = 0;
-    return data.dailyRollups.map((d) => { cum += d.totalInputTokens + d.totalOutputTokens; return cum; });
+    return data.dailyRollups.map((d) => {
+      cum += d.totalInputTokens + d.totalOutputTokens;
+      return cum;
+    });
   }, [data]);
   const sessionSpark = useMemo(() => {
     let cum = 0;
-    return data.dailyRollups.map((d) => { cum += d.sessions; return cum; });
+    return data.dailyRollups.map((d) => {
+      cum += d.sessions;
+      return cum;
+    });
   }, [data]);
   const toolSpark = useMemo(() => {
     let cum = 0;
-    return data.dailyRollups.map((d) => { cum += d.totalToolCalls; return cum; });
+    return data.dailyRollups.map((d) => {
+      cum += d.totalToolCalls;
+      return cum;
+    });
   }, [data]);
   const latencySpark = useMemo(() => data.dailyRollups.map((d) => d.avgLatencyMs), [data]);
 
   // Tool bar chart data (top 8)
-  const toolBarData = useMemo(() =>
-    toolData.slice(0, 8).map((t) => ({ name: t.name, count: t.count })),
+  const toolBarData = useMemo(
+    () => toolData.slice(0, 8).map((t) => ({ name: t.name, count: t.count })),
     [toolData],
   );
 
   // Model pie data
-  const modelPieData = useMemo(() =>
-    modelData.map((m) => ({
-      name: MODEL_LABELS[m.model] ?? m.model,
-      value: m.cost,
-      color: MODEL_COLORS[m.model] ?? '#6b7280',
-    })),
+  const modelPieData = useMemo(
+    () =>
+      modelData.map((m) => ({
+        name: MODEL_LABELS[m.model] ?? m.model,
+        value: m.cost,
+        color: MODEL_COLORS[m.model] ?? '#6b7280',
+      })),
     [modelData],
   );
 
@@ -196,7 +238,9 @@ export function ExecutiveOverview({ data }: Props) {
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-gray-200">AI Summary</span>
-              <span className="px-1.5 py-0.5 text-[9px] font-medium rounded bg-blue-500/20 text-blue-400">AI</span>
+              <span className="px-1.5 py-0.5 text-[9px] font-medium rounded bg-blue-500/20 text-blue-400">
+                AI
+              </span>
             </div>
             <button
               onClick={fetchAiSummary}
@@ -216,16 +260,28 @@ export function ExecutiveOverview({ data }: Props) {
               <p className="text-xs text-gray-300 leading-relaxed mb-3">{aiSummary.summary}</p>
               <div className="grid grid-cols-3 gap-3">
                 <div className="bg-[#0d1117]/50 rounded-lg p-2.5 text-center">
-                  <div className="text-[10px] text-gray-500 uppercase tracking-wider">Time Saved</div>
-                  <div className="text-sm font-semibold text-emerald-400 mt-0.5">{aiSummary.roiMetrics.timeSaved}</div>
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wider">
+                    Time Saved
+                  </div>
+                  <div className="text-sm font-semibold text-emerald-400 mt-0.5">
+                    {aiSummary.roiMetrics.timeSaved}
+                  </div>
                 </div>
                 <div className="bg-[#0d1117]/50 rounded-lg p-2.5 text-center">
-                  <div className="text-[10px] text-gray-500 uppercase tracking-wider">Cost/Task</div>
-                  <div className="text-sm font-semibold text-amber-400 mt-0.5">{aiSummary.roiMetrics.costPerTask}</div>
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wider">
+                    Cost/Task
+                  </div>
+                  <div className="text-sm font-semibold text-amber-400 mt-0.5">
+                    {aiSummary.roiMetrics.costPerTask}
+                  </div>
                 </div>
                 <div className="bg-[#0d1117]/50 rounded-lg p-2.5 text-center">
-                  <div className="text-[10px] text-gray-500 uppercase tracking-wider">Success Rate</div>
-                  <div className="text-sm font-semibold text-blue-400 mt-0.5">{aiSummary.roiMetrics.successRate}</div>
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wider">
+                    Success Rate
+                  </div>
+                  <div className="text-sm font-semibold text-blue-400 mt-0.5">
+                    {aiSummary.roiMetrics.successRate}
+                  </div>
                 </div>
               </div>
             </>
@@ -244,7 +300,12 @@ export function ExecutiveOverview({ data }: Props) {
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e2a3a" />
-            <XAxis dataKey="date" tick={{ fill: '#6b7280', fontSize: 11 }} axisLine={false} tickLine={false} />
+            <XAxis
+              dataKey="date"
+              tick={{ fill: '#6b7280', fontSize: 11 }}
+              axisLine={false}
+              tickLine={false}
+            />
             <YAxis
               yAxisId="daily"
               tick={{ fill: '#6b7280', fontSize: 11 }}
@@ -261,15 +322,37 @@ export function ExecutiveOverview({ data }: Props) {
               tickFormatter={(v: number) => formatUsd(v)}
             />
             <Tooltip
-              contentStyle={{ backgroundColor: '#1c2128', border: '1px solid #30363d', borderRadius: 8, fontSize: 12 }}
+              contentStyle={{
+                backgroundColor: '#1c2128',
+                border: '1px solid #30363d',
+                borderRadius: 8,
+                fontSize: 12,
+              }}
               formatter={(value: number = 0, name: string = '') => [
                 formatUsd(value),
                 name === 'cumulativeCost' ? 'Cumulative' : 'Daily',
               ]}
               labelStyle={{ color: '#8b949e' }}
             />
-            <Bar yAxisId="daily" dataKey="dailyCost" fill="#f59e0b" fillOpacity={0.5} radius={[4, 4, 0, 0]} isAnimationActive={false} name="dailyCost" />
-            <Area yAxisId="cumulative" type="monotone" dataKey="cumulativeCost" stroke="#f59e0b" strokeWidth={2} fill="url(#cumCostGradExec)" isAnimationActive={false} name="cumulativeCost" />
+            <Bar
+              yAxisId="daily"
+              dataKey="dailyCost"
+              fill="#f59e0b"
+              fillOpacity={0.5}
+              radius={[4, 4, 0, 0]}
+              isAnimationActive={false}
+              name="dailyCost"
+            />
+            <Area
+              yAxisId="cumulative"
+              type="monotone"
+              dataKey="cumulativeCost"
+              stroke="#f59e0b"
+              strokeWidth={2}
+              fill="url(#cumCostGradExec)"
+              isAnimationActive={false}
+              name="cumulativeCost"
+            />
           </ComposedChart>
         </ResponsiveContainer>
       </ChartCard>
@@ -277,9 +360,15 @@ export function ExecutiveOverview({ data }: Props) {
       {/* Secondary row: Token Usage, Tool Distribution, Model Mix */}
       <div className="grid grid-cols-3 gap-3">
         {/* Token Usage Over Time — bars + cumulative line */}
-        <ChartCard title="Token Usage" subtitle={`Cumulative: ${formatTokensShort(tokens.input + tokens.output)}`}>
+        <ChartCard
+          title="Token Usage"
+          subtitle={`Cumulative: ${formatTokensShort(tokens.input + tokens.output)}`}
+        >
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={tokenTimeSeries} margin={{ top: 8, right: 12, bottom: 0, left: 8 }}>
+            <ComposedChart
+              data={tokenTimeSeries}
+              margin={{ top: 8, right: 12, bottom: 0, left: 8 }}
+            >
               <defs>
                 <linearGradient id="cumTokenGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.3} />
@@ -287,20 +376,72 @@ export function ExecutiveOverview({ data }: Props) {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2a3a" />
-              <XAxis dataKey="date" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="daily" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => formatTokensShort(v)} />
-              <YAxis yAxisId="cum" orientation="right" tick={{ fill: '#3b82f6', fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => formatTokensShort(v)} />
+              <XAxis
+                dataKey="date"
+                tick={{ fill: '#6b7280', fontSize: 10 }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                yAxisId="daily"
+                tick={{ fill: '#6b7280', fontSize: 10 }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v: number) => formatTokensShort(v)}
+              />
+              <YAxis
+                yAxisId="cum"
+                orientation="right"
+                tick={{ fill: '#3b82f6', fontSize: 9 }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v: number) => formatTokensShort(v)}
+              />
               <Tooltip
-                contentStyle={{ backgroundColor: '#1c2128', border: '1px solid #30363d', borderRadius: 8, fontSize: 11 }}
+                contentStyle={{
+                  backgroundColor: '#1c2128',
+                  border: '1px solid #30363d',
+                  borderRadius: 8,
+                  fontSize: 11,
+                }}
                 formatter={(v: number = 0, name: string = '') => [
                   formatTokensShort(v),
-                  name === 'cumulativeTokens' ? 'Cumulative' : name === 'input' ? 'Input' : name === 'output' ? 'Output' : 'Cached',
+                  name === 'cumulativeTokens'
+                    ? 'Cumulative'
+                    : name === 'input'
+                      ? 'Input'
+                      : name === 'output'
+                        ? 'Output'
+                        : 'Cached',
                 ]}
                 labelStyle={{ color: '#8b949e' }}
               />
-              <Bar yAxisId="daily" dataKey="input" stackId="1" fill="#3b82f6" fillOpacity={0.6} isAnimationActive={false} />
-              <Bar yAxisId="daily" dataKey="output" stackId="1" fill="#10b981" fillOpacity={0.6} radius={[4, 4, 0, 0]} isAnimationActive={false} />
-              <Area yAxisId="cum" type="monotone" dataKey="cumulativeTokens" stroke="#3b82f6" strokeWidth={2} fill="url(#cumTokenGrad)" isAnimationActive={false} />
+              <Bar
+                yAxisId="daily"
+                dataKey="input"
+                stackId="1"
+                fill="#3b82f6"
+                fillOpacity={0.6}
+                isAnimationActive={false}
+              />
+              <Bar
+                yAxisId="daily"
+                dataKey="output"
+                stackId="1"
+                fill="#10b981"
+                fillOpacity={0.6}
+                radius={[4, 4, 0, 0]}
+                isAnimationActive={false}
+              />
+              <Area
+                yAxisId="cum"
+                type="monotone"
+                dataKey="cumulativeTokens"
+                stroke="#3b82f6"
+                strokeWidth={2}
+                fill="url(#cumTokenGrad)"
+                isAnimationActive={false}
+              />
             </ComposedChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -308,9 +449,18 @@ export function ExecutiveOverview({ data }: Props) {
         {/* Tool Distribution */}
         <ChartCard title="Tool Usage" subtitle="Top tools by call count">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={toolBarData} layout="vertical" margin={{ top: 4, right: 12, bottom: 0, left: 4 }}>
+            <BarChart
+              data={toolBarData}
+              layout="vertical"
+              margin={{ top: 4, right: 12, bottom: 0, left: 4 }}
+            >
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2a3a" horizontal={false} />
-              <XAxis type="number" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} />
+              <XAxis
+                type="number"
+                tick={{ fill: '#6b7280', fontSize: 10 }}
+                axisLine={false}
+                tickLine={false}
+              />
               <YAxis
                 type="category"
                 dataKey="name"
@@ -320,7 +470,12 @@ export function ExecutiveOverview({ data }: Props) {
                 width={70}
               />
               <Tooltip
-                contentStyle={{ backgroundColor: '#1c2128', border: '1px solid #30363d', borderRadius: 8, fontSize: 11 }}
+                contentStyle={{
+                  backgroundColor: '#1c2128',
+                  border: '1px solid #30363d',
+                  borderRadius: 8,
+                  fontSize: 11,
+                }}
                 labelStyle={{ color: '#8b949e' }}
               />
               <Bar dataKey="count" radius={[0, 4, 4, 0]} isAnimationActive={false}>
@@ -352,7 +507,12 @@ export function ExecutiveOverview({ data }: Props) {
                 ))}
               </Pie>
               <Tooltip
-                contentStyle={{ backgroundColor: '#1c2128', border: '1px solid #30363d', borderRadius: 8, fontSize: 11 }}
+                contentStyle={{
+                  backgroundColor: '#1c2128',
+                  border: '1px solid #30363d',
+                  borderRadius: 8,
+                  fontSize: 11,
+                }}
                 formatter={(value: number = 0) => [formatUsd(value), 'Cost']}
               />
             </PieChart>
@@ -388,13 +548,32 @@ export function ExecutiveOverview({ data }: Props) {
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2a3a" />
               <XAxis tick={false} axisLine={false} />
-              <YAxis domain={[0, 100]} tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}%`} />
+              <YAxis
+                domain={[0, 100]}
+                tick={{ fill: '#6b7280', fontSize: 10 }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v: number) => `${v}%`}
+              />
               <Tooltip
-                contentStyle={{ backgroundColor: '#1c2128', border: '1px solid #30363d', borderRadius: 8, fontSize: 11 }}
+                contentStyle={{
+                  backgroundColor: '#1c2128',
+                  border: '1px solid #30363d',
+                  borderRadius: 8,
+                  fontSize: 11,
+                }}
                 formatter={(v: number = 0) => [`${v.toFixed(1)}%`, 'Cache Hit']}
                 labelStyle={{ color: '#8b949e' }}
               />
-              <Area type="monotone" dataKey="rate" stroke="#10b981" fill="url(#cacheGrad)" strokeWidth={1.5} isAnimationActive={false} dot={false} />
+              <Area
+                type="monotone"
+                dataKey="rate"
+                stroke="#10b981"
+                fill="url(#cacheGrad)"
+                strokeWidth={1.5}
+                isAnimationActive={false}
+                dot={false}
+              />
             </AreaChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -413,25 +592,30 @@ export function ExecutiveOverview({ data }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {data.sessions.slice(-10).reverse().map((s) => (
-                  <tr key={s.id} className="border-t border-gray-800/50 hover:bg-gray-800/30">
-                    <td className="py-1.5 text-gray-300 truncate max-w-[140px]">{s.name}</td>
-                    <td className="py-1.5 text-right">
-                      <span
-                        className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium"
-                        style={{
-                          backgroundColor: `${MODEL_COLORS[s.model] ?? '#6b7280'}20`,
-                          color: MODEL_COLORS[s.model] ?? '#6b7280',
-                        }}
-                      >
-                        {MODEL_LABELS[s.model] ?? s.model}
-                      </span>
-                    </td>
-                    <td className="py-1.5 text-right text-gray-300">{formatUsd(s.totalCost)}</td>
-                    <td className="py-1.5 text-right text-gray-400">{formatTokensShort(s.totalInputTokens + s.totalOutputTokens)}</td>
-                    <td className="py-1.5 text-right text-gray-400">{s.toolCalls}</td>
-                  </tr>
-                ))}
+                {data.sessions
+                  .slice(-10)
+                  .reverse()
+                  .map((s) => (
+                    <tr key={s.id} className="border-t border-gray-800/50 hover:bg-gray-800/30">
+                      <td className="py-1.5 text-gray-300 truncate max-w-[140px]">{s.name}</td>
+                      <td className="py-1.5 text-right">
+                        <span
+                          className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium"
+                          style={{
+                            backgroundColor: `${MODEL_COLORS[s.model] ?? '#6b7280'}20`,
+                            color: MODEL_COLORS[s.model] ?? '#6b7280',
+                          }}
+                        >
+                          {MODEL_LABELS[s.model] ?? s.model}
+                        </span>
+                      </td>
+                      <td className="py-1.5 text-right text-gray-300">{formatUsd(s.totalCost)}</td>
+                      <td className="py-1.5 text-right text-gray-400">
+                        {formatTokensShort(s.totalInputTokens + s.totalOutputTokens)}
+                      </td>
+                      <td className="py-1.5 text-right text-gray-400">{s.toolCalls}</td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>

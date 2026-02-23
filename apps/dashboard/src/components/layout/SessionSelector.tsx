@@ -1,6 +1,9 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useAgentStore } from '../../store/agentStore';
-import { formatRelativeTime, formatDuration } from '@synapse-ai/core';
+import { formatRelativeTime, formatDuration, getVendorColor } from '@synapse-ai/core';
 import { Tooltip } from '../ui/Tooltip';
 
 export function SessionSelector() {
@@ -40,6 +43,20 @@ export function SessionSelector() {
     });
   }, [sessions, events]);
 
+  // Unique vendors across all sessions (for filter pills)
+  const vendors = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of sessionList) {
+      if (s.vendor) set.add(s.vendor);
+    }
+    return [...set].sort();
+  }, [sessionList]);
+
+  const filteredSessions = useMemo(() => {
+    if (!filter.vendor) return sessionList;
+    return sessionList.filter((s) => s.vendor === filter.vendor);
+  }, [sessionList, filter.vendor]);
+
   if (sessionList.length === 0) return null;
 
   const selectedSession = filter.sessionId
@@ -47,14 +64,18 @@ export function SessionSelector() {
     : null;
 
   const triggerLabel = selectedSession
-    ? selectedSession.isRunning
-      ? `Running · ${formatDuration(selectedSession.duration)}`
-      : `${formatRelativeTime(selectedSession.startTime)} · ${formatDuration(selectedSession.duration)}`
+    ? selectedSession.title
+      ? selectedSession.title.slice(0, 24) + (selectedSession.title.length > 24 ? '...' : '')
+      : selectedSession.isRunning
+        ? `Running · ${formatDuration(selectedSession.duration)}`
+        : `${formatRelativeTime(selectedSession.startTime)} · ${formatDuration(selectedSession.duration)}`
     : 'All sessions';
 
   return (
     <div ref={ref} className="relative">
-      <Tooltip content={filter.sessionId ? `Session: ${filter.sessionId.slice(0, 8)}` : 'All sessions'}>
+      <Tooltip
+        content={filter.sessionId ? `Session: ${filter.sessionId.slice(0, 8)}` : 'All sessions'}
+      >
         <button
           onClick={() => setOpen(!open)}
           aria-label="Session selector"
@@ -66,41 +87,107 @@ export function SessionSelector() {
           }`}
         >
           <span className="truncate">{triggerLabel}</span>
-          <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg
+            className="w-3 h-3 flex-shrink-0"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
             <path d="M19 9l-7 7-7-7" />
           </svg>
         </button>
       </Tooltip>
 
       {open && (
-        <div role="listbox" aria-label="Available sessions" className="absolute right-0 top-full mt-1 w-64 bg-[#1c2128] border border-gray-700 rounded-lg shadow-xl z-30 py-1 max-h-64 overflow-auto">
+        <div
+          role="listbox"
+          aria-label="Available sessions"
+          className="absolute right-0 top-full mt-1 w-64 bg-[#1c2128] border border-gray-700 rounded-lg shadow-xl z-30 py-1 max-h-64 overflow-auto"
+        >
+          {vendors.length > 1 && (
+            <>
+              <div className="flex items-center gap-1 px-3 py-1.5 flex-wrap">
+                <button
+                  onClick={() => setFilter({ ...filter, vendor: undefined })}
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                    !filter.vendor ? 'bg-gray-600 text-white' : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  All
+                </button>
+                {vendors.map((v) => (
+                  <button
+                    key={v}
+                    onClick={() =>
+                      setFilter({ ...filter, vendor: filter.vendor === v ? undefined : v })
+                    }
+                    className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors"
+                    style={
+                      filter.vendor === v
+                        ? { backgroundColor: getVendorColor(v) + '30', color: getVendorColor(v) }
+                        : { color: '#9ca3af' }
+                    }
+                  >
+                    <span
+                      className="w-1.5 h-1.5 rounded-full"
+                      style={{ backgroundColor: getVendorColor(v) }}
+                    />
+                    {v}
+                  </button>
+                ))}
+              </div>
+              <div className="border-t border-gray-700 my-1" />
+            </>
+          )}
           <button
-            onClick={() => { setFilter({ ...filter, sessionId: undefined }); setOpen(false); }}
+            onClick={() => {
+              setFilter({ ...filter, sessionId: undefined });
+              setOpen(false);
+            }}
             className={`w-full px-3 py-2 text-xs text-left transition-colors ${
-              !filter.sessionId ? 'text-blue-300 bg-blue-900/30' : 'text-gray-300 hover:bg-gray-800/80'
+              !filter.sessionId
+                ? 'text-blue-300 bg-blue-900/30'
+                : 'text-gray-300 hover:bg-gray-800/80'
             }`}
           >
             All sessions
           </button>
           <div className="border-t border-gray-700 my-1" />
-          {sessionList.map((s) => (
+          {filteredSessions.map((s) => (
             <button
               key={s.sessionId}
-              onClick={() => { setFilter({ ...filter, sessionId: s.sessionId }); setOpen(false); }}
+              onClick={() => {
+                setFilter({ ...filter, sessionId: s.sessionId });
+                setOpen(false);
+              }}
               className={`w-full px-3 py-2 text-left transition-colors ${
                 filter.sessionId === s.sessionId ? 'bg-blue-900/30' : 'hover:bg-gray-800/80'
               }`}
             >
               <div className="flex items-center gap-1.5">
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.isRunning ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`} />
-                <span className={`text-xs ${filter.sessionId === s.sessionId ? 'text-blue-300' : 'text-gray-200'}`}>
-                  {s.isRunning ? 'Running' : formatRelativeTime(s.startTime)}
+                <span
+                  className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.isRunning ? 'animate-pulse' : ''}`}
+                  style={{
+                    backgroundColor: s.vendor
+                      ? getVendorColor(s.vendor)
+                      : s.isRunning
+                        ? '#4ade80'
+                        : '#6b7280',
+                  }}
+                />
+                <span
+                  className={`text-xs truncate max-w-[160px] ${filter.sessionId === s.sessionId ? 'text-blue-300' : 'text-gray-200'}`}
+                >
+                  {s.title ?? s.sessionId.slice(0, 8)}
                 </span>
-                <span className="text-[10px] text-gray-500">·</span>
-                <span className="text-[10px] text-gray-400">{formatDuration(s.duration)}</span>
               </div>
               <div className="flex items-center gap-2 mt-0.5 ml-3">
-                <span className="text-[10px] text-gray-500">{s.eventCount} events</span>
+                <span className="text-[10px] text-gray-500">
+                  {s.isRunning ? 'Running' : formatRelativeTime(s.startTime)} ·{' '}
+                  {formatDuration(s.duration)}
+                </span>
+                {s.gitBranch && <span className="text-[10px] text-indigo-400">{s.gitBranch}</span>}
                 {s.model && <span className="text-[10px] text-gray-600">{s.model}</span>}
               </div>
             </button>

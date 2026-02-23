@@ -3,16 +3,25 @@
 
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import {
-  ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ZAxis,
-  PieChart, Pie, Cell,
+  ScatterChart,
+  Scatter,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ZAxis,
+  PieChart,
+  Pie,
+  Cell,
 } from 'recharts';
 import { TokenBreakdownBar } from '../shared/TokenBreakdownBar';
 import { ToolBadges } from '../shared/ToolBadges';
 import { ModelBadge } from '../shared/ModelBadge';
 import { InfoTooltip } from '../shared/InfoTooltip';
-import { TOOL_COLORS, CATEGORY_COLORS, fmtTokens } from '../shared/constants';
-import { classifyPrompt, computeComplexity, type PromptCategory } from '../shared/promptUtils';
-import { formatInline, formatRewrite } from '../shared/formatMarkdown';
+import { CATEGORY_COLORS, fmtTokens } from '../shared/constants';
+import { classifyPrompt, computeComplexity } from '../shared/promptUtils';
+import { formatRewrite } from '../shared/formatMarkdown';
 import { copyToClipboard } from '../../../utils/clipboard';
 import type { MockData } from '../mockData';
 
@@ -25,11 +34,17 @@ export function loadAnalysisMode(): AnalysisMode {
   try {
     const raw = localStorage.getItem(AI_MODE_STORAGE_KEY);
     return raw === 'vibe' ? 'vibe' : 'developer';
-  } catch { return 'developer'; }
+  } catch {
+    return 'developer';
+  }
 }
 
 interface AiAnalysisResult {
-  score: number; explanation: string; rewrite: string; estimatedSavings: string; historyComparison: string;
+  score: number;
+  explanation: string;
+  rewrite: string;
+  estimatedSavings: string;
+  historyComparison: string;
 }
 
 /** Stable key for a prompt analysis — includes mode so dev/vibe get separate cache entries */
@@ -41,12 +56,17 @@ function loadStoredAnalyses(): Record<string, AiAnalysisResult> {
   try {
     const raw = localStorage.getItem(AI_ANALYSIS_STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
-  } catch { return {}; }
+  } catch {
+    return {};
+  }
 }
 
 function saveStoredAnalyses(analyses: Record<string, AiAnalysisResult>): void {
-  try { localStorage.setItem(AI_ANALYSIS_STORAGE_KEY, JSON.stringify(analyses)); }
-  catch { /* quota exceeded — silently skip */ }
+  try {
+    localStorage.setItem(AI_ANALYSIS_STORAGE_KEY, JSON.stringify(analyses));
+  } catch {
+    /* quota exceeded — silently skip */
+  }
 }
 
 interface PromptAnalyzerProps {
@@ -54,14 +74,13 @@ interface PromptAnalyzerProps {
   analysisMode: AnalysisMode;
 }
 
-type Category = PromptCategory;
-
 export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
   const [sortField, setSortField] = useState<'complexity' | 'cost' | 'tokens' | 'time'>('cost');
   const [sortAsc, setSortAsc] = useState(false);
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
-  const [selectedScatterIdx, setSelectedScatterIdx] = useState<number | null>(null);
-  const [aiAnalysis, setAiAnalysis] = useState<Record<string, AiAnalysisResult>>(loadStoredAnalyses);
+  const [, setSelectedScatterIdx] = useState<number | null>(null);
+  const [aiAnalysis, setAiAnalysis] =
+    useState<Record<string, AiAnalysisResult>>(loadStoredAnalyses);
   const [aiAnalyzing, setAiAnalyzing] = useState<Record<string, boolean>>({});
   const [selectedSession, setSelectedSession] = useState<string | undefined>();
   const [aiSummary, setAiSummary] = useState<string | null>(null);
@@ -75,80 +94,95 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
 
   // Fetch AI session summary when session changes
   useEffect(() => {
-    if (!selectedSession) { setAiSummary(null); return; }
+    if (!selectedSession) {
+      setAiSummary(null);
+      return;
+    }
     setAiSummaryLoading(true);
     setAiSummary(null);
     const now = Date.now();
     fetch(`/api/analytics/ai-summary?from=${now - 30 * 86_400_000}&to=${now}`)
       .then((r) => r.json())
-      .then((d) => { if (d.data?.summary) setAiSummary(d.data.summary); })
+      .then((d) => {
+        if (d.data?.summary) setAiSummary(d.data.summary);
+      })
       .catch(() => {})
       .finally(() => setAiSummaryLoading(false));
   }, [selectedSession]);
 
-  const analyzeWithAi = useCallback((
-    key: string, promptText: string, model: string, toolCount: number,
-    category: string, cost: number, turnIndex: number, sessionId: string,
-    timestamp: number, skipCache = false,
-  ) => {
-    // Build conversation context from neighboring turns
-    const sessionTurns = data.turns
-      .filter((t) => t.sessionId === sessionId)
-      .sort((a, b) => a.turnIndex - b.turnIndex);
+  const analyzeWithAi = useCallback(
+    (
+      key: string,
+      promptText: string,
+      model: string,
+      toolCount: number,
+      category: string,
+      cost: number,
+      turnIndex: number,
+      sessionId: string,
+      timestamp: number,
+      skipCache = false,
+    ) => {
+      // Build conversation context from neighboring turns
+      const sessionTurns = data.turns
+        .filter((t) => t.sessionId === sessionId)
+        .sort((a, b) => a.turnIndex - b.turnIndex);
 
-    const priorTurns = sessionTurns
-      .filter((t) => t.turnIndex < turnIndex)
-      .slice(-3);
+      const priorTurns = sessionTurns.filter((t) => t.turnIndex < turnIndex).slice(-3);
 
-    // Detect conversational mode: 2+ of the last 3 turns within 2min AND all short
-    const twoMinMs = 2 * 60 * 1000;
-    const recentPrior = priorTurns.filter(
-      (t) => timestamp - t.timestamp < twoMinMs,
-    );
-    const isConversationalMode = recentPrior.length >= 2 &&
-      recentPrior.every((t) => t.promptText.split(/\s+/).filter(Boolean).length < 15);
+      // Detect conversational mode: 2+ of the last 3 turns within 2min AND all short
+      const twoMinMs = 2 * 60 * 1000;
+      const recentPrior = priorTurns.filter((t) => timestamp - t.timestamp < twoMinMs);
+      const isConversationalMode =
+        recentPrior.length >= 2 &&
+        recentPrior.every((t) => t.promptText.split(/\s+/).filter(Boolean).length < 15);
 
-    // Session goal: first sentence / first 100 chars of the first prompt
-    const firstTurn = sessionTurns[0];
-    const sessionGoal = firstTurn
-      ? (() => {
-          const text = firstTurn.promptText;
-          const end = text.search(/[.!?]/);
-          return end > 0 && end < 100 ? text.slice(0, end + 1) : text.slice(0, 100);
-        })()
-      : '';
+      // Session goal: first sentence / first 100 chars of the first prompt
+      const firstTurn = sessionTurns[0];
+      const sessionGoal = firstTurn
+        ? (() => {
+            const text = firstTurn.promptText;
+            const end = text.search(/[.!?]/);
+            return end > 0 && end < 100 ? text.slice(0, end + 1) : text.slice(0, 100);
+          })()
+        : '';
 
-    const conversationContext = priorTurns.length > 0
-      ? {
-          recentPrompts: priorTurns.map((t) => t.promptText.slice(0, 500)),
-          sessionGoal,
-          turnNumber: turnIndex + 1,
-          isConversationalMode,
-        }
-      : undefined;
+      const conversationContext =
+        priorTurns.length > 0
+          ? {
+              recentPrompts: priorTurns.map((t) => t.promptText.slice(0, 500)),
+              sessionGoal,
+              turnNumber: turnIndex + 1,
+              isConversationalMode,
+            }
+          : undefined;
 
-    console.log('[PromptAnalyzer] analyzeWithAi called', { key, skipCache, mode: analysisMode });
-    setAiAnalyzing((prev) => ({ ...prev, [key]: true }));
-    fetch('/api/analytics/ai-analyze-prompt', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        promptText, mode: analysisMode, skipCache,
-        sessionContext: { model, toolCount, category, cost },
-        conversationContext,
-      }),
-    })
-      .then((r) => {
-        console.log('[PromptAnalyzer] fetch response', r.status);
-        return r.json();
+      console.log('[PromptAnalyzer] analyzeWithAi called', { key, skipCache, mode: analysisMode });
+      setAiAnalyzing((prev) => ({ ...prev, [key]: true }));
+      fetch('/api/analytics/ai-analyze-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          promptText,
+          mode: analysisMode,
+          skipCache,
+          sessionContext: { model, toolCount, category, cost },
+          conversationContext,
+        }),
       })
-      .then((d) => {
-        console.log('[PromptAnalyzer] response data', d);
-        if (d.data) setAiAnalysis((prev) => ({ ...prev, [key]: d.data }));
-      })
-      .catch((err) => console.error('[PromptAnalyzer] fetch error', err))
-      .finally(() => setAiAnalyzing((prev) => ({ ...prev, [key]: false })));
-  }, [analysisMode, data.turns]);
+        .then((r) => {
+          console.log('[PromptAnalyzer] fetch response', r.status);
+          return r.json();
+        })
+        .then((d) => {
+          console.log('[PromptAnalyzer] response data', d);
+          if (d.data) setAiAnalysis((prev) => ({ ...prev, [key]: d.data }));
+        })
+        .catch((err) => console.error('[PromptAnalyzer] fetch error', err))
+        .finally(() => setAiAnalyzing((prev) => ({ ...prev, [key]: false })));
+    },
+    [analysisMode, data.turns],
+  );
 
   const analyses = useMemo(() => {
     const filteredTurns = selectedSession
@@ -156,22 +190,25 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
       : data.turns;
 
     // Group turns by sessionId + promptText to aggregate work from one user prompt
-    const grouped = new Map<string, {
-      promptText: string;
-      sessionId: string;
-      costUsd: number;
-      inputTokens: number;
-      outputTokens: number;
-      cacheReadTokens: number;
-      thinkingTokens: number;
-      toolCount: number;
-      toolNames: string[];
-      latencyMs: number;
-      model: string;
-      turnIndex: number;
-      timestamp: number;
-      turnCount: number;
-    }>();
+    const grouped = new Map<
+      string,
+      {
+        promptText: string;
+        sessionId: string;
+        costUsd: number;
+        inputTokens: number;
+        outputTokens: number;
+        cacheReadTokens: number;
+        thinkingTokens: number;
+        toolCount: number;
+        toolNames: string[];
+        latencyMs: number;
+        model: string;
+        turnIndex: number;
+        timestamp: number;
+        turnCount: number;
+      }
+    >();
 
     for (const t of filteredTurns) {
       if (t.promptText.trim().length === 0) continue;
@@ -224,7 +261,7 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
       if (sortField === 'complexity') cmp = a.complexity - b.complexity;
       else if (sortField === 'cost') cmp = a.costUsd - b.costUsd;
       else if (sortField === 'time') cmp = a.turnIndex - b.turnIndex;
-      else cmp = (a.inputTokens + a.outputTokens) - (b.inputTokens + b.outputTokens);
+      else cmp = a.inputTokens + a.outputTokens - (b.inputTokens + b.outputTokens);
       return sortAsc ? cmp : -cmp;
     });
     return arr;
@@ -243,22 +280,25 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
   }, [analyses]);
 
   // Handle scatter dot click — highlight in table
-  const handleScatterClick = useCallback((entry: Record<string, unknown>) => {
-    const idx = entry.idx as number;
-    // Find this analysis in the sorted array
-    const analysis = analyses[idx];
-    if (!analysis) return;
-    const sortedIdx = sorted.findIndex((s) => s === analysis);
-    if (sortedIdx >= 0 && sortedIdx < 50) {
-      setSelectedScatterIdx(idx);
-      setExpandedRow(sortedIdx);
-      // Scroll to the row
-      if (tableRef.current) {
-        const row = tableRef.current.children[sortedIdx] as HTMLElement | undefined;
-        row?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const handleScatterClick = useCallback(
+    (entry: Record<string, unknown>) => {
+      const idx = entry.idx as number;
+      // Find this analysis in the sorted array
+      const analysis = analyses[idx];
+      if (!analysis) return;
+      const sortedIdx = sorted.findIndex((s) => s === analysis);
+      if (sortedIdx >= 0 && sortedIdx < 50) {
+        setSelectedScatterIdx(idx);
+        setExpandedRow(sortedIdx);
+        // Scroll to the row
+        if (tableRef.current) {
+          const row = tableRef.current.children[sortedIdx] as HTMLElement | undefined;
+          row?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
       }
-    }
-  }, [analyses, sorted]);
+    },
+    [analyses, sorted],
+  );
 
   // Category pie
   const categoryData = useMemo(() => {
@@ -275,7 +315,10 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
 
   const handleSort = (field: typeof sortField) => {
     if (sortField === field) setSortAsc(!sortAsc);
-    else { setSortField(field); setSortAsc(false); }
+    else {
+      setSortField(field);
+      setSortAsc(false);
+    }
   };
 
   return (
@@ -299,7 +342,10 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
         </select>
         {selectedSession && (
           <button
-            onClick={() => { setSelectedSession(undefined); setExpandedRow(null); }}
+            onClick={() => {
+              setSelectedSession(undefined);
+              setExpandedRow(null);
+            }}
             className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
           >
             Clear
@@ -311,8 +357,12 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
       {selectedSession && (aiSummary || aiSummaryLoading) && (
         <div className="bg-gradient-to-r from-blue-500/5 to-purple-500/5 border border-blue-500/15 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="text-xs font-medium text-blue-400 uppercase tracking-wider">AI Summary</span>
-            <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-blue-500/20 text-blue-300">AI</span>
+            <span className="text-xs font-medium text-blue-400 uppercase tracking-wider">
+              AI Summary
+            </span>
+            <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-blue-500/20 text-blue-300">
+              AI
+            </span>
           </div>
           {aiSummaryLoading ? (
             <div className="space-y-1.5 animate-pulse">
@@ -332,11 +382,27 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
           <ResponsiveContainer width="100%" height={280}>
             <ScatterChart>
               <CartesianGrid strokeDasharray="3 3" stroke="#21262d" />
-              <XAxis dataKey="complexity" name="Complexity" tick={{ fill: '#8b949e', fontSize: 10 }} label={{ value: 'Complexity', position: 'bottom', fill: '#6b7280', fontSize: 10 }} />
-              <YAxis dataKey="cost" name="Cost" tick={{ fill: '#8b949e', fontSize: 10 }} tickFormatter={(v: number = 0) => `$${v.toFixed(3)}`} />
+              <XAxis
+                dataKey="complexity"
+                name="Complexity"
+                tick={{ fill: '#8b949e', fontSize: 10 }}
+                label={{ value: 'Complexity', position: 'bottom', fill: '#6b7280', fontSize: 10 }}
+              />
+              <YAxis
+                dataKey="cost"
+                name="Cost"
+                tick={{ fill: '#8b949e', fontSize: 10 }}
+                tickFormatter={(v: number = 0) => `$${v.toFixed(3)}`}
+              />
               <ZAxis dataKey="tokens" range={[20, 200]} />
               <Tooltip
-                contentStyle={{ backgroundColor: '#161b22', border: '1px solid #374151', borderRadius: '8px', fontSize: '11px', color: '#e5e7eb' }}
+                contentStyle={{
+                  backgroundColor: '#161b22',
+                  border: '1px solid #374151',
+                  borderRadius: '8px',
+                  fontSize: '11px',
+                  color: '#e5e7eb',
+                }}
                 labelStyle={{ color: '#9ca3af' }}
                 formatter={(v: number = 0, name: string = '') => {
                   if (name === 'Cost') return [`$${v.toFixed(4)}`, name];
@@ -366,14 +432,22 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
                 innerRadius={50}
                 paddingAngle={2}
                 dataKey="value"
-                label={({ name = '', percent = 0 }: { name?: string; percent?: number }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                label={({ name = '', percent = 0 }: { name?: string; percent?: number }) =>
+                  `${name} ${(percent * 100).toFixed(0)}%`
+                }
               >
                 {categoryData.map((entry, idx) => (
                   <Cell key={idx} fill={entry.fill} />
                 ))}
               </Pie>
               <Tooltip
-                contentStyle={{ backgroundColor: '#161b22', border: '1px solid #374151', borderRadius: '8px', fontSize: '11px', color: '#e5e7eb' }}
+                contentStyle={{
+                  backgroundColor: '#161b22',
+                  border: '1px solid #374151',
+                  borderRadius: '8px',
+                  fontSize: '11px',
+                  color: '#e5e7eb',
+                }}
                 labelStyle={{ color: '#9ca3af' }}
               />
             </PieChart>
@@ -388,19 +462,37 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
             <thead className="sticky top-0 z-10 bg-[#161b22]">
               <tr className="border-b border-gray-800">
                 <th className="text-left p-3 text-gray-500 font-medium text-xs">#</th>
-                <th className="text-left p-3 text-gray-500 font-medium text-xs cursor-pointer hover:text-gray-300" onClick={() => handleSort('time')}>
+                <th
+                  className="text-left p-3 text-gray-500 font-medium text-xs cursor-pointer hover:text-gray-300"
+                  onClick={() => handleSort('time')}
+                >
                   Time {sortField === 'time' ? (sortAsc ? '↑' : '↓') : ''}
                 </th>
                 <th className="text-left p-3 text-gray-500 font-medium text-xs">Prompt</th>
                 <th className="text-left p-3 text-gray-500 font-medium text-xs">Category</th>
-                <th className="text-left p-3 text-gray-500 font-medium text-xs cursor-pointer hover:text-gray-300" onClick={() => handleSort('complexity')}>
-                  Complexity<InfoTooltip text="Composite score (0-100) based on prompt length, technical terms, output tokens, and tool count" /> {sortField === 'complexity' ? (sortAsc ? '↑' : '↓') : ''}
+                <th
+                  className="text-left p-3 text-gray-500 font-medium text-xs cursor-pointer hover:text-gray-300"
+                  onClick={() => handleSort('complexity')}
+                >
+                  Complexity
+                  <InfoTooltip text="Composite score (0-100) based on prompt length, technical terms, output tokens, and tool count" />{' '}
+                  {sortField === 'complexity' ? (sortAsc ? '↑' : '↓') : ''}
                 </th>
-                <th className="text-left p-3 text-gray-500 font-medium text-xs cursor-pointer hover:text-gray-300" onClick={() => handleSort('cost')}>
-                  Cost<InfoTooltip text="Total API cost including input, output, and cached tokens at model-specific rates" /> {sortField === 'cost' ? (sortAsc ? '↑' : '↓') : ''}
+                <th
+                  className="text-left p-3 text-gray-500 font-medium text-xs cursor-pointer hover:text-gray-300"
+                  onClick={() => handleSort('cost')}
+                >
+                  Cost
+                  <InfoTooltip text="Total API cost including input, output, and cached tokens at model-specific rates" />{' '}
+                  {sortField === 'cost' ? (sortAsc ? '↑' : '↓') : ''}
                 </th>
-                <th className="text-left p-3 text-gray-500 font-medium text-xs cursor-pointer hover:text-gray-300" onClick={() => handleSort('tokens')}>
-                  Tokens<InfoTooltip text="Sum of input + output tokens. Cache hits reduce effective cost but still count toward total" /> {sortField === 'tokens' ? (sortAsc ? '↑' : '↓') : ''}
+                <th
+                  className="text-left p-3 text-gray-500 font-medium text-xs cursor-pointer hover:text-gray-300"
+                  onClick={() => handleSort('tokens')}
+                >
+                  Tokens
+                  <InfoTooltip text="Sum of input + output tokens. Cache hits reduce effective cost but still count toward total" />{' '}
+                  {sortField === 'tokens' ? (sortAsc ? '↑' : '↓') : ''}
                 </th>
                 <th className="text-left p-3 text-gray-500 font-medium text-xs">Tools</th>
               </tr>
@@ -409,17 +501,18 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
               {sorted.slice(0, 50).map((a, i) => {
                 const isExpanded = expandedRow === i;
                 const pk = promptKey(a.sessionId, a.promptText, analysisMode);
-                const cacheRate = (a.inputTokens + a.cacheReadTokens) > 0
-                  ? (a.cacheReadTokens / (a.inputTokens + a.cacheReadTokens)) * 100
-                  : 0;
+                const cacheRate =
+                  a.inputTokens + a.cacheReadTokens > 0
+                    ? (a.cacheReadTokens / (a.inputTokens + a.cacheReadTokens)) * 100
+                    : 0;
                 const totalTokens = a.inputTokens + a.outputTokens + a.cacheReadTokens;
-                const wordCount = a.promptText.split(/\s+/).filter(Boolean).length;
-
                 return (
                   <tr
                     key={i}
                     className={`border-b border-gray-800/50 cursor-pointer transition-colors ${isExpanded ? 'bg-[#0d1117]/70' : 'hover:bg-[#0d1117]/50'}`}
-                    onClick={() => { if (!isExpanded) setExpandedRow(i); }}
+                    onClick={() => {
+                      if (!isExpanded) setExpandedRow(i);
+                    }}
                   >
                     <td className="p-3 align-top text-gray-600">
                       {i + 1}
@@ -429,16 +522,28 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
                     </td>
                     {!isExpanded && (
                       <td className="p-3 align-top text-gray-500 whitespace-nowrap text-xs">
-                        {new Date(a.timestamp).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        {new Date(a.timestamp).toLocaleString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
                       </td>
                     )}
                     <td className="p-3 align-top" colSpan={isExpanded ? 7 : 1}>
                       {/* Prompt text — truncated or full, highlighted when expanded */}
-                      <div className={isExpanded
-                        ? 'bg-blue-500/10 border border-blue-500/30 rounded-lg px-3 py-2 -mx-1 text-gray-100 font-medium'
-                        : 'max-w-[300px] truncate text-gray-300'
-                      }>
-                        {isExpanded && <div className="text-[10px] uppercase tracking-wider text-blue-400/70 mb-1 font-semibold">Prompt</div>}
+                      <div
+                        className={
+                          isExpanded
+                            ? 'bg-blue-500/10 border border-blue-500/30 rounded-lg px-3 py-2 -mx-1 text-gray-100 font-medium'
+                            : 'max-w-[300px] truncate text-gray-300'
+                        }
+                      >
+                        {isExpanded && (
+                          <div className="text-[10px] uppercase tracking-wider text-blue-400/70 mb-1 font-semibold">
+                            Prompt
+                          </div>
+                        )}
                         {a.promptText || '\u2014'}
                       </div>
 
@@ -449,33 +554,53 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
                           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
                             <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
                               <div className="text-xs text-gray-500">Cost</div>
-                              <div className="text-base font-semibold text-amber-400">${a.costUsd.toFixed(4)}</div>
+                              <div className="text-base font-semibold text-amber-400">
+                                ${a.costUsd.toFixed(4)}
+                              </div>
                             </div>
                             <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
                               <div className="text-xs text-gray-500">Total Tokens</div>
-                              <div className="text-base font-semibold text-gray-200">{fmtTokens(totalTokens)}</div>
+                              <div className="text-base font-semibold text-gray-200">
+                                {fmtTokens(totalTokens)}
+                              </div>
                             </div>
                             <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
                               <div className="text-xs text-gray-500">Cache Hit</div>
-                              <div className={`text-base font-semibold ${cacheRate > 50 ? 'text-emerald-400' : cacheRate > 20 ? 'text-yellow-400' : 'text-red-400'}`}>
+                              <div
+                                className={`text-base font-semibold ${cacheRate > 50 ? 'text-emerald-400' : cacheRate > 20 ? 'text-yellow-400' : 'text-red-400'}`}
+                              >
                                 {cacheRate.toFixed(1)}%
                               </div>
                             </div>
                             <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
                               <div className="text-xs text-gray-500">Latency</div>
                               <div className="text-base font-semibold text-gray-200">
-                                {a.latencyMs < 1000 ? `${Math.round(a.latencyMs)}ms` : `${(a.latencyMs / 1000).toFixed(1)}s`}
+                                {a.latencyMs < 1000
+                                  ? `${Math.round(a.latencyMs)}ms`
+                                  : `${(a.latencyMs / 1000).toFixed(1)}s`}
                               </div>
                             </div>
                             <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
                               <div className="text-xs text-gray-500">Complexity</div>
-                              <div className="text-base font-semibold" style={{ color: a.complexity > 70 ? '#ef4444' : a.complexity > 40 ? '#eab308' : '#22c55e' }}>
+                              <div
+                                className="text-base font-semibold"
+                                style={{
+                                  color:
+                                    a.complexity > 70
+                                      ? '#ef4444'
+                                      : a.complexity > 40
+                                        ? '#eab308'
+                                        : '#22c55e',
+                                }}
+                              >
                                 {a.complexity}/100
                               </div>
                             </div>
                             <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
                               <div className="text-xs text-gray-500">Turns</div>
-                              <div className="text-base font-semibold text-gray-200">{a.turnCount}</div>
+                              <div className="text-base font-semibold text-gray-200">
+                                {a.turnCount}
+                              </div>
                             </div>
                           </div>
 
@@ -493,7 +618,10 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
                           <div className="flex items-start gap-3 flex-wrap">
                             {a.toolNames.length > 0 && (
                               <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2 flex-1 min-w-[200px]">
-                                <ToolBadges toolNames={a.toolNames} label={`Tools Used (${a.toolCount})`} />
+                                <ToolBadges
+                                  toolNames={a.toolNames}
+                                  label={`Tools Used (${a.toolCount})`}
+                                />
                               </div>
                             )}
 
@@ -506,7 +634,10 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
                               <div className="text-xs text-gray-500 mb-1.5">Category</div>
                               <span
                                 className="px-2 py-0.5 rounded-full text-xs font-medium"
-                                style={{ backgroundColor: `${CATEGORY_COLORS[a.category]}20`, color: CATEGORY_COLORS[a.category] }}
+                                style={{
+                                  backgroundColor: `${CATEGORY_COLORS[a.category]}20`,
+                                  color: CATEGORY_COLORS[a.category],
+                                }}
                               >
                                 {a.category}
                               </span>
@@ -515,35 +646,56 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
 
                           {/* AI Analysis Section */}
                           {aiAnalysis[pk] ? (
-                            <div className={`mt-3 relative bg-gradient-to-r ${
-                              analysisMode === 'vibe'
-                                ? 'from-purple-500/5 to-pink-500/5 border-purple-500/15'
-                                : 'from-blue-500/5 to-purple-500/5 border-blue-500/15'
-                            } border rounded-xl p-4 space-y-3 ${aiAnalyzing[pk] ? 'opacity-40 pointer-events-none' : ''}`}>
+                            <div
+                              className={`mt-3 relative bg-gradient-to-r ${
+                                analysisMode === 'vibe'
+                                  ? 'from-purple-500/5 to-pink-500/5 border-purple-500/15'
+                                  : 'from-blue-500/5 to-purple-500/5 border-blue-500/15'
+                              } border rounded-xl p-4 space-y-3 ${aiAnalyzing[pk] ? 'opacity-40 pointer-events-none' : ''}`}
+                            >
                               {aiAnalyzing[pk] && (
                                 <div className="absolute inset-0 flex items-center justify-center z-10">
-                                  <div className={`text-xs font-medium ${analysisMode === 'vibe' ? 'text-purple-400' : 'text-blue-400'}`}>Re-analyzing...</div>
+                                  <div
+                                    className={`text-xs font-medium ${analysisMode === 'vibe' ? 'text-purple-400' : 'text-blue-400'}`}
+                                  >
+                                    Re-analyzing...
+                                  </div>
                                 </div>
                               )}
                               {/* Header row */}
                               <div className="flex items-center gap-2">
-                                <span className={`text-xs font-medium uppercase tracking-wider ${
-                                  analysisMode === 'vibe' ? 'text-purple-400' : 'text-blue-400'
-                                }`}>
+                                <span
+                                  className={`text-xs font-medium uppercase tracking-wider ${
+                                    analysisMode === 'vibe' ? 'text-purple-400' : 'text-blue-400'
+                                  }`}
+                                >
                                   {analysisMode === 'vibe' ? 'Prompt Coach' : 'AI Analysis'}
                                 </span>
-                                <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${
-                                  analysisMode === 'vibe'
-                                    ? 'bg-purple-500/20 text-purple-300'
-                                    : 'bg-blue-500/20 text-blue-300'
-                                }`}>
+                                <span
+                                  className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${
+                                    analysisMode === 'vibe'
+                                      ? 'bg-purple-500/20 text-purple-300'
+                                      : 'bg-blue-500/20 text-blue-300'
+                                  }`}
+                                >
                                   {analysisMode === 'vibe' ? 'Vibe' : 'AI'}
                                 </span>
                                 <button
                                   title="Re-analyze with AI"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    analyzeWithAi(pk, a.promptText, a.model, a.toolCount, a.category, a.costUsd, a.turnIndex, a.sessionId, a.timestamp, true);
+                                    analyzeWithAi(
+                                      pk,
+                                      a.promptText,
+                                      a.model,
+                                      a.toolCount,
+                                      a.category,
+                                      a.costUsd,
+                                      a.turnIndex,
+                                      a.sessionId,
+                                      a.timestamp,
+                                      true,
+                                    );
                                   }}
                                   disabled={aiAnalyzing[pk]}
                                   className={`ml-1 p-1 rounded transition-colors disabled:opacity-40 ${
@@ -552,18 +704,37 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
                                       : 'text-blue-400/60 hover:text-blue-300 hover:bg-blue-500/10'
                                   }`}
                                 >
-                                  <svg className={`w-3.5 h-3.5 ${aiAnalyzing[pk] ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                  <svg
+                                    className={`w-3.5 h-3.5 ${aiAnalyzing[pk] ? 'animate-spin' : ''}`}
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                    />
                                   </svg>
                                 </button>
-                                <span className={`ml-auto text-sm font-semibold ${
-                                  aiAnalysis[pk].score >= 8 ? 'text-emerald-400' : aiAnalysis[pk].score >= 5 ? 'text-yellow-400' : 'text-red-400'
-                                }`}>
+                                <span
+                                  className={`ml-auto text-sm font-semibold ${
+                                    aiAnalysis[pk].score >= 8
+                                      ? 'text-emerald-400'
+                                      : aiAnalysis[pk].score >= 5
+                                        ? 'text-yellow-400'
+                                        : 'text-red-400'
+                                  }`}
+                                >
                                   {analysisMode === 'vibe'
-                                    ? (aiAnalysis[pk].score >= 8 ? 'Great!' : aiAnalysis[pk].score >= 5 ? 'Decent' : 'Needs work')
-                                    : `Score: ${aiAnalysis[pk].score}/10`
-                                  }
-                                  {' '}{aiAnalysis[pk].score}/10
+                                    ? aiAnalysis[pk].score >= 8
+                                      ? 'Great!'
+                                      : aiAnalysis[pk].score >= 5
+                                        ? 'Decent'
+                                        : 'Needs work'
+                                    : `Score: ${aiAnalysis[pk].score}/10`}{' '}
+                                  {aiAnalysis[pk].score}/10
                                 </span>
                               </div>
 
@@ -576,7 +747,9 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
                               {aiAnalysis[pk].rewrite && (
                                 <div className="pt-2 border-t border-gray-800/50">
                                   <div className="text-xs text-gray-500 mb-1.5 font-medium">
-                                    {analysisMode === 'vibe' ? 'Try saying it like this' : 'Suggested Rewrite'}
+                                    {analysisMode === 'vibe'
+                                      ? 'Try saying it like this'
+                                      : 'Suggested Rewrite'}
                                   </div>
                                   <div className="relative bg-[#0d1117] border border-gray-800 rounded-lg p-3 pr-10 text-sm text-gray-300 leading-relaxed">
                                     {formatRewrite(aiAnalysis[pk].rewrite)}
@@ -587,14 +760,26 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
                                         if (ok) {
                                           const btn = e.currentTarget;
                                           const orig = btn.innerHTML;
-                                          btn.innerHTML = '<span class="text-emerald-400">Copied!</span>';
-                                          setTimeout(() => { btn.innerHTML = orig; }, 1500);
+                                          btn.innerHTML =
+                                            '<span class="text-emerald-400">Copied!</span>';
+                                          setTimeout(() => {
+                                            btn.innerHTML = orig;
+                                          }, 1500);
                                         }
                                       }}
                                       className="absolute top-1.5 right-1.5 p-1.5 rounded-md bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
                                       title="Copy rewrite to clipboard"
                                     >
-                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <svg
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                      >
                                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
                                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                                       </svg>
@@ -604,25 +789,31 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
                               )}
 
                               {/* Savings & comparison — separated with divider */}
-                              {(aiAnalysis[pk].estimatedSavings || aiAnalysis[pk].historyComparison) && (
+                              {(aiAnalysis[pk].estimatedSavings ||
+                                aiAnalysis[pk].historyComparison) && (
                                 <div className="pt-2 border-t border-gray-800/50 flex items-center gap-4">
                                   {aiAnalysis[pk].estimatedSavings && (
                                     <div className="flex items-center gap-1.5 text-xs">
                                       <span className="text-gray-500">
                                         {analysisMode === 'vibe' ? 'Could save' : 'Savings'}
                                       </span>
-                                      <span className="text-emerald-400 font-medium">{aiAnalysis[pk].estimatedSavings}</span>
+                                      <span className="text-emerald-400 font-medium">
+                                        {aiAnalysis[pk].estimatedSavings}
+                                      </span>
                                     </div>
                                   )}
-                                  {aiAnalysis[pk].estimatedSavings && aiAnalysis[pk].historyComparison && (
-                                    <span className="text-gray-700">|</span>
-                                  )}
+                                  {aiAnalysis[pk].estimatedSavings &&
+                                    aiAnalysis[pk].historyComparison && (
+                                      <span className="text-gray-700">|</span>
+                                    )}
                                   {aiAnalysis[pk].historyComparison && (
                                     <div className="flex items-center gap-1.5 text-xs">
                                       <span className="text-gray-500">
                                         {analysisMode === 'vibe' ? 'vs. usual' : 'Comparison'}
                                       </span>
-                                      <span className="text-gray-300">{aiAnalysis[pk].historyComparison}</span>
+                                      <span className="text-gray-300">
+                                        {aiAnalysis[pk].historyComparison}
+                                      </span>
                                     </div>
                                   )}
                                 </div>
@@ -630,7 +821,20 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
                             </div>
                           ) : (
                             <button
-                              onClick={(e) => { e.stopPropagation(); analyzeWithAi(pk, a.promptText, a.model, a.toolCount, a.category, a.costUsd, a.turnIndex, a.sessionId, a.timestamp); }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                analyzeWithAi(
+                                  pk,
+                                  a.promptText,
+                                  a.model,
+                                  a.toolCount,
+                                  a.category,
+                                  a.costUsd,
+                                  a.turnIndex,
+                                  a.sessionId,
+                                  a.timestamp,
+                                );
+                              }}
                               disabled={aiAnalyzing[pk]}
                               className={`mt-3 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-50 ${
                                 analysisMode === 'vibe'
@@ -640,8 +844,9 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
                             >
                               {aiAnalyzing[pk]
                                 ? 'Analyzing...'
-                                : analysisMode === 'vibe' ? 'Get prompt tips' : 'Analyze with AI'
-                              }
+                                : analysisMode === 'vibe'
+                                  ? 'Get prompt tips'
+                                  : 'Analyze with AI'}
                             </button>
                           )}
                         </div>
@@ -653,7 +858,10 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
                         <td className="p-3">
                           <span
                             className="px-2 py-0.5 rounded-full text-xs font-medium"
-                            style={{ backgroundColor: `${CATEGORY_COLORS[a.category]}20`, color: CATEGORY_COLORS[a.category] }}
+                            style={{
+                              backgroundColor: `${CATEGORY_COLORS[a.category]}20`,
+                              color: CATEGORY_COLORS[a.category],
+                            }}
                           >
                             {a.category}
                           </span>
@@ -661,13 +869,26 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
                         <td className="p-3">
                           <div className="flex items-center gap-2">
                             <div className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                              <div className="h-full rounded-full" style={{ width: `${a.complexity}%`, backgroundColor: a.complexity > 70 ? '#ef4444' : a.complexity > 40 ? '#eab308' : '#22c55e' }} />
+                              <div
+                                className="h-full rounded-full"
+                                style={{
+                                  width: `${a.complexity}%`,
+                                  backgroundColor:
+                                    a.complexity > 70
+                                      ? '#ef4444'
+                                      : a.complexity > 40
+                                        ? '#eab308'
+                                        : '#22c55e',
+                                }}
+                              />
                             </div>
                             <span className="text-gray-400">{a.complexity}</span>
                           </div>
                         </td>
                         <td className="p-3 text-gray-300">${a.costUsd.toFixed(4)}</td>
-                        <td className="p-3 text-gray-400">{(a.inputTokens + a.outputTokens).toLocaleString()}</td>
+                        <td className="p-3 text-gray-400">
+                          {(a.inputTokens + a.outputTokens).toLocaleString()}
+                        </td>
                         <td className="p-3 text-gray-500">{a.toolNames.join(', ') || '\u2014'}</td>
                       </>
                     )}

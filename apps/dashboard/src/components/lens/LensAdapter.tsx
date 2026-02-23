@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useMemo, useCallback, useEffect, useRef } from 'react';
 import type { Node, Edge } from '@xyflow/react';
 import { useAgentStore } from '../../store/agentStore';
@@ -5,8 +8,6 @@ import type {
   SessionData,
   AgentNodeData,
   UserPromptData,
-  ToolCallSummary,
-  AgentEvent,
   TranscriptSummary,
 } from '@synapse-ai/core';
 import { apiUrl } from '../../utils/api';
@@ -111,7 +112,7 @@ function buildTreeRoots(
       return {
         id: gNode.id,
         kind: 'session',
-        label: session.sessionId.slice(0, 8),
+        label: session.title ?? session.sessionId.slice(0, 8),
         status: session.status === 'running' ? 'running' : 'ended',
         tokens,
         count: Math.max(childCount, 1),
@@ -167,7 +168,10 @@ function buildTreeRoots(
       return {
         id: gNode.id,
         kind: 'prompt',
-        label: (() => { const t = extractUserMessage(prompt.text); return t.length > 40 ? t.slice(0, 40) + '...' : t || '(empty)'; })(),
+        label: (() => {
+          const t = extractUserMessage(prompt.text);
+          return t.length > 40 ? t.slice(0, 40) + '...' : t || '(empty)';
+        })(),
         status: 'success',
         tokens,
         count,
@@ -312,7 +316,10 @@ function groupToolChildren(children: LensTreeNode[]): LensTreeNode[] {
 
 // ── Adapter component ───────────────────────────────────────
 
-export function LensAdapter({ fillWidth }: { fillWidth?: boolean } = {}) {
+export function LensAdapter({
+  fillWidth,
+  children,
+}: { fillWidth?: boolean; children?: React.ReactNode } = {}) {
   const graphNodes = useAgentStore((s) => s.nodes);
   const graphEdges = useAgentStore((s) => s.edges);
   const agents = useAgentStore((s) => s.agents);
@@ -331,21 +338,33 @@ export function LensAdapter({ fillWidth }: { fillWidth?: boolean } = {}) {
   const fetchedRef = useRef(new Set<string>());
 
   useEffect(() => {
+    const unfetched: string[] = [];
     for (const sessionId of sessions.keys()) {
       if (fetchedRef.current.has(sessionId)) continue;
       fetchedRef.current.add(sessionId);
-
-      fetch(apiUrl(`/api/transcript/${sessionId}`))
-        .then((r) => (r.ok ? r.json() : null))
-        .then((data: TranscriptSummary | null) => {
-          if (data && data.turns.length > 0) {
-            useAgentStore.getState().setTranscript(sessionId, data);
-          }
-        })
-        .catch(() => {
-          // Transcript not available — hook-only session
-        });
+      unfetched.push(sessionId);
     }
+
+    if (unfetched.length === 0) return;
+
+    fetch(apiUrl('/api/transcript/batch'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionIds: unfetched }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: Record<string, TranscriptSummary | null> | null) => {
+        if (!data) return;
+        const store = useAgentStore.getState();
+        for (const [sessionId, summary] of Object.entries(data)) {
+          if (summary && summary.turns.length > 0) {
+            store.setTranscript(sessionId, summary);
+          }
+        }
+      })
+      .catch(() => {
+        // Transcripts not available
+      });
   }, [sessions]);
 
   // Derive tree from graph topology (single source of truth)
@@ -443,7 +462,9 @@ export function LensAdapter({ fillWidth }: { fillWidth?: boolean } = {}) {
 
   return (
     <LensProvider value={contextValue}>
-      <LensPanel width={lensPanelWidth} onWidthChange={onWidthChange} fillWidth={fillWidth} />
+      {children ?? (
+        <LensPanel width={lensPanelWidth} onWidthChange={onWidthChange} fillWidth={fillWidth} />
+      )}
     </LensProvider>
   );
 }

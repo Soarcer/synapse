@@ -1,13 +1,16 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // ─── Transcript Turn (parsed from JSONL) ──────────────────────────
 
 export interface TranscriptTurn {
   uuid: string;
-  timestamp: number;               // Unix ms
+  timestamp: number; // Unix ms
   type: 'user' | 'assistant';
 
   // Assistant-only fields
   model?: string;
-  stopReason?: string;             // 'end_turn' | 'tool_use'
+  stopReason?: string; // 'end_turn' | 'tool_use'
 
   // Token usage (from message.usage)
   inputTokens: number;
@@ -16,16 +19,19 @@ export interface TranscriptTurn {
   cacheCreationTokens: number;
 
   // Content analysis
-  contentTypes: string[];          // e.g. ['text', 'tool_use', 'thinking']
-  toolNames: string[];             // tool names called this turn
+  contentTypes: string[]; // e.g. ['text', 'tool_use', 'thinking']
+  toolNames: string[]; // tool names called this turn
   toolUseCount: number;
-  textLength: number;              // total text output chars
-  thinkingLength: number;          // thinking block chars
-  promptText?: string;             // user prompt text (first 500 chars, user turns only)
+  textLength: number; // total text output chars
+  thinkingLength: number; // thinking block chars
+  promptText?: string; // user prompt text (first 500 chars, user turns only)
+
+  // Context flags (from v2 ConversationRecord, propagated to v1 for filtering)
+  isMeta: boolean;
 
   // Derived
-  totalInputTokens: number;        // input + cache_read
-  cacheHitRate: number;            // cache_read / totalInput (0-1)
+  totalInputTokens: number; // input + cache_read
+  cacheHitRate: number; // cache_read / totalInput (0-1)
 }
 
 // ─── Per-model breakdown ──────────────────────────────────────────
@@ -41,14 +47,15 @@ export interface ModelUsage {
 
 // ─── Model pricing (USD per million tokens) ───────────────────────
 
-export const MODEL_PRICING: Record<string, { input: number; cachedInput: number; output: number }> = {
-  'claude-opus-4-6':              { input: 15,   cachedInput: 1.5,  output: 75 },
-  'claude-opus-4-20250514':       { input: 15,   cachedInput: 1.5,  output: 75 },
-  'claude-sonnet-4-5-20250929':   { input: 3,    cachedInput: 0.3,  output: 15 },
-  'claude-sonnet-4-20250514':     { input: 3,    cachedInput: 0.3,  output: 15 },
-  'claude-haiku-4-5-20251001':    { input: 0.8,  cachedInput: 0.08, output: 4 },
-  'claude-haiku-3-5-20241022':    { input: 0.8,  cachedInput: 0.08, output: 4 },
-};
+export const MODEL_PRICING: Record<string, { input: number; cachedInput: number; output: number }> =
+  {
+    'claude-opus-4-6': { input: 15, cachedInput: 1.5, output: 75 },
+    'claude-opus-4-20250514': { input: 15, cachedInput: 1.5, output: 75 },
+    'claude-sonnet-4-5-20250929': { input: 3, cachedInput: 0.3, output: 15 },
+    'claude-sonnet-4-20250514': { input: 3, cachedInput: 0.3, output: 15 },
+    'claude-haiku-4-5-20251001': { input: 0.8, cachedInput: 0.08, output: 4 },
+    'claude-haiku-3-5-20241022': { input: 0.8, cachedInput: 0.08, output: 4 },
+  };
 
 // Fallback pricing for unknown models
 export const DEFAULT_PRICING = { input: 3, cachedInput: 0.3, output: 15 };
@@ -301,7 +308,7 @@ export interface ReasoningTurn {
 
   // Error flags
   isApiErrorMessage: boolean;
-  error?: string;                // e.g. 'rate_limit', 'overloaded'
+  error?: string; // e.g. 'rate_limit', 'overloaded'
 
   thinkingText: string | null;
   structured: StructuredThinking | null;

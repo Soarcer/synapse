@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import * as vscode from 'vscode';
 
 // ─── Tree Item Types ────────────────────────────────────────────
@@ -36,9 +39,7 @@ class AgentItem extends vscode.TreeItem {
     );
     this.contextValue = 'agent';
     this.iconPath = new vscode.ThemeIcon(
-      status === 'running' ? 'pulse'
-        : status === 'error' ? 'circle-slash'
-          : 'check',
+      status === 'running' ? 'pulse' : status === 'error' ? 'circle-slash' : 'check',
     );
     this.description = status;
   }
@@ -79,13 +80,16 @@ export class SynapseTreeProvider implements vscode.TreeDataProvider<SynapseTreeI
   private rebuildTimer: ReturnType<typeof setTimeout> | undefined;
 
   // Accumulated state built from events
-  private agentMap: Map<string, {
-    agentId: string;
-    agentType: string;
-    sessionId: string;
-    status: string;
-    toolCounts: Map<string, number>;
-  }> = new Map();
+  private agentMap: Map<
+    string,
+    {
+      agentId: string;
+      agentType: string;
+      sessionId: string;
+      status: string;
+      toolCounts: Map<string, number>;
+    }
+  > = new Map();
 
   refresh(): void {
     this._onDidChangeTreeData.fire();
@@ -98,20 +102,23 @@ export class SynapseTreeProvider implements vscode.TreeDataProvider<SynapseTreeI
   handleEvent(event: Record<string, unknown>): void {
     const type = event.type as string;
     const sessionId = event.sessionId as string;
-    const agentId = event.agentId as string | undefined;
     const agentType = event.agentType as string | undefined;
     const status = event.status as string | undefined;
     const toolName = event.toolName as string | undefined;
 
     if (!sessionId) return;
 
-    // Track agents
-    if (agentId) {
+    // Resolve agent — use real agentId if present, otherwise synthesize
+    // a "Main" agent per session so hook events without agent_id are visible.
+    const agentId = (event.agentId as string | undefined) || `main-${sessionId}`;
+    const isMainAgent = !event.agentId;
+
+    {
       let agent = this.agentMap.get(agentId);
       if (!agent) {
         agent = {
           agentId,
-          agentType: agentType || 'Agent',
+          agentType: isMainAgent ? 'Main' : agentType || 'Agent',
           sessionId,
           status: 'running',
           toolCounts: new Map(),
@@ -160,7 +167,10 @@ export class SynapseTreeProvider implements vscode.TreeDataProvider<SynapseTreeI
   clear(): void {
     this.sessions.clear();
     this.agentMap.clear();
-    if (this.rebuildTimer) { clearTimeout(this.rebuildTimer); this.rebuildTimer = undefined; }
+    if (this.rebuildTimer) {
+      clearTimeout(this.rebuildTimer);
+      this.rebuildTimer = undefined;
+    }
     this.refresh();
   }
 
@@ -179,19 +189,21 @@ export class SynapseTreeProvider implements vscode.TreeDataProvider<SynapseTreeI
   private handleEventSilent(event: Record<string, unknown>): void {
     const type = event.type as string;
     const sessionId = event.sessionId as string;
-    const agentId = event.agentId as string | undefined;
     const agentType = event.agentType as string | undefined;
     const status = event.status as string | undefined;
     const toolName = event.toolName as string | undefined;
 
     if (!sessionId) return;
 
-    if (agentId) {
+    const agentId = (event.agentId as string | undefined) || `main-${sessionId}`;
+    const isMainAgent = !event.agentId;
+
+    {
       let agent = this.agentMap.get(agentId);
       if (!agent) {
         agent = {
           agentId,
-          agentType: agentType || 'Agent',
+          agentType: isMainAgent ? 'Main' : agentType || 'Agent',
           sessionId,
           status: 'running',
           toolCounts: new Map(),
@@ -225,7 +237,10 @@ export class SynapseTreeProvider implements vscode.TreeDataProvider<SynapseTreeI
 
   private rebuildTree(): void {
     // Group agents by session
-    const sessionAgents = new Map<string, typeof this.agentMap extends Map<string, infer V> ? V[] : never>();
+    const sessionAgents = new Map<
+      string,
+      typeof this.agentMap extends Map<string, infer V> ? V[] : never
+    >();
 
     for (const agent of this.agentMap.values()) {
       let agents = sessionAgents.get(agent.sessionId);
@@ -239,7 +254,7 @@ export class SynapseTreeProvider implements vscode.TreeDataProvider<SynapseTreeI
     this.sessions.clear();
 
     for (const [sessionId, agents] of sessionAgents) {
-      const agentItems = agents.map(a => {
+      const agentItems = agents.map((a) => {
         const toolItems = Array.from(a.toolCounts.entries())
           .sort((x, y) => y[1] - x[1])
           .map(([name, count]) => new ToolItem(name, count));

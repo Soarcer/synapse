@@ -1,9 +1,10 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // Set DB path BEFORE any server imports
 import path from 'path';
 import os from 'os';
-import { fileURLToPath } from 'url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 process.env.SYNAPSE_DB_PATH = path.join(
   os.tmpdir(),
   'synapse-test-analytics-' + Date.now() + '.db',
@@ -15,7 +16,8 @@ import { initDb, deleteAllEvents } from '../db.js';
 import { createApp } from '../app.js';
 import { Broadcaster } from '../services/broadcaster.js';
 import { AgentManager } from '../services/agentManager.js';
-import { clearDedupeCache } from '../services/eventStore.js';
+import { registry } from '../routes/events.js';
+const clearDedupeCache = () => registry.clearDedupeCache();
 
 // ─── Fixtures ────────────────────────────────────────────────────────
 
@@ -29,7 +31,11 @@ function makeEvent(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function makeToolEvent(toolName: string, sessionId: string, overrides: Record<string, unknown> = {}) {
+function makeToolEvent(
+  toolName: string,
+  sessionId: string,
+  overrides: Record<string, unknown> = {},
+) {
   return {
     hook_event_name: 'PostToolUse',
     session_id: sessionId,
@@ -67,7 +73,16 @@ afterAll(() => {
 // ─── Seed helper ─────────────────────────────────────────────────────
 
 async function seedEvents(count: number, sessionPrefix = 'sess') {
-  const hookNames = ['SessionStart', 'Stop', 'Notification', 'SubagentStart', 'SubagentStop', 'PreToolUse', 'PostToolUse', 'UserPromptSubmit'];
+  const hookNames = [
+    'SessionStart',
+    'Stop',
+    'Notification',
+    'SubagentStart',
+    'SubagentStop',
+    'PreToolUse',
+    'PostToolUse',
+    'UserPromptSubmit',
+  ];
   for (let i = 0; i < count; i++) {
     const sessionId = `${sessionPrefix}-${i % 3}`;
     await request(app)
@@ -119,8 +134,12 @@ describe('GET /api/analytics/overview', () => {
   });
 
   it('filters by cwd', async () => {
-    await request(app).post('/api/events').send(makeEvent({ cwd: '/project-a' }));
-    await request(app).post('/api/events').send(makeEvent({ cwd: '/project-b' }));
+    await request(app)
+      .post('/api/events')
+      .send(makeEvent({ cwd: '/project-a' }));
+    await request(app)
+      .post('/api/events')
+      .send(makeEvent({ cwd: '/project-b' }));
 
     const now = Date.now();
     const res = await request(app)
@@ -133,9 +152,7 @@ describe('GET /api/analytics/overview', () => {
   it('uses default time range when params are missing', async () => {
     await seedEvents(3);
 
-    const res = await request(app)
-      .get('/api/analytics/overview')
-      .expect(200);
+    const res = await request(app).get('/api/analytics/overview').expect(200);
 
     // Should still return data (defaults to last 7 days)
     expect(res.body.data).toBeDefined();
@@ -192,9 +209,7 @@ describe('GET /api/analytics/timeseries', () => {
 describe('GET /api/analytics/sessions', () => {
   it('returns empty when no sessions exist', async () => {
     const now = Date.now();
-    const res = await request(app)
-      .get(`/api/analytics/sessions?from=0&to=${now}`)
-      .expect(200);
+    const res = await request(app).get(`/api/analytics/sessions?from=0&to=${now}`).expect(200);
 
     expect(res.body.data).toEqual([]);
     expect(res.body.meta.totalCount).toBe(0);
@@ -242,9 +257,7 @@ describe('GET /api/analytics/sessions', () => {
 describe('GET /api/analytics/tools', () => {
   it('returns empty when no tool events exist', async () => {
     const now = Date.now();
-    const res = await request(app)
-      .get(`/api/analytics/tools?from=0&to=${now}`)
-      .expect(200);
+    const res = await request(app).get(`/api/analytics/tools?from=0&to=${now}`).expect(200);
 
     expect(res.body.data).toEqual([]);
   });
@@ -273,9 +286,7 @@ describe('GET /api/analytics/tools', () => {
 describe('GET /api/analytics/models', () => {
   it('returns empty when no events exist', async () => {
     const now = Date.now();
-    const res = await request(app)
-      .get(`/api/analytics/models?from=0&to=${now}`)
-      .expect(200);
+    const res = await request(app).get(`/api/analytics/models?from=0&to=${now}`).expect(200);
 
     expect(res.body.data).toEqual([]);
   });
@@ -303,26 +314,28 @@ describe('GET /api/analytics/models', () => {
 
 describe('GET /api/analytics/turns', () => {
   it('returns empty for unknown session', async () => {
-    const res = await request(app)
-      .get('/api/analytics/turns?sessionId=nonexistent')
-      .expect(200);
+    const res = await request(app).get('/api/analytics/turns?sessionId=nonexistent').expect(200);
 
     expect(res.body.data).toEqual([]);
   });
 
   it('returns turns for a specific session', async () => {
     // Seed a session with a prompt and tool call
-    await request(app).post('/api/events').send(makeEvent({ session_id: 'turn-sess' }));
-    await request(app).post('/api/events').send(makeEvent({
-      session_id: 'turn-sess',
-      hook_event_name: 'UserPromptSubmit',
-      prompt: 'Hello world',
-    }));
+    await request(app)
+      .post('/api/events')
+      .send(makeEvent({ session_id: 'turn-sess' }));
+    await request(app)
+      .post('/api/events')
+      .send(
+        makeEvent({
+          session_id: 'turn-sess',
+          hook_event_name: 'UserPromptSubmit',
+          prompt: 'Hello world',
+        }),
+      );
     await request(app).post('/api/events').send(makeToolEvent('Read', 'turn-sess'));
 
-    const res = await request(app)
-      .get('/api/analytics/turns?sessionId=turn-sess')
-      .expect(200);
+    const res = await request(app).get('/api/analytics/turns?sessionId=turn-sess').expect(200);
 
     expect(res.body.data.length).toBeGreaterThanOrEqual(1);
     const turn = res.body.data[0];
@@ -351,9 +364,7 @@ describe('GET /api/analytics/turns', () => {
 describe('GET /api/analytics/tool-calls', () => {
   it('returns empty when no tool calls exist', async () => {
     const now = Date.now();
-    const res = await request(app)
-      .get(`/api/analytics/tool-calls?from=0&to=${now}`)
-      .expect(200);
+    const res = await request(app).get(`/api/analytics/tool-calls?from=0&to=${now}`).expect(200);
 
     expect(res.body.data).toEqual([]);
   });
@@ -381,9 +392,7 @@ describe('GET /api/analytics/tool-calls', () => {
 
 describe('Price History CRUD', () => {
   it('GET /api/analytics/prices returns empty initially', async () => {
-    const res = await request(app)
-      .get('/api/analytics/prices')
-      .expect(200);
+    const res = await request(app).get('/api/analytics/prices').expect(200);
 
     expect(Array.isArray(res.body.data)).toBe(true);
   });
@@ -405,19 +414,24 @@ describe('Price History CRUD', () => {
 
     // Verify it was created
     const getRes = await request(app).get('/api/analytics/prices').expect(200);
-    const found = getRes.body.data.find(
-      (p: Record<string, unknown>) => p.model === 'test-model',
-    );
+    const found = getRes.body.data.find((p: Record<string, unknown>) => p.model === 'test-model');
     expect(found).toBeDefined();
     expect(found.input_per_1m).toBe(5);
   });
 
   it('DELETE /api/analytics/prices/:id removes a price entry', async () => {
     // Create one first
-    await request(app).post('/api/analytics/prices').send({
-      model: 'del-model', vendor: 'del', effectiveFrom: Date.now(),
-      inputPer1M: 1, cachedInputPer1M: 0.1, outputPer1M: 5,
-    }).expect(201);
+    await request(app)
+      .post('/api/analytics/prices')
+      .send({
+        model: 'del-model',
+        vendor: 'del',
+        effectiveFrom: Date.now(),
+        inputPer1M: 1,
+        cachedInputPer1M: 0.1,
+        outputPer1M: 5,
+      })
+      .expect(201);
 
     const prices = await request(app).get('/api/analytics/prices').expect(200);
     const delTarget = prices.body.data.find(
@@ -425,16 +439,12 @@ describe('Price History CRUD', () => {
     );
     expect(delTarget).toBeDefined();
 
-    const delRes = await request(app)
-      .delete(`/api/analytics/prices/${delTarget.id}`)
-      .expect(200);
+    const delRes = await request(app).delete(`/api/analytics/prices/${delTarget.id}`).expect(200);
     expect(delRes.body.ok).toBe(true);
   });
 
   it('DELETE /api/analytics/prices/:id returns 400 for invalid id', async () => {
-    await request(app)
-      .delete('/api/analytics/prices/not-a-number')
-      .expect(400);
+    await request(app).delete('/api/analytics/prices/not-a-number').expect(400);
   });
 });
 
@@ -472,8 +482,12 @@ describe('CWD filtering isolation', () => {
   it('isolates data by cwd across all endpoints', async () => {
     // Seed events for two different projects
     for (let i = 0; i < 5; i++) {
-      await request(app).post('/api/events').send(makeEvent({ cwd: '/project-alpha', session_id: `alpha-${i}` }));
-      await request(app).post('/api/events').send(makeEvent({ cwd: '/project-beta', session_id: `beta-${i}` }));
+      await request(app)
+        .post('/api/events')
+        .send(makeEvent({ cwd: '/project-alpha', session_id: `alpha-${i}` }));
+      await request(app)
+        .post('/api/events')
+        .send(makeEvent({ cwd: '/project-beta', session_id: `beta-${i}` }));
     }
 
     const now = Date.now();
@@ -555,7 +569,9 @@ describe('Performance benchmark', () => {
 
     const [overviewRes, timeseriesRes, sessionsRes, toolsRes, modelsRes] = await Promise.all([
       request(app).get(`/api/analytics/overview?from=0&to=${now + 1000}&cwd=/perf/test`),
-      request(app).get(`/api/analytics/timeseries?from=0&to=${now + 1000}&cwd=/perf/test&granularity=hour`),
+      request(app).get(
+        `/api/analytics/timeseries?from=0&to=${now + 1000}&cwd=/perf/test&granularity=hour`,
+      ),
       request(app).get(`/api/analytics/sessions?from=0&to=${now + 1000}&cwd=/perf/test&limit=50`),
       request(app).get(`/api/analytics/tools?from=0&to=${now + 1000}&cwd=/perf/test`),
       request(app).get(`/api/analytics/models?from=0&to=${now + 1000}&cwd=/perf/test`),

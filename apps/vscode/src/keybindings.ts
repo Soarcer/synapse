@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import * as vscode from 'vscode';
 
 /**
@@ -8,7 +11,7 @@ import * as vscode from 'vscode';
 const KEYBINDING_MAP: Record<string, string> = {
   // Command palette & quick open
   'ctrl+shift+p': 'workbench.action.showCommands',
-  'f1': 'workbench.action.showCommands',
+  f1: 'workbench.action.showCommands',
   'ctrl+p': 'workbench.action.quickOpen',
 
   // Panels & views
@@ -42,11 +45,11 @@ const KEYBINDING_MAP: Record<string, string> = {
   'ctrl+h': 'editor.action.startFindReplaceAction',
 
   // Debug
-  'f5': 'workbench.action.debug.start',
+  f5: 'workbench.action.debug.start',
   'shift+f5': 'workbench.action.debug.stop',
-  'f9': 'editor.debug.action.toggleBreakpoint',
-  'f10': 'workbench.action.debug.stepOver',
-  'f11': 'workbench.action.debug.stepInto',
+  f9: 'editor.debug.action.toggleBreakpoint',
+  f10: 'workbench.action.debug.stepOver',
+  f11: 'workbench.action.debug.stepInto',
   'shift+f11': 'workbench.action.debug.stepOut',
 
   // Misc

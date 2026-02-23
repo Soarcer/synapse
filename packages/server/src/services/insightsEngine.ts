@@ -1,8 +1,10 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // ─── Insights Engine ────────────────────────────────────────────────
 // Rule-based daily insights: cost spikes, cache improvements, streak tracking.
 
 import { analyticsQueryAll, analyticsQueryGet } from '../db.js';
-import { computeCostUsd } from './costService.js';
 
 export type InsightSeverity = 'info' | 'success' | 'warning' | 'critical';
 export type InsightCategory = 'cost' | 'efficiency' | 'usage' | 'streak' | 'milestone';
@@ -14,9 +16,9 @@ export interface Insight {
   title: string;
   description: string;
   metric?: number;
-  delta?: number;          // % change from previous period
-  date: string;            // ISO date
-  actionable?: string;     // Suggestion for improvement
+  delta?: number; // % change from previous period
+  date: string; // ISO date
+  actionable?: string; // Suggestion for improvement
 }
 
 // ─── Generate Daily Insights ────────────────────────────────────────
@@ -25,13 +27,16 @@ export function generateDailyInsights(date?: string, cwd?: string): Insight[] {
   const targetDate = date || new Date().toISOString().split('T')[0];
   const insights: Insight[] = [];
 
-  const prevDate = new Date(new Date(targetDate).getTime() - 86_400_000).toISOString().split('T')[0];
+  const prevDate = new Date(new Date(targetDate).getTime() - 86_400_000)
+    .toISOString()
+    .split('T')[0];
 
   const cwdClause = cwd ? ' AND cwd = ?' : '';
   const cwdParams = cwd ? [cwd] : [];
 
   // Get today's aggregated data
-  const today = analyticsQueryGet(`
+  const today = analyticsQueryGet(
+    `
     SELECT
       SUM(total_cost_usd) as cost,
       SUM(total_input_tokens) as inputTokens,
@@ -43,9 +48,12 @@ export function generateDailyInsights(date?: string, cwd?: string): Insight[] {
       SUM(total_events) as events
     FROM analytics_daily
     WHERE date = ?${cwdClause}
-  `, [targetDate, ...cwdParams]) as Record<string, unknown> | undefined;
+  `,
+    [targetDate, ...cwdParams],
+  ) as Record<string, unknown> | undefined;
 
-  const yesterday = analyticsQueryGet(`
+  const yesterday = analyticsQueryGet(
+    `
     SELECT
       SUM(total_cost_usd) as cost,
       SUM(total_input_tokens) as inputTokens,
@@ -56,7 +64,9 @@ export function generateDailyInsights(date?: string, cwd?: string): Insight[] {
       SUM(total_errors) as errors
     FROM analytics_daily
     WHERE date = ?${cwdClause}
-  `, [prevDate, ...cwdParams]) as Record<string, unknown> | undefined;
+  `,
+    [prevDate, ...cwdParams],
+  ) as Record<string, unknown> | undefined;
 
   const todayCost = Number(today?.cost ?? 0);
   const yesterdayCost = Number(yesterday?.cost ?? 0);
@@ -139,7 +149,8 @@ export function generateDailyInsights(date?: string, cwd?: string): Insight[] {
         description: `${Math.round(errorRate * 100)}% of tool calls failed today (${todayErrors} errors / ${todayToolCalls} calls).`,
         metric: errorRate,
         date: targetDate,
-        actionable: 'Review failing tool calls — common causes: file not found, permission denied, syntax errors.',
+        actionable:
+          'Review failing tool calls — common causes: file not found, permission denied, syntax errors.',
       });
     }
   }
@@ -147,14 +158,17 @@ export function generateDailyInsights(date?: string, cwd?: string): Insight[] {
   // ── Usage Milestones ───────────────────────────────────────────
 
   // Check cumulative milestones
-  const cumulative = analyticsQueryGet(`
+  const cumulative = analyticsQueryGet(
+    `
     SELECT
       SUM(total_cost_usd) as totalCost,
       SUM(total_input_tokens + total_output_tokens) as totalTokens,
       SUM(total_sessions) as totalSessions
     FROM analytics_daily
     WHERE date <= ?${cwdClause}
-  `, [targetDate, ...cwdParams]) as Record<string, unknown> | undefined;
+  `,
+    [targetDate, ...cwdParams],
+  ) as Record<string, unknown> | undefined;
 
   const totalSessions = Number(cumulative?.totalSessions ?? 0);
   const totalTokens = Number(cumulative?.totalTokens ?? 0);
@@ -166,7 +180,7 @@ export function generateDailyInsights(date?: string, cwd?: string): Insight[] {
   ];
 
   for (const m of milestones) {
-    if (totalSessions >= m.threshold && (totalSessions - todaySessions) < m.threshold) {
+    if (totalSessions >= m.threshold && totalSessions - todaySessions < m.threshold) {
       insights.push({
         id: `milestone-sessions-${m.threshold}-${targetDate}`,
         category: 'milestone',
@@ -186,7 +200,7 @@ export function generateDailyInsights(date?: string, cwd?: string): Insight[] {
   ];
 
   for (const m of tokenMilestones) {
-    if (totalTokens >= m.threshold && (totalTokens - todayTokens) < m.threshold) {
+    if (totalTokens >= m.threshold && totalTokens - todayTokens < m.threshold) {
       insights.push({
         id: `milestone-tokens-${m.threshold}-${targetDate}`,
         category: 'milestone',
@@ -201,12 +215,15 @@ export function generateDailyInsights(date?: string, cwd?: string): Insight[] {
 
   // ── Streak Tracking ────────────────────────────────────────────
 
-  const recentDays = analyticsQueryAll(`
+  const recentDays = analyticsQueryAll(
+    `
     SELECT DISTINCT date FROM analytics_daily
     WHERE date <= ?${cwdClause} AND total_sessions > 0
     ORDER BY date DESC
     LIMIT 30
-  `, [targetDate, ...cwdParams]) as Array<{ date: string }>;
+  `,
+    [targetDate, ...cwdParams],
+  ) as Array<{ date: string }>;
 
   let streak = 0;
   let checkDate = new Date(targetDate);
@@ -253,7 +270,12 @@ export function getInsightsForRange(from: number, to: number, cwd?: string): Ins
   }
 
   // Sort by severity (critical first) then by date (newest first)
-  const severityOrder: Record<InsightSeverity, number> = { critical: 0, warning: 1, success: 2, info: 3 };
+  const severityOrder: Record<InsightSeverity, number> = {
+    critical: 0,
+    warning: 1,
+    success: 2,
+    info: 3,
+  };
   allInsights.sort((a, b) => {
     const sevDiff = severityOrder[a.severity] - severityOrder[b.severity];
     if (sevDiff !== 0) return sevDiff;

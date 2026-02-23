@@ -1,9 +1,12 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // ─── Verification Rules (5 rules) ────────────────────────────────────
 // Detect missing tests, error spirals, and unverified changes
 
 import type { AgentEventType } from '@synapse-ai/core';
 import type { NudgeRule, RuleContext } from '../nudgeEngine.js';
-import { extractBashCommand, extractFilePath, GIT_COMMIT_RE, GIT_DIFF_RE, TEST_CMD_RE } from '../nudgeEngine.js';
+import { extractBashCommand, extractFilePath, GIT_COMMIT_RE } from '../nudgeEngine.js';
 
 // ── verify.no-tests-after-edits ──────────────────────────────────────
 // 5+ edits without running tests
@@ -12,7 +15,8 @@ export const noTestsAfterEdits: NudgeRule = {
   meta: {
     id: 'verify.no-tests-after-edits',
     name: 'No Tests After Edits',
-    description: '5+ file edits without running any test or build command. Changes may introduce regressions.',
+    description:
+      '5+ file edits without running any test or build command. Changes may introduce regressions.',
     dimension: 'verification',
     defaultSeverity: 'warning',
     defaultCooldownMs: 15 * 60 * 1000,
@@ -28,7 +32,8 @@ export const noTestsAfterEdits: NudgeRule = {
       severity: 'warning',
       title: 'No verification',
       message: `${ctx.accumulator.editsSinceLastTest} file modifications without running tests. Changes may have introduced bugs.`,
-      recommendation: 'Run your test suite to verify changes:\n```\nRun the tests to make sure nothing is broken.\nIf any tests fail, fix the root cause before continuing.\n```\nOr be specific about which tests:\n```\nRun the tests in src/auth/__tests__/ to verify\nthe login changes work correctly.\n```',
+      recommendation:
+        'Run your test suite to verify changes:\n```\nRun the tests to make sure nothing is broken.\nIf any tests fail, fix the root cause before continuing.\n```\nOr be specific about which tests:\n```\nRun the tests in src/auth/__tests__/ to verify\nthe login changes work correctly.\n```',
     };
   },
 };
@@ -55,7 +60,8 @@ export const errorSpiral: NudgeRule = {
       severity: 'warning',
       title: 'Error spiral detected',
       message: `${ctx.accumulator.consecutiveErrors} consecutive tool errors. The current approach may need a different strategy.`,
-      recommendation: 'Stop and rethink the approach:\n```\nStop. Read the error messages carefully and explain\nwhat\'s actually going wrong. Then suggest a different\napproach instead of retrying the same thing.\n```\nOr reset context and start fresh:\n```\n/clear\n```',
+      recommendation:
+        "Stop and rethink the approach:\n```\nStop. Read the error messages carefully and explain\nwhat's actually going wrong. Then suggest a different\napproach instead of retrying the same thing.\n```\nOr reset context and start fresh:\n```\n/clear\n```",
     };
   },
 };
@@ -67,7 +73,8 @@ export const sameErrorRetry: NudgeRule = {
   meta: {
     id: 'verify.same-error-retry',
     name: 'Retrying Same Approach',
-    description: 'Same tool error on the same file repeated, suggesting a different approach is needed.',
+    description:
+      'Same tool error on the same file repeated, suggesting a different approach is needed.',
     dimension: 'verification',
     defaultSeverity: 'warning',
     defaultCooldownMs: 5 * 60 * 1000,
@@ -81,10 +88,8 @@ export const sameErrorRetry: NudgeRule = {
     if (!filePath || !toolName) return null;
 
     // Look for same tool+file errors in recent window
-    const sameErrors = ctx.countWindow.filter(e =>
-      e.type === 'tool_error' &&
-      e.toolName === toolName &&
-      extractFilePath(e) === filePath,
+    const sameErrors = ctx.countWindow.filter(
+      (e) => e.type === 'tool_error' && e.toolName === toolName && extractFilePath(e) === filePath,
     );
 
     if (sameErrors.length < 2) return null;
@@ -94,7 +99,8 @@ export const sameErrorRetry: NudgeRule = {
       severity: 'warning',
       title: 'Same error repeated',
       message: `${toolName} failed on "${fileName}" ${sameErrors.length} times. Retrying the same approach won't fix the underlying issue.`,
-      recommendation: 'Read the error message carefully. Try a different approach: re-read the file, check assumptions, or use a different tool.',
+      recommendation:
+        'Read the error message carefully. Try a different approach: re-read the file, check assumptions, or use a different tool.',
     };
   },
 };
@@ -106,7 +112,8 @@ export const testDeletion: NudgeRule = {
   meta: {
     id: 'verify.test-deletion',
     name: 'Test File Modification',
-    description: 'Editing a test file during implementation. Ensure tests are being added, not removed.',
+    description:
+      'Editing a test file during implementation. Ensure tests are being added, not removed.',
     dimension: 'verification',
     defaultSeverity: 'warning',
     defaultCooldownMs: 15 * 60 * 1000,
@@ -120,7 +127,9 @@ export const testDeletion: NudgeRule = {
     if (!filePath) return null;
 
     // Detect test files by naming convention
-    const isTestFile = /\.(test|spec)\.(ts|tsx|js|jsx|py)$|__tests__|_test\.go$|_test\.rs$/i.test(filePath);
+    const isTestFile = /\.(test|spec)\.(ts|tsx|js|jsx|py)$|__tests__|_test\.go$|_test\.rs$/i.test(
+      filePath,
+    );
     if (!isTestFile) return null;
 
     // If it's a Write (full overwrite) to a test file, flag it
@@ -130,7 +139,8 @@ export const testDeletion: NudgeRule = {
         severity: 'warning',
         title: 'Test file overwritten',
         message: `Test file "${fileName}" was overwritten with Write. Ensure existing tests weren't removed.`,
-        recommendation: 'Use Edit for targeted changes to test files. Never remove or suppress failing tests — fix the underlying code instead.',
+        recommendation:
+          'Use Edit for targeted changes to test files. Never remove or suppress failing tests — fix the underlying code instead.',
       };
     }
 
@@ -165,11 +175,12 @@ export const noReviewBeforeCommit: NudgeRule = {
 
     // Check if a subagent review was done recently
     if (ctx.accumulator.usedSubagents) {
-      const recentReview = ctx.countWindow.some(e =>
-        e.type === 'agent_start' &&
-        e.agentType &&
-        /review/i.test(e.agentType) &&
-        now - e.timestamp < 120_000,
+      const recentReview = ctx.countWindow.some(
+        (e) =>
+          e.type === 'agent_start' &&
+          e.agentType &&
+          /review/i.test(e.agentType) &&
+          now - e.timestamp < 120_000,
       );
       if (recentReview) return null;
     }
@@ -177,8 +188,10 @@ export const noReviewBeforeCommit: NudgeRule = {
     return {
       severity: 'suggestion',
       title: 'Commit without review',
-      message: 'Committing without reviewing changes first. A quick git diff or code review subagent catches mistakes.',
-      recommendation: 'Run "git diff" before committing. For important changes, use a subagent to review the diff.',
+      message:
+        'Committing without reviewing changes first. A quick git diff or code review subagent catches mistakes.',
+      recommendation:
+        'Run "git diff" before committing. For important changes, use a subagent to review the diff.',
     };
   },
 };

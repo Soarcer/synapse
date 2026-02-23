@@ -1,10 +1,17 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // ─── Core Event Types ───────────────────────────────────────────────
 
 export type AgentEventType =
-  | 'session_start' | 'session_end'
+  | 'session_start'
+  | 'session_end'
   | 'user_prompt'
-  | 'agent_start' | 'agent_stop'
-  | 'tool_start' | 'tool_end' | 'tool_error'
+  | 'agent_start'
+  | 'agent_stop'
+  | 'tool_start'
+  | 'tool_end'
+  | 'tool_error'
   | 'permission_request'
   | 'notification'
   | 'compact'
@@ -13,38 +20,39 @@ export type AgentEventType =
   | 'result';
 
 export interface AgentEvent {
-  id: string;                    // nanoid
+  id: string; // nanoid
   type: AgentEventType;
   sessionId: string;
   agentId?: string;
-  agentType?: string;            // "Explore", "Plan", "Bash", custom names
-  parentAgentId?: string;        // For subagent → parent tracking
+  agentType?: string; // "Explore", "Plan", "Bash", custom names
+  parentAgentId?: string; // For subagent → parent tracking
   toolName?: string;
   toolInput?: Record<string, unknown>;
   toolResponse?: Record<string, unknown>;
   toolUseId?: string;
-  text?: string;                 // Streaming text content or user prompt
+  text?: string; // Streaming text content or user prompt
   status?: 'running' | 'success' | 'error' | 'stopped';
   error?: string;
   tokenUsage?: { input: number; output: number };
-  duration?: number;             // milliseconds
-  timestamp: number;             // Unix ms
+  duration?: number; // milliseconds
+  timestamp: number; // Unix ms
 
   // Rich metadata from hooks
-  model?: string;                // e.g. "claude-opus-4-6"
-  source?: string;               // SessionStart: startup/resume/clear/compact
-  reason?: string;               // SessionEnd reason, notification type
-  cwd?: string;                  // Working directory
-  permissionMode?: string;       // default/plan/acceptEdits/bypassPermissions
-  transcriptPath?: string;       // Path to conversation JSON
-  agentTranscriptPath?: string;  // Subagent transcript path
-  notificationType?: string;     // permission_prompt/idle_prompt/auth_success
-  compactTrigger?: string;       // manual/auto
-  eventSource?: 'hook' | 'sdk' | 'openclaw';  // Where the event originated
+  model?: string; // e.g. "claude-opus-4-6"
+  source?: string; // SessionStart: startup/resume/clear/compact
+  reason?: string; // SessionEnd reason, notification type
+  cwd?: string; // Working directory
+  permissionMode?: string; // default/plan/acceptEdits/bypassPermissions
+  transcriptPath?: string; // Path to conversation JSON
+  agentTranscriptPath?: string; // Subagent transcript path
+  notificationType?: string; // permission_prompt/idle_prompt/auth_success
+  compactTrigger?: string; // manual/auto
+  gitBranch?: string; // Git branch from session metadata
+  eventSource?: 'hook' | 'sdk' | 'openclaw'; // Where the event originated
 
   // Multi-vendor support (OpenClaw integration)
-  vendor?: string;               // 'anthropic' | 'openai' | 'google' | 'groq' | 'openrouter' | 'custom'
-  costUsd?: number;              // Computed cost for this event
+  vendor?: string; // 'anthropic' | 'openai' | 'google' | 'groq' | 'openrouter' | 'custom'
+  costUsd?: number; // Computed cost for this event
 }
 
 // ─── Session Data ──────────────────────────────────────────────────
@@ -56,10 +64,13 @@ export interface SessionData {
   agentCount: number;
   status: 'running' | 'ended';
   model?: string;
-  source?: string;                // startup/resume
+  source?: string; // startup/resume
   cwd?: string;
-  placeholder?: boolean;          // true if session was auto-created (missed SessionStart)
-  vendor?: string;                // Primary vendor for this session
+  placeholder?: boolean; // true if session was auto-created (missed SessionStart)
+  vendor?: string; // Primary vendor for this session
+  title?: string; // Human-readable name from first prompt or slug
+  gitBranch?: string; // Git branch from session_start metadata
+  topTools?: string[]; // Top 3 most-used tool names
 }
 
 // ─── React Flow Node Data ───────────────────────────────────────────
@@ -81,9 +92,10 @@ export interface AgentNodeData {
   };
   startTime: number;
   endTime?: number;
-  streamingText?: string;        // Live text being generated
-  vendor?: string;               // Inferred vendor (anthropic, openai, etc.)
-  model?: string;                // e.g. "claude-opus-4-6"
+  streamingText?: string; // Live text being generated
+  vendor?: string; // Inferred vendor (anthropic, openai, etc.)
+  model?: string; // e.g. "claude-opus-4-6"
+  compactionCount?: number; // Number of times context was compacted
 }
 
 export interface ToolCallSummary {
@@ -93,7 +105,7 @@ export interface ToolCallSummary {
   startTime: number;
   endTime?: number;
   duration?: number;
-  inputPreview?: string;         // First 100 chars of input
+  inputPreview?: string; // First 100 chars of input
   toolInput?: Record<string, unknown>;
   toolResponse?: Record<string, unknown>;
 }
@@ -105,7 +117,7 @@ export interface UserPromptData {
   sessionId: string;
   text: string;
   timestamp: number;
-  compactedAfter?: boolean;       // True if a compaction event follows this prompt
+  compactedAfter?: boolean; // True if a compaction event follows this prompt
 }
 
 // ─── API Request/Response Types ─────────────────────────────────────
@@ -113,12 +125,12 @@ export interface UserPromptData {
 export interface SpawnAgentRequest {
   prompt: string;
   model?: 'opus' | 'sonnet' | 'haiku';
-  tools?: string[];              // ["Read", "Edit", "Bash", ...]
+  tools?: string[]; // ["Read", "Edit", "Bash", ...]
   permissionMode?: 'acceptEdits' | 'bypassPermissions' | 'default';
   systemPrompt?: string;
   mcpServers?: Record<string, McpServerConfig>;
-  cwd?: string;                  // Working directory for the agent
-  sessionId?: string;            // Join an existing session instead of creating new
+  cwd?: string; // Working directory for the agent
+  sessionId?: string; // Join an existing session instead of creating new
 }
 
 export interface McpServerConfig {

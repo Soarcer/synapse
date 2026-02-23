@@ -76,22 +76,21 @@ Stop either server with **Ctrl+C** in its terminal.
 
 ## Keyboard Shortcuts
 
-| Key       | Action                          |
-|-----------|---------------------------------|
-| **T**     | Toggle tool log panel           |
-| **N**     | Open spawn agent dialog         |
-| **Space** | Pause/resume live updates       |
-| **Escape**| Close panels and dialogs        |
-| **L**     | Toggle layout mode (graph/list) |
-| **H**     | Toggle hook event visibility    |
-| **V**     | Toggle lock viewport            |
-| **F**     | Toggle show all tools           |
-| **C**     | Toggle auto-close prompts       |
-| **E**     | Export snapshot                  |
-| **I**     | Import snapshot                  |
-| **G**     | Toggle arcade mode              |
-| **/**     | Focus graph search              |
-| **1–6**  | Switch lens tab (tree, heatmap, treemap, sankey, compaction, cost) |
+| Key        | Action                                                             |
+| ---------- | ------------------------------------------------------------------ |
+| **T**      | Toggle tool log panel                                              |
+| **N**      | Open spawn agent dialog                                            |
+| **Space**  | Pause/resume live updates                                          |
+| **Escape** | Close panels and dialogs                                           |
+| **L**      | Toggle layout mode (graph/list)                                    |
+| **H**      | Toggle hook event visibility                                       |
+| **V**      | Toggle lock viewport                                               |
+| **F**      | Toggle show all tools                                              |
+| **C**      | Toggle auto-close prompts                                          |
+| **E**      | Export snapshot                                                    |
+| **I**      | Import snapshot                                                    |
+| **/**      | Focus graph search                                                 |
+| **1–6**    | Switch lens tab (tree, heatmap, treemap, sankey, compaction, cost) |
 
 ## Architecture Docs
 

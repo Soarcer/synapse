@@ -9,24 +9,20 @@ import { useHandlePositions } from '../../../hooks/useHandlePositions';
 import { useTranscriptDetail, findThinkingForTool } from '../../../hooks/useTranscriptDetail';
 import { useAgentStore } from '../../../store/agentStore';
 import { Tooltip } from '../../ui/Tooltip';
-import {
-  GAME_MODES_ENABLED,
-  GAME_MODE_REGISTRY,
-  ArcadeOverlay,
-} from './game-modes';
+import { GAME_MODES_ENABLED, GAME_MODE_REGISTRY, ArcadeOverlay } from './game-modes';
 
 // ── Tool color map (shared across modes) ─────────────────────
 
 const TOOL_COLORS: Record<string, string> = {
-  Read: '#0d9488',      // teal-600
-  Edit: '#7c3aed',      // violet-600
-  Bash: '#ea580c',      // orange-600
-  Grep: '#2563eb',      // blue-600
-  Glob: '#0891b2',      // cyan-600
-  Write: '#9333ea',     // purple-600
-  Task: '#059669',      // emerald-600
+  Read: '#0d9488', // teal-600
+  Edit: '#7c3aed', // violet-600
+  Bash: '#ea580c', // orange-600
+  Grep: '#2563eb', // blue-600
+  Glob: '#0891b2', // cyan-600
+  Write: '#9333ea', // purple-600
+  Task: '#059669', // emerald-600
   WebSearch: '#d97706', // amber-600
-  WebFetch: '#d97706',  // amber-600
+  WebFetch: '#d97706', // amber-600
   TodoWrite: '#4f46e5', // indigo-600
 };
 
@@ -93,6 +89,12 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
   const arcadeSoundEnabled = useAgentStore((s) => s.arcadeSoundEnabled);
   const arcadeVolume = useAgentStore((s) => s.arcadeVolume);
 
+  // Find the active game mode's scorer (if any)
+  const activeScorer = useMemo(() => {
+    const mode = GAME_MODE_REGISTRY.find((m) => m.id === toolGroupMode);
+    return mode?.scorer;
+  }, [toolGroupMode]);
+
   // Reasoning tooltip support
   const agentData = agents.get(parentAgentId);
   const { reasoning, ensureLoaded } = useTranscriptDetail(agentData?.sessionId);
@@ -118,7 +120,9 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
     }
     const wallClock = maxEnd > minStart ? maxEnd - minStart : 0;
     return {
-      ok, err, running,
+      ok,
+      err,
+      running,
       totalDuration,
       wallClock,
       startTime: minStart === Infinity ? 0 : minStart,
@@ -131,19 +135,34 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
 
   if (!showAllTools) {
     return (
-      <div onMouseEnter={ensureLoaded} className="relative bg-gray-800/80 border border-gray-700/50 rounded-lg px-3 py-1.5 flex items-center gap-2 text-xs shadow-sm" style={{ minWidth: 180 }}>
-        <Handle type="target" position={target} className="!bg-purple-300 !w-2 !h-2 !border !border-gray-800" />
+      <div
+        onMouseEnter={ensureLoaded}
+        className="relative bg-gray-800/80 border border-gray-700/50 rounded-lg px-3 py-1.5 flex items-center gap-2 text-xs shadow-sm"
+        style={{ minWidth: 180 }}
+      >
+        <Handle
+          type="target"
+          position={target}
+          className="!bg-purple-300 !w-2 !h-2 !border !border-gray-800"
+        />
         <Tooltip content={`${tools.length} tool calls — click or press F to expand`} shortcut="F">
           <span className="text-gray-400 font-medium">[{tools.length}] tools</span>
         </Tooltip>
         {stats.totalDuration > 0 && (
-          <span className="text-gray-500 text-[9px] font-mono">Σ {formatDuration(stats.totalDuration)}</span>
+          <span className="text-gray-500 text-[9px] font-mono">
+            Σ {formatDuration(stats.totalDuration)}
+          </span>
         )}
         <span className="flex gap-0.5 ml-auto">
           {tools.slice(0, 8).map((t) => (
-            <span key={t.toolUseId} className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[t.status]}`} />
+            <span
+              key={t.toolUseId}
+              className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[t.status]}`}
+            />
           ))}
-          {tools.length > 8 && <span className="text-gray-600 text-[8px] ml-0.5">+{tools.length - 8}</span>}
+          {tools.length > 8 && (
+            <span className="text-gray-600 text-[8px] ml-0.5">+{tools.length - 8}</span>
+          )}
         </span>
       </div>
     );
@@ -152,15 +171,25 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
   // ── Expanded: render by mode ─────────────────────────────
 
   return (
-    <div onMouseEnter={ensureLoaded} className="relative bg-[#1a1d27] border border-gray-700/50 rounded-lg shadow-md" style={{ minWidth: 200 }}>
-      <Handle type="target" position={target} className="!bg-purple-300 !w-2 !h-2 !border !border-gray-800" />
+    <div
+      onMouseEnter={ensureLoaded}
+      className="relative bg-[#1a1d27] border border-gray-700/50 rounded-lg shadow-md"
+      style={{ minWidth: 200 }}
+    >
+      <Handle
+        type="target"
+        position={target}
+        className="!bg-purple-300 !w-2 !h-2 !border !border-gray-800"
+      />
 
       {/* Header */}
       <div className="px-3 py-1.5 border-b border-gray-700/30 space-y-0.5">
         {/* Row 1: title + count + types + status breakdown */}
         <div className="flex items-center justify-between">
           <span className="flex items-center gap-1.5">
-            <span className="text-[9px] font-semibold uppercase tracking-wider text-purple-400/70">Tool Calls</span>
+            <span className="text-[9px] font-semibold uppercase tracking-wider text-purple-400/70">
+              Tool Calls
+            </span>
             <span className="text-[10px] text-gray-400 font-medium">{tools.length}</span>
             {stats.distinctTools > 1 && (
               <span className="text-[9px] text-gray-600">· {stats.distinctTools} types</span>
@@ -169,7 +198,9 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
           <span className="text-[10px] text-gray-500">
             {stats.ok > 0 && <span className="text-teal-400">{stats.ok} ok</span>}
             {stats.err > 0 && <span className="text-red-400 ml-1.5">{stats.err} err</span>}
-            {stats.running > 0 && <span className="text-purple-400 ml-1.5">{stats.running} running</span>}
+            {stats.running > 0 && (
+              <span className="text-purple-400 ml-1.5">{stats.running} running</span>
+            )}
           </span>
         </div>
         {/* Row 2: total duration */}
@@ -190,10 +221,16 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
         soundEnabled={arcadeSoundEnabled}
         volume={arcadeVolume}
         tools={tools}
+        scorer={activeScorer}
       >
         <div className="p-2">
           {toolGroupMode === 'pillGrid' && (
-            <PillGridView tools={tools} selectedNodeId={selectedNodeId} selectNode={selectNode} reasoning={reasoning} />
+            <PillGridView
+              tools={tools}
+              selectedNodeId={selectedNodeId}
+              selectNode={selectNode}
+              reasoning={reasoning}
+            />
           )}
           {toolGroupMode === 'timeline' && (
             <TimelineView tools={tools} selectedNodeId={selectedNodeId} selectNode={selectNode} />
@@ -201,12 +238,15 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
           {toolGroupMode === 'heatmap' && (
             <HeatmapView tools={tools} selectedNodeId={selectedNodeId} selectNode={selectNode} />
           )}
-          {GAME_MODES_ENABLED && (() => {
-            const mode = GAME_MODE_REGISTRY.find((m) => m.id === toolGroupMode);
-            if (!mode) return null;
-            const GameMode = mode.component;
-            return <GameMode tools={tools} selectedNodeId={selectedNodeId} selectNode={selectNode} />;
-          })()}
+          {GAME_MODES_ENABLED &&
+            (() => {
+              const mode = GAME_MODE_REGISTRY.find((m) => m.id === toolGroupMode);
+              if (!mode) return null;
+              const GameMode = mode.component;
+              return (
+                <GameMode tools={tools} selectedNodeId={selectedNodeId} selectNode={selectNode} />
+              );
+            })()}
         </div>
       </ArcadeOverlay>
     </div>
@@ -246,7 +286,11 @@ function PillGridView({
         return (
           <Tooltip
             key={tc.toolUseId}
-            content={thinking ? `Reasoning: ${thinking}` : `${tc.toolName} \u00b7 ${tc.status}${duration ? ` \u00b7 ${duration}` : ''}`}
+            content={
+              thinking
+                ? `Reasoning: ${thinking}`
+                : `${tc.toolName} \u00b7 ${tc.status}${duration ? ` \u00b7 ${duration}` : ''}`
+            }
           >
             <button
               role="option"
@@ -263,12 +307,20 @@ function PillGridView({
                 ${isSelected ? 'ring-1 ring-purple-400 ring-offset-1 ring-offset-gray-900' : 'hover:brightness-125'}
               `}
             >
-              <span className="text-[8px] text-white/80 flex-shrink-0 font-mono w-3 text-right">{i + 1}</span>
+              <span className="text-[8px] text-white/80 flex-shrink-0 font-mono w-3 text-right">
+                {i + 1}
+              </span>
               <span className="opacity-70 flex-shrink-0">{getToolIcon(tc.toolName)}</span>
               <span className="truncate">{tc.toolName}</span>
-              {thinking && <span className="text-yellow-500/60 text-[8px] flex-shrink-0">{'\uD83D\uDCAD'}</span>}
+              {thinking && (
+                <span className="text-yellow-500/60 text-[8px] flex-shrink-0">
+                  {'\uD83D\uDCAD'}
+                </span>
+              )}
               {duration && <span className="text-[8px] opacity-60 flex-shrink-0">{duration}</span>}
-              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ml-auto ${STATUS_DOT[tc.status]}`} />
+              <span
+                className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ml-auto ${STATUS_DOT[tc.status]}`}
+              />
             </button>
           </Tooltip>
         );
@@ -319,7 +371,11 @@ function TimelineView({
   return (
     <div style={{ minWidth: 350 }}>
       {/* Bar */}
-      <div role="listbox" aria-label="Tool calls timeline" className="flex rounded overflow-hidden h-8">
+      <div
+        role="listbox"
+        aria-label="Tool calls timeline"
+        className="flex rounded overflow-hidden h-8"
+      >
         {segments.map(({ tc, pct, color }) => {
           const nodeId = `tool-${tc.toolUseId}`;
           const isSelected = selectedNodeId === nodeId;
@@ -341,7 +397,9 @@ function TimelineView({
                 minWidth: 4,
                 backgroundColor: color,
                 opacity: isError ? 0.85 : 0.7,
-                backgroundImage: isError ? 'repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(0,0,0,0.2) 3px, rgba(0,0,0,0.2) 6px)' : undefined,
+                backgroundImage: isError
+                  ? 'repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(0,0,0,0.2) 3px, rgba(0,0,0,0.2) 6px)'
+                  : undefined,
               }}
             />
           );
@@ -358,7 +416,10 @@ function TimelineView({
       <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1">
         {legend.map(({ name, color }) => (
           <span key={name} className="flex items-center gap-1 text-[9px] text-gray-400">
-            <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: color, opacity: 0.7 }} />
+            <span
+              className="w-2 h-2 rounded-sm flex-shrink-0"
+              style={{ backgroundColor: color, opacity: 0.7 }}
+            />
             {name}
           </span>
         ))}
@@ -401,14 +462,17 @@ function HeatmapView({
     <div role="listbox" aria-label="Tool calls heatmap" style={{ minWidth: 200 }}>
       {rows.map(([name, calls]) => (
         <div key={name} className="flex items-center gap-1 mb-0.5">
-          <span className="text-[9px] text-gray-500 truncate w-14 flex-shrink-0 text-right" title={name}>
+          <span
+            className="text-[9px] text-gray-500 truncate w-14 flex-shrink-0 text-right"
+            title={name}
+          >
             {name}
           </span>
           <div className="flex flex-wrap gap-0.5" style={{ maxWidth: 20 * 22 + 19 * 2 }}>
             {calls.map((tc) => {
               const nodeId = `tool-${tc.toolUseId}`;
               const isSelected = selectedNodeId === nodeId;
-              const alpha = 0.3 + (tc.duration ?? 0) / maxDuration * 0.7;
+              const alpha = 0.3 + ((tc.duration ?? 0) / maxDuration) * 0.7;
               const hex = STATUS_HEATMAP[tc.status] ?? STATUS_HEATMAP.success;
               const r = parseInt(hex.slice(1, 3), 16);
               const g = parseInt(hex.slice(3, 5), 16);
@@ -431,7 +495,9 @@ function HeatmapView({
                     backgroundColor: `rgba(${r},${g},${b},${alpha})`,
                   }}
                 >
-                  <span className="text-[7px] font-mono leading-none text-white/90">{chronoIndex.get(tc.toolUseId)}</span>
+                  <span className="text-[7px] font-mono leading-none text-white/90">
+                    {chronoIndex.get(tc.toolUseId)}
+                  </span>
                 </button>
               );
             })}

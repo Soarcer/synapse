@@ -3,20 +3,25 @@
 
 import { useNotificationStore } from './notificationStore';
 import { useAgentStore } from '../../store/agentStore';
-import { NOTIFICATION_TYPES, FALLBACK_TYPE, NOTIFICATIONS_ENABLED, sessionLabel, formatWait, targetNodeId } from './constants';
+import {
+  NOTIFICATION_TYPES,
+  FALLBACK_TYPE,
+  NOTIFICATIONS_ENABLED,
+  sessionLabel,
+  formatWait,
+  targetNodeId,
+} from './constants';
 
 const MAX_VISIBLE = 4;
 
 export function NotificationTray() {
-  if (!NOTIFICATIONS_ENABLED) return null;
-
   const notifications = useNotificationStore((s) => s.notifications);
   const showToasts = useNotificationStore((s) => s.showToasts);
   const dismiss = useNotificationStore((s) => s.dismiss);
   const sessions = useAgentStore((s) => s.sessions);
   const selectNode = useAgentStore((s) => s.selectNode);
 
-  if (!showToasts || notifications.length === 0) return null;
+  if (!NOTIFICATIONS_ENABLED || !showToasts || notifications.length === 0) return null;
 
   const visible = notifications.slice(0, MAX_VISIBLE);
   const overflow = notifications.length - MAX_VISIBLE;
@@ -43,8 +48,12 @@ export function NotificationTray() {
           >
             <div className="flex items-center gap-2 mb-1.5">
               <span className={`w-2 h-2 rounded-full flex-shrink-0 animate-pulse ${style.dot}`} />
-              <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400">{style.label}</span>
-              <span className="text-[9px] text-gray-600 font-mono ml-auto">{formatWait(Date.now() - notif.timestamp)}</span>
+              <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400">
+                {style.label}
+              </span>
+              <span className="text-[9px] text-gray-600 font-mono ml-auto">
+                {formatWait(Date.now() - notif.timestamp)}
+              </span>
             </div>
             <div className="text-[11px] text-gray-200 mb-1 leading-snug line-clamp-2 font-medium">
               {notif.text ?? 'No details'}
@@ -56,11 +65,15 @@ export function NotificationTray() {
               <button
                 onClick={() => selectNode(targetNodeId(notif), 'lens')}
                 className="text-[10px] font-medium text-blue-400 hover:text-blue-300 bg-blue-950/50 hover:bg-blue-900/50 border border-blue-800/30 px-2.5 py-1 rounded transition-colors"
-              >Go to Node</button>
+              >
+                Go to Node
+              </button>
               <button
                 onClick={() => dismiss(notif.id)}
                 className="text-[10px] text-gray-500 hover:text-gray-300 px-1.5 py-1 rounded hover:bg-gray-700/50 transition-colors"
-              >&times;</button>
+              >
+                &times;
+              </button>
             </div>
           </div>
         );

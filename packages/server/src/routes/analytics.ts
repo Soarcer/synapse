@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { Router, type Request, type Response } from 'express';
 import { logger } from '../lib/logger.js';
 import { validateQuery, validateBody } from '../lib/validate.js';
@@ -5,21 +8,33 @@ import { AnalyticsQuerySchema, PriceCreateSchema, normalizeCwd } from '@synapse-
 import {
   analyticsQueryAll,
   analyticsQueryGet,
-  analyticsExecute,
   getAllPriceHistory,
   insertPriceHistory,
   deletePriceHistory,
 } from '../db.js';
-import { computeCostUsd, getPrice } from '../services/costService.js';
+import { computeCostUsd } from '../services/costService.js';
 import { getTranscriptSummaries, aggregateTranscripts } from '../services/transcriptCache.js';
-import { computeSessionVelocity, computeTurnVelocity, computeAggregateVelocity } from '../services/velocityService.js';
-import { analyzeSessionPrompts, analyzePromptsInRange, generatePromptInsights } from '../services/promptAnalyzer.js';
+import {
+  computeSessionVelocity,
+  computeTurnVelocity,
+  computeAggregateVelocity,
+} from '../services/velocityService.js';
+import {
+  analyzeSessionPrompts,
+  analyzePromptsInRange,
+  generatePromptInsights,
+} from '../services/promptAnalyzer.js';
 import { getInsightsForRange } from '../services/insightsEngine.js';
-import { getBudgetStatus, setBudget, getBudget } from '../services/budgetService.js';
-import { getEarnedBadges, getAllBadgeDefinitions, checkAndAwardBadges } from '../services/badgeService.js';
+import { getBudgetStatus, setBudget } from '../services/budgetService.js';
+import { getAllBadgeDefinitions, checkAndAwardBadges } from '../services/badgeService.js';
 import { importCsv, importJson } from '../services/importService.js';
 import { detectPlan, setPlan, getPlanLabels, getPlanLimits } from '../services/planDetector.js';
-import { summarizeSession, analyzePrompt, generateRecommendations, isAvailable as isAiAvailable } from '../services/aiCoachService.js';
+import {
+  summarizeSession,
+  analyzePrompt,
+  generateRecommendations,
+  isAvailable as isAiAvailable,
+} from '../services/aiCoachService.js';
 import { computeModelOptimization } from '../services/modelOptimizationService.js';
 import type { Broadcaster } from '../services/broadcaster.js';
 
@@ -68,7 +83,12 @@ function getISOWeek(d: Date): number {
   date.setHours(0, 0, 0, 0);
   date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
   const week1 = new Date(date.getFullYear(), 0, 4);
-  return 1 + Math.round(((date.getTime() - week1.getTime()) / 86_400_000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
+  return (
+    1 +
+    Math.round(
+      ((date.getTime() - week1.getTime()) / 86_400_000 - 3 + ((week1.getDay() + 6) % 7)) / 7,
+    )
+  );
 }
 
 // ─── Router ─────────────────────────────────────────────────────────
@@ -77,71 +97,85 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
   const router = Router();
 
   // GET /api/analytics/overview
-  router.get('/overview', validateQuery(AnalyticsQuerySchema), (req: Request, res: Response) => {
-    try {
-      const { from, to } = parseTimeRange(req.query);
-      const cwd = req.query.cwd as string | undefined;
-      const { clause, params } = buildWhereClause(from, to, cwd);
+  router.get(
+    '/overview',
+    validateQuery(AnalyticsQuerySchema),
+    async (req: Request, res: Response) => {
+      try {
+        const { from, to } = parseTimeRange(req.query);
+        const cwd = req.query.cwd as string | undefined;
+        const { clause, params } = buildWhereClause(from, to, cwd);
 
-      // Aggregate event-level metrics (sessions, tool calls, event count)
-      const row = analyticsQueryGet(`
+        // Aggregate event-level metrics (sessions, tool calls, event count)
+        const row = analyticsQueryGet(
+          `
         SELECT
           COUNT(DISTINCT session_id) as totalSessions,
           SUM(CASE WHEN event_type IN ('tool_start','tool_end','tool_error') THEN 1 ELSE 0 END) as totalToolCalls,
           COUNT(*) as totalEvents
         FROM events WHERE ${clause}
-      `, params);
+      `,
+          params,
+        );
 
-      // Get distinct session IDs in range for transcript enrichment (capped at 500)
-      const sessionRows = analyticsQueryAll(`
+        // Get distinct session IDs in range for transcript enrichment (capped at 500)
+        const sessionRows = analyticsQueryAll(
+          `
         SELECT DISTINCT session_id FROM events WHERE ${clause} LIMIT 500
-      `, params) as { session_id: string }[];
-      const sessionIds = sessionRows.map((r) => r.session_id);
+      `,
+          params,
+        ) as { session_id: string }[];
+        const sessionIds = sessionRows.map((r) => r.session_id);
 
-      // Enrich with transcript data (tokens, cost, latency)
-      const transcripts = getTranscriptSummaries(sessionIds, cwd);
-      const agg = aggregateTranscripts(transcripts);
+        // Enrich with transcript data (tokens, cost, latency)
+        const transcripts = await getTranscriptSummaries(sessionIds, cwd);
+        const agg = aggregateTranscripts(transcripts);
 
-      const data = {
-        totalCost: agg.totalCost,
-        totalTokens: {
-          input: agg.totalInputTokens,
-          output: agg.totalOutputTokens,
-          cacheRead: agg.totalCacheReadTokens,
-        },
-        totalSessions: Number(row?.totalSessions ?? 0),
-        totalToolCalls: Number(row?.totalToolCalls ?? 0),
-        avgLatencyMs: Math.round(agg.avgLatencyMs),
-        totalEvents: Number(row?.totalEvents ?? 0),
-      };
+        const data = {
+          totalCost: agg.totalCost,
+          totalTokens: {
+            input: agg.totalInputTokens,
+            output: agg.totalOutputTokens,
+            cacheRead: agg.totalCacheReadTokens,
+          },
+          totalSessions: Number(row?.totalSessions ?? 0),
+          totalToolCalls: Number(row?.totalToolCalls ?? 0),
+          avgLatencyMs: Math.round(agg.avgLatencyMs),
+          totalEvents: Number(row?.totalEvents ?? 0),
+        };
 
-      res.json(envelope(data, from, to, data.totalEvents));
-    } catch (err: unknown) {
-      logger.error({ err }, 'Error in analytics overview');
-      res.status(500).json({ error: 'Failed to compute overview' });
-    }
-  });
+        res.json(envelope(data, from, to, data.totalEvents));
+      } catch (err: unknown) {
+        logger.error({ err }, 'Error in analytics overview');
+        res.status(500).json({ error: 'Failed to compute overview' });
+      }
+    },
+  );
 
   // GET /api/analytics/timeseries
-  router.get('/timeseries', validateQuery(AnalyticsQuerySchema), (req: Request, res: Response) => {
-    try {
-      const { from, to } = parseTimeRange(req.query);
-      const cwd = req.query.cwd as string | undefined;
-      const granularity = (req.query.granularity as string) || 'day';
-      const { clause, params } = buildWhereClause(from, to, cwd);
+  router.get(
+    '/timeseries',
+    validateQuery(AnalyticsQuerySchema),
+    async (req: Request, res: Response) => {
+      try {
+        const { from, to } = parseTimeRange(req.query);
+        const cwd = req.query.cwd as string | undefined;
+        const granularity = (req.query.granularity as string) || 'day';
+        const { clause, params } = buildWhereClause(from, to, cwd);
 
-      // Build date truncation based on granularity
-      let dateTrunc: string;
-      if (granularity === 'hour') {
-        dateTrunc = "strftime('%Y-%m-%dT%H:00:00', created_at / 1000, 'unixepoch')";
-      } else if (granularity === 'week') {
-        dateTrunc = "strftime('%Y-W%W', created_at / 1000, 'unixepoch')";
-      } else {
-        dateTrunc = "strftime('%Y-%m-%d', created_at / 1000, 'unixepoch')";
-      }
+        // Build date truncation based on granularity
+        let dateTrunc: string;
+        if (granularity === 'hour') {
+          dateTrunc = "strftime('%Y-%m-%dT%H:00:00', created_at / 1000, 'unixepoch')";
+        } else if (granularity === 'week') {
+          dateTrunc = "strftime('%Y-W%W', created_at / 1000, 'unixepoch')";
+        } else {
+          dateTrunc = "strftime('%Y-%m-%d', created_at / 1000, 'unixepoch')";
+        }
 
-      // Get event-level buckets (sessions, tool calls)
-      const rows = analyticsQueryAll(`
+        // Get event-level buckets (sessions, tool calls)
+        const rows = analyticsQueryAll(
+          `
         SELECT
           ${dateTrunc} as bucket,
           MIN(created_at) as timestamp,
@@ -152,89 +186,108 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
         WHERE ${clause}
         GROUP BY bucket
         ORDER BY bucket ASC
-      `, params) as Record<string, unknown>[];
+      `,
+          params,
+        ) as Record<string, unknown>[];
 
-      // Enrich each bucket with transcript-derived token/cost data
-      // Build a map of sessionId → transcript turns bucketed by date
-      const allSessionIds = new Set<string>();
-      for (const r of rows) {
-        const ids = (r.sessionIdList as string || '').split(',').filter(Boolean);
-        for (const id of ids) allSessionIds.add(id);
-      }
-
-      const transcripts = getTranscriptSummaries([...allSessionIds], cwd);
-
-      // Build per-bucket cost/tokens and model breakdown from transcript turns
-      interface BucketData {
-        input: number;
-        output: number;
-        cacheRead: number;
-        cost: number;
-        models: Record<string, { cost: number; tokens: number; calls: number }>;
-      }
-      const bucketTokens = new Map<string, BucketData>();
-      for (const [, summary] of transcripts) {
-        for (const turn of summary.turns) {
-          if (turn.type !== 'assistant' || turn.timestamp === 0) continue;
-          let bucket: string;
-          const d = new Date(turn.timestamp);
-          if (granularity === 'hour') {
-            bucket = d.toISOString().slice(0, 13) + ':00:00';
-          } else if (granularity === 'week') {
-            const week = String(getISOWeek(d)).padStart(2, '0');
-            bucket = `${d.getFullYear()}-W${week}`;
-          } else {
-            bucket = d.toISOString().slice(0, 10);
-          }
-          const existing = bucketTokens.get(bucket) ?? { input: 0, output: 0, cacheRead: 0, cost: 0, models: {} };
-          existing.input += turn.inputTokens;
-          existing.output += turn.outputTokens;
-          existing.cacheRead += turn.cacheReadTokens;
-          const model = turn.model ?? 'claude-sonnet-4-5';
-          const turnCost = computeCostUsd(model, turn.inputTokens, turn.outputTokens, turn.cacheReadTokens, turn.timestamp);
-          existing.cost += turnCost;
-          // Model breakdown
-          if (!existing.models[model]) existing.models[model] = { cost: 0, tokens: 0, calls: 0 };
-          existing.models[model].cost += turnCost;
-          existing.models[model].tokens += turn.inputTokens + turn.outputTokens;
-          existing.models[model].calls++;
-          bucketTokens.set(bucket, existing);
+        // Enrich each bucket with transcript-derived token/cost data
+        // Build a map of sessionId → transcript turns bucketed by date
+        const allSessionIds = new Set<string>();
+        for (const r of rows) {
+          const ids = ((r.sessionIdList as string) || '').split(',').filter(Boolean);
+          for (const id of ids) allSessionIds.add(id);
         }
+
+        const transcripts = await getTranscriptSummaries([...allSessionIds], cwd);
+
+        // Build per-bucket cost/tokens and model breakdown from transcript turns
+        interface BucketData {
+          input: number;
+          output: number;
+          cacheRead: number;
+          cost: number;
+          models: Record<string, { cost: number; tokens: number; calls: number }>;
+        }
+        const bucketTokens = new Map<string, BucketData>();
+        for (const [, summary] of transcripts) {
+          for (const turn of summary.turns) {
+            if (turn.type !== 'assistant' || turn.timestamp === 0) continue;
+            let bucket: string;
+            const d = new Date(turn.timestamp);
+            if (granularity === 'hour') {
+              bucket = d.toISOString().slice(0, 13) + ':00:00';
+            } else if (granularity === 'week') {
+              const week = String(getISOWeek(d)).padStart(2, '0');
+              bucket = `${d.getFullYear()}-W${week}`;
+            } else {
+              bucket = d.toISOString().slice(0, 10);
+            }
+            const existing = bucketTokens.get(bucket) ?? {
+              input: 0,
+              output: 0,
+              cacheRead: 0,
+              cost: 0,
+              models: {},
+            };
+            existing.input += turn.inputTokens;
+            existing.output += turn.outputTokens;
+            existing.cacheRead += turn.cacheReadTokens;
+            const model = turn.model ?? 'claude-sonnet-4-5';
+            const turnCost = computeCostUsd(
+              model,
+              turn.inputTokens,
+              turn.outputTokens,
+              turn.cacheReadTokens,
+              turn.timestamp,
+            );
+            existing.cost += turnCost;
+            // Model breakdown
+            if (!existing.models[model]) existing.models[model] = { cost: 0, tokens: 0, calls: 0 };
+            existing.models[model].cost += turnCost;
+            existing.models[model].tokens += turn.inputTokens + turn.outputTokens;
+            existing.models[model].calls++;
+            bucketTokens.set(bucket, existing);
+          }
+        }
+
+        const data = rows.map((r) => {
+          const bucket = r.bucket as string;
+          const tokens = bucketTokens.get(bucket);
+          return {
+            timestamp: Number(r.timestamp ?? 0),
+            bucket,
+            cost: tokens?.cost ?? 0,
+            inputTokens: tokens?.input ?? 0,
+            outputTokens: tokens?.output ?? 0,
+            cacheRead: tokens?.cacheRead ?? 0,
+            sessions: Number(r.sessions ?? 0),
+            toolCalls: Number(r.toolCalls ?? 0),
+            models: tokens?.models ?? {},
+          };
+        });
+
+        res.json(envelope(data, from, to, data.length));
+      } catch (err: unknown) {
+        logger.error({ err }, 'Error in analytics timeseries');
+        res.status(500).json({ error: 'Failed to compute timeseries' });
       }
-
-      const data = rows.map((r) => {
-        const bucket = r.bucket as string;
-        const tokens = bucketTokens.get(bucket);
-        return {
-          timestamp: Number(r.timestamp ?? 0),
-          bucket,
-          cost: tokens?.cost ?? 0,
-          inputTokens: tokens?.input ?? 0,
-          outputTokens: tokens?.output ?? 0,
-          cacheRead: tokens?.cacheRead ?? 0,
-          sessions: Number(r.sessions ?? 0),
-          toolCalls: Number(r.toolCalls ?? 0),
-          models: tokens?.models ?? {},
-        };
-      });
-
-      res.json(envelope(data, from, to, data.length));
-    } catch (err: unknown) {
-      logger.error({ err }, 'Error in analytics timeseries');
-      res.status(500).json({ error: 'Failed to compute timeseries' });
-    }
-  });
+    },
+  );
 
   // GET /api/analytics/sessions
-  router.get('/sessions', validateQuery(AnalyticsQuerySchema), (req: Request, res: Response) => {
-    try {
-      const { from, to } = parseTimeRange(req.query);
-      const cwd = req.query.cwd as string | undefined;
-      const limit = Math.min(Number(req.query.limit ?? 50), 500);
-      const offset = Number(req.query.offset ?? 0);
-      const { clause, params } = buildWhereClause(from, to, cwd);
+  router.get(
+    '/sessions',
+    validateQuery(AnalyticsQuerySchema),
+    async (req: Request, res: Response) => {
+      try {
+        const { from, to } = parseTimeRange(req.query);
+        const cwd = req.query.cwd as string | undefined;
+        const limit = Math.min(Number(req.query.limit ?? 50), 500);
+        const offset = Number(req.query.offset ?? 0);
+        const { clause, params } = buildWhereClause(from, to, cwd);
 
-      const rows = analyticsQueryAll(`
+        const rows = analyticsQueryAll(
+          `
         SELECT
           session_id,
           MIN(created_at) as startTime,
@@ -253,47 +306,53 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
         GROUP BY session_id
         ORDER BY startTime DESC
         LIMIT ? OFFSET ?
-      `, [...params, limit, offset]) as Record<string, unknown>[];
+      `,
+          [...params, limit, offset],
+        ) as Record<string, unknown>[];
 
-      // Get total count for pagination
-      const countRow = analyticsQueryGet(`
+        // Get total count for pagination
+        const countRow = analyticsQueryGet(
+          `
         SELECT COUNT(DISTINCT session_id) as total
         FROM events WHERE ${clause}
-      `, params);
+      `,
+          params,
+        );
 
-      // Enrich with transcript data
-      const sessionIds = rows.map((r) => r.session_id as string);
-      const transcripts = getTranscriptSummaries(sessionIds, cwd);
+        // Enrich with transcript data
+        const sessionIds = rows.map((r) => r.session_id as string);
+        const transcripts = await getTranscriptSummaries(sessionIds, cwd);
 
-      const sessions = rows.map((r) => {
-        const sid = r.session_id as string;
-        const ts = transcripts.get(sid);
-        const model = ts?.modelUsage[0]?.model ?? ((r.model as string) || 'claude-sonnet-4-5');
-        const vendor = (r.vendor as string) || 'anthropic';
-        return {
-          id: sid,
-          name: `Session ${sid.slice(0, 8)}`,
-          startTime: Number(r.startTime ?? 0),
-          endTime: Number(r.endTime ?? 0),
-          model,
-          vendor,
-          totalInputTokens: ts?.totalInputTokens ?? 0,
-          totalOutputTokens: ts?.totalOutputTokens ?? 0,
-          totalCacheReadTokens: ts?.totalCacheReadTokens ?? 0,
-          totalCost: ts?.estimatedCostUsd ?? 0,
-          toolCalls: Number(r.toolCalls ?? 0),
-          promptCount: Number(r.promptCount ?? 0),
-          compactions: Number(r.compactions ?? 0),
-          avgLatencyMs: ts ? Math.round(ts.avgResponseLatencyMs) : 0,
-        };
-      });
+        const sessions = rows.map((r) => {
+          const sid = r.session_id as string;
+          const ts = transcripts.get(sid);
+          const model = ts?.modelUsage[0]?.model ?? ((r.model as string) || 'claude-sonnet-4-5');
+          const vendor = (r.vendor as string) || 'anthropic';
+          return {
+            id: sid,
+            name: `Session ${sid.slice(0, 8)}`,
+            startTime: Number(r.startTime ?? 0),
+            endTime: Number(r.endTime ?? 0),
+            model,
+            vendor,
+            totalInputTokens: ts?.totalInputTokens ?? 0,
+            totalOutputTokens: ts?.totalOutputTokens ?? 0,
+            totalCacheReadTokens: ts?.totalCacheReadTokens ?? 0,
+            totalCost: ts?.estimatedCostUsd ?? 0,
+            toolCalls: Number(r.toolCalls ?? 0),
+            promptCount: Number(r.promptCount ?? 0),
+            compactions: Number(r.compactions ?? 0),
+            avgLatencyMs: ts ? Math.round(ts.avgResponseLatencyMs) : 0,
+          };
+        });
 
-      res.json(envelope(sessions, from, to, Number(countRow?.total ?? 0)));
-    } catch (err: unknown) {
-      logger.error({ err }, 'Error in analytics sessions');
-      res.status(500).json({ error: 'Failed to query sessions' });
-    }
-  });
+        res.json(envelope(sessions, from, to, Number(countRow?.total ?? 0)));
+      } catch (err: unknown) {
+        logger.error({ err }, 'Error in analytics sessions');
+        res.status(500).json({ error: 'Failed to query sessions' });
+      }
+    },
+  );
 
   // GET /api/analytics/tools
   router.get('/tools', validateQuery(AnalyticsQuerySchema), (req: Request, res: Response) => {
@@ -302,7 +361,8 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
       const cwd = req.query.cwd as string | undefined;
       const { clause, params } = buildWhereClause(from, to, cwd);
 
-      const rows = analyticsQueryAll(`
+      const rows = analyticsQueryAll(
+        `
         SELECT
           tool_name as name,
           COUNT(*) as count,
@@ -313,7 +373,9 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
         WHERE ${clause} AND tool_name IS NOT NULL
         GROUP BY tool_name
         ORDER BY count DESC
-      `, params) as Record<string, unknown>[];
+      `,
+        params,
+      ) as Record<string, unknown>[];
 
       const tools = rows.map((r) => ({
         name: r.name as string,
@@ -330,82 +392,108 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
   });
 
   // GET /api/analytics/models
-  router.get('/models', validateQuery(AnalyticsQuerySchema), (req: Request, res: Response) => {
-    try {
-      const { from, to } = parseTimeRange(req.query);
-      const cwd = req.query.cwd as string | undefined;
-      const { clause, params } = buildWhereClause(from, to, cwd);
+  router.get(
+    '/models',
+    validateQuery(AnalyticsQuerySchema),
+    async (req: Request, res: Response) => {
+      try {
+        const { from, to } = parseTimeRange(req.query);
+        const cwd = req.query.cwd as string | undefined;
+        const { clause, params } = buildWhereClause(from, to, cwd);
 
-      // Get session IDs in range for transcript enrichment (capped at 500)
-      const sessionRows = analyticsQueryAll(`
+        // Get session IDs in range for transcript enrichment (capped at 500)
+        const sessionRows = analyticsQueryAll(
+          `
         SELECT DISTINCT session_id FROM events WHERE ${clause} LIMIT 500
-      `, params) as { session_id: string }[];
-      const sessionIds = sessionRows.map((r) => r.session_id);
-      const transcripts = getTranscriptSummaries(sessionIds, cwd);
+      `,
+          params,
+        ) as { session_id: string }[];
+        const sessionIds = sessionRows.map((r) => r.session_id);
+        const transcripts = await getTranscriptSummaries(sessionIds, cwd);
 
-      // Aggregate model usage from transcripts
-      const modelMap = new Map<string, { model: string; vendor: string; sessions: Set<string>; cost: number; tokens: number }>();
+        // Aggregate model usage from transcripts
+        const modelMap = new Map<
+          string,
+          { model: string; vendor: string; sessions: Set<string>; cost: number; tokens: number }
+        >();
 
-      for (const [sid, summary] of transcripts) {
-        for (const mu of summary.modelUsage) {
-          const key = mu.model;
-          const tokens = mu.inputTokens + mu.outputTokens + mu.cacheReadTokens;
-          const existing = modelMap.get(key);
-          const vendor = key.startsWith('claude') ? 'anthropic'
-            : key.startsWith('gpt') || key.startsWith('o1') || key.startsWith('o3') ? 'openai'
-            : key.startsWith('gemini') ? 'google'
-            : 'unknown';
-          if (existing) {
-            existing.sessions.add(sid);
-            existing.tokens += tokens;
-          } else {
-            modelMap.set(key, { model: key, vendor, sessions: new Set([sid]), cost: 0, tokens });
+        for (const [sid, summary] of transcripts) {
+          for (const mu of summary.modelUsage) {
+            const key = mu.model;
+            const tokens = mu.inputTokens + mu.outputTokens + mu.cacheReadTokens;
+            const existing = modelMap.get(key);
+            const vendor = key.startsWith('claude')
+              ? 'anthropic'
+              : key.startsWith('gpt') || key.startsWith('o1') || key.startsWith('o3')
+                ? 'openai'
+                : key.startsWith('gemini')
+                  ? 'google'
+                  : 'unknown';
+            if (existing) {
+              existing.sessions.add(sid);
+              existing.tokens += tokens;
+            } else {
+              modelMap.set(key, { model: key, vendor, sessions: new Set([sid]), cost: 0, tokens });
+            }
           }
         }
-      }
 
-      // Distribute cost from transcript summaries
-      for (const [sid, summary] of transcripts) {
-        // Attribute cost to models proportionally
-        const sessionTokens = summary.totalInputTokens + summary.totalOutputTokens + summary.totalCacheReadTokens;
-        if (sessionTokens === 0) continue;
-        for (const mu of summary.modelUsage) {
-          const modelTokens = mu.inputTokens + mu.outputTokens + mu.cacheReadTokens;
-          const entry = modelMap.get(mu.model);
-          if (entry) entry.cost += summary.estimatedCostUsd * (modelTokens / sessionTokens);
-        }
-      }
-
-      // Add sessions that have no transcript (as 'unknown' model)
-      const sessionsWithTranscript = new Set(transcripts.keys());
-      const unknownCount = sessionIds.filter((id) => !sessionsWithTranscript.has(id)).length;
-      if (unknownCount > 0 && !modelMap.has('unknown')) {
-        modelMap.set('unknown', { model: 'unknown', vendor: 'unknown', sessions: new Set(), cost: 0, tokens: 0 });
-      }
-      if (unknownCount > 0) {
-        const entry = modelMap.get('unknown');
-        if (entry) {
-          for (const id of sessionIds) {
-            if (!sessionsWithTranscript.has(id)) entry.sessions.add(id);
+        // Distribute cost from transcript summaries
+        for (const [, summary] of transcripts) {
+          // Attribute cost to models proportionally
+          const sessionTokens =
+            summary.totalInputTokens + summary.totalOutputTokens + summary.totalCacheReadTokens;
+          if (sessionTokens === 0) continue;
+          for (const mu of summary.modelUsage) {
+            const modelTokens = mu.inputTokens + mu.outputTokens + mu.cacheReadTokens;
+            const entry = modelMap.get(mu.model);
+            if (entry) entry.cost += summary.estimatedCostUsd * (modelTokens / sessionTokens);
           }
         }
+
+        // Add sessions that have no transcript (as 'unknown' model)
+        const sessionsWithTranscript = new Set(transcripts.keys());
+        const unknownCount = sessionIds.filter((id) => !sessionsWithTranscript.has(id)).length;
+        if (unknownCount > 0 && !modelMap.has('unknown')) {
+          modelMap.set('unknown', {
+            model: 'unknown',
+            vendor: 'unknown',
+            sessions: new Set(),
+            cost: 0,
+            tokens: 0,
+          });
+        }
+        if (unknownCount > 0) {
+          const entry = modelMap.get('unknown');
+          if (entry) {
+            for (const id of sessionIds) {
+              if (!sessionsWithTranscript.has(id)) entry.sessions.add(id);
+            }
+          }
+        }
+
+        const models = [...modelMap.values()]
+          .map((m) => ({
+            model: m.model,
+            vendor: m.vendor,
+            sessions: m.sessions.size,
+            cost: m.cost,
+            tokens: m.tokens,
+          }))
+          .sort((a, b) => b.tokens - a.tokens);
+
+        res.json(envelope(models, from, to, models.length));
+      } catch (err: unknown) {
+        logger.error({ err }, 'Error in analytics models');
+        res.status(500).json({ error: 'Failed to query models' });
       }
-
-      const models = [...modelMap.values()]
-        .map((m) => ({ model: m.model, vendor: m.vendor, sessions: m.sessions.size, cost: m.cost, tokens: m.tokens }))
-        .sort((a, b) => b.tokens - a.tokens);
-
-      res.json(envelope(models, from, to, models.length));
-    } catch (err: unknown) {
-      logger.error({ err }, 'Error in analytics models');
-      res.status(500).json({ error: 'Failed to query models' });
-    }
-  });
+    },
+  );
 
   // GET /api/analytics/turns
   // With sessionId: returns turns for that session
   // Without sessionId: returns turns across all sessions in time range (bulk mode)
-  router.get('/turns', validateQuery(AnalyticsQuerySchema), (req: Request, res: Response) => {
+  router.get('/turns', validateQuery(AnalyticsQuerySchema), async (req: Request, res: Response) => {
     try {
       const sessionId = req.query.sessionId as string | undefined;
       const cwd = req.query.cwd as string | undefined;
@@ -426,13 +514,16 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
         const { clause, params } = buildWhereClause(from, to, cwd);
         const sessLimit = Math.min(Number(req.query.limit ?? 50), 100);
 
-        const sessionRows = analyticsQueryAll(`
+        const sessionRows = analyticsQueryAll(
+          `
           SELECT session_id FROM events
           WHERE ${clause} AND session_id IS NOT NULL
           GROUP BY session_id
           ORDER BY MAX(created_at) DESC
           LIMIT ?
-        `, [...params, sessLimit]) as { session_id: string }[];
+        `,
+          [...params, sessLimit],
+        ) as { session_id: string }[];
 
         if (sessionRows.length === 0) {
           res.json(envelope([], rangeFrom, rangeTo, 0));
@@ -442,7 +533,7 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
       }
 
       // Try to get turns from transcript files (rich token data)
-      const transcripts = getTranscriptSummaries(targetSessionIds, cwd);
+      const transcripts = await getTranscriptSummaries(targetSessionIds, cwd);
 
       interface TurnData {
         sessionId: string;
@@ -497,7 +588,13 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
           if (turn.type !== 'assistant') continue;
 
           const model = turn.model ?? 'claude-sonnet-4-5';
-          const costUsd = computeCostUsd(model, turn.inputTokens, turn.outputTokens, turn.cacheReadTokens, turn.timestamp);
+          const costUsd = computeCostUsd(
+            model,
+            turn.inputTokens,
+            turn.outputTokens,
+            turn.cacheReadTokens,
+            turn.timestamp,
+          );
 
           if (!currentGroup) {
             // First assistant record in this prompt group
@@ -513,7 +610,7 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
               cacheCreationTokens: turn.cacheCreationTokens,
               thinkingTokens: turn.thinkingLength,
               toolCount: turn.toolUseCount,
-              toolNames: [],  // filled on flush
+              toolNames: [], // filled on flush
               latencyMs: latencyMs > 0 && latencyMs < 600_000 ? latencyMs : 0,
               costUsd,
               model,
@@ -541,18 +638,24 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
 
       if (sessionsWithout.length > 0) {
         const placeholders = sessionsWithout.map(() => '?').join(',');
-        const rows = analyticsQueryAll(`
+        const rows = analyticsQueryAll(
+          `
           SELECT *, session_id FROM events
           WHERE session_id IN (${placeholders})
           ORDER BY session_id, created_at ASC
-        `, sessionsWithout) as Record<string, unknown>[];
+        `,
+          sessionsWithout,
+        ) as Record<string, unknown>[];
 
         // Group by session and build turns from events
         const rowsBySession = new Map<string, Record<string, unknown>[]>();
         for (const row of rows) {
           const sid = (row.session_id as string) || 'unknown';
           let bucket = rowsBySession.get(sid);
-          if (!bucket) { bucket = []; rowsBySession.set(sid, bucket); }
+          if (!bucket) {
+            bucket = [];
+            rowsBySession.set(sid, bucket);
+          }
           bucket.push(row);
         }
 
@@ -568,26 +671,52 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
               try {
                 const raw = JSON.parse((row.raw_payload as string) || '{}');
                 promptText = raw.prompt || raw.message || raw.text || '';
-              } catch { /* ignore */ }
+              } catch {
+                /* ignore */
+              }
               currentTurn = {
-                sessionId: sid, turnIndex: turnIndex++, timestamp: Number(row.created_at ?? 0),
-                promptText, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0,
-                cacheCreationTokens: 0, thinkingTokens: 0, toolCount: 0, toolNames: [],
-                latencyMs: 0, costUsd: 0, model: (row.model as string) || 'claude-sonnet-4-5',
+                sessionId: sid,
+                turnIndex: turnIndex++,
+                timestamp: Number(row.created_at ?? 0),
+                promptText,
+                inputTokens: 0,
+                outputTokens: 0,
+                cacheReadTokens: 0,
+                cacheCreationTokens: 0,
+                thinkingTokens: 0,
+                toolCount: 0,
+                toolNames: [],
+                latencyMs: 0,
+                costUsd: 0,
+                model: (row.model as string) || 'claude-sonnet-4-5',
                 compactionBefore: false,
               };
               continue;
             }
             if (!currentTurn) {
               currentTurn = {
-                sessionId: sid, turnIndex: turnIndex++, timestamp: Number(row.created_at ?? 0),
-                promptText: '(session start)', inputTokens: 0, outputTokens: 0,
-                cacheReadTokens: 0, cacheCreationTokens: 0, thinkingTokens: 0,
-                toolCount: 0, toolNames: [], latencyMs: 0, costUsd: 0,
-                model: (row.model as string) || 'claude-sonnet-4-5', compactionBefore: false,
+                sessionId: sid,
+                turnIndex: turnIndex++,
+                timestamp: Number(row.created_at ?? 0),
+                promptText: '(session start)',
+                inputTokens: 0,
+                outputTokens: 0,
+                cacheReadTokens: 0,
+                cacheCreationTokens: 0,
+                thinkingTokens: 0,
+                toolCount: 0,
+                toolNames: [],
+                latencyMs: 0,
+                costUsd: 0,
+                model: (row.model as string) || 'claude-sonnet-4-5',
+                compactionBefore: false,
               };
             }
-            if (eventType === 'tool_start' || eventType === 'tool_end' || eventType === 'tool_error') {
+            if (
+              eventType === 'tool_start' ||
+              eventType === 'tool_end' ||
+              eventType === 'tool_error'
+            ) {
               if (row.tool_name) {
                 currentTurn.toolCount++;
                 const tn = row.tool_name as string;
@@ -622,7 +751,8 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
       const { clause, params } = buildWhereClause(from, to, cwd);
       const limit = Math.min(Number(req.query.limit ?? 2000), 5000);
 
-      const rows = analyticsQueryAll(`
+      const rows = analyticsQueryAll(
+        `
         SELECT session_id, tool_name, created_at, duration_ms, event_type, status, tool_use_id
         FROM events
         WHERE ${clause}
@@ -630,7 +760,9 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
           AND tool_name IS NOT NULL
         ORDER BY created_at DESC
         LIMIT ?
-      `, [...params, limit]) as Record<string, unknown>[];
+      `,
+        [...params, limit],
+      ) as Record<string, unknown>[];
 
       // Pair tool_start with tool_end by tool_use_id, or emit unpaired entries
       const endMap = new Map<string, Record<string, unknown>>();
@@ -661,7 +793,9 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
         if (eventType === 'tool_start' && toolUseId) {
           seen.add(toolUseId);
           const endRow = endMap.get(toolUseId);
-          const isError = endRow ? (endRow.event_type === 'tool_error' || endRow.status === 'error') : false;
+          const isError = endRow
+            ? endRow.event_type === 'tool_error' || endRow.status === 'error'
+            : false;
           const duration = endRow ? Number(endRow.duration_ms ?? 0) : 0;
 
           toolCalls.push({
@@ -685,7 +819,7 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
             toolName: row.tool_name as string,
             timestamp: Number(row.created_at ?? 0),
             durationMs: Number(row.duration_ms ?? 0),
-            status: (row.event_type === 'tool_error' || row.status === 'error') ? 'error' : 'success',
+            status: row.event_type === 'tool_error' || row.status === 'error' ? 'error' : 'success',
             inputTokens: 0,
           });
         }
@@ -715,7 +849,15 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
   router.post('/prices', validateBody(PriceCreateSchema), (req: Request, res: Response) => {
     try {
       const { model, vendor, effectiveFrom, inputPer1M, cachedInputPer1M, outputPer1M } = req.body;
-      insertPriceHistory({ model, vendor, effective_from: effectiveFrom, input_per_1m: inputPer1M, cached_input_per_1m: cachedInputPer1M, output_per_1m: outputPer1M, source: 'user' });
+      insertPriceHistory({
+        model,
+        vendor,
+        effective_from: effectiveFrom,
+        input_per_1m: inputPer1M,
+        cached_input_per_1m: cachedInputPer1M,
+        output_per_1m: outputPer1M,
+        source: 'user',
+      });
       logger.info({ model, vendor }, 'Price added');
       res.status(201).json({ ok: true });
     } catch (err: unknown) {
@@ -914,84 +1056,101 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
   // ─── Model Optimization ────────────────────────────────────────
 
   // GET /api/analytics/model-optimization — what-if model switching
-  router.get('/model-optimization', validateQuery(AnalyticsQuerySchema), (req: Request, res: Response) => {
-    try {
-      const { from, to } = parseTimeRange(req.query);
-      const cwd = req.query.cwd as string | undefined;
-      const result = computeModelOptimization(from, to, cwd);
-      res.json({ data: result });
-    } catch (err: unknown) {
-      logger.error({ err }, 'Error computing model optimization');
-      res.status(500).json({ error: 'Failed to compute model optimization' });
-    }
-  });
+  router.get(
+    '/model-optimization',
+    validateQuery(AnalyticsQuerySchema),
+    (req: Request, res: Response) => {
+      try {
+        const { from, to } = parseTimeRange(req.query);
+        const cwd = req.query.cwd as string | undefined;
+        const result = computeModelOptimization(from, to, cwd);
+        res.json({ data: result });
+      } catch (err: unknown) {
+        logger.error({ err }, 'Error computing model optimization');
+        res.status(500).json({ error: 'Failed to compute model optimization' });
+      }
+    },
+  );
 
   // ─── AI-Enhanced Endpoints ──────────────────────────────────────
 
   // GET /api/analytics/ai-summary — AI summary of time period
-  router.get('/ai-summary', validateQuery(AnalyticsQuerySchema), async (req: Request, res: Response) => {
-    try {
-      if (!isAiAvailable()) {
-        res.json({ data: null, meta: { reason: 'AI features require an API key' } });
-        return;
-      }
+  router.get(
+    '/ai-summary',
+    validateQuery(AnalyticsQuerySchema),
+    async (req: Request, res: Response) => {
+      try {
+        if (!isAiAvailable()) {
+          res.json({ data: null, meta: { reason: 'AI features require an API key' } });
+          return;
+        }
 
-      const { from, to } = parseTimeRange(req.query);
-      const cwd = req.query.cwd as string | undefined;
-      const { clause, params } = buildWhereClause(from, to, cwd);
+        const { from, to } = parseTimeRange(req.query);
+        const cwd = req.query.cwd as string | undefined;
+        const { clause, params } = buildWhereClause(from, to, cwd);
 
-      const sessionRows = analyticsQueryAll(
-        `SELECT DISTINCT session_id FROM events WHERE ${clause} LIMIT 500`,
-        params,
-      ) as { session_id: string }[];
-      const sessionIds = sessionRows.map((r) => r.session_id);
+        const sessionRows = analyticsQueryAll(
+          `SELECT DISTINCT session_id FROM events WHERE ${clause} LIMIT 500`,
+          params,
+        ) as { session_id: string }[];
+        const sessionIds = sessionRows.map((r) => r.session_id);
 
-      if (sessionIds.length === 0) {
-        res.json({ data: null, meta: { reason: 'No sessions in range' } });
-        return;
-      }
+        if (sessionIds.length === 0) {
+          res.json({ data: null, meta: { reason: 'No sessions in range' } });
+          return;
+        }
 
-      const transcripts = getTranscriptSummaries(sessionIds, cwd);
-      const agg = aggregateTranscripts(transcripts);
+        const transcripts = await getTranscriptSummaries(sessionIds, cwd);
+        const agg = aggregateTranscripts(transcripts);
 
-      // Get event-level metrics for tool calls and top tools
-      const eventStats = analyticsQueryGet(`
+        // Get event-level metrics for tool calls and top tools
+        const eventStats = analyticsQueryGet(
+          `
         SELECT
           SUM(CASE WHEN event_type IN ('tool_start','tool_end','tool_error') THEN 1 ELSE 0 END) as toolCalls,
           SUM(CASE WHEN event_type = 'prompt_submit' THEN 1 ELSE 0 END) as promptCount
         FROM events WHERE ${clause}
-      `, params) as { toolCalls: number; promptCount: number } | undefined;
+      `,
+          params,
+        ) as { toolCalls: number; promptCount: number } | undefined;
 
-      // Find top model from modelBreakdown map
-      let topModel = 'unknown';
-      let topModelCost = 0;
-      for (const [model, data] of agg.modelBreakdown) {
-        if (data.cost > topModelCost) { topModel = model; topModelCost = data.cost; }
-      }
+        // Find top model from modelBreakdown map
+        let topModel = 'unknown';
+        let topModelCost = 0;
+        for (const [model, data] of agg.modelBreakdown) {
+          if (data.cost > topModelCost) {
+            topModel = model;
+            topModelCost = data.cost;
+          }
+        }
 
-      // Top tools
-      const toolRows = analyticsQueryAll(`
+        // Top tools
+        const toolRows = analyticsQueryAll(
+          `
         SELECT json_extract(data, '$.tool_name') as toolName, COUNT(*) as cnt
         FROM events WHERE ${clause} AND event_type = 'tool_start'
         GROUP BY toolName ORDER BY cnt DESC LIMIT 5
-      `, params) as { toolName: string; cnt: number }[];
+      `,
+          params,
+        ) as { toolName: string; cnt: number }[];
 
-      const summary = await summarizeSession({
-        sessionId: `aggregate-${from}-${to}`,
-        totalCost: agg.totalCost,
-        totalTokens: agg.totalInputTokens + agg.totalOutputTokens,
-        promptCount: eventStats?.promptCount ?? 0,
-        toolCalls: eventStats?.toolCalls ?? 0,
-        model: topModel,
-        topTools: toolRows.map((r) => r.toolName).filter(Boolean),
-        durationMinutes: Math.round((to - from) / 60_000),
-      });
-      res.json({ data: summary });
-    } catch (err: unknown) {
-      logger.error({ err }, 'Error generating AI summary');
-      res.status(500).json({ error: 'Failed to generate AI summary' });
-    }
-  });
+        const summary = await summarizeSession({
+          sessionId: `aggregate-${from}-${to}`,
+          totalCost: agg.totalCost,
+          totalTokens: agg.totalInputTokens + agg.totalOutputTokens,
+          promptCount: eventStats?.promptCount ?? 0,
+          toolCalls: eventStats?.toolCalls ?? 0,
+          model: topModel,
+          topTools: toolRows.map((r) => r.toolName).filter(Boolean),
+          durationMinutes: Math.round((to - from) / 60_000),
+        });
+        res.json({ data: summary });
+      } catch (err: unknown) {
+        logger.error({ err }, 'Error generating AI summary');
+        res.status(500).json({ error: 'Failed to generate AI summary' });
+      }
+    },
+  );
 
   // POST /api/analytics/ai-analyze-prompt — AI prompt analysis
   router.post('/ai-analyze-prompt', async (req: Request, res: Response) => {
@@ -1001,7 +1160,14 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
         return;
       }
 
-      const { promptText, sessionContext, mode, skipCache, conversationContext, model: modelOverride } = req.body as {
+      const {
+        promptText,
+        sessionContext,
+        mode,
+        skipCache,
+        conversationContext,
+        model: modelOverride,
+      } = req.body as {
         promptText: string;
         mode?: 'developer' | 'vibe';
         skipCache?: boolean;
@@ -1061,8 +1227,12 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
       const recommendations = await generateRecommendations({
         totalCost: Number(body.totalCost) || 0,
         cacheHitRate: Number(body.cacheHitRate) || 0,
-        topTools: Array.isArray(body.topTools) ? body.topTools as { name: string; count: number; errorRate: number }[] : [],
-        modelUsage: Array.isArray(body.modelUsage) ? body.modelUsage as { model: string; cost: number; sessions: number }[] : [],
+        topTools: Array.isArray(body.topTools)
+          ? (body.topTools as { name: string; count: number; errorRate: number }[])
+          : [],
+        modelUsage: Array.isArray(body.modelUsage)
+          ? (body.modelUsage as { model: string; cost: number; sessions: number }[])
+          : [],
         avgPromptLength: Number(body.avgPromptLength) || 0,
         compactionRate: Number(body.compactionRate) || 0,
       });

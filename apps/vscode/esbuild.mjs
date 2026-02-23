@@ -86,15 +86,16 @@ if (watch) {
 
     // ── 3. Copy hook script ──────────────────────────────────────────────
 
-    const hooksSrc = path.join(ROOT, 'hooks', 'send_event.cjs');
-    const hooksDst = path.join(SERVER_OUT, 'hooks', 'send_event.cjs');
-    if (fs.existsSync(hooksSrc)) {
-      fs.mkdirSync(path.dirname(hooksDst), { recursive: true });
-      fs.copyFileSync(hooksSrc, hooksDst);
-      console.log('[3/4] Hook script copied.');
-    } else {
-      console.warn('[3/4] WARNING: hooks/send_event.cjs not found at', hooksSrc);
+    const hooksDir = path.join(SERVER_OUT, 'hooks');
+    fs.mkdirSync(hooksDir, { recursive: true });
+    for (const hookFile of ['send_event.cjs', 'send_gemini_event.cjs', 'send_codex_event.cjs']) {
+      const hookSrc = path.join(ROOT, 'hooks', hookFile);
+      const hookDst = path.join(hooksDir, hookFile);
+      if (fs.existsSync(hookSrc)) {
+        fs.copyFileSync(hookSrc, hookDst);
+      }
     }
+    console.log('[3/4] Hook scripts copied.');
 
     // ── 4. Build dashboard frontend ────────────────────────────────────
 

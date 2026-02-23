@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState } from 'react';
 
 const SHORTCUTS = [
@@ -23,6 +26,7 @@ export function KeyboardShortcutsTooltip() {
   return (
     <span
       className="relative inline-flex items-center cursor-help"
+      aria-label="Keyboard shortcuts"
       onMouseEnter={() => setVisible(true)}
       onMouseLeave={() => setVisible(false)}
     >
@@ -31,11 +35,15 @@ export function KeyboardShortcutsTooltip() {
       </span>
       {visible && (
         <div className="absolute right-0 top-full mt-2 z-30 w-64 bg-[#1c2128] border border-gray-700 rounded-lg shadow-xl p-3 pointer-events-none">
-          <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Keyboard Shortcuts</div>
+          <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">
+            Keyboard Shortcuts
+          </div>
           <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
             {SHORTCUTS.map(({ key, action }) => (
               <div key={key} className="contents">
-                <kbd className="text-[11px] text-gray-300 bg-gray-800 px-1.5 py-0.5 rounded font-mono text-right">{key}</kbd>
+                <kbd className="text-[11px] text-gray-300 bg-gray-800 px-1.5 py-0.5 rounded font-mono text-right">
+                  {key}
+                </kbd>
                 <span className="text-[11px] text-gray-400">{action}</span>
               </div>
             ))}

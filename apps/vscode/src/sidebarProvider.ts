@@ -1,7 +1,10 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import * as vscode from 'vscode';
 import { executeForwardedKeybinding } from './keybindings';
 
-type SelectionHandler = (nodeId: string | null) => void;
+type SelectionHandler = (nodeId: string | null, source?: string | null) => void;
 type VoidHandler = () => void;
 
 export class SynapseSidebarProvider implements vscode.WebviewViewProvider {
@@ -33,7 +36,7 @@ export class SynapseSidebarProvider implements vscode.WebviewViewProvider {
     // Listen for messages from the webview (iframe → extension)
     webviewView.webview.onDidReceiveMessage((message) => {
       if (message.type === 'selectionChanged' && this._onSelectionChanged) {
-        this._onSelectionChanged(message.nodeId ?? null);
+        this._onSelectionChanged(message.nodeId ?? null, message.source ?? null);
       }
       if (message.type === 'iframeReady' && this._onIframeReady) {
         this._onIframeReady();
@@ -80,7 +83,8 @@ export class SynapseSidebarProvider implements vscode.WebviewViewProvider {
 
   private getHtml(): string {
     const params = new URLSearchParams({ view: 'lens' });
-    if (this._cwd) params.set('cwd', this._cwd.replace(/\\/g, '/').replace(/\/$/, '').toLowerCase());
+    if (this._cwd)
+      params.set('cwd', this._cwd.replace(/\\/g, '/').replace(/\/$/, '').toLowerCase());
     const url = `http://localhost:${this._port}?${params.toString()}`;
     return `<!DOCTYPE html>
 <html lang="en">

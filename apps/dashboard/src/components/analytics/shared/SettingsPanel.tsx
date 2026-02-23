@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useEffect, useCallback } from 'react';
 import { apiUrl } from '../../../utils/api';
 import type { AiCoachStatus } from '@synapse-ai/core';
@@ -15,8 +18,16 @@ interface SettingsData {
 }
 
 const MODEL_OPTIONS = [
-  { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5', desc: 'Fastest, cheapest ($0.80/1M in, $4/1M out)' },
-  { id: 'claude-sonnet-4-5-20250929', label: 'Sonnet 4.5', desc: 'Balanced ($3/1M in, $15/1M out)' },
+  {
+    id: 'claude-haiku-4-5-20251001',
+    label: 'Haiku 4.5',
+    desc: 'Fastest, cheapest ($0.80/1M in, $4/1M out)',
+  },
+  {
+    id: 'claude-sonnet-4-5-20250929',
+    label: 'Sonnet 4.5',
+    desc: 'Balanced ($3/1M in, $15/1M out)',
+  },
   { id: 'claude-opus-4-6', label: 'Opus 4.6', desc: 'Most capable ($15/1M in, $75/1M out)' },
 ];
 
@@ -38,11 +49,15 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
       const statusData = await statusRes.json();
       setSettings(settingsData.data ?? {});
       setAiStatus(statusData.data ?? null);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchSettings(); }, [fetchSettings]);
+  useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
 
   const handleSave = async (updates: Record<string, string>) => {
     setSaving(true);
@@ -76,7 +91,10 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
       <div
         className="bg-[#161b22] border border-gray-700 rounded-xl w-full max-w-md mx-4 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
@@ -102,12 +120,16 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 <label className="text-[10px] text-gray-500 uppercase tracking-wider font-medium block mb-2">
                   Anthropic API Key
                 </label>
-                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
-                  aiStatus?.available
-                    ? 'bg-emerald-500/10 border-emerald-500/20'
-                    : 'bg-red-500/10 border-red-500/20'
-                }`}>
-                  <span className={`w-2 h-2 rounded-full ${aiStatus?.available ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                <div
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
+                    aiStatus?.available
+                      ? 'bg-emerald-500/10 border-emerald-500/20'
+                      : 'bg-red-500/10 border-red-500/20'
+                  }`}
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full ${aiStatus?.available ? 'bg-emerald-500' : 'bg-red-500'}`}
+                  />
                   <span className="text-xs text-gray-300 flex-1">
                     {aiStatus?.available
                       ? `Active (${settings._api_key_source === 'env' ? 'from env' : 'from settings'}): ${settings.anthropic_api_key ?? ''}`
@@ -134,7 +156,8 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 )}
                 {settings._api_key_source === 'env' && (
                   <p className="text-[10px] text-gray-600 mt-1">
-                    Detected from ANTHROPIC_API_KEY environment variable. To override, set it in settings.
+                    Detected from ANTHROPIC_API_KEY environment variable. To override, set it in
+                    settings.
                   </p>
                 )}
               </div>
@@ -169,11 +192,13 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
 
               {/* Message */}
               {message && (
-                <div className={`px-3 py-2 rounded-lg text-xs ${
-                  message.type === 'success'
-                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                    : 'bg-red-500/10 text-red-400 border border-red-500/20'
-                }`}>
+                <div
+                  className={`px-3 py-2 rounded-lg text-xs ${
+                    message.type === 'success'
+                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                      : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                  }`}
+                >
                   {message.text}
                 </div>
               )}

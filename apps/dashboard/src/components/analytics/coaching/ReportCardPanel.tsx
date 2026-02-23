@@ -1,5 +1,15 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useCallback } from 'react';
-import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
+import {
+  RadarChart,
+  Radar,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  ResponsiveContainer,
+} from 'recharts';
 import type { ReportCard, DimensionScore, DetectorResult } from '@synapse-ai/core';
 import { InfoTooltip } from '../shared/InfoTooltip';
 
@@ -43,18 +53,26 @@ const SHORT_LABELS: Record<string, string> = {
   'Cost Efficiency': 'Cost',
   'Verification & Quality': 'Verify',
   'Session Strategy': 'Strategy',
-  'Configuration': 'Config',
+  Configuration: 'Config',
 };
 
 const DIMENSION_DESCRIPTIONS: Record<string, string> = {
-  'Planning & Preparation': 'How well you read and understand code before making changes. Measures read-before-edit ratio, context front-loading, and prompt specificity.',
-  'Prompt Precision': 'Quality and clarity of your prompts. Checks for single-concern prompts, file references, verification instructions, and clear success criteria.',
-  'Tool Craft': 'Effective use of Claude\'s tools. Measures dedicated tool usage over Bash, Edit over Write, subagent delegation, and error rates.',
-  'Context Management': 'How efficiently you manage the context window. Tracks compaction avoidance, file re-reads, scope focus, and context utilization.',
-  'Cost Efficiency': 'Spending optimization across models and tokens. Evaluates model matching to task complexity, cache utilization, and output control.',
-  'Verification & Quality': 'Testing and quality assurance habits. Checks for test-after-edit, review subagent usage, quality gates, and build verification.',
-  'Session Strategy': 'Session structure and workflow patterns. Measures session length, task focus, frustration signals, and effective use of /continue.',
-  'Configuration': 'Project setup for optimal Claude performance. Checks for CLAUDE.md presence, active hooks, custom commands, and permission modes.',
+  'Planning & Preparation':
+    'How well you read and understand code before making changes. Measures read-before-edit ratio, context front-loading, and prompt specificity.',
+  'Prompt Precision':
+    'Quality and clarity of your prompts. Checks for single-concern prompts, file references, verification instructions, and clear success criteria.',
+  'Tool Craft':
+    "Effective use of Claude's tools. Measures dedicated tool usage over Bash, Edit over Write, subagent delegation, and error rates.",
+  'Context Management':
+    'How efficiently you manage the context window. Tracks compaction avoidance, file re-reads, scope focus, and context utilization.',
+  'Cost Efficiency':
+    'Spending optimization across models and tokens. Evaluates model matching to task complexity, cache utilization, and output control.',
+  'Verification & Quality':
+    'Testing and quality assurance habits. Checks for test-after-edit, review subagent usage, quality gates, and build verification.',
+  'Session Strategy':
+    'Session structure and workflow patterns. Measures session length, task focus, frustration signals, and effective use of /continue.',
+  Configuration:
+    'Project setup for optimal Claude performance. Checks for CLAUDE.md presence, active hooks, custom commands, and permission modes.',
 };
 
 // ─── Component ───────────────────────────────────────────────────────
@@ -62,7 +80,9 @@ const DIMENSION_DESCRIPTIONS: Record<string, string> = {
 export function ReportCardPanel({ reportCard, isLoading }: ReportCardPanelProps) {
   const [expandedDim, setExpandedDim] = useState<string | null>(null);
   const [expandedDetector, setExpandedDetector] = useState<string | null>(null);
-  const [aiRecs, setAiRecs] = useState<{ title: string; description: string; impact: string; howTo?: string[] }[]>([]);
+  const [aiRecs, setAiRecs] = useState<
+    { title: string; description: string; impact: string; howTo?: string[] }[]
+  >([]);
   const [aiRecsLoading, setAiRecsLoading] = useState(false);
 
   const fetchAiRecs = useCallback(() => {
@@ -75,14 +95,20 @@ export function ReportCardPanel({ reportCard, isLoading }: ReportCardPanelProps)
       body: JSON.stringify({
         totalCost: 0,
         cacheHitRate: 0,
-        topTools: weakDims.map((d) => ({ name: d.dimension, count: d.detectors.length, errorRate: 1 - d.score / 100 })),
+        topTools: weakDims.map((d) => ({
+          name: d.dimension,
+          count: d.detectors.length,
+          errorRate: 1 - d.score / 100,
+        })),
         modelUsage: [],
         avgPromptLength: 0,
         compactionRate: 0,
       }),
     })
       .then((r) => r.json())
-      .then((d) => { if (Array.isArray(d.data)) setAiRecs(d.data); })
+      .then((d) => {
+        if (Array.isArray(d.data)) setAiRecs(d.data);
+      })
       .catch(() => {})
       .finally(() => setAiRecsLoading(false));
   }, [reportCard]);
@@ -91,7 +117,10 @@ export function ReportCardPanel({ reportCard, isLoading }: ReportCardPanelProps)
     return (
       <div className="space-y-3">
         {[...Array(3)].map((_, i) => (
-          <div key={i} className="h-24 bg-[#161b22] rounded-lg animate-pulse border border-gray-800" />
+          <div
+            key={i}
+            className="h-24 bg-[#161b22] rounded-lg animate-pulse border border-gray-800"
+          />
         ))}
       </div>
     );
@@ -111,7 +140,7 @@ export function ReportCardPanel({ reportCard, isLoading }: ReportCardPanelProps)
     );
   }
 
-  const radarData = reportCard.dimensions.map(d => ({
+  const radarData = reportCard.dimensions.map((d) => ({
     dimension: SHORT_LABELS[d.label] ?? d.label,
     score: d.score,
     fullMark: 100,
@@ -125,20 +154,22 @@ export function ReportCardPanel({ reportCard, isLoading }: ReportCardPanelProps)
       {/* Low confidence warning */}
       {isLowConfidence && (
         <div className="px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-          <span className="text-xs text-amber-400">Low confidence — session has limited data. Scores may not be representative.</span>
+          <span className="text-xs text-amber-400">
+            Low confidence — session has limited data. Scores may not be representative.
+          </span>
         </div>
       )}
 
       {/* Grade + Score + Radar */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Grade badge */}
-        <div className={`p-4 rounded-lg border ${gradeBg(reportCard.grade)} flex flex-col items-center justify-center`}>
+        <div
+          className={`p-4 rounded-lg border ${gradeBg(reportCard.grade)} flex flex-col items-center justify-center`}
+        >
           <div className={`text-5xl font-bold ${gradeColor(reportCard.grade)}`}>
             {reportCard.grade}
           </div>
-          <div className="text-xs text-gray-400 mt-2">
-            {reportCard.overallScore}/100
-          </div>
+          <div className="text-xs text-gray-400 mt-2">{reportCard.overallScore}/100</div>
           <div className="text-xs text-gray-500 mt-1 text-center max-w-[200px]">
             {reportCard.summary.slice(0, 100)}
           </div>
@@ -150,7 +181,11 @@ export function ReportCardPanel({ reportCard, isLoading }: ReportCardPanelProps)
             <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="70%">
               <PolarGrid stroke="#374151" />
               <PolarAngleAxis dataKey="dimension" tick={{ fill: '#9ca3af', fontSize: 11 }} />
-              <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: '#6b7280', fontSize: 10 }} />
+              <PolarRadiusAxis
+                angle={90}
+                domain={[0, 100]}
+                tick={{ fill: '#6b7280', fontSize: 10 }}
+              />
               <Radar
                 name="Score"
                 dataKey="score"
@@ -216,8 +251,12 @@ export function ReportCardPanel({ reportCard, isLoading }: ReportCardPanelProps)
         {aiRecs.length > 0 ? (
           <div className="space-y-2">
             <div className="flex items-center gap-2 mb-2">
-              <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider">AI Recommendations</h3>
-              <span className="px-1.5 py-0.5 text-[8px] font-medium rounded bg-blue-500/20 text-blue-400">AI</span>
+              <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                AI Recommendations
+              </h3>
+              <span className="px-1.5 py-0.5 text-[8px] font-medium rounded bg-blue-500/20 text-blue-400">
+                AI
+              </span>
             </div>
             {aiRecs.map((rec, idx) => (
               <div key={idx} className="bg-[#0d1117] border border-blue-500/10 rounded-lg p-3">
@@ -228,10 +267,15 @@ export function ReportCardPanel({ reportCard, isLoading }: ReportCardPanelProps)
                 <p className="text-[11px] text-gray-400 leading-relaxed">{rec.description}</p>
                 {rec.howTo && rec.howTo.length > 0 && (
                   <div className="mt-2 pt-2 border-t border-gray-800/50">
-                    <span className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider">How do I do this?</span>
+                    <span className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider">
+                      How do I do this?
+                    </span>
                     <ul className="mt-1.5 space-y-1.5">
                       {rec.howTo.map((step, si) => (
-                        <li key={si} className="text-[11px] text-gray-300 leading-relaxed pl-3 border-l-2 border-purple-500/30">
+                        <li
+                          key={si}
+                          className="text-[11px] text-gray-300 leading-relaxed pl-3 border-l-2 border-purple-500/30"
+                        >
                           {step}
                         </li>
                       ))}
@@ -270,7 +314,7 @@ function DimensionCard({
   expandedDetector: string | null;
   onToggleDetector: (id: string) => void;
 }) {
-  const passCount = dimension.detectors.filter(d => d.passed).length;
+  const passCount = dimension.detectors.filter((d) => d.passed).length;
   const totalCount = dimension.detectors.length;
 
   return (
@@ -280,17 +324,21 @@ function DimensionCard({
         onClick={onToggle}
         className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-800/30 transition-colors text-left"
       >
-        <span className={`text-xs transition-transform ${isExpanded ? 'rotate-90' : ''}`}>&#9654;</span>
+        <span className={`text-xs transition-transform ${isExpanded ? 'rotate-90' : ''}`}>
+          &#9654;
+        </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-gray-200">
-                {dimension.label}
-                {DIMENSION_DESCRIPTIONS[dimension.label] && (
-                  <InfoTooltip text={DIMENSION_DESCRIPTIONS[dimension.label]} />
-                )}
-              </span>
+              {dimension.label}
+              {DIMENSION_DESCRIPTIONS[dimension.label] && (
+                <InfoTooltip text={DIMENSION_DESCRIPTIONS[dimension.label]} />
+              )}
+            </span>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-gray-500">{passCount}/{totalCount} passed</span>
+              <span className="text-[10px] text-gray-500">
+                {passCount}/{totalCount} passed
+              </span>
               <span className="text-xs font-mono text-gray-300">{dimension.score}</span>
             </div>
           </div>
@@ -352,9 +400,7 @@ function DetectorRow({
       {/* Tier 3: evidence + recommendation */}
       {isExpanded && (
         <div className="px-3 pb-2 space-y-1">
-          {detector.evidence && (
-            <p className="text-[11px] text-gray-400">{detector.evidence}</p>
-          )}
+          {detector.evidence && <p className="text-[11px] text-gray-400">{detector.evidence}</p>}
           {detector.recommendation && (
             <div className="px-2 py-1.5 bg-[#0d1117] border-l-2 border-blue-500/50 rounded-r text-[11px] text-blue-300">
               {detector.recommendation}

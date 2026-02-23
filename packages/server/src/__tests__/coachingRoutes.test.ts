@@ -1,10 +1,10 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // Set DB path BEFORE any server imports
 import path from 'path';
 import os from 'os';
-process.env.SYNAPSE_DB_PATH = path.join(
-  os.tmpdir(),
-  'synapse-test-coaching-' + Date.now() + '.db',
-);
+process.env.SYNAPSE_DB_PATH = path.join(os.tmpdir(), 'synapse-test-coaching-' + Date.now() + '.db');
 
 import request from 'supertest';
 import type { Express } from 'express';
@@ -99,9 +99,7 @@ function seedSession(sessionId: string): void {
 
 describe('GET /api/analytics/coaching/report-card', () => {
   it('returns 400 without sessionId', async () => {
-    const res = await request(app)
-      .get('/api/analytics/coaching/report-card')
-      .expect(400);
+    const res = await request(app).get('/api/analytics/coaching/report-card').expect(400);
 
     expect(res.body.error).toBe('Invalid query parameters');
   });
@@ -142,9 +140,7 @@ describe('GET /api/analytics/coaching/report-cards', () => {
     seedSession('rc-range-1');
 
     // First compute a report card
-    await request(app)
-      .get('/api/analytics/coaching/report-card?sessionId=rc-range-1')
-      .expect(200);
+    await request(app).get('/api/analytics/coaching/report-card?sessionId=rc-range-1').expect(200);
 
     const now = Date.now();
     const res = await request(app)
@@ -162,9 +158,7 @@ describe('GET /api/analytics/coaching/report-cards', () => {
 
 describe('GET /api/analytics/coaching/nudges', () => {
   it('returns 400 without sessionId', async () => {
-    const res = await request(app)
-      .get('/api/analytics/coaching/nudges')
-      .expect(400);
+    const res = await request(app).get('/api/analytics/coaching/nudges').expect(400);
 
     expect(res.body.error).toBe('Invalid query parameters');
   });
@@ -208,9 +202,7 @@ describe('POST /api/analytics/coaching/nudges/dismiss', () => {
 
 describe('Playbook CRUD', () => {
   it('GET /playbooks returns empty array initially', async () => {
-    const res = await request(app)
-      .get('/api/analytics/coaching/playbooks')
-      .expect(200);
+    const res = await request(app).get('/api/analytics/coaching/playbooks').expect(200);
 
     expect(res.body.data).toEqual([]);
   });
@@ -233,17 +225,13 @@ describe('Playbook CRUD', () => {
     const id = createRes.body.data.id;
 
     // GET by ID
-    const getRes = await request(app)
-      .get(`/api/analytics/coaching/playbooks/${id}`)
-      .expect(200);
+    const getRes = await request(app).get(`/api/analytics/coaching/playbooks/${id}`).expect(200);
 
     expect(getRes.body.data.id).toBe(id);
     expect(getRes.body.data.name).toBe('Test Playbook');
 
     // GET all
-    const listRes = await request(app)
-      .get('/api/analytics/coaching/playbooks')
-      .expect(200);
+    const listRes = await request(app).get('/api/analytics/coaching/playbooks').expect(200);
 
     expect(listRes.body.data.length).toBeGreaterThanOrEqual(1);
   });
@@ -268,9 +256,7 @@ describe('Playbook CRUD', () => {
     expect(deleteRes.body.deleted).toBe(1);
 
     // Should be 404 now
-    await request(app)
-      .get(`/api/analytics/coaching/playbooks/${id}`)
-      .expect(404);
+    await request(app).get(`/api/analytics/coaching/playbooks/${id}`).expect(404);
   });
 
   it('POST /playbooks returns 400 with invalid data', async () => {
@@ -283,25 +269,19 @@ describe('Playbook CRUD', () => {
   });
 
   it('GET /playbooks/:id returns 400 for non-numeric ID', async () => {
-    const res = await request(app)
-      .get('/api/analytics/coaching/playbooks/abc')
-      .expect(400);
+    const res = await request(app).get('/api/analytics/coaching/playbooks/abc').expect(400);
 
     expect(res.body.error).toBe('Invalid playbook ID');
   });
 
   it('GET /playbooks/:id returns 404 for non-existent ID', async () => {
-    const res = await request(app)
-      .get('/api/analytics/coaching/playbooks/99999')
-      .expect(404);
+    const res = await request(app).get('/api/analytics/coaching/playbooks/99999').expect(404);
 
     expect(res.body.error).toBe('Playbook not found');
   });
 
   it('DELETE /playbooks/:id returns 400 for non-numeric ID', async () => {
-    const res = await request(app)
-      .delete('/api/analytics/coaching/playbooks/abc')
-      .expect(400);
+    const res = await request(app).delete('/api/analytics/coaching/playbooks/abc').expect(400);
 
     expect(res.body.error).toBe('Invalid playbook ID');
   });

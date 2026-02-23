@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -45,12 +48,16 @@ function projectHash(projectPath: string): string {
  * Scan a directory of JSONL files and index them into transcript_index.
  * Exported for direct testing — the route handler calls scanProjectTranscripts().
  */
-export async function scanTranscriptsInDir(
-  scanDir: string,
-  hash = '',
-): Promise<ScanResult> {
+export async function scanTranscriptsInDir(scanDir: string, hash = ''): Promise<ScanResult> {
   const start = Date.now();
-  const result: ScanResult = { scanned: 0, indexed: 0, skipped: 0, errors: [], truncated: false, durationMs: 0 };
+  const result: ScanResult = {
+    scanned: 0,
+    indexed: 0,
+    skipped: 0,
+    errors: [],
+    truncated: false,
+    durationMs: 0,
+  };
 
   if (!fs.existsSync(scanDir)) {
     result.durationMs = Date.now() - start;
@@ -59,7 +66,7 @@ export async function scanTranscriptsInDir(
 
   let files: string[];
   try {
-    files = fs.readdirSync(scanDir).filter(f => f.endsWith('.jsonl'));
+    files = fs.readdirSync(scanDir).filter((f) => f.endsWith('.jsonl'));
   } catch (err: unknown) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code === 'EACCES' || code === 'EPERM') {
@@ -112,7 +119,7 @@ export async function scanTranscriptsInDir(
     }
 
     try {
-      const summary = readTranscript(filePath, sessionId);
+      const summary = await readTranscript(filePath, sessionId);
 
       let startedAt: number | null = null;
       let endedAt: number | null = null;
@@ -181,7 +188,10 @@ export async function scanProjectTranscripts(projectDir: string): Promise<ScanRe
 /**
  * Get paginated historical sessions from the index.
  */
-export function getHistorySessions(limit = 100, offset = 0): { sessions: TranscriptIndexRow[]; total: number } {
+export function getHistorySessions(
+  limit = 100,
+  offset = 0,
+): { sessions: TranscriptIndexRow[]; total: number } {
   const { rows, total } = getAllTranscriptIndex(limit, offset);
   return { sessions: rows, total };
 }

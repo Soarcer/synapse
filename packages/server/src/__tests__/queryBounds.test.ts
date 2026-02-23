@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import path from 'path';
 import os from 'os';
 
@@ -71,7 +74,13 @@ describe('getEventsBySession with limit', () => {
 describe('getEventsByAgent with limit', () => {
   it('returns at most `limit` events', () => {
     for (let i = 0; i < 15; i++) {
-      insertEvent(makeEvent({ agent_id: 'limit-agent', session_id: 'agent-sess', created_at: Date.now() + i }));
+      insertEvent(
+        makeEvent({
+          agent_id: 'limit-agent',
+          session_id: 'agent-sess',
+          created_at: Date.now() + i,
+        }),
+      );
     }
 
     const all = getEventsByAgent('limit-agent');

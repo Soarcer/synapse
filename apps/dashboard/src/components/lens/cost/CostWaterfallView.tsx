@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useMemo, useCallback, useState, useRef, useEffect } from 'react';
 import { useLens } from '../LensContext';
 import { formatTokens } from '@synapse-ai/core';
@@ -65,7 +68,8 @@ export function CostWaterfallView() {
 
     return costPerTurn.map((t) => {
       if (t.inputTokens > 0) return t;
-      const estimated = t.toolCount > 0 ? Math.round(avgPerTool * t.toolCount) : Math.round(avgPerTool);
+      const estimated =
+        t.toolCount > 0 ? Math.round(avgPerTool * t.toolCount) : Math.round(avgPerTool);
       return { ...t, inputTokens: estimated, outputTokens: Math.round(estimated * 0.3) };
     });
   }, [costPerTurn, zeroMode]);
@@ -137,7 +141,10 @@ export function CostWaterfallView() {
       points.push(`${x},${centers[i]}`);
     }
 
-    const area = `M0,0 L${points[0]} ${points.slice(1).map((p) => `L${p}`).join(' ')} L0,${centers[n - 1] + ROW_H / 2} Z`;
+    const area = `M0,0 L${points[0]} ${points
+      .slice(1)
+      .map((p) => `L${p}`)
+      .join(' ')} L0,${centers[n - 1] + ROW_H / 2} Z`;
     const line = `M${points.join(' L')}`;
 
     return { areaPath: area, areaLinePath: line };
@@ -146,9 +153,7 @@ export function CostWaterfallView() {
   // Early return after all hooks
   if (!hasTokenData || costPerTurn.length === 0) {
     return (
-      <div className="p-4 text-center text-gray-600 text-xs">
-        No token data available yet.
-      </div>
+      <div className="p-4 text-center text-gray-600 text-xs">No token data available yet.</div>
     );
   }
 
@@ -162,7 +167,9 @@ export function CostWaterfallView() {
       <div className="px-3 py-1.5 border-b border-gray-800 flex-shrink-0 flex items-center gap-2">
         <span className="text-[10px] text-gray-500 font-medium">Cost per Turn</span>
         {hasTranscript && (
-          <span className="text-[8px] text-green-400/70 bg-green-900/30 px-1.5 py-0.5 rounded">JSONL</span>
+          <span className="text-[8px] text-green-400/70 bg-green-900/30 px-1.5 py-0.5 rounded">
+            JSONL
+          </span>
         )}
         <div className="ml-auto flex items-center gap-1">
           <span className="text-[9px] text-gray-600">0-tok:</span>
@@ -201,9 +208,26 @@ export function CostWaterfallView() {
             {/* Filled area */}
             <path d={areaPath} fill="url(#ctxGradient)" />
             {/* Edge line */}
-            <path d={areaLinePath} fill="none" stroke="rgb(96, 165, 250)" strokeWidth="1" strokeOpacity="0.4" vectorEffect="non-scaling-stroke" />
+            <path
+              d={areaLinePath}
+              fill="none"
+              stroke="rgb(96, 165, 250)"
+              strokeWidth="1"
+              strokeOpacity="0.4"
+              vectorEffect="non-scaling-stroke"
+            />
             {/* Max tokens reference line (right edge = peak context) */}
-            <line x1="100" y1="0" x2="100" y2={totalH} stroke="rgb(239, 68, 68)" strokeWidth="1" strokeOpacity="0.25" strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />
+            <line
+              x1="100"
+              y1="0"
+              x2="100"
+              y2={totalH}
+              stroke="rgb(239, 68, 68)"
+              strokeWidth="1"
+              strokeOpacity="0.25"
+              strokeDasharray="3 3"
+              vectorEffect="non-scaling-stroke"
+            />
           </svg>
 
           {/* Max label */}
@@ -221,7 +245,8 @@ export function CostWaterfallView() {
               const costRatio = turn.cumulativeInput / maxCumulative;
               const hue = Math.round(120 - costRatio * 120);
               const barColor = `hsl(${hue}, 60%, 45%)`;
-              const isOriginalZero = costPerTurn.find((t) => t.promptId === turn.promptId)?.inputTokens === 0;
+              const isOriginalZero =
+                costPerTurn.find((t) => t.promptId === turn.promptId)?.inputTokens === 0;
               const isEstimated = zeroMode === 'estimate' && isOriginalZero;
               const nodeId = `prompt-${turn.promptId}`;
               const isSelected = selectedId === nodeId;
@@ -229,7 +254,10 @@ export function CostWaterfallView() {
               return (
                 <div key={turn.promptId} data-node-id={nodeId}>
                   {turn.compactionBefore && (
-                    <div className="flex items-center gap-1.5 px-1" style={{ height: COMPACT_ROW_H }}>
+                    <div
+                      className="flex items-center gap-1.5 px-1"
+                      style={{ height: COMPACT_ROW_H }}
+                    >
                       <div className="flex-1 border-t border-dashed border-red-500/40" />
                       <span className="text-[9px] text-red-400/60">compaction</span>
                       <div className="flex-1 border-t border-dashed border-red-500/40" />
@@ -244,12 +272,18 @@ export function CostWaterfallView() {
                     title={[
                       `Turn ${turn.turnIndex + 1}: ${turn.promptText.slice(0, 80) || '(empty)'}${isEstimated ? ' (estimated)' : ''}`,
                       `Input: ${formatTokens(turn.inputTokens)} | Output: ${formatTokens(turn.outputTokens)}`,
-                      turn.cacheReadTokens != null ? `Cache read: ${formatTokens(turn.cacheReadTokens)} | Cache write: ${formatTokens(turn.cacheCreationTokens ?? 0)}` : null,
+                      turn.cacheReadTokens != null
+                        ? `Cache read: ${formatTokens(turn.cacheReadTokens)} | Cache write: ${formatTokens(turn.cacheCreationTokens ?? 0)}`
+                        : null,
                       turn.model ? `Model: ${turn.model}` : null,
-                      turn.responseLatencyMs != null ? `Latency: ${(turn.responseLatencyMs / 1000).toFixed(1)}s` : null,
+                      turn.responseLatencyMs != null
+                        ? `Latency: ${(turn.responseLatencyMs / 1000).toFixed(1)}s`
+                        : null,
                       `Tools: ${turn.toolCount} | Cumulative: ${formatTokens(turn.cumulativeInput)}`,
                       `Source: ${turn.dataSource}`,
-                    ].filter(Boolean).join('\n')}
+                    ]
+                      .filter(Boolean)
+                      .join('\n')}
                   >
                     <span className="text-gray-500 text-[10px] w-4 text-right font-mono flex-shrink-0">
                       {turn.turnIndex + 1}
@@ -260,11 +294,15 @@ export function CostWaterfallView() {
                         style={{
                           width: `${barWidth}%`,
                           backgroundColor: barColor,
-                          backgroundImage: isEstimated ? 'repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(0,0,0,0.2) 2px, rgba(0,0,0,0.2) 4px)' : undefined,
+                          backgroundImage: isEstimated
+                            ? 'repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(0,0,0,0.2) 2px, rgba(0,0,0,0.2) 4px)'
+                            : undefined,
                         }}
                       />
                     </div>
-                    <span className={`text-[10px] font-mono w-10 text-right flex-shrink-0 ${isEstimated ? 'text-gray-500 italic' : 'text-gray-400'}`}>
+                    <span
+                      className={`text-[10px] font-mono w-10 text-right flex-shrink-0 ${isEstimated ? 'text-gray-500 italic' : 'text-gray-400'}`}
+                    >
                       {formatTokens(turn.inputTokens)}
                     </span>
                   </div>
@@ -277,13 +315,16 @@ export function CostWaterfallView() {
         {/* Legend */}
         <div className="flex items-center gap-3 mt-3 pt-2 border-t border-gray-800 text-[9px] text-gray-600">
           <span className="flex items-center gap-1">
-            <span className="w-3 h-2 rounded" style={{ backgroundColor: 'hsl(120, 60%, 45%)' }} /> cheap
+            <span className="w-3 h-2 rounded" style={{ backgroundColor: 'hsl(120, 60%, 45%)' }} />{' '}
+            cheap
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-3 h-2 rounded" style={{ backgroundColor: 'hsl(60, 60%, 45%)' }} /> moderate
+            <span className="w-3 h-2 rounded" style={{ backgroundColor: 'hsl(60, 60%, 45%)' }} />{' '}
+            moderate
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-3 h-2 rounded" style={{ backgroundColor: 'hsl(0, 60%, 45%)' }} /> expensive
+            <span className="w-3 h-2 rounded" style={{ backgroundColor: 'hsl(0, 60%, 45%)' }} />{' '}
+            expensive
           </span>
           <span className="flex items-center gap-1">
             <span className="w-2 border-t border-dashed border-red-500/40" /> compaction
@@ -296,8 +337,14 @@ export function CostWaterfallView() {
         {/* Summary */}
         {(() => {
           const lastTurn = turnsWithCumulative[turnsWithCumulative.length - 1];
-          const totalCacheRead = turnsWithCumulative.reduce((s, t) => s + (t.cacheReadTokens ?? 0), 0);
-          const totalCacheWrite = turnsWithCumulative.reduce((s, t) => s + (t.cacheCreationTokens ?? 0), 0);
+          const totalCacheRead = turnsWithCumulative.reduce(
+            (s, t) => s + (t.cacheReadTokens ?? 0),
+            0,
+          );
+          const totalCacheWrite = turnsWithCumulative.reduce(
+            (s, t) => s + (t.cacheCreationTokens ?? 0),
+            0,
+          );
           const totalInput = lastTurn?.cumulativeInput ?? 0;
           const cacheHitRate = totalInput > 0 ? (totalCacheRead / totalInput) * 100 : 0;
 
@@ -308,12 +355,12 @@ export function CostWaterfallView() {
           }
 
           return (
-            <div className={`mt-2 grid gap-2 text-[10px] ${hasTranscript ? 'grid-cols-3' : 'grid-cols-3'}`}>
+            <div
+              className={`mt-2 grid gap-2 text-[10px] ${hasTranscript ? 'grid-cols-3' : 'grid-cols-3'}`}
+            >
               <div className="bg-gray-900/50 rounded px-2 py-1.5 border border-gray-800">
                 <div className="text-gray-500">Total input</div>
-                <div className="text-cyan-400 font-mono font-bold">
-                  {formatTokens(totalInput)}
-                </div>
+                <div className="text-cyan-400 font-mono font-bold">{formatTokens(totalInput)}</div>
               </div>
               <div className="bg-gray-900/50 rounded px-2 py-1.5 border border-gray-800">
                 <div className="text-gray-500">Total output</div>
@@ -323,9 +370,7 @@ export function CostWaterfallView() {
               </div>
               <div className="bg-gray-900/50 rounded px-2 py-1.5 border border-gray-800">
                 <div className="text-gray-500">Peak context</div>
-                <div className="text-blue-400 font-mono font-bold">
-                  {formatTokens(peakContext)}
-                </div>
+                <div className="text-blue-400 font-mono font-bold">{formatTokens(peakContext)}</div>
               </div>
               {hasTranscript && (
                 <>

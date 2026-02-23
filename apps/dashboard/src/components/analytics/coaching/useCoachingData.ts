@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useEffect, useRef } from 'react';
 import { apiUrl } from '../../../utils/api';
 import type { ReportCard, CoachingNudge, Playbook } from '@synapse-ai/core';
@@ -61,10 +64,12 @@ export function useCoachingData(sessionIds: string[]): CoachingData {
     const reportCardUrl =
       ids.length === 1
         ? apiUrl(`/api/analytics/coaching/report-card?sessionId=${encodeURIComponent(ids[0])}`)
-        : apiUrl(`/api/analytics/coaching/report-card/multi?sessionIds=${ids.map(encodeURIComponent).join(',')}`);
+        : apiUrl(
+            `/api/analytics/coaching/report-card/multi?sessionIds=${ids.map(encodeURIComponent).join(',')}`,
+          );
 
     // Nudges: fetch for each session and merge
-    const nudgePromises = ids.map(sid =>
+    const nudgePromises = ids.map((sid) =>
       fetchJson<CoachingNudge[]>(
         apiUrl(`/api/analytics/coaching/nudges?sessionId=${encodeURIComponent(sid)}`),
       ).catch(() => EMPTY_NUDGES),
@@ -75,21 +80,23 @@ export function useCoachingData(sessionIds: string[]): CoachingData {
     Promise.all([
       fetchJson<ReportCard>(reportCardUrl).catch(() => null),
       Promise.all(nudgePromises),
-    ]).then(([rc, nudgeArrays]) => {
-      // Only apply if this is still the active request (guards against
-      // React StrictMode double-fire and rapid idsKey changes)
-      if (activeKeyRef.current !== capturedKey) return;
+    ])
+      .then(([rc, nudgeArrays]) => {
+        // Only apply if this is still the active request (guards against
+        // React StrictMode double-fire and rapid idsKey changes)
+        if (activeKeyRef.current !== capturedKey) return;
 
-      setReportCard(rc ?? null);
-      const merged = nudgeArrays.flat().sort((a, b) => b.firedAt - a.firedAt);
-      setNudges(merged.length > 0 ? merged : EMPTY_NUDGES);
-      setIsLoading(false);
-      if (!rc) setError('Report card unavailable \u2014 check server logs');
-    }).catch(() => {
-      if (activeKeyRef.current !== capturedKey) return;
-      setError('Failed to load coaching data');
-      setIsLoading(false);
-    });
+        setReportCard(rc ?? null);
+        const merged = nudgeArrays.flat().sort((a, b) => b.firedAt - a.firedAt);
+        setNudges(merged.length > 0 ? merged : EMPTY_NUDGES);
+        setIsLoading(false);
+        if (!rc) setError('Report card unavailable \u2014 check server logs');
+      })
+      .catch(() => {
+        if (activeKeyRef.current !== capturedKey) return;
+        setError('Failed to load coaching data');
+        setIsLoading(false);
+      });
 
     // No abort in cleanup — let the request finish, the stale-check
     // in .then() handles ignoring outdated responses.
@@ -100,15 +107,19 @@ export function useCoachingData(sessionIds: string[]): CoachingData {
     let cancelled = false;
 
     fetchJson<Playbook[]>(apiUrl('/api/analytics/coaching/playbooks'))
-      .then(data => {
+      .then((data) => {
         if (!cancelled) setPlaybooks(data ?? EMPTY_PLAYBOOKS);
       })
-      .catch(() => { /* ignore */ });
+      .catch(() => {
+        /* ignore */
+      });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [playbookRefresh]);
 
-  const refetchPlaybooks = () => setPlaybookRefresh(n => n + 1);
+  const refetchPlaybooks = () => setPlaybookRefresh((n) => n + 1);
 
   return { reportCard, nudges, playbooks, isLoading, error, refetchPlaybooks };
 }

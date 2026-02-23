@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useEffect, useRef } from 'react';
 import { apiUrl } from '../../../utils/api';
 
@@ -19,7 +22,9 @@ export function ProjectFilter({ value, onChange }: ProjectFilterProps) {
         if (!cancelled && Array.isArray(d.data)) setProjects(d.data);
       })
       .catch(() => {});
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -32,9 +37,7 @@ export function ProjectFilter({ value, onChange }: ProjectFilterProps) {
 
   if (projects.length === 0) return null;
 
-  const displayValue = value
-    ? value.split(/[/\\]/).pop() ?? value
-    : 'All Projects';
+  const displayValue = value ? (value.split(/[/\\]/).pop() ?? value) : 'All Projects';
 
   return (
     <div className="relative" ref={ref}>
@@ -52,7 +55,10 @@ export function ProjectFilter({ value, onChange }: ProjectFilterProps) {
       {open && (
         <div className="absolute top-full left-0 mt-1 z-30 w-64 bg-[#161b22] border border-gray-700 rounded-lg shadow-xl overflow-hidden">
           <button
-            onClick={() => { onChange(undefined); setOpen(false); }}
+            onClick={() => {
+              onChange(undefined);
+              setOpen(false);
+            }}
             className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-800/50 transition-colors ${
               !value ? 'text-blue-400 bg-blue-500/5' : 'text-gray-300'
             }`}
@@ -62,7 +68,10 @@ export function ProjectFilter({ value, onChange }: ProjectFilterProps) {
           {projects.map((p) => (
             <button
               key={p}
-              onClick={() => { onChange(p); setOpen(false); }}
+              onClick={() => {
+                onChange(p);
+                setOpen(false);
+              }}
               className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-800/50 transition-colors truncate ${
                 value === p ? 'text-blue-400 bg-blue-500/5' : 'text-gray-300'
               }`}

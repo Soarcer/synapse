@@ -1,10 +1,13 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAgentStore } from '../../../store/agentStore';
 import { apiUrl } from '../../../utils/api';
 import { copyToClipboard } from '../../../utils/clipboard';
 import type { CoachingNudge, NudgeSeverity, NudgeRuleCategory } from '@synapse-ai/core';
 
-type Sensitivity = 'low' | 'medium' | 'high';
+type Sensitivity = 'off' | 'low' | 'medium' | 'high';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -43,10 +46,28 @@ interface CrossSessionInsight {
 
 // ─── Constants ──────────────────────────────────────────────────────
 
-const SEVERITY_STYLES: Record<NudgeSeverity, { border: string; bg: string; icon: string; text: string }> = {
-  info: { border: 'border-blue-500/30', bg: 'bg-blue-500/5', icon: 'text-blue-400', text: 'text-blue-300' },
-  suggestion: { border: 'border-amber-500/30', bg: 'bg-amber-500/5', icon: 'text-amber-400', text: 'text-amber-300' },
-  warning: { border: 'border-red-500/30', bg: 'bg-red-500/5', icon: 'text-red-400', text: 'text-red-300' },
+const SEVERITY_STYLES: Record<
+  NudgeSeverity,
+  { border: string; bg: string; icon: string; text: string }
+> = {
+  info: {
+    border: 'border-blue-500/30',
+    bg: 'bg-blue-500/5',
+    icon: 'text-blue-400',
+    text: 'text-blue-300',
+  },
+  suggestion: {
+    border: 'border-amber-500/30',
+    bg: 'bg-amber-500/5',
+    icon: 'text-amber-400',
+    text: 'text-amber-300',
+  },
+  warning: {
+    border: 'border-red-500/30',
+    bg: 'bg-red-500/5',
+    icon: 'text-red-400',
+    text: 'text-red-300',
+  },
 };
 
 const SEVERITY_ICONS: Record<NudgeSeverity, string> = {
@@ -55,25 +76,34 @@ const SEVERITY_ICONS: Record<NudgeSeverity, string> = {
   warning: '\u26D4',
 };
 
-const INSIGHT_STYLES: Record<CrossSessionInsight['type'], { border: string; bg: string; icon: string }> = {
-  'habit': { border: 'border-amber-500/30', bg: 'bg-amber-500/5', icon: '\uD83D\uDD01' },
-  'improvement': { border: 'border-green-500/30', bg: 'bg-green-500/5', icon: '\uD83D\uDCC8' },
-  'regression': { border: 'border-red-500/30', bg: 'bg-red-500/5', icon: '\uD83D\uDCC9' },
+const INSIGHT_STYLES: Record<
+  CrossSessionInsight['type'],
+  { border: string; bg: string; icon: string }
+> = {
+  habit: { border: 'border-amber-500/30', bg: 'bg-amber-500/5', icon: '\uD83D\uDD01' },
+  improvement: { border: 'border-green-500/30', bg: 'bg-green-500/5', icon: '\uD83D\uDCC8' },
+  regression: { border: 'border-red-500/30', bg: 'bg-red-500/5', icon: '\uD83D\uDCC9' },
   'personal-best': { border: 'border-purple-500/30', bg: 'bg-purple-500/5', icon: '\uD83C\uDFC6' },
 };
 
 const CATEGORY_LABELS: Record<NudgeRuleCategory, string> = {
   'tool-usage': 'Tool Usage',
-  'planning': 'Planning & Prompts',
-  'verification': 'Verification',
-  'git': 'Git & Workflow',
-  'security': 'Security',
-  'efficiency': 'Efficiency',
-  'orchestration': 'Orchestration',
+  planning: 'Planning & Prompts',
+  verification: 'Verification',
+  git: 'Git & Workflow',
+  security: 'Security',
+  efficiency: 'Efficiency',
+  orchestration: 'Orchestration',
 };
 
 const CATEGORY_ORDER: NudgeRuleCategory[] = [
-  'tool-usage', 'planning', 'verification', 'git', 'security', 'efficiency', 'orchestration',
+  'tool-usage',
+  'planning',
+  'verification',
+  'git',
+  'security',
+  'efficiency',
+  'orchestration',
 ];
 
 const EMPTY_STATS: NudgeStats = { byDetector: [], totalFired: 0, totalDismissed: 0 };
@@ -92,7 +122,7 @@ export function LiveNudgesView() {
   const [insights, setInsights] = useState<CrossSessionInsight[]>(EMPTY_INSIGHTS);
   const [statsLoading, setStatsLoading] = useState(true);
   const [rulesLoading, setRulesLoading] = useState(true);
-  const [sensitivity, setSensitivity] = useState<Sensitivity>('medium');
+  const [sensitivity, setSensitivity] = useState<Sensitivity>('off');
   const [sensitivitySaving, setSensitivitySaving] = useState(false);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [ruleSearch, setRuleSearch] = useState('');
@@ -102,27 +132,41 @@ export function LiveNudgesView() {
     let cancelled = false;
     fetch(apiUrl('/api/analytics/coaching/nudges/stats'))
       .then((r) => r.json())
-      .then((d) => { if (!cancelled && d.data) setStats(d.data); })
+      .then((d) => {
+        if (!cancelled && d.data) setStats(d.data);
+      })
       .catch(() => {})
-      .finally(() => { if (!cancelled) setStatsLoading(false); });
+      .finally(() => {
+        if (!cancelled) setStatsLoading(false);
+      });
 
     fetch(apiUrl('/api/analytics/coaching/sensitivity'))
       .then((r) => r.json())
-      .then((d) => { if (!cancelled && d.data?.level) setSensitivity(d.data.level); })
+      .then((d) => {
+        if (!cancelled && d.data?.level) setSensitivity(d.data.level);
+      })
       .catch(() => {});
 
     fetch(apiUrl('/api/analytics/coaching/rules'))
       .then((r) => r.json())
-      .then((d) => { if (!cancelled && d.data) setServerRules(d.data); })
+      .then((d) => {
+        if (!cancelled && d.data) setServerRules(d.data);
+      })
       .catch(() => {})
-      .finally(() => { if (!cancelled) setRulesLoading(false); });
+      .finally(() => {
+        if (!cancelled) setRulesLoading(false);
+      });
 
     fetch(apiUrl('/api/analytics/coaching/cross-session?limit=10'))
       .then((r) => r.json())
-      .then((d) => { if (!cancelled && d.data) setInsights(d.data); })
+      .then((d) => {
+        if (!cancelled && d.data) setInsights(d.data);
+      })
       .catch(() => {});
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const updateSensitivity = useCallback((level: Sensitivity) => {
@@ -139,9 +183,7 @@ export function LiveNudgesView() {
 
   const toggleRule = useCallback((ruleId: string) => {
     setServerRules((prev) => {
-      const updated = prev.map((r) =>
-        r.id === ruleId ? { ...r, enabled: !r.enabled } : r,
-      );
+      const updated = prev.map((r) => (r.id === ruleId ? { ...r, enabled: !r.enabled } : r));
       // Persist to server
       const rule = updated.find((r) => r.id === ruleId);
       if (rule) {
@@ -160,7 +202,9 @@ export function LiveNudgesView() {
       .then(() =>
         fetch(apiUrl('/api/analytics/coaching/rules'))
           .then((r) => r.json())
-          .then((d) => { if (d.data) setServerRules(d.data); }),
+          .then((d) => {
+            if (d.data) setServerRules(d.data);
+          }),
       )
       .catch(() => {});
   }, []);
@@ -198,11 +242,12 @@ export function LiveNudgesView() {
   const rulesByCategory = useMemo(() => {
     const search = ruleSearch.toLowerCase();
     const filtered = search
-      ? serverRules.filter((r) =>
-          r.name.toLowerCase().includes(search) ||
-          r.id.toLowerCase().includes(search) ||
-          r.description.toLowerCase().includes(search) ||
-          r.tags.some((t) => t.toLowerCase().includes(search)),
+      ? serverRules.filter(
+          (r) =>
+            r.name.toLowerCase().includes(search) ||
+            r.id.toLowerCase().includes(search) ||
+            r.description.toLowerCase().includes(search) ||
+            r.tags.some((t) => t.toLowerCase().includes(search)),
         )
       : serverRules;
     const map = new Map<NudgeRuleCategory, ServerRule[]>();
@@ -227,7 +272,8 @@ export function LiveNudgesView() {
       });
   }, [stats.byDetector, serverRules]);
 
-  const dismissRate = stats.totalFired > 0 ? ((stats.totalDismissed / stats.totalFired) * 100).toFixed(1) : '0';
+  const dismissRate =
+    stats.totalFired > 0 ? ((stats.totalDismissed / stats.totalFired) * 100).toFixed(1) : '0';
   const enabledCount = serverRules.filter((r) => r.enabled).length;
   const totalRules = serverRules.length;
 
@@ -238,7 +284,11 @@ export function LiveNudgesView() {
         <StatCard label="Total Fired" value={statsLoading ? '...' : String(stats.totalFired)} />
         <StatCard label="Dismissed" value={statsLoading ? '...' : String(stats.totalDismissed)} />
         <StatCard label="Dismiss Rate" value={statsLoading ? '...' : `${dismissRate}%`} />
-        <StatCard label="Active Now" value={String(activeNudges.length)} highlight={activeNudges.length > 0} />
+        <StatCard
+          label="Active Now"
+          value={String(activeNudges.length)}
+          highlight={activeNudges.length > 0}
+        />
         <StatCard
           label="Rules"
           value={rulesLoading ? '...' : `${enabledCount}/${totalRules}`}
@@ -264,9 +314,7 @@ export function LiveNudgesView() {
         {/* Left: Nudge Timeline + Quick Wins */}
         <div className="lg:col-span-2 space-y-4">
           {/* Nudge timeline dots */}
-          {sortedNudges.length > 0 && (
-            <NudgeTimeline nudges={sortedNudges.slice(0, 40)} />
-          )}
+          {sortedNudges.length > 0 && <NudgeTimeline nudges={sortedNudges.slice(0, 40)} />}
 
           {/* Quick Wins */}
           {quickWins.length > 0 && (
@@ -288,9 +336,7 @@ export function LiveNudgesView() {
                         </span>
                         <SeverityBadge severity={qw.rule?.defaultSeverity ?? 'info'} />
                       </div>
-                      <span className="text-[10px] text-gray-500">
-                        {qw.fire_count} fires
-                      </span>
+                      <span className="text-[10px] text-gray-500">{qw.fire_count} fires</span>
                     </div>
                     <p className="text-[11px] text-gray-400 mb-1.5">
                       {qw.rule?.description ?? 'No description'}
@@ -310,7 +356,9 @@ export function LiveNudgesView() {
               <div className="bg-[#161b22] border border-gray-800 rounded-xl p-6 text-center">
                 <div className="text-gray-600 text-2xl mb-2">{'\u2705'}</div>
                 <p className="text-sm text-gray-400">No active nudges</p>
-                <p className="text-xs text-gray-600 mt-1">Nudges appear in real-time during active sessions</p>
+                <p className="text-xs text-gray-600 mt-1">
+                  Nudges appear in real-time during active sessions
+                </p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -360,8 +408,10 @@ export function LiveNudgesView() {
                   <tbody>
                     {stats.byDetector.map((row) => {
                       const rule = serverRules.find((r) => r.id === row.detector_id);
-                      const rate = row.fire_count > 0
-                        ? ((row.dismiss_count / row.fire_count) * 100).toFixed(0) : '0';
+                      const rate =
+                        row.fire_count > 0
+                          ? ((row.dismiss_count / row.fire_count) * 100).toFixed(0)
+                          : '0';
                       return (
                         <tr key={row.detector_id} className="border-b border-gray-800/50">
                           <td className="p-3 text-gray-300">{rule?.name ?? row.detector_id}</td>
@@ -396,18 +446,20 @@ export function LiveNudgesView() {
               Controls how aggressively AI analyzes tool patterns and escalates nudges.
             </p>
             <div className="flex gap-1.5">
-              {(['low', 'medium', 'high'] as const).map((level) => (
+              {(['off', 'low', 'medium', 'high'] as const).map((level) => (
                 <button
                   key={level}
                   onClick={() => updateSensitivity(level)}
                   disabled={sensitivitySaving}
                   className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                     sensitivity === level
-                      ? level === 'low'
-                        ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                        : level === 'medium'
-                          ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                          : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                      ? level === 'off'
+                        ? 'bg-gray-500/20 text-gray-300 border border-gray-500/30'
+                        : level === 'low'
+                          ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                          : level === 'medium'
+                            ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                            : 'bg-red-500/20 text-red-400 border border-red-500/30'
                       : 'bg-gray-800/50 text-gray-500 border border-gray-800 hover:text-gray-400'
                   }`}
                 >
@@ -416,6 +468,7 @@ export function LiveNudgesView() {
               ))}
             </div>
             <div className="mt-2 text-[10px] text-gray-600">
+              {sensitivity === 'off' && 'AI coaching disabled. No automatic checks.'}
               {sensitivity === 'low' && 'Checks every 20 tool calls. Fewer interruptions.'}
               {sensitivity === 'medium' && 'Checks every 10 tool calls. Balanced coverage.'}
               {sensitivity === 'high' && 'Checks every 5 tool calls. Maximum oversight.'}
@@ -482,7 +535,8 @@ export function LiveNudgesView() {
                               key={rule.id}
                               rule={rule}
                               fireCount={
-                                stats.byDetector.find((d) => d.detector_id === rule.id)?.fire_count ?? 0
+                                stats.byDetector.find((d) => d.detector_id === rule.id)
+                                  ?.fire_count ?? 0
                               }
                               onToggle={() => toggleRule(rule.id)}
                             />
@@ -503,20 +557,22 @@ export function LiveNudgesView() {
             </h3>
             <div className="space-y-3 text-[11px] text-gray-400 leading-relaxed">
               <p>
-                <span className="text-gray-200">30 rules</span> across 7 categories monitor your Claude Code sessions
-                in real-time, detecting anti-patterns like using Bash for file ops, editing without reading, and
-                committing without review.
+                <span className="text-gray-200">30 rules</span> across 7 categories monitor your
+                Claude Code sessions in real-time, detecting anti-patterns like using Bash for file
+                ops, editing without reading, and committing without review.
               </p>
               <p>
-                Rules use a <span className="text-gray-200">visitor pattern</span> — only rules subscribed to the
-                incoming event type are evaluated, keeping overhead near zero.
+                Rules use a <span className="text-gray-200">visitor pattern</span> — only rules
+                subscribed to the incoming event type are evaluated, keeping overhead near zero.
               </p>
               <p>
-                The <span className="text-gray-200">delivery manager</span> prevents nudge fatigue with per-rule
-                cooldowns, exponential backoff, and auto-suppression after repeated dismissals.
+                The <span className="text-gray-200">delivery manager</span> prevents nudge fatigue
+                with per-rule cooldowns, exponential backoff, and auto-suppression after repeated
+                dismissals.
               </p>
               <p>
-                Rule toggles are <span className="text-gray-200">persisted server-side</span> and affect all sessions.
+                Rule toggles are <span className="text-gray-200">persisted server-side</span> and
+                affect all sessions.
               </p>
             </div>
           </div>
@@ -603,13 +659,10 @@ function NudgeTimeline({ nudges }: { nudges: CoachingNudge[] }) {
       </h3>
       <div className="flex items-end gap-1 h-12">
         {buckets.map((bucket, i) => {
-          const maxSeverity = bucket.nudges.reduce<NudgeSeverity>(
-            (max, n) => {
-              const order: Record<NudgeSeverity, number> = { info: 0, suggestion: 1, warning: 2 };
-              return order[n.severity] > order[max] ? n.severity : max;
-            },
-            'info',
-          );
+          const maxSeverity = bucket.nudges.reduce<NudgeSeverity>((max, n) => {
+            const order: Record<NudgeSeverity, number> = { info: 0, suggestion: 1, warning: 2 };
+            return order[n.severity] > order[max] ? n.severity : max;
+          }, 'info');
           const height = Math.min(100, bucket.nudges.length * 25 + 25);
           return (
             <div
@@ -739,7 +792,9 @@ function NudgeCard({
   const aiAnalysis = recParts.length > 1 ? recParts[1] : null;
 
   return (
-    <div className={`rounded-lg border ${styles.border} ${styles.bg} p-3 ${dismissed ? 'opacity-50' : ''}`}>
+    <div
+      className={`rounded-lg border ${styles.border} ${styles.bg} p-3 ${dismissed ? 'opacity-50' : ''}`}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-start gap-2 flex-1">
           <span className={`${styles.icon} text-sm mt-0.5`}>{icon}</span>
@@ -758,8 +813,12 @@ function NudgeCard({
             <p className="text-xs text-gray-400 mt-1">{nudge.message}</p>
             {nudge.triggerPrompt && (
               <div className="mt-1.5 px-2 py-1 bg-gray-800/40 border-l-2 border-gray-600/40 rounded-r">
-                <span className="text-[10px] text-gray-600 font-medium uppercase tracking-wide">Triggered by</span>
-                <p className="text-[11px] text-gray-500 mt-0.5 italic truncate">&ldquo;{nudge.triggerPrompt}&rdquo;</p>
+                <span className="text-[10px] text-gray-600 font-medium uppercase tracking-wide">
+                  Triggered by
+                </span>
+                <p className="text-[11px] text-gray-500 mt-0.5 italic truncate">
+                  &ldquo;{nudge.triggerPrompt}&rdquo;
+                </p>
               </div>
             )}
             {baseRec && <RecommendationBlock text={baseRec} />}

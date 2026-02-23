@@ -1,5 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
-import type { ReasoningData, ReasoningTurn } from '@synapse-ai/core';
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
+import { useState, useEffect, useMemo, useRef } from 'react';
+import type { ReasoningData } from '@synapse-ai/core';
 import { CollapsibleSection } from './CollapsibleSection.js';
 import { apiUrl } from '../../utils/api.js';
 
@@ -8,28 +11,49 @@ interface PromptReasoningSummaryProps {
   promptTimestamp: number;
 }
 
-export function PromptReasoningSummary({ sessionId, promptTimestamp }: PromptReasoningSummaryProps) {
+export function PromptReasoningSummary({
+  sessionId,
+  promptTimestamp,
+}: PromptReasoningSummaryProps) {
   const [data, setData] = useState<ReasoningData | null>(null);
   const [loading, setLoading] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!sessionId) return;
+
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    setData(null);
     setLoading(true);
 
-    fetch(apiUrl(`/api/transcript/${sessionId}/reasoning`))
-      .then(r => {
+    fetch(apiUrl(`/api/transcript/${sessionId}/reasoning`), { signal: controller.signal })
+      .then((r) => {
         if (!r.ok) throw new Error(`${r.status}`);
         return r.json();
       })
-      .then((d: ReasoningData) => setData(d))
-      .catch(() => { /* silently fail — reasoning is optional */ })
-      .finally(() => setLoading(false));
+      .then((d: ReasoningData) => {
+        if (!controller.signal.aborted) setData(d);
+      })
+      .catch((e) => {
+        if (e instanceof DOMException && e.name === 'AbortError') return;
+        /* silently fail — reasoning is optional */
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => {
+      controller.abort();
+    };
   }, [sessionId]);
 
   // Filter turns to the prompt's time window (from promptTimestamp to the next prompt or end)
   const relevantTurns = useMemo(() => {
     if (!data?.turns.length) return [];
-    return data.turns.filter(t => {
+    return data.turns.filter((t) => {
       // Include turns that occurred after this prompt timestamp
       // A rough heuristic: within 5 minutes of the prompt
       const diff = t.timestamp - promptTimestamp;
@@ -40,10 +64,10 @@ export function PromptReasoningSummary({ sessionId, promptTimestamp }: PromptRea
   if (loading) return null;
   if (!data || relevantTurns.length === 0) return null;
 
-  const thinkingTurns = relevantTurns.filter(t => t.thinkingText);
+  const thinkingTurns = relevantTurns.filter((t) => t.thinkingText);
   const totalChars = thinkingTurns.reduce((s, t) => s + (t.thinkingText?.length ?? 0), 0);
   const decisions = relevantTurns
-    .map(t => t.structured?.decision)
+    .map((t) => t.structured?.decision)
     .filter((d): d is string => d != null);
 
   // Tool summary: count by name
@@ -59,11 +83,12 @@ export function PromptReasoningSummary({ sessionId, promptTimestamp }: PromptRea
 
   // Confidence range
   const confidences = relevantTurns
-    .map(t => t.structured?.confidence)
+    .map((t) => t.structured?.confidence)
     .filter((c): c is number => c != null);
-  const confRange = confidences.length > 0
-    ? `${Math.round(Math.min(...confidences) * 100)}–${Math.round(Math.max(...confidences) * 100)}%`
-    : null;
+  const confRange =
+    confidences.length > 0
+      ? `${Math.round(Math.min(...confidences) * 100)}–${Math.round(Math.max(...confidences) * 100)}%`
+      : null;
 
   const badge = `${thinkingTurns.length} thinking · ${formatChars(totalChars)}`;
 

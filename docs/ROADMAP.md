@@ -1,377 +1,280 @@
-# Synapse — Unified Roadmap (v2.2)
+# Synapse — Unified Roadmap (v3.0)
 
 > Unified plan for Synapse platform architecture.
 > See `docs/SYNAPSE_PLAN.md` for the full Synapse reference architecture.
-> See `docs/IMPLEMENTATION_PROMPT.md` for the parallel-agent execution prompt.
 
 ---
 
 ## Progress Tracker
 
-| Phase | Name | Status | Notes |
-|-------|------|--------|-------|
-| 1 | Hardening | ✅ **95% DONE** | 2 tiny cleanup items remain (`nul` file, `dagre` dep) |
-| 2 | Developer Experience | 🔶 **35% DONE** | Deps installed + bash scripts; config files + tests needed |
-| 3 | Monorepo Extraction | ⬜ Not started | |
-| 4 | Performance + UX | 🔶 **25% DONE** | Transcript/snapshot routes + JSON export + empty states + search |
-| 5 | Canvas2D Widget | ⬜ Not started | |
-| 6 | VSCode Extension | 🔶 **35% DONE** | Extension skeleton: StatusBar, WebView Panel, 5 commands |
-| 7 | Auto-Resume + Cost | 🔶 **10% DONE** | Snapshot export/import exists; no auto-load/save or cost tables |
-| 8 | ClawBrain | 🔶 **65% DONE** | 3-layer plugin + backend integration; missing adapter + /brain |
-| 9 | Multi-Vendor Integration | ⬜ **PLANNED** | Gemini CLI + Codex CLI adapters; plan + research complete |
-| — | Packaging & CLI | ✅ **90% DONE** | All 5 packaging options implemented |
-
----
-
-## Packaging & CLI — ✅ 90% COMPLETE
-
-All 5 packaging options from the original plan are implemented:
-
-| Option | Status | Files |
-|--------|--------|-------|
-| 1. Folder copy | ✅ | `scripts/make-package.ps1` + `.sh` (supports `--prebuilt`) |
-| 2. Global install | ✅ | `scripts/install-global.ps1` + `.sh` → `~/.synapse` |
-| 3. Single-process server | ✅ | `server/index.ts` serves `dist/` via `express.static` + SPA fallback |
-| 4. npm CLI | ✅ | `bin/synapse.mjs` — `synapse start`, `synapse hook`, `synapse unhook` |
-| 5. VSCode extension build | ✅ | `scripts/build-extension.ps1` + `.sh` → `.vsix` |
-
-Additional scripts: `scripts/setup-hooks.sh/ps1`, `scripts/synapse.sh/ps1` (wrapper with background mode + status), `scripts/build-openclaw.sh/ps1`.
-
-Package name: `synapse-viz` with `bin/synapse.mjs` entry point, `.npmignore`, `.env.example`.
-
-Documentation: `docs/INSTALL.md` (433-line installation guide covering npm CLI, single-process, VSCode extension, OpenClaw plugin).
-
----
-
-## Key Decisions
-
-### 1. Harden BEFORE refactoring
-Error boundaries, testing, linting in the current structure FIRST. Refactoring broken code is harder than refactoring stable code.
-
-### 2. Monorepo extraction is Phase 3 (not Phase 1)
-The Synapse plan jumps straight to monorepo. But the current code has no tests, no linting, no error handling. Extract AFTER quality guardrails exist.
-
-### 3. Build in-place (not a separate project)
-Convert this codebase into the Synapse monorepo. Phases 1-2 happen in the current structure. Phase 3 restructures via `git mv`. Git history preserved, no double maintenance.
-
-### 4. VSCode = hybrid approach
-- **WebView Panel** for the full dashboard (reuse React UI)
-- **WebView Sidebar** for the Canvas2D widget (lightweight)
-- **Native StatusBar** for always-visible metrics (glanceable)
-- **Native TreeView** for agent hierarchy (integrates with Explorer)
-- Skip CodeLens and Timeline for v1
-
-### 5. Canvas2D widget is worth building
-20KB vs 150KB for React Flow. Essential for VSCode sidebar, iframe embeds, and eventually OpenClaw.
-
-### 6. OpenClaw/ClawBrain = separate session
-ClawBrain is a full plugin with its own hook system. Build it after core + dashboard + widget are stable.
-
----
-
-## Parallel Execution Map (max 3 concurrent agents)
+| Phase | Name                           | Status              | Notes                                                                                      |
+| ----- | ------------------------------ | ------------------- | ------------------------------------------------------------------------------------------ |
+| 1     | Hardening                      | ✅ **DONE**         | Error boundaries, rate limiting, agent limits, confirmation dialogs                        |
+| 2     | Developer Experience           | ✅ **DONE**         | ESLint, Prettier, EditorConfig, Vitest, CI/CD, CONTRIBUTING.md, Husky                      |
+| 3     | Monorepo Extraction            | ✅ **DONE**         | 5 workspace packages, pnpm workspaces, @synapse-ai/core cross-imports                      |
+| 4     | Performance + UX               | ✅ **DONE**         | Async I/O, materialized sessions, batch transcript fetch, react-virtuoso, URL deep linking |
+| 5     | Canvas2D Widget                | ❌ **REMOVED**      | Pixel Art Office removed from codebase                                                     |
+| 5b    | Mobile Responsive              | ✅ **DONE**         | 13 components, auto-detect, MobileView/Graph/Analytics/BottomSheet, pinch zoom             |
+| 5c    | Notification System            | ✅ **DONE**         | NotificationTray, NotificationPulse, AlertsView, store, settings                           |
+| 5d    | Guided Tour                    | ✅ **DONE**         | 6 chapters, 18+ steps, auto-play + manual spotlight, i18n, 24 tests                        |
+| 5e    | Arcade Game Modes              | 🔶 **90% DONE**     | GameOfLife, Tetris, Snake, Breakout done; PacMan not built                                 |
+| 6     | VSCode Extension               | ✅ **DONE**         | v0.9.0: 11 commands, 9 settings, 4-tab settings, Prompt Lab, notifications                 |
+| 7     | Auto-Resume + Cost             | 🔶 **95% DONE**     | Full analytics (21 endpoints, 5 UI tabs), coaching, budgets; missing `--project <dir>`     |
+| 8     | ClawBrain                      | 🔶 **65% DONE**     | 3-layer plugin + backend integration; missing adapter + /brain                             |
+| 9     | Multi-Vendor Integration       | 🔄 **IN PROGRESS**  | 9.1 + 9.2 done (adapter system + Gemini); 9.3 Codex + 9.4 UI remaining                     |
+| —     | Packaging & CLI                | ✅ **90% DONE**     | All 5 packaging options implemented                                                        |
+| —     | Open Source Prep               | 🔶 **80% DONE**     | SPDX headers (233 files), AGPL-3.0 + /ee; missing GOVERNANCE, README updates               |
+| 10    | Standalone App / Claude Plugin | ⬜ **PLANNED**      | npm package, daemon mode, zero-config CLI, Claude plugin adapter                           |
+| —     | AI Self-Modification           | ⬜ **NICE TO HAVE** | Design + plan complete; CSS themes + scoped CSS + custom lenses                            |
 
 ```
-Phase 1  ──── ✅ DONE (2 cleanup items remain)
-Phase 2  ──┬── Testing ──┬── Linting ──┬── Config          ← NEXT
-Phase 3  ──┬── Scaffold ──┬── Types+Utils ──┬── Store+Components  →  wire dashboard
-Phase 4a ──┬── Backend-Perf ──┬── Lens-Perf ──┬── Virtualization
-Phase 4b ──── UX Features
-Phase 5  ──┬── Engine ──┬── Renderer+Views ──┬── Integration
-Phase 6  ──┬── TreeView+Metrics ──┬── WebView Sidebar      (Panel + StatusBar done)
-Phase 7  ──── Sequential (DB schema changes, auto-load/save)
-Phase 8  ──── Finish: ProviderAdapter + /brain command      (plugin core done)
+Phase 1  ──── ✅ DONE
+Phase 2  ──── ✅ DONE
+Phase 3  ──── ✅ DONE
+Phase 4  ──── ✅ DONE
+Phase 5  ──── ❌ REMOVED (Pixel Art Office)
+Phase 5b ──── ✅ DONE (Mobile Responsive)
+Phase 5c ──── ✅ DONE (Notification System)
+Phase 5d ──── ✅ DONE (Guided Tour)
+Phase 5e ──── 🔶 90% (Arcade Game Modes — missing PacMan)
+Phase 6  ──── ✅ DONE (v0.9.0)
+Phase 7  ──── 🔶 95% (missing --project CLI flag)
+Phase 8  ──── 🔶 65% (missing ProviderAdapter + /brain)
+Phase 9  ──── 🔄 IN PROGRESS (9.1 + 9.2 done)
+Phase 10 ──── ⬜ PLANNED (Standalone App / Claude Plugin)
 ```
 
-**Max 3 concurrent agents per batch.**
+---
+
+## Completed Phases
+
+### Phase 1: Hardening — ✅ DONE
+
+Error boundaries (6 in App.tsx), rate limiting (`/api/events` 200/min, `/api/agents/spawn` 30/min), MAX_CONCURRENT_AGENTS=10, AGENT_TIMEOUT_MS=300000, confirmation dialogs, global Express error handler, process signal handlers.
+
+### Phase 2: Developer Experience — ✅ DONE
+
+Vitest (505 tests), ESLint + Prettier + Husky pre-commit (`pnpm lint-staged`), `.editorconfig`, CI/CD (GitHub Actions), CONTRIBUTING.md, lint-staged config in `package.json`.
+
+### Phase 3: Monorepo Extraction — ✅ DONE
+
+5 workspace packages (`@synapse-ai/core`, `@synapse-ai/server`, `@synapse-ai/dashboard`, `@synapse-ai/vscode`, `@synapse-ai/openclaw`). pnpm workspaces. Cross-package imports via `@synapse-ai/core`.
+
+### Phase 4: Performance + UX — ✅ DONE
+
+Async I/O, materialized `session_summary` table, batch transcript fetch, react-virtuoso for long lists, URL deep linking (`useUrlSync`), composite DB indexes, lazy lens computation.
+
+### Packaging & CLI — ✅ 90% DONE
+
+| Option                    | Status | Files                                                                 |
+| ------------------------- | ------ | --------------------------------------------------------------------- |
+| 1. Folder copy            | ✅     | `scripts/make-package.ps1` + `.sh` (supports `--prebuilt`)            |
+| 2. Global install         | ✅     | `scripts/install-global.ps1` + `.sh` → `~/.synapse`                   |
+| 3. Single-process server  | ✅     | `server/index.ts` serves `dist/` via `express.static` + SPA fallback  |
+| 4. npm CLI                | ✅     | `bin/synapse.mjs` — `synapse start`, `synapse hook`, `synapse unhook` |
+| 5. VSCode extension build | ✅     | `scripts/build-extension.ps1` + `.sh` → `.vsix`                       |
+
+### Phase 5b: Mobile Responsive — ✅ DONE
+
+> 13 mobile components + `useBreakpoint` hook. Auto-detection for phones via `?view=mobile`.
+
+**Components:** MobileView, MobileGraphView, MobileAnalyticsView, MobileTabBar, MobileStatusBar, MobileBottomSheet, MobileSessionSelector, MobileSearchButton, MobileLensView, MobileLensPanel, MobileSettingsButton, PinchZoomWrapper. Breakpoints: sm (<768), md (<1024), lg (1024+).
+
+**Plan:** `docs/plans/2026-02-20-mobile-responsive-design.md`, `docs/plans/2026-02-20-mobile-enhancements.md`
+
+### Phase 5c: Notification System — ✅ DONE
+
+> Real-time notification tray, pulse overlay, and alerts view for permission prompts and warnings.
+
+**Components:** NotificationTray (toast cards, bottom-left), NotificationPulse (top banner with auto-zoom), AlertsView (scrollable list), NotificationSettings (3 toggles). Zustand store with dedup, max 50, localStorage persistence. Isolation tags: `// [notifications]`.
+
+**Plan:** `docs/plans/2026-02-20-notification-system.md`
+
+### Phase 5d: Guided Tour — ✅ DONE
+
+> Two-phase onboarding: auto-play demo (800ms narration over 31+ events) then manual spotlight walkthrough (6 chapters, 18+ steps).
+
+**Components:** TourOverlay (spotlight clip-path + floating card), TourLauncher (welcome card + restart button), useAutoPlay (narration driver), tourStore (Zustand). Steps: graph (5), lens (3), panels (3), header (3), settings (2), analytics (2). Full i18n. 24 tests.
+
+**Plan:** `docs/plans/2026-02-21-guided-tour-design.md`
+
+### Phase 5e: Arcade Game Modes — 🔶 90% DONE
+
+> Mini-games inside ToolGroupNode — tools become game elements.
+
+**Done:** GameOfLife (cellular automaton, tool-seeded patterns), Tetris (human-player, 70/30 intelligent placement, line clearing), Snake (tool segments), Breakout (tool bricks, ball physics).
+
+**Remaining:** PacMan (victory lap — sweep mechanic eating tool ghosts). Full implementation code in plan doc.
+
+**Plan:** `docs/plans/2026-02-22-arcade-modes-v2-plan.md`
+
+### Open Source Prep — 🔶 80% DONE
+
+> AGPL-3.0-only licensing with enterprise `/ee` directory. SPDX headers added to 233 files.
+
+**Done:** License headers, AGPL-3.0 license file, `/ee` directory structure, SPDX-License-Identifier on all source files.
+
+**Remaining:** CODE_OF_CONDUCT.md, GOVERNANCE.md, CONTRIBUTING.md updates, README refresh for public repo, verification pass.
+
+**Plan:** `docs/plans/2026-02-20-open-source-release-prep.md`
 
 ---
 
-## Phase 1: Hardening — ✅ 95% COMPLETE
+## Active Phases
 
-### Batch A — ALL DONE
+### Phase 6: VSCode Extension — ✅ DONE
 
-| Item | Status | Location |
-|------|--------|----------|
-| Express error handler | ✅ | `server/index.ts:67-70` (middleware) + `:135-141` (process handlers) |
-| Rate limiting | ✅ | `express-rate-limit` on `/api/events` (200/min) + `/api/agents/spawn` (30/min) |
-| Agent limits + timeout | ✅ | MAX_CONCURRENT_AGENTS=10, AGENT_TIMEOUT_MS=300000 in `agentManager.ts` |
-| sendMessage guard | ✅ | Simplified: `if (!agent || agent.status !== 'success') return false` |
-| Spawn 429 error | ✅ | `server/routes/agents.ts:50-56` returns HTTP 429 |
-| Error boundaries | ✅ | `ErrorBoundary.tsx` wrapping 6 components in `App.tsx` |
-| Loading/error states | ✅ | `isLoading`/`loadError` in store, spinner + error banner in `AgentGraph.tsx` |
-| Confirmation dialogs | ✅ | `ConfirmDialog.tsx` used in Header (clear) + AgentDetailPanel (remove/stop) |
+> `apps/vscode/` — v0.9.0 with 11 commands, 9 settings, 4-tab settings panel, Prompt Lab hotkeys, notification handler.
 
-### Batch B (Cleanup) — MOSTLY DONE
+**Done:** Extension entry point, ServerManager (subprocess + health check + port auto-increment), HookManager (12 hook events + port file strategy), WebView Panel (iframe dashboard), WebView Sidebar (lens view), TreeView (session→agent→tool hierarchy), wsClient (direct WS + exponential backoff), StatusBar (running/stopped + metrics), 40+ keybinding forwarding, settings panel (hooks/server/data/Prompt Lab tabs), Prompt Lab (Ctrl+Alt+D/V), notification handler (blocked session tracking + toast + badge), bundled resources (server + dashboard + hooks in `.vsix`). 1.51 MB package, zero native deps.
 
-| Item | Status |
-|------|--------|
-| waterfallSpans dead code removed | ✅ |
-| CSS cleanup (icicle/waterfall) | ✅ |
-| `_test.txt` deleted | ✅ |
-| `hook_debug.log` in .gitignore | ✅ |
-| Delete `nul` file | ❌ Still exists |
-| Remove `dagre` from package.json | ❌ Still listed (unused since custom layout) |
+### Phase 7: Auto-Resume + Cost System — 🔶 95% DONE
 
----
+**Done:**
 
-## Phase 2: Developer Experience — 🔶 NEXT UP
-
-> Quality guardrails before the big refactor. 3 parallel streams.
-> **NOTE:** All npm dev dependencies already installed. Only config files, scripts, and test files needed.
-
-**Pre-installed deps:** vitest, @testing-library/react, @testing-library/jest-dom, jsdom, eslint, @eslint/js, typescript-eslint, eslint-plugin-react-hooks, prettier, eslint-config-prettier, husky, lint-staged
-
-**Already exists:** `.nvmrc` (22), `start-server.sh`, `start-client.sh`
-
-| Stream | Remaining Tasks | Files (exclusive) |
-|--------|----------------|--------------------|
-| **Testing** | Create vitest.config.ts, write test files (eventStore, agentStore, format) | `vitest.config.ts` (new), `src/__tests__/` (new), `server/__tests__/` (new) |
-| **Linting** | Create eslint.config.js, .prettierrc, configure .husky/ | `eslint.config.js` (new), `.prettierrc` (new), `.husky/` (new) |
-| **Config** | Create .editorconfig, add npm scripts, pin SDK version, add lint-staged config | `.editorconfig` (new) |
-
-**Merge step:** Add to `package.json`: test/lint/format/prepare scripts + lint-staged config. Also: delete `nul`, remove dagre (Phase 1 leftovers).
-
-**Gate:** `npm test && npm run lint && npm run build` all pass.
-
----
-
-## Phase 3: Monorepo Extraction (Synapse architecture)
-
-> Convert to pnpm workspace. Extract shared code into `@synapse-viz/core`. 3 parallel streams + sequential wiring.
-
-**Target structure:**
-```
-Synapse/  (this repo, renamed)
-├── packages/
-│   ├── core/                 # @synapse-viz/core
-│   │   ├── types/            # agent.ts, provider.ts (ProviderAdapter), lens.ts
-│   │   ├── store/            # graphStore.ts + createStore(adapter) factory
-│   │   ├── components/       # graph/, panels/, lens/, Toast, ErrorBoundary, ConfirmDialog
-│   │   ├── hooks/            # useAutoLayout, useHandlePositions
-│   │   ├── utils/            # format.ts, theme.ts (dynamic palette from registry)
-│   │   └── server/           # db.ts, broadcaster.ts, projectStore.ts
-│   └── widget/               # @synapse-viz/widget (Phase 5)
-├── apps/
-│   ├── dashboard/            # Synapse Dashboard (refactored from prototype)
-│   │   ├── src/adapters/     # claudeHookAdapter, claudeSdkAdapter
-│   │   ├── src/components/   # SpawnAgentDialog, AgentTemplates (Claude-specific)
-│   │   ├── src/main.tsx
-│   │   └── server/           # Express + hook receiver + Agent SDK
-│   └── vscode/               # Synapse for VSCode (Phase 6)
-├── pnpm-workspace.yaml
-├── tsconfig.base.json
-└── package.json
-```
-
-| Stream | Tasks | Output |
-|--------|-------|--------|
-| **Scaffold** | pnpm-workspace.yaml, tsconfig.base.json, per-package package.json, build pipeline | Monorepo compiles |
-| **Types+Utils** | Extract types → `core/types/`, add ProviderAdapter, extract format/theme → `core/utils/` | Types importable from `@synapse-viz/core` |
-| **Store+Components** | Extract store → `core/store/graphStore.ts`, components → `core/components/`, hooks → `core/hooks/` | Components importable from `@synapse-viz/core` |
-
-Then sequential: Wire `apps/dashboard/` to import from `@synapse-viz/core` with `claudeAdapter`.
-
-**Verify:** Simulation script renders correctly via monorepo dashboard consuming `@synapse-viz/core`.
-
----
-
-## Phase 4: Performance + UX — 🔶 25% DONE
-
-> Two batches (3 + 1).
-
-**Already done (skip these):**
-- ✅ JSON snapshot export/import (keyboard shortcuts E/I in Header)
-- ✅ Partial empty states (graph hint banner, "No tool events yet", "No token data available")
-- ✅ Graph search with `/` shortcut + `graphSearchQuery` in store
-- ✅ Transcript reading service (`server/services/transcriptReader.ts` — JSONL parsing, cost calc, token aggregation)
-- ✅ Transcript routes (`server/routes/transcript.ts` — GET per-session + list all)
-- ✅ Snapshot routes (`server/routes/snapshot.ts` — export + import with duplicate detection)
-- ✅ Sessions endpoint (`GET /api/events/sessions` via `listSessions()` GROUP BY)
-
-**Batch A (3 agents):**
-
-| Stream | Remaining Tasks | Package |
-|--------|----------------|---------|
-| **Backend-Perf** | Composite indexes, **async** transcript I/O (still `readFileSync`), materialized sessions summary table | `packages/core/server/` |
-| **Lens-Perf** | Lazy lens computation (tab-guard useMemos), transcript fetch batching | `packages/core/components/lens/` |
-| **Virtualization** | react-virtuoso for TreeView, ToolLogPanel | `packages/core/components/` |
-
-**Batch B (1 agent, after Batch A):**
-
-| Stream | Remaining Tasks | Package |
-|--------|----------------|---------|
-| **UX Features** | Deep linking, command palette, search API, **CSV export** (JSON already works), full empty state for AgentGraph ("No active sessions" + spawn button), agent templates | `apps/dashboard/` |
-
-**Verify:** 5000+ events: TreeView smooth; lens tabs switch instantly; URL hash round-trips.
-
----
-
-## Phase 5: Canvas2D Widget Engine
-
-> Build `packages/widget/`. 3 parallel streams.
-
-| Stream | Tasks | Files |
-|--------|-------|-------|
-| **Engine** | Scene graph (nodes, edges, camera, hit testing, dirty rects), Layout (tree algorithm) | `engine/Scene.ts`, `engine/Layout.ts` |
-| **Renderer+Views** | Canvas2D draw loop, 6 view renderers (Graph, Tree, Heatmap, Treemap, Compaction, Cost) | `engine/Renderer.ts`, `views/*.ts` |
-| **Integration** | React wrapper `<SynapseWidget />`, iframe/postMessage bridge, test HTML page | `Widget.tsx`, `embed.ts`, `index.html` |
-
-**Target:** ~800 lines, ~20KB bundle, 50+ nodes at 60fps, no React dependency in engine.
-
----
-
-## Phase 6: VSCode Extension — 🔶 35% DONE
-
-> Extension skeleton exists at `extension/`. Hybrid approach with iframe panel.
-
-**Already done:**
-
-| Item | Status | Location |
-|------|--------|----------|
-| Extension entry point | ✅ | `extension/src/extension.ts` — activation, commands, lifecycle |
-| StatusBar (basic) | ✅ | Shows `$(pulse) Synapse` running/stopped; click opens dashboard |
-| WebView Panel | ✅ | `extension/src/webviewPanel.ts` — iframe to localhost:4000, retry logic |
-| ServerManager | ✅ | `extension/src/serverManager.ts` — spawns backend subprocess, health check polling |
-| HookManager | ✅ | `extension/src/hookManager.ts` — configures 20 hook events in workspace settings |
-| Commands | ✅ | `openDashboard`, `startServer`, `stopServer`, `configureHooks`, `removeHooks` |
-| Extension manifest | ✅ | `extension/package.json` — activation events, settings, commands |
-| Build config | ✅ | `extension/esbuild.mjs` + `scripts/build-extension.ps1/sh` |
+- Snapshot export/import (`GET/POST /api/snapshot`)
+- Cost calculation in `transcriptReader.ts` (pricing tables for Claude, GPT, Gemini models)
+- SQLite auto-persist: loads from disk on startup, debounced writes during runtime, `saveNow()` on shutdown
+- Pricing engine (8 models, 4 vendors) in `costService.ts`
+- Budget service with thresholds, WMA forecast, plan detection
+- Velocity service (tokens/min, cost/min, efficiency score, sparklines)
+- 21+ analytics endpoints (overview, timeseries, sessions, tools, models, turns, velocity, prompts, insights, budget, badges, prices, import, projects, model-optimization, AI summary/analyze/insights)
+- 5-tab analytics UI (Executive, Prompts, Workshop, Insights, Live Nudges)
+- Cost waterfall lens, conversation-aware coaching, report cards, playbook service
 
 **Remaining:**
 
-| Item | Status | Notes |
-|------|--------|-------|
-| StatusBar **metrics** (agent count + tokens) | ❌ | Currently only shows running/stopped status |
-| TreeView (session→agent→tool hierarchy) | ❌ | No `treeView.ts` — no native Explorer integration |
-| WebView Sidebar (Canvas2D widget) | ❌ | No `sidebarProvider.ts` — depends on Phase 5 widget |
-| Extension-side wsClient | ❌ | No direct WS — relies on iframe browser WS |
-| Commands: `switchLens`, `reconnect` | ❌ | Not registered |
-| Bundled resources | ❌ | `extension/resources/` is empty — server not packaged into extension yet |
-
-**Verify:** Extension loads; sidebar shows widget; panel shows full dashboard; status bar shows live metrics.
-
----
-
-## Phase 7: Auto-Resume + Cost System — 🔶 10% DONE
-
-> Sequential (shared DB schema).
-
-**Already done:**
-- ✅ Snapshot export/import (`server/routes/snapshot.ts` — manual E/I keyboard shortcuts)
-- ✅ Cost calculation in `transcriptReader.ts` (pricing tables for Claude, GPT, Gemini models)
-
-**Remaining:**
-- `.synapse/sessions.json` auto-load on startup, auto-save on shutdown
 - `--project <dir>` CLI flag
-- Cost tables: `cost_records`, `budgets`, `alerts`
-- Budget management API (CRUD, threshold checks)
-- Alert engine: dashboard toast + webhook delivery
-- Provider pricing from adapter's `pricing` table
 
-**Verify:** Stop+restart server → events survive; budget alert fires.
+### Phase 8: ClawBrain — 🔶 65% DONE
 
----
+> OpenClaw plugin at `packages/openclaw/`. 3-layer data capture architecture.
 
-## Phase 8: ClawBrain — 🔶 65% DONE
-
-> OpenClaw plugin at `openclaw-plugin/`. 3-layer data capture architecture.
-
-**Already done:**
-
-| Item | Status | Location |
-|------|--------|----------|
-| Plugin entry + registration | ✅ | `openclaw-plugin/src/plugin.ts` — slot: "tool", TypeBox config schema |
-| Layer 1: JSONL transcript watcher | ✅ | `layers/jsonlBridge.ts` — fs.watch + polling, tail-reads new lines |
-| Layer 2: Agent tools (3 tools) | ✅ | `layers/agentTools.ts` — `synapse_query`, `synapse_metrics`, `synapse_dashboard` |
-| Layer 3: Provider wrapper (PoC) | ⚠️ | `layers/providerWrapper.ts` — monitoring logic ready, no OpenClaw interface yet |
-| Event normalization | ✅ | `normalizers/openclawJsonl.ts` — multi-vendor (Claude, GPT, Gemini, Groq, OpenRouter) |
-| Cost tracking | ✅ | Pricing tables for 8 models, cost estimates in events + metrics |
-| Simulation script | ✅ | `scripts/simulate_openclaw.ts` — 3 multi-vendor sessions |
-| Build pipeline | ✅ | `openclaw-plugin/esbuild.mjs` + `scripts/build-openclaw.ps1/sh` |
-| Backend integration | ✅ | `vendor` column in events table, `storePreNormalized()` in eventStore, event source routing in events.ts |
+**Done:** Plugin entry + registration, Layer 1 (JSONL transcript watcher), Layer 2 (3 agent tools: `synapse_query`, `synapse_metrics`, `synapse_dashboard`), Layer 3 PoC (provider wrapper), event normalization (multi-vendor), cost tracking (8 models), simulation script, build pipeline, backend integration (`vendor` column, `storePreNormalized()`).
 
 **Remaining:**
 
-| Item | Status | Notes |
-|------|--------|-------|
-| `openclawAdapter` (ProviderAdapter) | ❌ | No adapter implementing the `ProviderAdapter` interface |
-| `/brain` command | ❌ | No CLI command parser; only agent tools available |
-| ClawBrain dashboard | ❌ | Relies on upstream Synapse server; no dedicated UI |
-| Layer 3 integration | ❌ | Waiting on OpenClaw provider plugin interface confirmation |
-
-**Verify:** ClawBrain plugin in OpenClaw → live agent graph + cost tracking.
+| Item                                | Notes                                                 |
+| ----------------------------------- | ----------------------------------------------------- |
+| `openclawAdapter` (ProviderAdapter) | No adapter implementing the ProviderAdapter interface |
+| `/brain` command                    | No CLI command parser; only agent tools available     |
+| Layer 3 integration                 | Waiting on OpenClaw provider plugin interface         |
 
 ---
 
-## Phase 9: Multi-Vendor Integration — ⬜ NOT STARTED
+## Planned Phases
+
+### Phase 9: Multi-Vendor Integration — 🔄 IN PROGRESS
 
 > Extend Synapse to monitor Gemini CLI and OpenAI Codex CLI alongside Claude Code.
 > Full plan: `docs/MULTI_VENDOR_PLAN.md`
 
 **Three integration patterns:**
+
 1. **Hook-based** (push, real-time) — Claude Code, Gemini CLI
 2. **File-based** (pull, near real-time) — Codex CLI, Aider (future)
 3. **Plugin/framework** (embedded) — OpenClaw (already exists)
 
-| Sub-Phase | Name | Effort | Status |
-|-----------|------|--------|--------|
-| 9.1 | Shared infra + Claude adapter extraction | Small | ⬜ Not started |
-| 9.2 | Gemini CLI adapter (hooks + file watcher) | Small | ⬜ Not started |
-| 9.3 | Codex CLI adapter (file watcher + notify) | Medium | ⬜ Not started |
-| 9.4 | Dashboard multi-vendor UI | Small | ⬜ Not started |
+| Sub-Phase | Name                                      | Effort | Status         |
+| --------- | ----------------------------------------- | ------ | -------------- |
+| 9.1       | Adapter interface + Claude extraction     | Small  | ✅ Done        |
+| 9.2       | Gemini CLI adapter (hooks)                | Small  | ✅ Done        |
+| 9.3       | Codex CLI adapter (file watcher + notify) | Medium | ⬜ Not started |
+| 9.4       | Dashboard multi-vendor UI                 | Small  | ⬜ Not started |
 
-**Key deliverables:**
-- `packages/adapter-common/` — shared file watcher base, pricing, platform paths
-- `packages/adapter-claude/` — extracted from server (refactor, no behavior change)
-- `packages/adapter-gemini/` — hook script + normalizer + file watcher
-- `packages/adapter-codex/` — file watcher + normalizer + cumulative token tracker
-- `AdapterRegistry` in server — replaces hardcoded Claude normalization
+**Completed deliverables (9.1 + 9.2):**
 
-**Research docs:**
-- `docs/GEMINI_INTEGRATION.md` — Gemini CLI hook schemas, JSON formats, normalizer design
-- `docs/CODEX_INTEGRATION.md` — Codex CLI JSONL schemas, token tracking, notify hook
-- `docs/CODEX_FORMATS.md` — Detailed Codex file format reference with all event types
-- `docs/MULTI_VENDOR_PROMPT.md` — Ready-to-use implementation prompt for new session
+- `packages/server/src/adapters/types.ts` — `Adapter` interface (detect, normalize, dedupeFingerprint)
+- `packages/server/src/adapters/claude.ts` — `ClaudeAdapter` extracted from eventStore.ts (zero behavioral change)
+- `packages/server/src/adapters/gemini.ts` — `GeminiAdapter` with Gemini-exclusive hook detection + session ID namespacing
+- `packages/server/src/adapters/index.ts` — `AdapterRegistry` (first-match-wins, 2s dedup window, adapter-qualified fingerprints)
+- `hooks/send_gemini_event.cjs` — Gemini hook script (stdin JSON → POST)
+- `scripts/simulate_gemini_session.ts` — 8-event Gemini simulation
+- 35 adapter unit tests + 4 Gemini integration tests — all passing
 
-**API proxies (OpenRouter, LiteLLM):** No separate adapters needed — covered by tool-level adapters + OpenClaw's provider wrapper + `inferVendor()` model name detection.
+**Remaining deliverables (9.3 + 9.4):**
+
+- `packages/server/src/adapters/codex.ts` — file watcher + cumulative→delta token tracker
+- Dashboard vendor badges, filter-by-vendor, vendor color coding
+
+**Research docs:** `docs/GEMINI_INTEGRATION.md`, `docs/CODEX_INTEGRATION.md`, `docs/CODEX_FORMATS.md`, `docs/MULTI_VENDOR_PROMPT.md`
 
 **Gate:** All three vendors coexist in SQLite. Simulation scripts for each tool produce correct events.
 
 ---
 
-## Remaining Optimizations
+### Phase 10: Standalone App / Claude Plugin — ⬜ NOT STARTED
 
-### Performance (Phase 4)
-- LensAdapter computes all 7 views eagerly (only active tab needed)
-- TreeView/ToolLogPanel render all items (no virtualization)
-- No composite DB indexes for common queries
-- `listSessions()` does GROUP BY on full events table (no materialized summary)
-- `readFileSync` in transcriptReader blocks the event loop
-- Individual transcript fetches per session (no batching)
+> Package Synapse as a zero-config standalone app or official Claude Code plugin that "just works" with `claude` in any terminal — no VS Code, no manual hook setup, no separate server process.
 
-### Resolved in Phase 1 ✅
-- ~~No max concurrent agent limit~~ → MAX_CONCURRENT_AGENTS=10
-- ~~No agent timeout watchdog~~ → AGENT_TIMEOUT_MS=300000
-- ~~AgentManager.sendMessage guard logic~~ → Simplified
-- ~~Dead `waterfallSpans` computation~~ → Removed
-- ~~No error boundaries~~ → 6 boundaries in App.tsx
-- ~~No global Express error handler~~ → Added middleware + process handlers
-- ~~`hook_debug.log` grows unbounded~~ → In .gitignore
+### What We Have Today vs What's Needed
 
-### Infrastructure (Phase 2)
-- ~~No tests~~ → vitest installed, config + test files needed
-- ~~No linting~~ → eslint/prettier installed, config files needed
-- No CI/CD — no GitHub Actions
-- No Docker — no containerization
-- ~~No Linux/Mac scripts~~ → `start-server.sh`, `start-client.sh` created
-- ~~No packaging/CLI~~ → All 5 packaging options implemented
+| Concern                      | Current State                                                                                          | Standalone / Plugin Target                                                                              | Gap                                                                                                           |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| **Installation**             | Clone repo → `pnpm install` → run two processes; OR install .vsix in VS Code                           | `npx synapse` / `npm i -g synapse` / `claude plugin install synapse`                                    | Need self-contained npm package with pre-built dashboard, or single-binary via pkg/SEA                        |
+| **Hook setup**               | Manual: run `synapse hook` per project, or VS Code extension auto-writes `.claude/settings.local.json` | Automatic: plugin registers hooks on install; standalone CLI auto-configures on `synapse start` for cwd | CLI `start` should auto-run `hook` for cwd; plugin mode needs Claude's plugin registration API                |
+| **Server lifecycle**         | User starts server manually (`synapse start` or VS Code auto-start)                                    | Background daemon: auto-start on first hook event, auto-stop after idle timeout                         | Need daemonization (or `--background` flag), PID file, health check, `synapse status`/`synapse stop`          |
+| **Dashboard access**         | Open browser to `localhost:4000` or VS Code webview                                                    | `synapse start` auto-opens browser; terminal mode shows compact TUI summary                             | Already serve SPA from Express; need `open` (cross-platform browser launch) + optional terminal-only mode     |
+| **Build artifact**           | Monorepo source, not publishable as-is — `bin/synapse.mjs` spawns `npx tsx server/index.ts`            | Single npm package with compiled JS + pre-built dashboard assets                                        | Need build pipeline: `tsc` server → bundle dashboard → copy into `dist/` → publish as one package             |
+| **Native dependencies**      | `sql.js` (pure JS) — already zero native deps for server                                               | Same — no change needed                                                                                 | None (already solved for VS Code)                                                                             |
+| **Global config**            | Per-project `.claude/settings.local.json` only                                                         | Global `~/.synapse/config.json` for port, theme, API key; per-project overrides still work              | Need config file discovery: `~/.synapse/config.json` → project `.synapse.json` → env vars → CLI flags         |
+| **Claude Plugin API**        | Doesn't exist yet — Claude Code has hooks but no formal plugin registry                                | `claude plugin install synapse` wires hooks + starts daemon automatically                               | Blocked on Anthropic shipping a plugin system; design for it now, ship when available                         |
+| **Cross-project monitoring** | One server instance, but hooks must be configured per-project                                          | Single daemon monitors all projects; hook script auto-discovers running server                          | `.synapse-port` file approach already works; need global port file (`~/.synapse/port`) instead of per-project |
+| **Auto-update**              | Manual git pull or re-install .vsix                                                                    | npm update; or self-update check on startup                                                             | Standard npm semver; optional update-notifier on CLI start                                                    |
+
+### Implementation Sub-Phases
+
+| Sub-Phase | Name                                      | Effort | Description                                                                                                                                                       |
+| --------- | ----------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 10.1      | **Publishable npm package**               | Medium | Build pipeline: compile TS server → pre-build dashboard → bundle into single `synapse` npm package with `bin/synapse` entry. Remove `npx tsx` runtime dependency. |
+| 10.2      | **Zero-config CLI**                       | Small  | `synapse start` auto-hooks cwd, opens browser, writes global port file. `synapse stop`, `synapse status`. `--no-browser`, `--background` flags.                   |
+| 10.3      | **Background daemon mode**                | Medium | Daemonize server process (`--background` or auto on hook event). PID file at `~/.synapse/pid`. Auto-shutdown after configurable idle timeout (default 30 min).    |
+| 10.4      | **Global config & multi-project**         | Small  | `~/.synapse/config.json` for persistent settings. Global port file so any project's hook script finds the running server without per-project `.synapse-port`.     |
+| 10.5      | **Claude Plugin adapter**                 | Small  | Shim layer that conforms to Claude Code's plugin API (when available). Registers hooks, manages lifecycle, exposes metadata. Design now, ship when API exists.    |
+| 10.6      | **Single-binary distribution** (optional) | Medium | Use Node.js SEA (Single Executable Application) or `pkg` to produce a standalone binary with no Node.js requirement. Windows/macOS/Linux.                         |
+
+### Key Decisions to Make
+
+1. **npm package vs single binary?** — npm is simpler and covers 95% of users (they already have Node). Single binary (SEA/pkg) removes the Node requirement but adds build complexity and ~50MB binary size.
+2. **Always-running daemon vs on-demand?** — Daemon gives instant dashboard on any `claude` session. On-demand (start when first hook fires) is simpler but adds latency on first event.
+3. **Claude Plugin API dependency** — The plugin sub-phase is speculative. If Anthropic ships a plugin registry, we adapt. If not, the CLI approach (`synapse start` + `synapse hook`) covers the same use case with one extra setup step.
+
+### What's Already Done (reusable)
+
+- `bin/synapse.mjs` — CLI skeleton with `start`, `hook`, `unhook` commands
+- `hooks/send_event.cjs` — zero-dependency hook script, already reads port from file
+- `packages/server/src/index.ts` — serves pre-built dashboard via `express.static`, auto-scans ports
+- `sql.js` — no native dependencies, works everywhere
+- VS Code extension build pipeline — proves the "bundle everything into one artifact" approach works
+
+**Gate:** `npm install -g synapse && synapse start` in a fresh terminal → hooks auto-configured → open Claude Code → agent graph appears in browser.
 
 ---
 
-## Files to Clean Up (Phase 2 merge step)
+## Future: AI Self-Modification — ⬜ NICE TO HAVE
 
-- `nul` — Windows redirect artifact, delete
-- `dagre` — remove from package.json (replaced by custom layout in useAutoLayout.ts)
+> Users type a natural-language prompt and AI modifies the dashboard's appearance.
+
+**Design:** `docs/plans/2026-02-20-self-modification-design.md`
+**Implementation plan:** `docs/plans/2026-02-20-self-modification-plan.md`
+
+Three channels: CSS variable overrides, scoped CSS injection, custom lens configs. Six-layer sandboxing. Feature flag `experimentalSelfModify` (defaults false).
+
+---
+
+## Key Decisions
+
+1. **Harden BEFORE refactoring** — error boundaries, testing, linting in the current structure FIRST
+2. **Monorepo extraction is Phase 3** — extract AFTER quality guardrails exist
+3. **Build in-place** — convert this codebase via `git mv`, preserve history
+4. **VSCode = hybrid approach** — WebView Panel (full dashboard), Sidebar (lens), StatusBar (metrics), TreeView (hierarchy)
+5. **OpenClaw/ClawBrain = separate session** — build after core + dashboard are stable
+
+---
+
+## Files to Clean Up
+
+- ~~`nul` — Windows redirect artifact~~ ✅ Deleted
+- ~~`dagre` — remove from package.json~~ ✅ Removed
 - `c:temp/`, `c:tempread_responses.txt` — orphaned temp artifacts, delete
 - `hook_debug.log` — already gitignored but ~3MB on disk, consider deleting

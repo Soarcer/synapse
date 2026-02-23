@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import path from 'path';
 import os from 'os';
 
@@ -15,12 +18,7 @@ import { createApp } from '../app.js';
 import { Broadcaster } from '../services/broadcaster.js';
 import { AgentManager } from '../services/agentManager.js';
 import { findTranscriptPath } from '../services/transcriptReader.js';
-import {
-  AgentEventSchema,
-  EventQuerySchema,
-  AnalyticsQuerySchema,
-  SpawnAgentRequestSchema,
-} from '@synapse-ai/core';
+import { EventQuerySchema, AnalyticsQuerySchema, SpawnAgentRequestSchema } from '@synapse-ai/core';
 
 let app: Express;
 let broadcaster: Broadcaster;
@@ -45,29 +43,29 @@ afterAll(() => {
 // ── Path Traversal Prevention ──────────────────────────────────
 
 describe('Path traversal prevention', () => {
-  it('rejects sessionId with path traversal sequences', () => {
-    const result = findTranscriptPath('../../etc/passwd');
+  it('rejects sessionId with path traversal sequences', async () => {
+    const result = await findTranscriptPath('../../etc/passwd');
     expect(result).toBeNull();
   });
 
-  it('rejects sessionId with forward slashes', () => {
-    const result = findTranscriptPath('foo/bar/baz');
+  it('rejects sessionId with forward slashes', async () => {
+    const result = await findTranscriptPath('foo/bar/baz');
     expect(result).toBeNull();
   });
 
-  it('rejects sessionId with backslashes', () => {
-    const result = findTranscriptPath('foo\\bar\\baz');
+  it('rejects sessionId with backslashes', async () => {
+    const result = await findTranscriptPath('foo\\bar\\baz');
     expect(result).toBeNull();
   });
 
-  it('rejects sessionId with null bytes', () => {
-    const result = findTranscriptPath('session\x00.jsonl');
+  it('rejects sessionId with null bytes', async () => {
+    const result = await findTranscriptPath('session\x00.jsonl');
     expect(result).toBeNull();
   });
 
-  it('accepts valid session IDs', () => {
+  it('accepts valid session IDs', async () => {
     // Won't find the file, but should NOT be rejected by validation
-    const result = findTranscriptPath('abc-123_DEF');
+    const result = await findTranscriptPath('abc-123_DEF');
     // Result is null because file doesn't exist, not because ID is invalid
     expect(result).toBeNull(); // no error thrown
   });
@@ -90,9 +88,7 @@ describe('Error response sanitization', () => {
   });
 
   it('GET /api/transcript/:id does not leak paths for missing session', async () => {
-    const res = await request(app)
-      .get('/api/transcript/nonexistent-session')
-      .expect(200);
+    const res = await request(app).get('/api/transcript/nonexistent-session').expect(200);
 
     // Returns 200 with found:false (by design, to avoid console errors on bulk fetch)
     expect(res.body.found).toBe(false);
@@ -127,10 +123,7 @@ describe('Snapshot import validation', () => {
   };
 
   it('accepts valid snapshot import', async () => {
-    const res = await request(app)
-      .post('/api/snapshot/import')
-      .send(validSnapshot)
-      .expect(200);
+    const res = await request(app).post('/api/snapshot/import').send(validSnapshot).expect(200);
 
     expect(res.body.imported).toBe(true);
     expect(res.body.events).toBeGreaterThanOrEqual(1);
@@ -143,27 +136,29 @@ describe('Snapshot import validation', () => {
         {
           sessionId: 'test-session-2',
           events: [
-            'not an object',  // invalid event
-            42,               // invalid event
-            { id: 'evt-2', type: 'session_start', sessionId: 'test-session-2', timestamp: Date.now(), hook_event_name: 'SessionStart', session_id: 'test-session-2' },  // valid
+            'not an object', // invalid event
+            42, // invalid event
+            {
+              id: 'evt-2',
+              type: 'session_start',
+              sessionId: 'test-session-2',
+              timestamp: Date.now(),
+              hook_event_name: 'SessionStart',
+              session_id: 'test-session-2',
+            }, // valid
           ],
           transcript: null,
         },
       ],
     };
 
-    const res = await request(app)
-      .post('/api/snapshot/import')
-      .send(snapshot)
-      .expect(200);
+    const res = await request(app).post('/api/snapshot/import').send(snapshot).expect(200);
 
     expect(res.body.skipped).toBeGreaterThanOrEqual(2);
   });
 
   it('export endpoint works and does not leak internal details', async () => {
-    const res = await request(app)
-      .get('/api/snapshot/export')
-      .expect(200);
+    const res = await request(app).get('/api/snapshot/export').expect(200);
 
     // Verify export works and returns proper structure
     expect(res.body).toHaveProperty('version');
@@ -251,9 +246,7 @@ describe('CORS production safeguard', () => {
       corsOrigins: '*',
     });
 
-    const res = await request(prodApp)
-      .get('/api/health')
-      .set('Origin', 'http://evil.com');
+    const res = await request(prodApp).get('/api/health').set('Origin', 'http://evil.com');
 
     // Wildcard CORS is intentionally allowed — server is localhost-only
     // and VS Code webview iframes require it

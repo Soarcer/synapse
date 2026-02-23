@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { getSetting, setSetting, getAllSettings, deleteSetting } from '../db.js';
 import { logger } from '../lib/logger.js';
 

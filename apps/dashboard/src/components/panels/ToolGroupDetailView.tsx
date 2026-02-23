@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useMemo } from 'react';
 import type { ToolCallSummary, AgentNodeData } from '@synapse-ai/core';
 import { formatDuration, getToolIcon } from '@synapse-ai/core';
@@ -91,7 +94,10 @@ export function ToolGroupDetailView({
     const events: Array<{ time: number; delta: number }> = [];
     for (const t of leafTools) {
       events.push({ time: t.startTime, delta: 1 });
-      events.push({ time: t.endTime ?? (t.status === 'running' ? Date.now() : t.startTime), delta: -1 });
+      events.push({
+        time: t.endTime ?? (t.status === 'running' ? Date.now() : t.startTime),
+        delta: -1,
+      });
     }
     events.sort((a, b) => a.time - b.time || a.delta - b.delta);
 
@@ -116,7 +122,9 @@ export function ToolGroupDetailView({
 
     return {
       total: leafTools.length,
-      ok, err, running,
+      ok,
+      err,
+      running,
       totalDuration,
       wallClock,
       minStart: minStart === Infinity ? 0 : minStart,
@@ -147,7 +155,12 @@ export function ToolGroupDetailView({
     >
       <div className="p-4 space-y-3 text-sm flex-1 overflow-auto">
         {/* Section 1: Summary */}
-        <SummarySection stats={stats} parentNodeId={parentNodeId} parentAgent={parentAgent ?? undefined} selectNode={selectNode} />
+        <SummarySection
+          stats={stats}
+          parentNodeId={parentNodeId}
+          parentAgent={parentAgent ?? undefined}
+          selectNode={selectNode}
+        />
 
         <Divider />
 
@@ -182,8 +195,13 @@ function SummarySection({
   selectNode,
 }: {
   stats: {
-    total: number; ok: number; err: number; running: number;
-    totalDuration: number; wallClock: number; distinctTools: number;
+    total: number;
+    ok: number;
+    err: number;
+    running: number;
+    totalDuration: number;
+    wallClock: number;
+    distinctTools: number;
   };
   parentNodeId: string;
   parentAgent: AgentNodeData | undefined;
@@ -219,7 +237,9 @@ function SummarySection({
 
       <div className="flex justify-between">
         <Detail label="Total Σ" value={formatDuration(stats.totalDuration)} />
-        {stats.wallClock > 0 && <Detail label="Wall Clock" value={formatDuration(stats.wallClock)} />}
+        {stats.wallClock > 0 && (
+          <Detail label="Wall Clock" value={formatDuration(stats.wallClock)} />
+        )}
       </div>
 
       <div>
@@ -445,9 +465,7 @@ function ExecutionPattern({
 }) {
   const isParallel = stats.peakConcurrency > 1;
   const speedup =
-    stats.wallClock > 0 && stats.totalDuration > 0
-      ? stats.totalDuration / stats.wallClock
-      : 0;
+    stats.wallClock > 0 && stats.totalDuration > 0 ? stats.totalDuration / stats.wallClock : 0;
 
   const bins = useMemo(() => {
     if (stats.wallClock === 0 || stats.intervals.length === 0) return [];
@@ -473,9 +491,7 @@ function ExecutionPattern({
         <span className="text-gray-500 text-xs">Execution</span>
         <span
           className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-            isParallel
-              ? 'bg-purple-900/50 text-purple-300'
-              : 'bg-gray-700/50 text-gray-400'
+            isParallel ? 'bg-purple-900/50 text-purple-300' : 'bg-gray-700/50 text-gray-400'
           }`}
         >
           {isParallel ? `Parallel (peak ${stats.peakConcurrency})` : 'Sequential'}

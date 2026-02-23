@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import type { NodeTypes, EdgeTypes } from '@xyflow/react';
 import { SessionNode } from './nodes/SessionNode';
 import { AgentNode } from './nodes/AgentNode';

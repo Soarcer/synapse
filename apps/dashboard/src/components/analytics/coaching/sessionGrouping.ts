@@ -1,18 +1,21 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import type { MockSession } from '../mockData';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
 export interface SessionCluster {
-  id: string;                   // deterministic key (sorted session IDs joined)
+  id: string; // deterministic key (sorted session IDs joined)
   sessions: MockSession[];
   timeSpan: { start: number; end: number };
   totalCost: number;
   totalTokens: number;
-  models: string[];             // unique models used
+  models: string[]; // unique models used
 }
 
 export interface ClusterGroup {
-  label: string;                // "Today", "Yesterday", "Monday", "Feb 10"
+  label: string; // "Today", "Yesterday", "Monday", "Feb 10"
   clusters: SessionCluster[];
 }
 
@@ -53,14 +56,14 @@ export function clusterSessions(
 }
 
 function buildCluster(sessions: MockSession[]): SessionCluster {
-  const ids = sessions.map(s => s.id).sort();
-  const models = [...new Set(sessions.map(s => shortModel(s.model)))];
+  const ids = sessions.map((s) => s.id).sort();
+  const models = [...new Set(sessions.map((s) => shortModel(s.model)))];
   return {
     id: ids.join('+'),
     sessions,
     timeSpan: {
-      start: Math.min(...sessions.map(s => s.startTime)),
-      end: Math.max(...sessions.map(s => s.endTime)),
+      start: Math.min(...sessions.map((s) => s.startTime)),
+      end: Math.max(...sessions.map((s) => s.endTime)),
     },
     totalCost: sessions.reduce((sum, s) => sum + s.totalCost, 0),
     totalTokens: sessions.reduce((sum, s) => sum + s.totalInputTokens + s.totalOutputTokens, 0),

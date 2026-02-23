@@ -1,14 +1,17 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // ─── Budget Service ─────────────────────────────────────────────────
 // Budget tracking with weighted moving average prediction and threshold alerts.
 
-import { analyticsQueryAll, analyticsQueryGet, analyticsExecute } from '../db.js';
+import { analyticsQueryAll, analyticsQueryGet } from '../db.js';
 import { logger } from '../lib/logger.js';
 
 export interface BudgetConfig {
   dailyLimitUsd: number;
   weeklyLimitUsd: number;
   monthlyLimitUsd: number;
-  alertThresholds: number[];    // e.g. [0.5, 0.75, 0.9] for 50%, 75%, 90%
+  alertThresholds: number[]; // e.g. [0.5, 0.75, 0.9] for 50%, 75%, 90%
 }
 
 export interface BudgetStatus {
@@ -32,7 +35,7 @@ export interface BudgetForecast {
   predictedWeeklyCost: number;
   predictedMonthlyCost: number;
   trend: 'rising' | 'stable' | 'falling';
-  confidence: number;           // 0-1
+  confidence: number; // 0-1
 }
 
 const DEFAULT_BUDGET: BudgetConfig = {
@@ -69,26 +72,47 @@ export function getBudgetStatus(cwd?: string): BudgetStatus {
   const cwdParams = cwd ? [cwd] : [];
 
   // Daily spend
-  const dailyRow = analyticsQueryGet(`
+  const dailyRow = analyticsQueryGet(
+    `
     SELECT SUM(total_cost_usd) as spent FROM analytics_daily
     WHERE date = ?${cwdClause}
-  `, [todayStr, ...cwdParams]) as Record<string, unknown> | undefined;
+  `,
+    [todayStr, ...cwdParams],
+  ) as Record<string, unknown> | undefined;
 
   // Weekly spend
-  const weeklyRow = analyticsQueryGet(`
+  const weeklyRow = analyticsQueryGet(
+    `
     SELECT SUM(total_cost_usd) as spent FROM analytics_daily
     WHERE date >= ?${cwdClause}
-  `, [weekStart, ...cwdParams]) as Record<string, unknown> | undefined;
+  `,
+    [weekStart, ...cwdParams],
+  ) as Record<string, unknown> | undefined;
 
   // Monthly spend
-  const monthlyRow = analyticsQueryGet(`
+  const monthlyRow = analyticsQueryGet(
+    `
     SELECT SUM(total_cost_usd) as spent FROM analytics_daily
     WHERE date >= ?${cwdClause}
-  `, [monthStart, ...cwdParams]) as Record<string, unknown> | undefined;
+  `,
+    [monthStart, ...cwdParams],
+  ) as Record<string, unknown> | undefined;
 
-  const daily = buildPeriod(Number(dailyRow?.spent ?? 0), budgetConfig.dailyLimitUsd, budgetConfig.alertThresholds);
-  const weekly = buildPeriod(Number(weeklyRow?.spent ?? 0), budgetConfig.weeklyLimitUsd, budgetConfig.alertThresholds);
-  const monthly = buildPeriod(Number(monthlyRow?.spent ?? 0), budgetConfig.monthlyLimitUsd, budgetConfig.alertThresholds);
+  const daily = buildPeriod(
+    Number(dailyRow?.spent ?? 0),
+    budgetConfig.dailyLimitUsd,
+    budgetConfig.alertThresholds,
+  );
+  const weekly = buildPeriod(
+    Number(weeklyRow?.spent ?? 0),
+    budgetConfig.weeklyLimitUsd,
+    budgetConfig.alertThresholds,
+  );
+  const monthly = buildPeriod(
+    Number(monthlyRow?.spent ?? 0),
+    budgetConfig.monthlyLimitUsd,
+    budgetConfig.alertThresholds,
+  );
 
   const forecast = computeForecast(cwd);
 
@@ -102,16 +126,25 @@ function computeForecast(cwd?: string): BudgetForecast {
   const cwdParams = cwd ? [cwd] : [];
 
   // Get last 14 days of spending
-  const rows = analyticsQueryAll(`
+  const rows = analyticsQueryAll(
+    `
     SELECT date, SUM(total_cost_usd) as cost
     FROM analytics_daily
     WHERE date >= date('now', '-14 days')${cwdClause}
     GROUP BY date
     ORDER BY date ASC
-  `, [...cwdParams]) as Array<{ date: string; cost: number }>;
+  `,
+    [...cwdParams],
+  ) as Array<{ date: string; cost: number }>;
 
   if (rows.length === 0) {
-    return { predictedDailyCost: 0, predictedWeeklyCost: 0, predictedMonthlyCost: 0, trend: 'stable', confidence: 0 };
+    return {
+      predictedDailyCost: 0,
+      predictedWeeklyCost: 0,
+      predictedMonthlyCost: 0,
+      trend: 'stable',
+      confidence: 0,
+    };
   }
 
   // Weighted moving average (recent days have higher weight)
@@ -129,7 +162,9 @@ function computeForecast(cwd?: string): BudgetForecast {
   let trend: 'rising' | 'stable' | 'falling' = 'stable';
   if (rows.length >= 3) {
     const recent = rows.slice(-3).reduce((s, r) => s + Number(r.cost), 0) / 3;
-    const older = rows.slice(0, Math.min(3, rows.length)).reduce((s, r) => s + Number(r.cost), 0) / Math.min(3, rows.length);
+    const older =
+      rows.slice(0, Math.min(3, rows.length)).reduce((s, r) => s + Number(r.cost), 0) /
+      Math.min(3, rows.length);
     if (recent > older * 1.2) trend = 'rising';
     else if (recent < older * 0.8) trend = 'falling';
   }
@@ -156,7 +191,9 @@ function buildPeriod(spent: number, limit: number, thresholds: number[]): Budget
   const activeAlerts: string[] = [];
   for (const t of thresholds) {
     if (percentUsed >= t) {
-      activeAlerts.push(`${Math.round(t * 100)}% of budget used ($${spent.toFixed(2)} / $${limit.toFixed(2)})`);
+      activeAlerts.push(
+        `${Math.round(t * 100)}% of budget used ($${spent.toFixed(2)} / $${limit.toFixed(2)})`,
+      );
     }
   }
 

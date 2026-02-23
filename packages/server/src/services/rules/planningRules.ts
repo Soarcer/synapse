@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // ─── Planning & Prompt Rules (5 rules) ───────────────────────────────
 // Detect poor planning, vague prompts, and workflow issues
 
@@ -11,7 +14,8 @@ export const noPlanMode: NudgeRule = {
   meta: {
     id: 'plan.no-plan-mode',
     name: 'Complex Task Without Planning',
-    description: 'Modifying 5+ files without using Plan Mode first. Complex tasks benefit from upfront planning.',
+    description:
+      'Modifying 5+ files without using Plan Mode first. Complex tasks benefit from upfront planning.',
     dimension: 'planning',
     defaultSeverity: 'suggestion',
     defaultCooldownMs: 30 * 60 * 1000,
@@ -28,7 +32,8 @@ export const noPlanMode: NudgeRule = {
       severity: 'suggestion',
       title: 'Consider Plan Mode',
       message: `${ctx.accumulator.distinctFilesModified} files modified without Plan Mode. Complex multi-file changes benefit from upfront planning.`,
-      recommendation: 'Use EnterPlanMode or press Ctrl+G for complex tasks. Plan first, then implement with verification.',
+      recommendation:
+        'Use EnterPlanMode or press Ctrl+G for complex tasks. Plan first, then implement with verification.',
     };
   },
 };
@@ -40,7 +45,8 @@ export const noTodoTracking: NudgeRule = {
   meta: {
     id: 'plan.no-todo-tracking',
     name: 'No Task Tracking',
-    description: 'Long task with 10+ tool calls but no TodoWrite usage for structured progress tracking.',
+    description:
+      'Long task with 10+ tool calls but no TodoWrite usage for structured progress tracking.',
     dimension: 'sessionStrategy',
     defaultSeverity: 'info',
     defaultCooldownMs: 20 * 60 * 1000,
@@ -59,7 +65,8 @@ export const noTodoTracking: NudgeRule = {
       severity: 'info',
       title: 'No task tracking',
       message: `${totalToolCalls} tool calls without TodoWrite. Structured task lists help maintain focus and prevent missed steps.`,
-      recommendation: 'Ask Claude to use TodoWrite for tasks with 3+ steps. This keeps objectives visible even after context compaction.',
+      recommendation:
+        'Ask Claude to use TodoWrite for tasks with 3+ steps. This keeps objectives visible even after context compaction.',
     };
   },
 };
@@ -71,7 +78,8 @@ export const vaguePrompt: NudgeRule = {
   meta: {
     id: 'plan.vague-prompt',
     name: 'Vague Prompt',
-    description: 'Short prompt (< 30 tokens) that generated extensive output. Specific prompts get better results.',
+    description:
+      'Short prompt (< 30 tokens) that generated extensive output. Specific prompts get better results.',
     dimension: 'precision',
     defaultSeverity: 'suggestion',
     defaultCooldownMs: 15 * 60 * 1000,
@@ -84,11 +92,12 @@ export const vaguePrompt: NudgeRule = {
     // Check prompt text length as proxy for token count
     const promptText = ctx.event.text ?? '';
     const wordCount = promptText.split(/\s+/).filter(Boolean).length;
-    if (wordCount >= 15) return null;  // Not vague if 15+ words
+    if (wordCount >= 15) return null; // Not vague if 15+ words
 
     // In conversation mode, only flag truly degenerate prompts (<3 words)
     // Short follow-ups like "make it black" are appropriate in iterative sessions
-    const fireThreshold = ctx.accumulator.conversationMode && ctx.accumulator.promptCount > 1 ? 3 : 10;
+    const fireThreshold =
+      ctx.accumulator.conversationMode && ctx.accumulator.promptCount > 1 ? 3 : 10;
 
     // Check if previous prompt was also short and generated large output
     // We track this via pattern state
@@ -102,7 +111,8 @@ export const vaguePrompt: NudgeRule = {
           severity: 'suggestion',
           title: 'Vague prompt detected',
           message: `Short prompt (${wordCount} words) generated extensive output. Specific prompts with file references and constraints get better results.`,
-          recommendation: 'Include specific file paths, describe the desired behavior, mention constraints, and provide success criteria.',
+          recommendation:
+            'Include specific file paths, describe the desired behavior, mention constraints, and provide success criteria.',
         };
       }
     }
@@ -117,7 +127,8 @@ export const rapidPrompts: NudgeRule = {
   meta: {
     id: 'plan.rapid-prompts',
     name: 'Rapid-Fire Prompts',
-    description: '3+ prompts submitted within 2 minutes, suggesting insufficient time for Claude to complete each request.',
+    description:
+      '3+ prompts submitted within 2 minutes, suggesting insufficient time for Claude to complete each request.',
     dimension: 'sessionStrategy',
     defaultSeverity: 'info',
     defaultCooldownMs: 10 * 60 * 1000,
@@ -138,7 +149,8 @@ export const rapidPrompts: NudgeRule = {
       severity: 'info',
       title: 'Rapid prompts',
       message: `${recentPrompts.length} prompts in 2 minutes. Give Claude time to complete each request before sending the next.`,
-      recommendation: 'Wait for Claude to finish before sending the next prompt. Combine related requests into one detailed prompt.',
+      recommendation:
+        'Wait for Claude to finish before sending the next prompt. Combine related requests into one detailed prompt.',
     };
   },
 };
@@ -150,7 +162,8 @@ export const kitchenSink: NudgeRule = {
   meta: {
     id: 'plan.kitchen-sink',
     name: 'Mixed Concerns in Session',
-    description: 'Modifying files in many unrelated directories suggests mixing different tasks in one context window.',
+    description:
+      'Modifying files in many unrelated directories suggests mixing different tasks in one context window.',
     dimension: 'contextManagement',
     defaultSeverity: 'info',
     defaultCooldownMs: 30 * 60 * 1000,
@@ -175,7 +188,8 @@ export const kitchenSink: NudgeRule = {
       severity: 'info',
       title: 'Mixed concerns',
       message: `Files modified across ${dirs.size} unrelated directories. Mixing tasks in one context wastes tokens on irrelevant content.`,
-      recommendation: 'Use /clear between unrelated tasks, or start separate sessions for each concern.',
+      recommendation:
+        'Use /clear between unrelated tasks, or start separate sessions for each concern.',
     };
   },
 };

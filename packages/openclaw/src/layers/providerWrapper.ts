@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { nanoid } from 'nanoid';
 import { inferVendor } from '../normalizers/openclawJsonl.js';
 import type { PluginLogger, ModelPricing } from '../types.js';
@@ -5,14 +8,14 @@ import type { PluginLogger, ModelPricing } from '../types.js';
 // ─── Pricing Table (per 1M tokens) ─────────────────────────────────
 
 const DEFAULT_PRICING: Record<string, ModelPricing> = {
-  'claude-opus-4-6':     { input: 15, output: 75 },
-  'claude-sonnet-4-5':   { input: 3, output: 15 },
-  'claude-haiku-4-5':    { input: 0.80, output: 4 },
-  'gpt-4o':              { input: 2.5, output: 10 },
-  'gpt-4-turbo':         { input: 10, output: 30 },
-  'gpt-3.5-turbo':       { input: 0.50, output: 1.50 },
-  'gemini-2.0-flash':    { input: 0.075, output: 0.30 },
-  'gemini-2.0-pro':      { input: 1.25, output: 5 },
+  'claude-opus-4-6': { input: 15, output: 75 },
+  'claude-sonnet-4-5': { input: 3, output: 15 },
+  'claude-haiku-4-5': { input: 0.8, output: 4 },
+  'gpt-4o': { input: 2.5, output: 10 },
+  'gpt-4-turbo': { input: 10, output: 30 },
+  'gpt-3.5-turbo': { input: 0.5, output: 1.5 },
+  'gemini-2.0-flash': { input: 0.075, output: 0.3 },
+  'gemini-2.0-pro': { input: 1.25, output: 5 },
 };
 
 /**
@@ -112,8 +115,9 @@ export class ProviderWrapper {
    */
   estimateCost(model: string, inputTokens: number, outputTokens: number): number {
     const modelName = model.includes('/') ? model.split('/').pop()! : model;
-    const pricing = DEFAULT_PRICING[modelName]
-      ?? Object.entries(DEFAULT_PRICING).find(([k]) => modelName.startsWith(k))?.[1];
+    const pricing =
+      DEFAULT_PRICING[modelName] ??
+      Object.entries(DEFAULT_PRICING).find(([k]) => modelName.startsWith(k))?.[1];
 
     if (!pricing) return 0;
     return (inputTokens * pricing.input + outputTokens * pricing.output) / 1_000_000;

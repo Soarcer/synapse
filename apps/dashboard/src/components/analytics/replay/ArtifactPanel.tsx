@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useMemo, useState } from 'react';
 import type { MockTurn } from '../mockData';
 
@@ -11,7 +14,7 @@ export function ArtifactPanel({ turns }: ArtifactPanelProps) {
   const artifacts = useMemo(() => {
     const files = new Set<string>();
     const toolMap = new Map<string, number>();
-    let errors = 0;
+    const errors = 0;
     let compactions = 0;
     let totalThinking = 0;
 
@@ -30,9 +33,7 @@ export function ArtifactPanel({ turns }: ArtifactPanelProps) {
       }
     }
 
-    const topTools = [...toolMap.entries()]
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 8);
+    const topTools = [...toolMap.entries()].sort(([, a], [, b]) => b - a).slice(0, 8);
 
     return { files: [...files], topTools, errors, compactions, totalThinking };
   }, [turns]);
@@ -53,10 +54,15 @@ export function ArtifactPanel({ turns }: ArtifactPanelProps) {
         <div className="px-4 pb-3 space-y-3">
           {/* Tool breakdown */}
           <div>
-            <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5">Tool Usage</div>
+            <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5">
+              Tool Usage
+            </div>
             <div className="flex flex-wrap gap-1.5">
               {artifacts.topTools.map(([name, count]) => (
-                <span key={name} className="px-2 py-0.5 bg-[#0d1117] border border-gray-800 rounded text-[10px] text-gray-400">
+                <span
+                  key={name}
+                  className="px-2 py-0.5 bg-[#0d1117] border border-gray-800 rounded text-[10px] text-gray-400"
+                >
                   {name} <span className="text-gray-600">{count}x</span>
                 </span>
               ))}
@@ -71,10 +77,14 @@ export function ArtifactPanel({ turns }: ArtifactPanelProps) {
               </div>
               <div className="max-h-24 overflow-y-auto space-y-0.5">
                 {artifacts.files.slice(0, 15).map((f) => (
-                  <div key={f} className="text-[10px] text-gray-400 font-mono truncate">{f}</div>
+                  <div key={f} className="text-[10px] text-gray-400 font-mono truncate">
+                    {f}
+                  </div>
                 ))}
                 {artifacts.files.length > 15 && (
-                  <div className="text-[10px] text-gray-600">+{artifacts.files.length - 15} more</div>
+                  <div className="text-[10px] text-gray-600">
+                    +{artifacts.files.length - 15} more
+                  </div>
                 )}
               </div>
             </div>
@@ -84,14 +94,18 @@ export function ArtifactPanel({ turns }: ArtifactPanelProps) {
           <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-800">
             <div className="text-center">
               <div className="text-[10px] text-gray-600">Compactions</div>
-              <div className={`text-xs font-medium ${artifacts.compactions > 0 ? 'text-yellow-400' : 'text-gray-400'}`}>
+              <div
+                className={`text-xs font-medium ${artifacts.compactions > 0 ? 'text-yellow-400' : 'text-gray-400'}`}
+              >
                 {artifacts.compactions}
               </div>
             </div>
             <div className="text-center">
               <div className="text-[10px] text-gray-600">Thinking</div>
               <div className="text-xs font-medium text-purple-400">
-                {artifacts.totalThinking > 0 ? `${(artifacts.totalThinking / 1000).toFixed(1)}k` : '0'}
+                {artifacts.totalThinking > 0
+                  ? `${(artifacts.totalThinking / 1000).toFixed(1)}k`
+                  : '0'}
               </div>
             </div>
             <div className="text-center">

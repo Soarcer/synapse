@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useCallback, type ReactNode } from 'react';
 import { highlight, highlightJSON } from '../../../utils/syntaxHighlight';
 import { copyToClipboard } from '../../../utils/clipboard';
@@ -138,7 +141,13 @@ export function CodeBlock({
   );
 }
 
-export function Badge({ children, color = 'gray' }: { children: ReactNode; color?: 'gray' | 'green' | 'red' | 'blue' | 'amber' | 'purple' | 'cyan' }) {
+export function Badge({
+  children,
+  color = 'gray',
+}: {
+  children: ReactNode;
+  color?: 'gray' | 'green' | 'red' | 'blue' | 'amber' | 'purple' | 'cyan';
+}) {
   const colors: Record<string, string> = {
     gray: 'bg-gray-800 text-gray-400',
     green: 'bg-green-900/50 text-green-300',
@@ -181,7 +190,11 @@ export function RunningIndicator() {
 export function DefaultResponseBlock({ response }: { response: Record<string, unknown> }) {
   const json = JSON.stringify(response, null, 2);
   return (
-    <CollapsibleBlock label="Response" count={`${json.length} bytes`} defaultOpen={json.length < 500}>
+    <CollapsibleBlock
+      label="Response"
+      count={`${json.length} bytes`}
+      defaultOpen={json.length < 500}
+    >
       <pre className="text-xs bg-gray-950 rounded border border-gray-800 p-2 text-gray-300 overflow-auto max-h-52 font-mono whitespace-pre-wrap">
         {highlightJSON(json)}
       </pre>
@@ -196,7 +209,10 @@ export function FileList({ files }: { files: string[] }) {
     <div className="bg-gray-950 rounded border border-gray-800 overflow-auto max-h-60">
       <div className="p-1.5 space-y-px">
         {display.map((f, i) => (
-          <div key={i} className="text-xs font-mono text-gray-400 px-1.5 py-0.5 hover:bg-gray-900/50 rounded truncate">
+          <div
+            key={i}
+            className="text-xs font-mono text-gray-400 px-1.5 py-0.5 hover:bg-gray-900/50 rounded truncate"
+          >
             {String(f).replace(/\\/g, '/')}
           </div>
         ))}
@@ -235,10 +251,12 @@ export function highlightMatch(line: string, pattern: string): ReactNode[] {
     const parts = line.split(re);
     return parts.map((part, i) =>
       re.test(part) ? (
-        <span key={i} className="bg-amber-900/40 text-amber-200 rounded-sm px-0.5">{part}</span>
+        <span key={i} className="bg-amber-900/40 text-amber-200 rounded-sm px-0.5">
+          {part}
+        </span>
       ) : (
         <span key={i}>{part}</span>
-      )
+      ),
     );
   } catch {
     return [line];
@@ -247,7 +265,11 @@ export function highlightMatch(line: string, pattern: string): ReactNode[] {
 
 export function SearchResultCard({ title, url }: { title: string; url: string }) {
   let domain = '';
-  try { domain = new URL(url).hostname; } catch { /* ignore */ }
+  try {
+    domain = new URL(url).hostname;
+  } catch {
+    /* ignore */
+  }
 
   return (
     <div className="flex items-start gap-2 bg-gray-950 rounded border border-gray-800 px-2.5 py-1.5 text-xs hover:bg-gray-900/80 transition-colors">
@@ -258,7 +280,9 @@ export function SearchResultCard({ title, url }: { title: string; url: string })
         className="min-w-0 flex-1 cursor-pointer"
         title={url}
       >
-        <p className="text-blue-300 font-medium truncate hover:underline">{title || '(untitled)'}</p>
+        <p className="text-blue-300 font-medium truncate hover:underline">
+          {title || '(untitled)'}
+        </p>
         {domain && <p className="text-green-400/60 text-[10px] truncate">{domain}</p>}
       </a>
       {url && <CopyButton text={url} label="Copy URL" />}

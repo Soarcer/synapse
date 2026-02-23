@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useRef, useCallback, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -11,13 +14,7 @@ interface TooltipProps {
 
 let _counter = 0;
 
-export function Tooltip({
-  content,
-  shortcut,
-  side,
-  delay = 300,
-  children,
-}: TooltipProps) {
+export function Tooltip({ content, shortcut, side, delay = 300, children }: TooltipProps) {
   const [visible, setVisible] = useState(false);
   const [coords, setCoords] = useState({ x: 0, y: 0, placement: 'top' as 'top' | 'bottom' });
   const triggerRef = useRef<HTMLSpanElement>(null);
@@ -69,10 +66,7 @@ export function Tooltip({
             style={{
               left: coords.x,
               top: coords.y,
-              transform:
-                coords.placement === 'top'
-                  ? 'translate(-50%, -100%)'
-                  : 'translateX(-50%)',
+              transform: coords.placement === 'top' ? 'translate(-50%, -100%)' : 'translateX(-50%)',
             }}
           >
             {content}

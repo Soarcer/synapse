@@ -1,10 +1,21 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useAgentStore } from '../../store/agentStore';
 import { apiUrl } from '../../utils/api';
 import { toast } from '../Toast';
 
 const AVAILABLE_TOOLS = [
-  'Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep', 'WebSearch', 'WebFetch', 'Task',
+  'Read',
+  'Write',
+  'Edit',
+  'Bash',
+  'Glob',
+  'Grep',
+  'WebSearch',
+  'WebFetch',
+  'Task',
 ];
 
 export function SpawnAgentDialog() {
@@ -27,7 +38,9 @@ export function SpawnAgentDialog() {
   const [tools, setTools] = useState<Set<string>>(
     new Set(['Read', 'Edit', 'Bash', 'Glob', 'Grep']),
   );
-  const [permissionMode, setPermissionMode] = useState<'acceptEdits' | 'bypassPermissions'>('acceptEdits');
+  const [permissionMode, setPermissionMode] = useState<'acceptEdits' | 'bypassPermissions'>(
+    'acceptEdits',
+  );
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState('');
   const [cwd, setCwd] = useState('');
@@ -69,7 +82,17 @@ export function SpawnAgentDialog() {
     } finally {
       setSpawning(false);
     }
-  }, [prompt, model, tools, permissionMode, systemPrompt, cwd, targetSessionId, latestSessionId, setShowSpawnDialog]);
+  }, [
+    prompt,
+    model,
+    tools,
+    permissionMode,
+    systemPrompt,
+    cwd,
+    targetSessionId,
+    latestSessionId,
+    setShowSpawnDialog,
+  ]);
 
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -127,7 +150,9 @@ export function SpawnAgentDialog() {
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
-          <h2 id="spawn-dialog-title" className="text-base font-semibold text-gray-100">Spawn Agent</h2>
+          <h2 id="spawn-dialog-title" className="text-base font-semibold text-gray-100">
+            Spawn Agent
+          </h2>
           <button
             onClick={() => setShowSpawnDialog(false)}
             className="text-gray-500 hover:text-gray-300 text-xl leading-none"
@@ -195,7 +220,9 @@ export function SpawnAgentDialog() {
             <label className="text-xs text-gray-400 block mb-1">Permission Mode</label>
             <select
               value={permissionMode}
-              onChange={(e) => setPermissionMode(e.target.value as 'acceptEdits' | 'bypassPermissions')}
+              onChange={(e) =>
+                setPermissionMode(e.target.value as 'acceptEdits' | 'bypassPermissions')
+              }
               className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200"
             >
               <option value="acceptEdits">Accept Edits (recommended)</option>

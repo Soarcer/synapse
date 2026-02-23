@@ -1,11 +1,14 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { MockSession, MockTurn, MockToolCall, MockDailyRollup, MockData } from './mockData';
+import type { MockSession, MockTurn, MockToolCall, MockDailyRollup } from './mockData';
 import { generateMockData } from './mockData';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
 export interface AnalyticsFilters {
-  timeRange: string;         // '1h' | '6h' | '24h' | '7d' | '30d' | 'all'
+  timeRange: string; // '1h' | '6h' | '24h' | '7d' | '30d' | 'all'
   cwd?: string;
   model?: string;
   vendor?: string;
@@ -67,13 +70,20 @@ function getTimeRangeMs(range: string): { from: number; to: number } {
   const now = Date.now();
   const DAY = 86_400_000;
   switch (range) {
-    case '1h':  return { from: now - 3_600_000, to: now };
-    case '6h':  return { from: now - 6 * 3_600_000, to: now };
-    case '24h': return { from: now - DAY, to: now };
-    case '7d':  return { from: now - 7 * DAY, to: now };
-    case '30d': return { from: now - 30 * DAY, to: now };
-    case 'all': return { from: 0, to: now };
-    default:    return { from: now - 7 * DAY, to: now };
+    case '1h':
+      return { from: now - 3_600_000, to: now };
+    case '6h':
+      return { from: now - 6 * 3_600_000, to: now };
+    case '24h':
+      return { from: now - DAY, to: now };
+    case '7d':
+      return { from: now - 7 * DAY, to: now };
+    case '30d':
+      return { from: now - 30 * DAY, to: now };
+    case 'all':
+      return { from: 0, to: now };
+    default:
+      return { from: now - 7 * DAY, to: now };
   }
 }
 
@@ -203,15 +213,25 @@ export function useAnalyticsData(filters: AnalyticsFilters): AnalyticsData {
         ? `sessionId=${encodeURIComponent(filters.sessionId)}`
         : `${params}&limit=50`;
 
-      const [overviewRes, timeseriesRes, sessionsRes, toolsRes, modelsRes, turnsRes, toolCallsRes] = await Promise.all([
-        fetchApi<OverviewData>(`${API_BASE}/overview?${params}`, controller.signal),
-        fetchApi<TimeseriesPoint[]>(`${API_BASE}/timeseries?${params}&granularity=day`, controller.signal),
-        fetchApi<Array<Record<string, unknown>>>(`${API_BASE}/sessions?${params}&limit=100`, controller.signal),
-        fetchApi<ToolSummary[]>(`${API_BASE}/tools?${params}`, controller.signal),
-        fetchApi<ModelSummary[]>(`${API_BASE}/models?${params}`, controller.signal),
-        fetchApi<Array<Record<string, unknown>>>(`${API_BASE}/turns?${turnsParam}`, controller.signal),
-        fetchApi<MockToolCall[]>(`${API_BASE}/tool-calls?${params}`, controller.signal),
-      ]);
+      const [overviewRes, timeseriesRes, sessionsRes, toolsRes, modelsRes, turnsRes, toolCallsRes] =
+        await Promise.all([
+          fetchApi<OverviewData>(`${API_BASE}/overview?${params}`, controller.signal),
+          fetchApi<TimeseriesPoint[]>(
+            `${API_BASE}/timeseries?${params}&granularity=day`,
+            controller.signal,
+          ),
+          fetchApi<Array<Record<string, unknown>>>(
+            `${API_BASE}/sessions?${params}&limit=100`,
+            controller.signal,
+          ),
+          fetchApi<ToolSummary[]>(`${API_BASE}/tools?${params}`, controller.signal),
+          fetchApi<ModelSummary[]>(`${API_BASE}/models?${params}`, controller.signal),
+          fetchApi<Array<Record<string, unknown>>>(
+            `${API_BASE}/turns?${turnsParam}`,
+            controller.signal,
+          ),
+          fetchApi<MockToolCall[]>(`${API_BASE}/tool-calls?${params}`, controller.signal),
+        ]);
 
       // Stale check
       if (fetchId !== fetchIdRef.current) return;
@@ -245,7 +265,8 @@ export function useAnalyticsData(filters: AnalyticsFilters): AnalyticsData {
       if (fetchId !== fetchIdRef.current) return;
 
       // Fallback to mock data in development
-      if (import.meta.env.DEV) console.warn('Analytics API unavailable, falling back to mock data:', err);
+      if (import.meta.env.DEV)
+        console.warn('Analytics API unavailable, falling back to mock data:', err);
       const mock = generateMockData(42);
       setOverview({
         totalCost: mock.sessions.reduce((s, session) => s + session.totalCost, 0),
@@ -256,50 +277,71 @@ export function useAnalyticsData(filters: AnalyticsFilters): AnalyticsData {
         },
         totalSessions: mock.sessions.length,
         totalToolCalls: mock.toolCalls.length,
-        avgLatencyMs: Math.round(mock.sessions.reduce((s, session) => s + session.avgLatencyMs, 0) / mock.sessions.length),
+        avgLatencyMs: Math.round(
+          mock.sessions.reduce((s, session) => s + session.avgLatencyMs, 0) / mock.sessions.length,
+        ),
       });
-      setTimeseries(mock.dailyRollups.map((d) => ({
-        timestamp: new Date(d.date).getTime(),
-        cost: d.totalCost,
-        inputTokens: d.totalInputTokens,
-        outputTokens: d.totalOutputTokens,
-        cacheRead: d.totalCacheRead,
-        sessions: d.sessions,
-        toolCalls: d.totalToolCalls,
-        models: d.models,
-      })));
+      setTimeseries(
+        mock.dailyRollups.map((d) => ({
+          timestamp: new Date(d.date).getTime(),
+          cost: d.totalCost,
+          inputTokens: d.totalInputTokens,
+          outputTokens: d.totalOutputTokens,
+          cacheRead: d.totalCacheRead,
+          sessions: d.sessions,
+          toolCalls: d.totalToolCalls,
+          models: d.models,
+        })),
+      );
       setSessions(mock.sessions);
       setTurns(mock.turns);
       setToolCalls(mock.toolCalls);
       setDailyRollups(mock.dailyRollups);
-      setTools(mock.toolCalls.reduce((acc, tc) => {
-        const existing = acc.find((t) => t.name === tc.toolName);
-        if (existing) {
-          existing.count++;
-          existing.avgDuration = Math.round((existing.avgDuration * (existing.count - 1) + tc.durationMs) / existing.count);
-          if (tc.status === 'error') existing.errorRate = (existing.errorRate * (existing.count - 1) + 1) / existing.count;
-        } else {
-          acc.push({ name: tc.toolName, count: 1, avgDuration: tc.durationMs, errorRate: tc.status === 'error' ? 1 : 0 });
-        }
-        return acc;
-      }, [] as ToolSummary[]));
-      setModels(mock.sessions.reduce((acc, s) => {
-        const existing = acc.find((m) => m.model === s.model);
-        if (existing) {
-          existing.sessions++;
-          existing.cost += s.totalCost;
-          existing.tokens += s.totalInputTokens + s.totalOutputTokens;
-        } else {
-          acc.push({ model: s.model, sessions: 1, cost: s.totalCost, tokens: s.totalInputTokens + s.totalOutputTokens });
-        }
-        return acc;
-      }, [] as ModelSummary[]));
+      setTools(
+        mock.toolCalls.reduce((acc, tc) => {
+          const existing = acc.find((t) => t.name === tc.toolName);
+          if (existing) {
+            existing.count++;
+            existing.avgDuration = Math.round(
+              (existing.avgDuration * (existing.count - 1) + tc.durationMs) / existing.count,
+            );
+            if (tc.status === 'error')
+              existing.errorRate = (existing.errorRate * (existing.count - 1) + 1) / existing.count;
+          } else {
+            acc.push({
+              name: tc.toolName,
+              count: 1,
+              avgDuration: tc.durationMs,
+              errorRate: tc.status === 'error' ? 1 : 0,
+            });
+          }
+          return acc;
+        }, [] as ToolSummary[]),
+      );
+      setModels(
+        mock.sessions.reduce((acc, s) => {
+          const existing = acc.find((m) => m.model === s.model);
+          if (existing) {
+            existing.sessions++;
+            existing.cost += s.totalCost;
+            existing.tokens += s.totalInputTokens + s.totalOutputTokens;
+          } else {
+            acc.push({
+              model: s.model,
+              sessions: 1,
+              cost: s.totalCost,
+              tokens: s.totalInputTokens + s.totalOutputTokens,
+            });
+          }
+          return acc;
+        }, [] as ModelSummary[]),
+      );
 
       setIsUsingMockData(true);
       setError(null); // Don't show error when gracefully falling back
       setIsLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- sessionIds is an array, serialized for stability
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sessionIds is an array, serialized for stability
   }, [filters.timeRange, filters.cwd, filters.sessionId, filters.sessionIds?.join(',')]);
 
   useEffect(() => {

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import type { OpenClawTool } from '../types.js';
 
 /**
@@ -11,7 +14,8 @@ export function createAgentTools(port: number): OpenClawTool[] {
     // ── synapse_query: Query monitoring events ──
     {
       name: 'synapse_query',
-      description: 'Query AI usage events from the Synapse monitoring dashboard. Returns recent events filtered by session, vendor, or event type.',
+      description:
+        'Query AI usage events from the Synapse monitoring dashboard. Returns recent events filtered by session, vendor, or event type.',
       parameters: {
         type: 'object',
         properties: {
@@ -25,7 +29,8 @@ export function createAgentTools(port: number): OpenClawTool[] {
           },
           eventType: {
             type: 'string',
-            description: 'Filter by event type (session_start, tool_start, tool_end, user_prompt, etc.)',
+            description:
+              'Filter by event type (session_start, tool_start, tool_end, user_prompt, etc.)',
           },
           limit: {
             type: 'number',
@@ -43,7 +48,7 @@ export function createAgentTools(port: number): OpenClawTool[] {
         try {
           const res = await fetch(`${baseUrl}/api/events?${query}`);
           if (!res.ok) return { error: `Server returned ${res.status}` };
-          let events = await res.json() as Array<Record<string, unknown>>;
+          let events = (await res.json()) as Array<Record<string, unknown>>;
 
           // Client-side vendor filter (server doesn't support vendor query yet)
           if (params.vendor) {
@@ -61,9 +66,7 @@ export function createAgentTools(port: number): OpenClawTool[] {
               toolName: e.toolName,
               status: e.status,
               tokens: e.tokenUsage,
-              timestamp: e.timestamp
-                ? new Date(e.timestamp as number).toISOString()
-                : undefined,
+              timestamp: e.timestamp ? new Date(e.timestamp as number).toISOString() : undefined,
             })),
           };
         } catch (err) {
@@ -75,7 +78,8 @@ export function createAgentTools(port: number): OpenClawTool[] {
     // ── synapse_metrics: Aggregate statistics ──
     {
       name: 'synapse_metrics',
-      description: 'Get aggregate AI usage metrics from Synapse: total tokens, estimated cost, and event counts grouped by vendor or model.',
+      description:
+        'Get aggregate AI usage metrics from Synapse: total tokens, estimated cost, and event counts grouped by vendor or model.',
       parameters: {
         type: 'object',
         properties: {
@@ -99,39 +103,47 @@ export function createAgentTools(port: number): OpenClawTool[] {
           '1h': now - 3600_000,
           '24h': now - 86400_000,
           '7d': now - 604800_000,
-          'all': 0,
+          all: 0,
         };
         const cutoff = cutoffs[timeRange] ?? cutoffs['24h'];
 
         try {
           const res = await fetch(`${baseUrl}/api/events?limit=2000`);
           if (!res.ok) return { error: `Server returned ${res.status}` };
-          const events = await res.json() as Array<Record<string, unknown>>;
+          const events = (await res.json()) as Array<Record<string, unknown>>;
 
           // Filter by time range
-          const filtered = events.filter((e) =>
-            (e.timestamp as number) >= cutoff
-          );
+          const filtered = events.filter((e) => (e.timestamp as number) >= cutoff);
 
           // Aggregate
-          const groups = new Map<string, {
-            totalInputTokens: number;
-            totalOutputTokens: number;
-            estimatedCostUsd: number;
-            eventCount: number;
-            toolCalls: number;
-          }>();
+          const groups = new Map<
+            string,
+            {
+              totalInputTokens: number;
+              totalOutputTokens: number;
+              estimatedCostUsd: number;
+              eventCount: number;
+              toolCalls: number;
+            }
+          >();
 
           for (const e of filtered) {
-            const key = groupBy === 'vendor'
-              ? (e.vendor as string || 'unknown')
-              : groupBy === 'model'
-                ? (e.model as string || 'unknown')
-                : (e.sessionId as string || 'unknown').slice(0, 12);
+            const key =
+              groupBy === 'vendor'
+                ? (e.vendor as string) || 'unknown'
+                : groupBy === 'model'
+                  ? (e.model as string) || 'unknown'
+                  : ((e.sessionId as string) || 'unknown').slice(0, 12);
 
             let g = groups.get(key);
             if (!g) {
-              g = { totalInputTokens: 0, totalOutputTokens: 0, estimatedCostUsd: 0, eventCount: 0, toolCalls: 0 };
+              g = {
+                totalInputTokens: 0,
+                totalOutputTokens: 0,
+                estimatedCostUsd: 0,
+                eventCount: 0,
+                toolCalls: 0,
+              };
               groups.set(key, g);
             }
 
@@ -167,9 +179,7 @@ export function createAgentTools(port: number): OpenClawTool[] {
             timeRange,
             groupBy,
             totalEvents: filtered.length,
-            metrics: metrics.sort((a, b) =>
-              (b.totalTokens as number) - (a.totalTokens as number)
-            ),
+            metrics: metrics.sort((a, b) => (b.totalTokens as number) - (a.totalTokens as number)),
           };
         } catch (err) {
           return { error: `Failed to get metrics: ${err}` };
@@ -180,7 +190,8 @@ export function createAgentTools(port: number): OpenClawTool[] {
     // ── synapse_dashboard: Get dashboard URL ──
     {
       name: 'synapse_dashboard',
-      description: 'Get the URL for the Synapse real-time monitoring dashboard. Open this URL in a browser to see live AI agent activity.',
+      description:
+        'Get the URL for the Synapse real-time monitoring dashboard. Open this URL in a browser to see live AI agent activity.',
       parameters: {
         type: 'object',
         properties: {},
@@ -188,7 +199,7 @@ export function createAgentTools(port: number): OpenClawTool[] {
       execute: async () => {
         try {
           const res = await fetch(`${baseUrl}/api/health`);
-          const health = await res.json() as Record<string, unknown>;
+          const health = (await res.json()) as Record<string, unknown>;
           return {
             url: baseUrl,
             status: health.ok ? 'running' : 'error',

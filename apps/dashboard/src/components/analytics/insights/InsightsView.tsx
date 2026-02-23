@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useCoachingData } from '../coaching/useCoachingData';
 import { ReportCardPanel } from '../coaching/ReportCardPanel';
@@ -27,11 +30,34 @@ interface Insight {
 
 // ─── Severity styling ───────────────────────────────────────────────
 
-const SEVERITY_STYLES: Record<Severity, { bg: string; border: string; icon: string; text: string }> = {
-  critical: { bg: 'bg-red-500/10', border: 'border-red-500/30', icon: '\uD83D\uDEA8', text: 'text-red-400' },
-  warning: { bg: 'bg-amber-500/10', border: 'border-amber-500/30', icon: '\u26A0\uFE0F', text: 'text-amber-400' },
-  success: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', icon: '\u2705', text: 'text-emerald-400' },
-  info: { bg: 'bg-blue-500/10', border: 'border-blue-500/30', icon: '\u2139\uFE0F', text: 'text-blue-400' },
+const SEVERITY_STYLES: Record<
+  Severity,
+  { bg: string; border: string; icon: string; text: string }
+> = {
+  critical: {
+    bg: 'bg-red-500/10',
+    border: 'border-red-500/30',
+    icon: '\uD83D\uDEA8',
+    text: 'text-red-400',
+  },
+  warning: {
+    bg: 'bg-amber-500/10',
+    border: 'border-amber-500/30',
+    icon: '\u26A0\uFE0F',
+    text: 'text-amber-400',
+  },
+  success: {
+    bg: 'bg-emerald-500/10',
+    border: 'border-emerald-500/30',
+    icon: '\u2705',
+    text: 'text-emerald-400',
+  },
+  info: {
+    bg: 'bg-blue-500/10',
+    border: 'border-blue-500/30',
+    icon: '\u2139\uFE0F',
+    text: 'text-blue-400',
+  },
 };
 
 const CATEGORY_LABELS: Record<Category, string> = {
@@ -81,7 +107,10 @@ function generateInsights(data: MockData): Insight[] {
   const avgCostPerTurn = totalTurns > 0 ? totalCost / totalTurns : 0;
 
   // ── Model usage analysis ──
-  const modelUsage = new Map<string, { sessions: number; cost: number; turns: number; tokens: number }>();
+  const modelUsage = new Map<
+    string,
+    { sessions: number; cost: number; turns: number; tokens: number }
+  >();
   for (const s of data.sessions) {
     const entry = modelUsage.get(s.model) ?? { sessions: 0, cost: 0, turns: 0, tokens: 0 };
     entry.sessions++;
@@ -115,8 +144,10 @@ function generateInsights(data: MockData): Insight[] {
       category: 'models',
       severity: 'info',
       title: 'Not using Haiku for lightweight tasks',
-      description: 'Haiku 4.5 is unused. It costs $0.80/M input vs $3/M for Sonnet - nearly 4x cheaper.',
-      coaching: 'Use Haiku for simple tasks: code formatting, generating boilerplate, writing tests for existing functions, documentation updates, and simple search/replace operations. In Claude Code, you can toggle fast mode with /fast to use Haiku.',
+      description:
+        'Haiku 4.5 is unused. It costs $0.80/M input vs $3/M for Sonnet - nearly 4x cheaper.',
+      coaching:
+        'Use Haiku for simple tasks: code formatting, generating boilerplate, writing tests for existing functions, documentation updates, and simple search/replace operations. In Claude Code, you can toggle fast mode with /fast to use Haiku.',
       metric: '0 Haiku sessions',
     });
   }
@@ -129,7 +160,8 @@ function generateInsights(data: MockData): Insight[] {
       severity: 'warning',
       title: `Only using ${MODEL_LABELS[onlyModel] ?? onlyModel}`,
       description: 'Using a single model for all tasks leaves money on the table.',
-      coaching: 'Match model to task complexity: Use Opus for complex architecture and multi-file reasoning. Use Sonnet for feature development and debugging. Use Haiku for boilerplate, formatting, and simple edits. A typical optimal split: 10% Opus, 60% Sonnet, 30% Haiku.',
+      coaching:
+        'Match model to task complexity: Use Opus for complex architecture and multi-file reasoning. Use Sonnet for feature development and debugging. Use Haiku for boilerplate, formatting, and simple edits. A typical optimal split: 10% Opus, 60% Sonnet, 30% Haiku.',
     });
   }
 
@@ -141,9 +173,10 @@ function generateInsights(data: MockData): Insight[] {
       severity: 'warning',
       title: `Low cache hit rate: ${Math.round(cacheHitRate * 100)}%`,
       description: `Only ${Math.round(cacheHitRate * 100)}% of input tokens came from cache. This means you're paying full price for most input tokens.`,
-      coaching: 'Improve caching by: (1) Using consistent system prompts - Claude caches prompt prefixes that don\'t change between turns. (2) Avoiding unnecessary context resets - long sessions with stable context build up cache. (3) Structuring prompts so the stable part (instructions, constraints) comes first, and the variable part (user question) comes last.',
+      coaching:
+        "Improve caching by: (1) Using consistent system prompts - Claude caches prompt prefixes that don't change between turns. (2) Avoiding unnecessary context resets - long sessions with stable context build up cache. (3) Structuring prompts so the stable part (instructions, constraints) comes first, and the variable part (user question) comes last.",
       metric: `${Math.round(cacheHitRate * 100)}% hit rate`,
-      impact: `Could save ~$${((totalInputTokens * 0.5 - totalCacheRead) / 1_000_000 * 2.7).toFixed(2)} with 50% hit rate`,
+      impact: `Could save ~$${(((totalInputTokens * 0.5 - totalCacheRead) / 1_000_000) * 2.7).toFixed(2)} with 50% hit rate`,
     });
   } else if (cacheHitRate > 0.7) {
     insights.push({
@@ -152,21 +185,23 @@ function generateInsights(data: MockData): Insight[] {
       severity: 'success',
       title: `Excellent cache efficiency: ${Math.round(cacheHitRate * 100)}%`,
       description: `${Math.round(cacheHitRate * 100)}% cache hit rate is outstanding. You're saving significantly on input token costs.`,
-      coaching: 'Keep up the consistent prompting patterns. Your system prompts and conversation structure are cache-friendly.',
+      coaching:
+        'Keep up the consistent prompting patterns. Your system prompts and conversation structure are cache-friendly.',
       metric: `${Math.round(cacheHitRate * 100)}% hit rate`,
-      impact: `Saving ~$${(totalCacheRead / 1_000_000 * 2.7).toFixed(2)} vs uncached`,
+      impact: `Saving ~$${((totalCacheRead / 1_000_000) * 2.7).toFixed(2)} vs uncached`,
     });
   }
 
   // ── Cost analysis ──
-  if (avgCostPerTurn > 0.50) {
+  if (avgCostPerTurn > 0.5) {
     insights.push({
       id: 'cost-per-turn-high',
       category: 'cost',
       severity: 'warning',
       title: `High cost per turn: $${avgCostPerTurn.toFixed(3)}`,
       description: `Average $${avgCostPerTurn.toFixed(3)} per prompt/response cycle across ${totalTurns} turns.`,
-      coaching: 'Reduce cost per turn by: (1) Breaking complex prompts into simpler sub-tasks that can use cheaper models. (2) Being specific in prompts to reduce unnecessary output. (3) Using "think step by step" only when truly needed - thinking tokens add to output cost. (4) Avoiding repeated file reads by asking Claude to remember content from earlier in the session.',
+      coaching:
+        'Reduce cost per turn by: (1) Breaking complex prompts into simpler sub-tasks that can use cheaper models. (2) Being specific in prompts to reduce unnecessary output. (3) Using "think step by step" only when truly needed - thinking tokens add to output cost. (4) Avoiding repeated file reads by asking Claude to remember content from earlier in the session.',
       metric: `$${avgCostPerTurn.toFixed(3)}/turn`,
     });
   }
@@ -182,7 +217,8 @@ function generateInsights(data: MockData): Insight[] {
       severity: 'warning',
       title: `${expensiveSessions.length} session${expensiveSessions.length > 1 ? 's' : ''} cost 2.5x+ average`,
       description: `Most expensive: "${topSession.name}" at $${topSession.totalCost.toFixed(2)} (avg: $${avgSessionCost.toFixed(2)}).`,
-      coaching: 'Expensive sessions often result from: (1) Context growing too large - use /compact or start fresh sessions for unrelated tasks. (2) Letting Claude explore without clear constraints. (3) Iterating on the wrong approach - if something isn\'t working after 3-4 turns, step back and re-think the approach.',
+      coaching:
+        "Expensive sessions often result from: (1) Context growing too large - use /compact or start fresh sessions for unrelated tasks. (2) Letting Claude explore without clear constraints. (3) Iterating on the wrong approach - if something isn't working after 3-4 turns, step back and re-think the approach.",
       metric: `$${topSession.totalCost.toFixed(2)} top session`,
     });
   }
@@ -198,8 +234,10 @@ function generateInsights(data: MockData): Insight[] {
       category: 'prompts',
       severity: 'warning',
       title: `${Math.round((shortPrompts.length / turnsWithPrompt.length) * 100)}% of prompts are very short (<5 words)`,
-      description: 'Short prompts like "fix it", "continue", "looks good" lead to ambiguous responses and wasted tokens.',
-      coaching: 'Be specific and explicit: Instead of "fix the bug", try "fix the TypeError in auth.ts:42 where user.email is undefined when the session expires". Include: (1) What file/function, (2) What the expected behavior is, (3) What constraint to follow. Specific prompts -> fewer back-and-forth turns -> lower total cost.',
+      description:
+        'Short prompts like "fix it", "continue", "looks good" lead to ambiguous responses and wasted tokens.',
+      coaching:
+        'Be specific and explicit: Instead of "fix the bug", try "fix the TypeError in auth.ts:42 where user.email is undefined when the session expires". Include: (1) What file/function, (2) What the expected behavior is, (3) What constraint to follow. Specific prompts -> fewer back-and-forth turns -> lower total cost.',
       metric: `${shortPrompts.length}/${turnsWithPrompt.length} short prompts`,
     });
   }
@@ -211,7 +249,8 @@ function generateInsights(data: MockData): Insight[] {
       severity: 'info',
       title: `${longPrompts.length} prompts exceed 100 words`,
       description: 'Very long prompts add to input token cost and may contain redundant context.',
-      coaching: 'Long prompts often duplicate what\'s already in context. Instead of repeating file contents, reference them: "In the auth.ts file you read earlier, modify the login function to..." Claude already has the file in context from previous turns.',
+      coaching:
+        'Long prompts often duplicate what\'s already in context. Instead of repeating file contents, reference them: "In the auth.ts file you read earlier, modify the login function to..." Claude already has the file in context from previous turns.',
       metric: `${longPrompts.length} long prompts`,
     });
   }
@@ -226,14 +265,15 @@ function generateInsights(data: MockData): Insight[] {
   const fixCount = categories.get('bugfix') ?? 0;
   const featureCount = categories.get('feature') ?? 0;
 
-  if ((debugCount + fixCount) > featureCount * 2 && (debugCount + fixCount) > 3) {
+  if (debugCount + fixCount > featureCount * 2 && debugCount + fixCount > 3) {
     insights.push({
       id: 'prompt-debug-heavy',
       category: 'prompts',
       severity: 'info',
       title: 'More debugging than building',
       description: `${debugCount + fixCount} debug/fix prompts vs ${featureCount} feature prompts. Spending more time fixing than building.`,
-      coaching: 'High debug-to-feature ratio suggests: (1) Ask Claude to write tests BEFORE implementing features - test-first development catches bugs earlier and cheaper. (2) Include error messages and stack traces in prompts for faster resolution. (3) Consider having Claude review code at the end of each feature, not just when bugs appear.',
+      coaching:
+        'High debug-to-feature ratio suggests: (1) Ask Claude to write tests BEFORE implementing features - test-first development catches bugs earlier and cheaper. (2) Include error messages and stack traces in prompts for faster resolution. (3) Consider having Claude review code at the end of each feature, not just when bugs appear.',
     });
   }
 
@@ -257,11 +297,12 @@ function generateInsights(data: MockData): Insight[] {
         severity: 'warning',
         title: `${tool}: ${Math.round(errorRate * 100)}% error rate`,
         description: `${errors}/${total} ${tool} calls failed. Retries waste tokens and time.`,
-        coaching: tool === 'Bash'
-          ? 'Bash errors often come from missing dependencies, wrong paths, or permission issues. Include environment context in your initial prompt: OS, working directory, installed tools.'
-          : tool === 'Write' || tool === 'Edit'
-            ? 'Write/Edit errors usually mean the file path is wrong or the content being replaced doesn\'t exist. Ask Claude to Read the file first before editing.'
-            : `Reduce ${tool} errors by giving Claude more context about your project structure and constraints upfront.`,
+        coaching:
+          tool === 'Bash'
+            ? 'Bash errors often come from missing dependencies, wrong paths, or permission issues. Include environment context in your initial prompt: OS, working directory, installed tools.'
+            : tool === 'Write' || tool === 'Edit'
+              ? "Write/Edit errors usually mean the file path is wrong or the content being replaced doesn't exist. Ask Claude to Read the file first before editing."
+              : `Reduce ${tool} errors by giving Claude more context about your project structure and constraints upfront.`,
         metric: `${errors}/${total} failed`,
       });
     }
@@ -277,21 +318,25 @@ function generateInsights(data: MockData): Insight[] {
       severity: 'info',
       title: 'High Read-to-Edit ratio',
       description: `${readCount} file reads but only ${editCount} edits. Claude may be exploring excessively.`,
-      coaching: 'If Claude is reading many files without editing, your prompt may be too vague. Be specific about which files need changes and what the expected outcome is. Use project CLAUDE.md to pre-document your architecture so Claude doesn\'t need to discover it from scratch each session.',
+      coaching:
+        "If Claude is reading many files without editing, your prompt may be too vague. Be specific about which files need changes and what the expected outcome is. Use project CLAUDE.md to pre-document your architecture so Claude doesn't need to discover it from scratch each session.",
     });
   }
 
   // ── Session patterns ──
   const sessionsWithCompactions = data.sessions.filter((s) => s.compactions > 0);
   if (sessionsWithCompactions.length > totalSessions * 0.4 && totalSessions > 3) {
-    const avgCompactions = sessionsWithCompactions.reduce((s, sess) => s + sess.compactions, 0) / sessionsWithCompactions.length;
+    const avgCompactions =
+      sessionsWithCompactions.reduce((s, sess) => s + sess.compactions, 0) /
+      sessionsWithCompactions.length;
     insights.push({
       id: 'pattern-compactions',
       category: 'patterns',
       severity: 'warning',
       title: `${sessionsWithCompactions.length}/${totalSessions} sessions hit context compaction`,
       description: `On average ${avgCompactions.toFixed(1)} compactions per session. Compaction loses context and increases cost.`,
-      coaching: 'Reduce compactions by: (1) Starting new sessions for distinct tasks instead of one mega-session. (2) Using CLAUDE.md to capture decisions so they survive compaction. (3) Asking Claude to summarize progress before context gets too large. (4) Avoiding unnecessary file reads - once Claude has read a file, reference it by name.',
+      coaching:
+        'Reduce compactions by: (1) Starting new sessions for distinct tasks instead of one mega-session. (2) Using CLAUDE.md to capture decisions so they survive compaction. (3) Asking Claude to summarize progress before context gets too large. (4) Avoiding unnecessary file reads - once Claude has read a file, reference it by name.',
       metric: `${avgCompactions.toFixed(1)} avg compactions`,
     });
   }
@@ -304,7 +349,8 @@ function generateInsights(data: MockData): Insight[] {
       severity: 'info',
       title: `${shortSessions.length} sessions with <3 turns`,
       description: 'Many sessions end quickly, possibly indicating false starts or unclear goals.',
-      coaching: 'Before starting a session, formulate your goal clearly. Instead of exploring in short bursts, plan your task: "I need to implement X in files Y and Z, following the pattern in file W." This reduces session churn and context setup cost.',
+      coaching:
+        'Before starting a session, formulate your goal clearly. Instead of exploring in short bursts, plan your task: "I need to implement X in files Y and Z, following the pattern in file W." This reduces session churn and context setup cost.',
     });
   }
 
@@ -318,10 +364,16 @@ function generateInsights(data: MockData): Insight[] {
 /** Split coaching text into individual points. Handles "(1) ... (2) ..." and "sentence. Sentence" patterns. */
 function splitCoaching(text: string): string[] {
   // Try numbered format: (1) ... (2) ...
-  const numbered = text.split(/\(\d+\)\s*/).filter(Boolean).map(s => s.trim());
+  const numbered = text
+    .split(/\(\d+\)\s*/)
+    .filter(Boolean)
+    .map((s) => s.trim());
   if (numbered.length > 1) return numbered;
   // Fall back to sentence splitting — split on ". " followed by a capital letter
-  const sentences = text.split(/\.\s+(?=[A-Z])/).map(s => s.trim().replace(/\.$/, '')).filter(Boolean);
+  const sentences = text
+    .split(/\.\s+(?=[A-Z])/)
+    .map((s) => s.trim().replace(/\.$/, ''))
+    .filter(Boolean);
   return sentences.length > 1 ? sentences : [text];
 }
 
@@ -378,7 +430,9 @@ function computeBudgetFallback(data: MockData): BudgetStatus {
   let trend: 'rising' | 'stable' | 'falling' = 'stable';
   if (rollups.length >= 3) {
     const recentAvg = rollups.slice(-3).reduce((s, d) => s + d.totalCost, 0) / 3;
-    const olderAvg = rollups.slice(0, Math.max(1, rollups.length - 3)).reduce((s, d) => s + d.totalCost, 0) / Math.max(1, rollups.length - 3);
+    const olderAvg =
+      rollups.slice(0, Math.max(1, rollups.length - 3)).reduce((s, d) => s + d.totalCost, 0) /
+      Math.max(1, rollups.length - 3);
     if (recentAvg > olderAvg * 1.3) trend = 'rising';
     else if (recentAvg < olderAvg * 0.7) trend = 'falling';
   }
@@ -397,7 +451,10 @@ function computeBudgetFallback(data: MockData): BudgetStatus {
   };
 }
 
-function useBudgetData(fallbackData: MockData): { budget: BudgetStatus; setPlanOverride: (plan: string) => void } {
+function useBudgetData(fallbackData: MockData): {
+  budget: BudgetStatus;
+  setPlanOverride: (plan: string) => void;
+} {
   const fallback = useMemo(() => computeBudgetFallback(fallbackData), [fallbackData]);
   const [budget, setBudget] = useState<BudgetStatus>(fallback);
 
@@ -435,7 +492,9 @@ function useBudgetData(fallbackData: MockData): { budget: BudgetStatus; setPlanO
         // Silently fall back to local computation
         setBudget(fallback);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [fallback]);
 
   const setPlanOverride = useCallback((plan: string) => {
@@ -473,10 +532,17 @@ function computeModelOptimization(sessions: MockSession[]) {
       (freshInput / 1_000_000) * m.inputPer1M +
       (totalCacheRead / 1_000_000) * m.cachedPer1M +
       (totalOutput / 1_000_000) * m.outputPer1M;
-    return { ...m, cost, savings: currentCost - cost, savingsPct: currentCost > 0 ? ((currentCost - cost) / currentCost) * 100 : 0 };
+    return {
+      ...m,
+      cost,
+      savings: currentCost - cost,
+      savingsPct: currentCost > 0 ? ((currentCost - cost) / currentCost) * 100 : 0,
+    };
   });
 
-  const bestSaving = alternatives.filter((a) => a.savings > 0).sort((a, b) => b.savings - a.savings)[0];
+  const bestSaving = alternatives
+    .filter((a) => a.savings > 0)
+    .sort((a, b) => b.savings - a.savings)[0];
 
   return { currentCost, alternatives, bestSaving };
 }
@@ -499,8 +565,14 @@ function CollapsibleSection({
         onClick={() => setOpen(!open)}
         className="w-full flex items-center gap-2 px-4 py-3 bg-[#161b22] hover:bg-gray-800/40 transition-colors text-left"
       >
-        <span className={`text-[10px] text-gray-500 transition-transform ${open ? 'rotate-90' : ''}`}>&#9654;</span>
-        <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider">{title}</span>
+        <span
+          className={`text-[10px] text-gray-500 transition-transform ${open ? 'rotate-90' : ''}`}
+        >
+          &#9654;
+        </span>
+        <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider">
+          {title}
+        </span>
       </button>
       {open && <div className="p-4 bg-[#0d1117]">{children}</div>}
     </div>
@@ -509,13 +581,25 @@ function CollapsibleSection({
 
 // ─── Budget Gauge ───────────────────────────────────────────────
 
-function BudgetGauge({ label, spent, limit, pct }: { label: string; spent: number; limit: number; pct: number }) {
+function BudgetGauge({
+  label,
+  spent,
+  limit,
+  pct,
+}: {
+  label: string;
+  spent: number;
+  limit: number;
+  pct: number;
+}) {
   const color = pct > 1 ? '#ef4444' : pct > 0.75 ? '#f97316' : pct > 0.5 ? '#eab308' : '#22c55e';
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between">
         <span className="text-[10px] text-gray-500 uppercase tracking-wider">{label}</span>
-        <span className="text-xs text-gray-400">${spent.toFixed(2)} / ${limit}</span>
+        <span className="text-xs text-gray-400">
+          ${spent.toFixed(2)} / ${limit}
+        </span>
       </div>
       <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
         <div
@@ -536,7 +620,9 @@ const EMPTY_IDS: string[] = [];
 export function InsightsView({ data, sessions }: InsightsViewProps) {
   const [expandedInsight, setExpandedInsight] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<Category | null>(null);
-  const [aiInsights, setAiInsights] = useState<{ title: string; description: string; impact: string; howTo?: string[] }[]>([]);
+  const [aiInsights, setAiInsights] = useState<
+    { title: string; description: string; impact: string; howTo?: string[] }[]
+  >([]);
   const [aiInsightsLoading, setAiInsightsLoading] = useState(false);
 
   const insights = useMemo(() => generateInsights(data), [data]);
@@ -553,9 +639,13 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
       if (tc.status === 'error') existing.errors++;
       toolMap.set(tc.toolName, existing);
     }
-    const topTools = Array.from(toolMap.entries()).slice(0, 5).map(([name, d]) => ({
-      name, count: d.count, errorRate: d.count > 0 ? d.errors / d.count : 0,
-    }));
+    const topTools = Array.from(toolMap.entries())
+      .slice(0, 5)
+      .map(([name, d]) => ({
+        name,
+        count: d.count,
+        errorRate: d.count > 0 ? d.errors / d.count : 0,
+      }));
 
     fetch('/api/analytics/ai-insights', {
       method: 'POST',
@@ -570,7 +660,9 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
       }),
     })
       .then((r) => r.json())
-      .then((d) => { if (Array.isArray(d.data)) setAiInsights(d.data); })
+      .then((d) => {
+        if (Array.isArray(d.data)) setAiInsights(d.data);
+      })
       .catch(() => {})
       .finally(() => setAiInsightsLoading(false));
   }, [data.sessions, data.toolCalls]);
@@ -581,7 +673,12 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
     return ids.length > 0 ? ids.slice(0, 20) : EMPTY_IDS; // API caps at 20
   }, [sessions]);
 
-  const { reportCard, playbooks, isLoading: coachingLoading, refetchPlaybooks } = useCoachingData(sessionIds);
+  const {
+    reportCard,
+    playbooks,
+    isLoading: coachingLoading,
+    refetchPlaybooks,
+  } = useCoachingData(sessionIds);
 
   const filteredInsights = useMemo(() => {
     if (!categoryFilter) return insights;
@@ -611,10 +708,14 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
     const successCount = severityCounts.success;
 
     const lines: string[] = [];
-    lines.push(`${totalSessions} sessions, ${totalTurns} turns, $${totalCost.toFixed(2)} total cost.`);
+    lines.push(
+      `${totalSessions} sessions, ${totalTurns} turns, $${totalCost.toFixed(2)} total cost.`,
+    );
 
     if (warningCount > 0) {
-      lines.push(`${warningCount} area${warningCount > 1 ? 's' : ''} need${warningCount === 1 ? 's' : ''} attention - review the coaching below.`);
+      lines.push(
+        `${warningCount} area${warningCount > 1 ? 's' : ''} need${warningCount === 1 ? 's' : ''} attention - review the coaching below.`,
+      );
     }
     if (successCount > 0) {
       lines.push(`${successCount} thing${successCount > 1 ? 's' : ''} you're doing well.`);
@@ -661,15 +762,23 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
       <div className="bg-[#161b22] border border-gray-800 rounded-xl p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">AI Insights</h3>
-            <span className="px-1.5 py-0.5 text-[8px] font-medium rounded bg-blue-500/20 text-blue-400">AI</span>
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              AI Insights
+            </h3>
+            <span className="px-1.5 py-0.5 text-[8px] font-medium rounded bg-blue-500/20 text-blue-400">
+              AI
+            </span>
           </div>
           <button
             onClick={fetchAiInsights}
             disabled={aiInsightsLoading}
             className="px-3 py-1 text-[10px] font-medium bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/20 transition-colors disabled:opacity-50"
           >
-            {aiInsightsLoading ? 'Generating...' : aiInsights.length > 0 ? 'Refresh' : 'Generate AI Insights'}
+            {aiInsightsLoading
+              ? 'Generating...'
+              : aiInsights.length > 0
+                ? 'Refresh'
+                : 'Generate AI Insights'}
           </button>
         </div>
         {aiInsightsLoading && aiInsights.length === 0 ? (
@@ -691,10 +800,15 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
                 <p className="text-[11px] text-gray-400 leading-relaxed">{insight.description}</p>
                 {insight.howTo && insight.howTo.length > 0 && (
                   <div className="mt-2 pt-2 border-t border-gray-800/50">
-                    <span className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider">How do I do this?</span>
+                    <span className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider">
+                      How do I do this?
+                    </span>
                     <ul className="mt-1.5 space-y-1.5">
                       {insight.howTo.map((step, si) => (
-                        <li key={si} className="text-[11px] text-gray-300 leading-relaxed pl-3 border-l-2 border-purple-500/30">
+                        <li
+                          key={si}
+                          className="text-[11px] text-gray-300 leading-relaxed pl-3 border-l-2 border-purple-500/30"
+                        >
                           {step}
                         </li>
                       ))}
@@ -706,7 +820,8 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
           </div>
         ) : (
           <p className="text-[11px] text-gray-500 text-center py-3">
-            Click "Generate AI Insights" to get personalized recommendations based on your usage patterns.
+            Click "Generate AI Insights" to get personalized recommendations based on your usage
+            patterns.
           </p>
         )}
       </div>
@@ -718,26 +833,32 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
           <button
             onClick={() => setCategoryFilter(null)}
             className={`px-3 py-1 text-[11px] rounded-lg transition-all ${
-              !categoryFilter ? 'bg-blue-500/20 text-blue-400 font-medium' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+              !categoryFilter
+                ? 'bg-blue-500/20 text-blue-400 font-medium'
+                : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
             }`}
           >
             All ({insights.length})
           </button>
-          {(['cost', 'models', 'prompts', 'efficiency', 'tools', 'patterns'] as Category[]).map((cat) => {
-            const count = categoryCounts.get(cat) ?? 0;
-            if (count === 0) return null;
-            return (
-              <button
-                key={cat}
-                onClick={() => setCategoryFilter(categoryFilter === cat ? null : cat)}
-                className={`px-3 py-1 text-[11px] rounded-lg transition-all ${
-                  categoryFilter === cat ? 'bg-blue-500/20 text-blue-400 font-medium' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
-                }`}
-              >
-                {CATEGORY_ICONS[cat]} {CATEGORY_LABELS[cat]} ({count})
-              </button>
-            );
-          })}
+          {(['cost', 'models', 'prompts', 'efficiency', 'tools', 'patterns'] as Category[]).map(
+            (cat) => {
+              const count = categoryCounts.get(cat) ?? 0;
+              if (count === 0) return null;
+              return (
+                <button
+                  key={cat}
+                  onClick={() => setCategoryFilter(categoryFilter === cat ? null : cat)}
+                  className={`px-3 py-1 text-[11px] rounded-lg transition-all ${
+                    categoryFilter === cat
+                      ? 'bg-blue-500/20 text-blue-400 font-medium'
+                      : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+                  }`}
+                >
+                  {CATEGORY_ICONS[cat]} {CATEGORY_LABELS[cat]} ({count})
+                </button>
+              );
+            },
+          )}
         </div>
 
         <div className="space-y-3">
@@ -762,27 +883,42 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
                       <h4 className={`text-xs font-semibold ${style.text}`}>{insight.title}</h4>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         {insight.metric && (
-                          <span className="text-[10px] text-gray-500 bg-gray-800/50 px-2 py-0.5 rounded">{insight.metric}</span>
+                          <span className="text-[10px] text-gray-500 bg-gray-800/50 px-2 py-0.5 rounded">
+                            {insight.metric}
+                          </span>
                         )}
                         <span className="text-[10px] text-gray-600 bg-gray-800/30 px-1.5 py-0.5 rounded">
                           {CATEGORY_ICONS[insight.category]} {CATEGORY_LABELS[insight.category]}
                         </span>
                       </div>
                     </div>
-                    <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">{insight.description}</p>
+                    <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
+                      {insight.description}
+                    </p>
 
                     {isExpanded && (
                       <div className="mt-3 pt-3 border-t border-gray-700/50">
                         <div className="flex items-center gap-1.5 mb-2">
-                          <span className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider">Recommendation</span>
+                          <span className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider">
+                            Recommendation
+                          </span>
                         </div>
                         <ul className="space-y-1.5">
                           {splitCoaching(insight.coaching).map((point, pi) => {
-                            const accentColor = insight.severity === 'critical' ? '#ef4444'
-                              : insight.severity === 'warning' ? '#f59e0b'
-                              : insight.severity === 'success' ? '#10b981' : '#3b82f6';
+                            const accentColor =
+                              insight.severity === 'critical'
+                                ? '#ef4444'
+                                : insight.severity === 'warning'
+                                  ? '#f59e0b'
+                                  : insight.severity === 'success'
+                                    ? '#10b981'
+                                    : '#3b82f6';
                             return (
-                              <li key={pi} className="text-[11px] text-gray-300 leading-relaxed pl-3 border-l-2" style={{ borderColor: `${accentColor}40` }}>
+                              <li
+                                key={pi}
+                                className="text-[11px] text-gray-300 leading-relaxed pl-3 border-l-2"
+                                style={{ borderColor: `${accentColor}40` }}
+                              >
                                 {point}
                               </li>
                             );
@@ -790,8 +926,12 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
                         </ul>
                         {insight.impact && (
                           <div className="mt-2 flex items-center gap-1.5">
-                            <span className="text-[10px] text-emerald-400 font-medium">Potential impact:</span>
-                            <span className="text-[10px] text-emerald-400/80">{insight.impact}</span>
+                            <span className="text-[10px] text-emerald-400 font-medium">
+                              Potential impact:
+                            </span>
+                            <span className="text-[10px] text-emerald-400/80">
+                              {insight.impact}
+                            </span>
                           </div>
                         )}
                       </div>
@@ -814,7 +954,9 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
           <div className="text-center py-8">
             <div className="text-gray-600 text-2xl mb-2">&#x1f4ca;</div>
             <p className="text-sm text-gray-400">Transcript unavailable</p>
-            <p className="text-xs text-gray-600 mt-1">Session data needed to generate report card</p>
+            <p className="text-xs text-gray-600 mt-1">
+              Session data needed to generate report card
+            </p>
           </div>
         ) : (
           <ReportCardPanel reportCard={reportCard} isLoading={coachingLoading} />
@@ -836,26 +978,40 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
         <CollapsibleSection title="Model Optimization">
           {modelOpt && modelOpt.bestSaving ? (
             <div className="space-y-3">
-              <div className={`p-3 rounded-lg border ${modelOpt.bestSaving.savings >= 0 ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
-                <div className={`text-lg font-bold ${modelOpt.bestSaving.savings >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  Save ~${modelOpt.bestSaving.savings.toFixed(2)} ({modelOpt.bestSaving.savingsPct.toFixed(0)}%)
+              <div
+                className={`p-3 rounded-lg border ${modelOpt.bestSaving.savings >= 0 ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-red-500/10 border-red-500/20'}`}
+              >
+                <div
+                  className={`text-lg font-bold ${modelOpt.bestSaving.savings >= 0 ? 'text-emerald-400' : 'text-red-400'}`}
+                >
+                  Save ~${modelOpt.bestSaving.savings.toFixed(2)} (
+                  {modelOpt.bestSaving.savingsPct.toFixed(0)}%)
                 </div>
                 <p className="text-xs text-gray-400 mt-1">
-                  By switching to <span className="text-gray-200 font-medium">{modelOpt.bestSaving.name}</span> for
+                  By switching to{' '}
+                  <span className="text-gray-200 font-medium">{modelOpt.bestSaving.name}</span> for
                   tasks currently using more expensive models
                 </p>
               </div>
 
               {/* What-If Calculator — model alternatives */}
               <div className="space-y-2">
-                <div className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">What-If Calculator</div>
+                <div className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">
+                  What-If Calculator
+                </div>
                 {modelOpt.alternatives.map((alt) => (
-                  <div key={alt.id} className="flex items-center justify-between px-3 py-2 bg-[#161b22] border border-gray-800 rounded-lg">
+                  <div
+                    key={alt.id}
+                    className="flex items-center justify-between px-3 py-2 bg-[#161b22] border border-gray-800 rounded-lg"
+                  >
                     <span className="text-xs text-gray-300">{alt.name}</span>
                     <div className="flex items-center gap-3">
                       <span className="text-xs text-gray-400">${alt.cost.toFixed(2)}</span>
-                      <span className={`text-[10px] font-medium ${alt.savings > 0 ? 'text-emerald-400' : alt.savings < 0 ? 'text-red-400' : 'text-gray-500'}`}>
-                        {alt.savings > 0 ? '-' : alt.savings < 0 ? '+' : ''}${Math.abs(alt.savings).toFixed(2)}
+                      <span
+                        className={`text-[10px] font-medium ${alt.savings > 0 ? 'text-emerald-400' : alt.savings < 0 ? 'text-red-400' : 'text-gray-500'}`}
+                      >
+                        {alt.savings > 0 ? '-' : alt.savings < 0 ? '+' : ''}$
+                        {Math.abs(alt.savings).toFixed(2)}
                       </span>
                     </div>
                   </div>
@@ -874,21 +1030,31 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
                 <div className="text-center">
                   <div className="text-[10px] text-gray-600">Moderate</div>
                   <div className="text-xs font-medium text-blue-400">
-                    {data.turns.filter((t) => t.toolCount > 1 && t.toolCount <= 5 && t.outputTokens < 10000).length}
+                    {
+                      data.turns.filter(
+                        (t) => t.toolCount > 1 && t.toolCount <= 5 && t.outputTokens < 10000,
+                      ).length
+                    }
                   </div>
                   <div className="text-[9px] text-gray-600">Sonnet-suited</div>
                 </div>
                 <div className="text-center">
                   <div className="text-[10px] text-gray-600">Complex</div>
                   <div className="text-xs font-medium text-orange-400">
-                    {data.turns.filter((t) => t.toolCount > 5 || t.outputTokens >= 10000 || t.thinkingTokens > 5000).length}
+                    {
+                      data.turns.filter(
+                        (t) =>
+                          t.toolCount > 5 || t.outputTokens >= 10000 || t.thinkingTokens > 5000,
+                      ).length
+                    }
                   </div>
                   <div className="text-[9px] text-gray-600">Opus-required</div>
                 </div>
               </div>
 
               <p className="text-[10px] text-gray-600">
-                Current total spend: ${modelOpt.currentCost.toFixed(2)}. Estimates assume same token volume.
+                Current total spend: ${modelOpt.currentCost.toFixed(2)}. Estimates assume same token
+                volume.
               </p>
             </div>
           ) : (
@@ -906,16 +1072,20 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
               <div className="flex items-center gap-2">
                 <span className="text-[10px] text-gray-500 uppercase tracking-wider">Plan</span>
                 {budget.plan ? (
-                  <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full ${
-                    budget.plan.source === 'auto'
-                      ? 'bg-blue-500/15 text-blue-400 border border-blue-500/20'
-                      : 'bg-purple-500/15 text-purple-400 border border-purple-500/20'
-                  }`}>
+                  <span
+                    className={`px-2 py-0.5 text-[10px] font-medium rounded-full ${
+                      budget.plan.source === 'auto'
+                        ? 'bg-blue-500/15 text-blue-400 border border-blue-500/20'
+                        : 'bg-purple-500/15 text-purple-400 border border-purple-500/20'
+                    }`}
+                  >
                     {PLAN_LABELS[budget.plan.plan] ?? budget.plan.plan}
                     {budget.plan.source === 'auto' && !budget.plan.detected && ' (assumed)'}
                   </span>
                 ) : (
-                  <span className="px-2 py-0.5 text-[10px] text-gray-500 bg-gray-800 rounded-full">Unknown</span>
+                  <span className="px-2 py-0.5 text-[10px] text-gray-500 bg-gray-800 rounded-full">
+                    Unknown
+                  </span>
                 )}
                 {budget.plan?.monthlyLimit != null && (
                   <span className="text-[10px] text-gray-600">${budget.plan.monthlyLimit}/mo</span>
@@ -927,21 +1097,39 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
                 onChange={(e) => setPlanOverride(e.target.value)}
               >
                 {Object.entries(PLAN_LABELS).map(([key, label]) => (
-                  <option key={key} value={key}>{label}</option>
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
                 ))}
               </select>
             </div>
 
             {/* Budget Gauges */}
-            <BudgetGauge label="Daily" spent={budget.daily.spent} limit={budget.daily.limit} pct={budget.daily.pct} />
-            <BudgetGauge label="Weekly" spent={budget.weekly.spent} limit={budget.weekly.limit} pct={budget.weekly.pct} />
-            <BudgetGauge label="Monthly" spent={budget.monthly.spent} limit={budget.monthly.limit} pct={budget.monthly.pct} />
+            <BudgetGauge
+              label="Daily"
+              spent={budget.daily.spent}
+              limit={budget.daily.limit}
+              pct={budget.daily.pct}
+            />
+            <BudgetGauge
+              label="Weekly"
+              spent={budget.weekly.spent}
+              limit={budget.weekly.limit}
+              pct={budget.weekly.pct}
+            />
+            <BudgetGauge
+              label="Monthly"
+              spent={budget.monthly.spent}
+              limit={budget.monthly.limit}
+              pct={budget.monthly.pct}
+            />
 
             {/* API-equivalent cost note for subscription users */}
             {budget.plan && budget.plan.plan !== 'api' && budget.plan.plan !== 'free' && (
               <div className="px-3 py-2 bg-blue-500/5 border border-blue-500/10 rounded-lg">
                 <span className="text-[10px] text-blue-400">
-                  Subscription users: costs shown are API-equivalent estimates based on token usage. Your actual bill is your plan price.
+                  Subscription users: costs shown are API-equivalent estimates based on token usage.
+                  Your actual bill is your plan price.
                 </span>
               </div>
             )}
@@ -956,22 +1144,34 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
                 <span className="text-[10px] text-gray-500">Projected Monthly</span>
                 <span className="text-xs text-gray-300">${budget.projectedMonthly.toFixed(0)}</span>
               </div>
-              {budget.plan?.monthlyLimit != null && budget.plan.monthlyLimit > 0 && budget.projectedMonthly > 0 && (
-                <div className="flex items-center justify-between mt-1">
-                  <span className="text-[10px] text-gray-500">% of Plan Limit</span>
-                  <span className={`text-xs ${
-                    budget.projectedMonthly / budget.plan.monthlyLimit > 0.9 ? 'text-red-400'
-                    : budget.projectedMonthly / budget.plan.monthlyLimit > 0.5 ? 'text-yellow-400'
-                    : 'text-emerald-400'
-                  }`}>
-                    {Math.round((budget.projectedMonthly / budget.plan.monthlyLimit) * 100)}%
-                  </span>
-                </div>
-              )}
+              {budget.plan?.monthlyLimit != null &&
+                budget.plan.monthlyLimit > 0 &&
+                budget.projectedMonthly > 0 && (
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-[10px] text-gray-500">% of Plan Limit</span>
+                    <span
+                      className={`text-xs ${
+                        budget.projectedMonthly / budget.plan.monthlyLimit > 0.9
+                          ? 'text-red-400'
+                          : budget.projectedMonthly / budget.plan.monthlyLimit > 0.5
+                            ? 'text-yellow-400'
+                            : 'text-emerald-400'
+                      }`}
+                    >
+                      {Math.round((budget.projectedMonthly / budget.plan.monthlyLimit) * 100)}%
+                    </span>
+                  </div>
+                )}
               <div className="flex items-center justify-between mt-1">
                 <span className="text-[10px] text-gray-500">Trend</span>
-                <span className={`text-xs ${budget.trend === 'rising' ? 'text-red-400' : budget.trend === 'falling' ? 'text-emerald-400' : 'text-gray-400'}`}>
-                  {budget.trend === 'rising' ? '\u2197 Rising' : budget.trend === 'falling' ? '\u2198 Falling' : '\u2192 Stable'}
+                <span
+                  className={`text-xs ${budget.trend === 'rising' ? 'text-red-400' : budget.trend === 'falling' ? 'text-emerald-400' : 'text-gray-400'}`}
+                >
+                  {budget.trend === 'rising'
+                    ? '\u2197 Rising'
+                    : budget.trend === 'falling'
+                      ? '\u2198 Falling'
+                      : '\u2192 Stable'}
                 </span>
               </div>
             </div>
@@ -981,19 +1181,27 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
 
       {/* Quick tips */}
       <div className="bg-[#161b22] border border-gray-800 rounded-xl p-4">
-        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Quick Tips</h3>
+        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+          Quick Tips
+        </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="text-[11px] text-gray-400 leading-relaxed">
-            <span className="text-blue-400 font-medium">CLAUDE.md</span> - Document your project architecture, conventions, and common patterns. Claude reads this first, reducing exploration time and token cost.
+            <span className="text-blue-400 font-medium">CLAUDE.md</span> - Document your project
+            architecture, conventions, and common patterns. Claude reads this first, reducing
+            exploration time and token cost.
           </div>
           <div className="text-[11px] text-gray-400 leading-relaxed">
-            <span className="text-blue-400 font-medium">/compact</span> - Manually trigger context compaction before it happens automatically. This preserves the most important context.
+            <span className="text-blue-400 font-medium">/compact</span> - Manually trigger context
+            compaction before it happens automatically. This preserves the most important context.
           </div>
           <div className="text-[11px] text-gray-400 leading-relaxed">
-            <span className="text-blue-400 font-medium">/fast</span> - Toggle fast mode (Haiku) for simple tasks. 4x cheaper than Sonnet for formatting, boilerplate, and basic edits.
+            <span className="text-blue-400 font-medium">/fast</span> - Toggle fast mode (Haiku) for
+            simple tasks. 4x cheaper than Sonnet for formatting, boilerplate, and basic edits.
           </div>
           <div className="text-[11px] text-gray-400 leading-relaxed">
-            <span className="text-blue-400 font-medium">New sessions</span> - Start a fresh session for each distinct task. Mixing unrelated work in one session wastes context and increases compaction risk.
+            <span className="text-blue-400 font-medium">New sessions</span> - Start a fresh session
+            for each distinct task. Mixing unrelated work in one session wastes context and
+            increases compaction risk.
           </div>
         </div>
       </div>

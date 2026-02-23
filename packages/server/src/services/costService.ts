@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // ─── Cost Computation Service ────────────────────────────────────────
 // Provides model pricing lookup and cost computation for analytics.
 // Supports time-based pricing for historical accuracy and user-defined overrides.
@@ -7,34 +10,132 @@ import { logger } from '../lib/logger.js';
 export interface PricePoint {
   model: string;
   vendor: string;
-  effectiveFrom: number;     // Unix ms
-  inputPer1M: number;        // USD per 1M input tokens
-  cachedInputPer1M: number;  // USD per 1M cached input tokens
-  outputPer1M: number;       // USD per 1M output tokens
+  effectiveFrom: number; // Unix ms
+  inputPer1M: number; // USD per 1M input tokens
+  cachedInputPer1M: number; // USD per 1M cached input tokens
+  outputPer1M: number; // USD per 1M output tokens
 }
 
 // ─── Default Pricing (Feb 2026) ──────────────────────────────────────
 
 const DEFAULT_PRICES: PricePoint[] = [
   // Anthropic
-  { model: 'claude-opus-4-6',              vendor: 'anthropic',  effectiveFrom: 0, inputPer1M: 15,    cachedInputPer1M: 1.5,    outputPer1M: 75 },
-  { model: 'claude-opus-4-20250514',       vendor: 'anthropic',  effectiveFrom: 0, inputPer1M: 15,    cachedInputPer1M: 1.5,    outputPer1M: 75 },
-  { model: 'claude-sonnet-4-5-20250929',   vendor: 'anthropic',  effectiveFrom: 0, inputPer1M: 3,     cachedInputPer1M: 0.3,    outputPer1M: 15 },
-  { model: 'claude-sonnet-4-5',            vendor: 'anthropic',  effectiveFrom: 0, inputPer1M: 3,     cachedInputPer1M: 0.3,    outputPer1M: 15 },
-  { model: 'claude-sonnet-4-20250514',     vendor: 'anthropic',  effectiveFrom: 0, inputPer1M: 3,     cachedInputPer1M: 0.3,    outputPer1M: 15 },
-  { model: 'claude-haiku-4-5-20251001',    vendor: 'anthropic',  effectiveFrom: 0, inputPer1M: 0.8,   cachedInputPer1M: 0.08,   outputPer1M: 4 },
-  { model: 'claude-haiku-4-5',             vendor: 'anthropic',  effectiveFrom: 0, inputPer1M: 0.8,   cachedInputPer1M: 0.08,   outputPer1M: 4 },
-  { model: 'claude-haiku-3-5-20241022',    vendor: 'anthropic',  effectiveFrom: 0, inputPer1M: 0.8,   cachedInputPer1M: 0.08,   outputPer1M: 4 },
+  {
+    model: 'claude-opus-4-6',
+    vendor: 'anthropic',
+    effectiveFrom: 0,
+    inputPer1M: 15,
+    cachedInputPer1M: 1.5,
+    outputPer1M: 75,
+  },
+  {
+    model: 'claude-opus-4-20250514',
+    vendor: 'anthropic',
+    effectiveFrom: 0,
+    inputPer1M: 15,
+    cachedInputPer1M: 1.5,
+    outputPer1M: 75,
+  },
+  {
+    model: 'claude-sonnet-4-5-20250929',
+    vendor: 'anthropic',
+    effectiveFrom: 0,
+    inputPer1M: 3,
+    cachedInputPer1M: 0.3,
+    outputPer1M: 15,
+  },
+  {
+    model: 'claude-sonnet-4-5',
+    vendor: 'anthropic',
+    effectiveFrom: 0,
+    inputPer1M: 3,
+    cachedInputPer1M: 0.3,
+    outputPer1M: 15,
+  },
+  {
+    model: 'claude-sonnet-4-20250514',
+    vendor: 'anthropic',
+    effectiveFrom: 0,
+    inputPer1M: 3,
+    cachedInputPer1M: 0.3,
+    outputPer1M: 15,
+  },
+  {
+    model: 'claude-haiku-4-5-20251001',
+    vendor: 'anthropic',
+    effectiveFrom: 0,
+    inputPer1M: 0.8,
+    cachedInputPer1M: 0.08,
+    outputPer1M: 4,
+  },
+  {
+    model: 'claude-haiku-4-5',
+    vendor: 'anthropic',
+    effectiveFrom: 0,
+    inputPer1M: 0.8,
+    cachedInputPer1M: 0.08,
+    outputPer1M: 4,
+  },
+  {
+    model: 'claude-haiku-3-5-20241022',
+    vendor: 'anthropic',
+    effectiveFrom: 0,
+    inputPer1M: 0.8,
+    cachedInputPer1M: 0.08,
+    outputPer1M: 4,
+  },
 
   // OpenAI
-  { model: 'gpt-4o',                       vendor: 'openai',     effectiveFrom: 0, inputPer1M: 2.5,   cachedInputPer1M: 1.25,   outputPer1M: 10 },
-  { model: 'gpt-4o-mini',                  vendor: 'openai',     effectiveFrom: 0, inputPer1M: 0.15,  cachedInputPer1M: 0.075,  outputPer1M: 0.6 },
-  { model: 'o1',                           vendor: 'openai',     effectiveFrom: 0, inputPer1M: 15,    cachedInputPer1M: 7.5,    outputPer1M: 60 },
-  { model: 'o3-mini',                      vendor: 'openai',     effectiveFrom: 0, inputPer1M: 1.1,   cachedInputPer1M: 0.55,   outputPer1M: 4.4 },
+  {
+    model: 'gpt-4o',
+    vendor: 'openai',
+    effectiveFrom: 0,
+    inputPer1M: 2.5,
+    cachedInputPer1M: 1.25,
+    outputPer1M: 10,
+  },
+  {
+    model: 'gpt-4o-mini',
+    vendor: 'openai',
+    effectiveFrom: 0,
+    inputPer1M: 0.15,
+    cachedInputPer1M: 0.075,
+    outputPer1M: 0.6,
+  },
+  {
+    model: 'o1',
+    vendor: 'openai',
+    effectiveFrom: 0,
+    inputPer1M: 15,
+    cachedInputPer1M: 7.5,
+    outputPer1M: 60,
+  },
+  {
+    model: 'o3-mini',
+    vendor: 'openai',
+    effectiveFrom: 0,
+    inputPer1M: 1.1,
+    cachedInputPer1M: 0.55,
+    outputPer1M: 4.4,
+  },
 
   // Google
-  { model: 'gemini-2.5-pro',               vendor: 'google',     effectiveFrom: 0, inputPer1M: 1.25,  cachedInputPer1M: 0.3125, outputPer1M: 10 },
-  { model: 'gemini-2.5-flash',             vendor: 'google',     effectiveFrom: 0, inputPer1M: 0.15,  cachedInputPer1M: 0.0375, outputPer1M: 0.6 },
+  {
+    model: 'gemini-2.5-pro',
+    vendor: 'google',
+    effectiveFrom: 0,
+    inputPer1M: 1.25,
+    cachedInputPer1M: 0.3125,
+    outputPer1M: 10,
+  },
+  {
+    model: 'gemini-2.5-flash',
+    vendor: 'google',
+    effectiveFrom: 0,
+    inputPer1M: 0.15,
+    cachedInputPer1M: 0.0375,
+    outputPer1M: 0.6,
+  },
 ];
 
 const FALLBACK_PRICE: PricePoint = {
@@ -128,10 +229,12 @@ export function clearUserPrices(): void {
 
 // ─── Internal Helpers ────────────────────────────────────────────────
 
-function findBestMatch(prices: PricePoint[], normalizedModel: string, ts: number): PricePoint | undefined {
-  return prices.find(
-    (p) => p.model.toLowerCase() === normalizedModel && p.effectiveFrom <= ts,
-  );
+function findBestMatch(
+  prices: PricePoint[],
+  normalizedModel: string,
+  ts: number,
+): PricePoint | undefined {
+  return prices.find((p) => p.model.toLowerCase() === normalizedModel && p.effectiveFrom <= ts);
 }
 
 function findPrefixMatch(prices: PricePoint[], normalizedModel: string): PricePoint | undefined {
@@ -148,7 +251,8 @@ function findPrefixMatch(prices: PricePoint[], normalizedModel: string): PricePo
 function inferVendorFromModel(model: string): string {
   const m = model.toLowerCase();
   if (m.includes('claude') || m.startsWith('anthropic/')) return 'anthropic';
-  if (m.includes('gpt') || m.includes('o1') || m.includes('o3') || m.startsWith('openai/')) return 'openai';
+  if (m.includes('gpt') || m.includes('o1') || m.includes('o3') || m.startsWith('openai/'))
+    return 'openai';
   if (m.includes('gemini') || m.startsWith('google/')) return 'google';
   if (m.startsWith('groq/')) return 'groq';
   return 'unknown';

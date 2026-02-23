@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // ── Shared formatting utilities ─────────────────────────────
 
 export function formatTokens(n: number): string {
@@ -126,22 +129,22 @@ export const KIND_COLORS: Record<string, string> = PALETTES[0].kind;
 
 /** Emoji icons for each node kind */
 export const KIND_ICONS: Record<string, string> = {
-  session: '\uD83D\uDCC1',   // 📁 folder — session container
-  prompt: '\uD83D\uDCAC',    // 💬 speech balloon — user input
-  agent: '\uD83E\uDD16',     // 🤖 robot — autonomous agent
-  tool: '\uD83D\uDD27',      // 🔧 wrench — tool action
+  session: '\uD83D\uDCC1', // 📁 folder — session container
+  prompt: '\uD83D\uDCAC', // 💬 speech balloon — user input
+  agent: '\uD83E\uDD16', // 🤖 robot — autonomous agent
+  tool: '\uD83D\uDD27', // 🔧 wrench — tool action
 };
 
 /** Tool-specific icons for common Claude Code tools */
 const TOOL_ICONS: Record<string, string> = {
-  Read: '\u2750',      // ❐ document
-  Write: '\u270E',     // ✎ pencil
-  Edit: '\u270E',      // ✎ pencil
-  Bash: '\u25B8',      // ▸ terminal prompt
-  Glob: '\u2315',      // ⌕ search/find
-  Grep: '\u2315',      // ⌕ search
+  Read: '\u2750', // ❐ document
+  Write: '\u270E', // ✎ pencil
+  Edit: '\u270E', // ✎ pencil
+  Bash: '\u25B8', // ▸ terminal prompt
+  Glob: '\u2315', // ⌕ search/find
+  Grep: '\u2315', // ⌕ search
   Task: '\uD83E\uDD16', // 🤖 robot (sub-agent)
-  WebFetch: '\u21E3',  // ⇣ download arrow
+  WebFetch: '\u21E3', // ⇣ download arrow
   WebSearch: '\u2315', // ⌕ search
   NotebookEdit: '\u2395', // ⎕ notebook
   TodoWrite: '\u2611', // ☑ checkbox
@@ -162,13 +165,13 @@ export function getKindColor(kind: string, label?: string, paletteIndex = 0): st
 // ── Vendor colors (multi-model support) ─────────────────────
 
 export const VENDOR_COLORS: Record<string, string> = {
-  anthropic:  '#e8956a',     // warm orange
-  openai:     '#74aa9c',     // teal green
-  google:     '#4285f4',     // blue
-  groq:       '#f55036',     // red
-  openrouter: '#9333ea',     // purple
-  custom:     '#6b7280',     // gray
-  claude:     '#e8956a',     // alias for anthropic
+  anthropic: '#e8956a', // warm orange
+  openai: '#74aa9c', // teal green
+  google: '#4285f4', // blue
+  groq: '#f55036', // red
+  openrouter: '#9333ea', // purple
+  custom: '#6b7280', // gray
+  claude: '#e8956a', // alias for anthropic
 };
 
 export function getVendorColor(vendor?: string): string {

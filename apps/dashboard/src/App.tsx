@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Synapse Contributors
 
-import { useEffect, useMemo, lazy, Suspense } from 'react';
+import { useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { Header } from './components/layout/Header';
 import { GraphLayout } from './components/layout/GraphLayout';
 import { LensAdapter } from './components/lens/LensAdapter';
 import { useBreakpoint } from './hooks/useBreakpoint';
+import { useUrlSync } from './hooks/useUrlSync';
 
 const AnalyticsPage = lazy(() => import('./components/analytics/AnalyticsPageLazy'));
-const PixelPage = lazy(() => import('./components/pixel/PixelPageLazy'));
 const MobileView = lazy(() => import('./components/mobile/MobileView'));
-import { ToastContainer } from './components/Toast';
+import { ToastContainer, toast } from './components/Toast';
 import { WorkshopModal } from './components/WorkshopModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useAgentStore, reloadAllEvents } from './store/agentStore';
@@ -21,13 +21,13 @@ import { initTour, TourOverlay, TourLauncher } from './features/tour'; // [tour]
 initNotifications(); // [notifications]
 initTour(); // [tour]
 
-/** Layout modes: full (browser), lens (VS Code sidebar), graph (VS Code editor), analytics, pixel, mobile */
-type ViewMode = 'full' | 'lens' | 'graph' | 'analytics' | 'pixel' | 'mobile';
+/** Layout modes: full (browser), lens (VS Code sidebar), graph (VS Code editor), analytics, mobile */
+type ViewMode = 'full' | 'lens' | 'graph' | 'analytics' | 'mobile';
 
 function getViewMode(): ViewMode {
   const params = new URLSearchParams(window.location.search);
   const view = params.get('view');
-  if (view === 'mobile' || view === 'lens' || view === 'graph' || view === 'analytics' || view === 'pixel') return view;
+  if (view === 'mobile' || view === 'lens' || view === 'graph' || view === 'analytics') return view;
 
   // Auto-detect phone browsers (any orientation, excludes tablets/touch laptops)
   const isCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
@@ -45,12 +45,43 @@ function isEditableTarget(event: KeyboardEvent) {
   );
 }
 
+// ── Easter egg: Konami Code ─────────────────────────────────
+const KONAMI = [
+  'ArrowUp',
+  'ArrowUp',
+  'ArrowDown',
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'ArrowLeft',
+  'ArrowRight',
+  'b',
+  'a',
+];
+// ── Easter egg: DOOM god-mode ───────────────────────────────
+const IDDQD = ['i', 'd', 'd', 'q', 'd'];
+
+function activateArcadeEasterEgg(label: string) {
+  const store = useAgentStore.getState();
+  if (store.arcadeMode) return; // already active
+  store.setArcadeUnlocked(true);
+  store.setArcadeMode(true);
+  store.setShowAllTools(true);
+  // Pick a random game mode
+  const modes = ['bubbles', 'tetris', 'snake', 'breakout'];
+  store.setToolGroupMode(modes[Math.floor(Math.random() * modes.length)]);
+  toast(`${label} — Arcade mode unlocked!`, 'info');
+}
+
 export default function App() {
   const viewMode = useMemo(getViewMode, []);
+  useUrlSync();
+  const konamiIdx = useRef(0);
+  const iddqdIdx = useRef(0);
   // Connect WebSocket and load existing events on mount
   // In VS Code mode (lens/graph), events arrive via postMessage from the extension — skip direct WS/fetch
   useEffect(() => {
-    if (viewMode !== 'full' && viewMode !== 'pixel' && viewMode !== 'mobile') return; // VS Code relay handles data delivery
+    if (viewMode !== 'full' && viewMode !== 'mobile') return; // VS Code relay handles data delivery
 
     wsClient.connect();
     reloadAllEvents({ showLoading: true });
@@ -101,7 +132,10 @@ export default function App() {
         prev = state.selectedNodeId;
         prevSource = state.selectSource;
         // VS Code webview requires '*' (cross-origin iframe); this effect only runs for non-full modes
-        window.parent.postMessage({ type: 'selectionChanged', nodeId: prev, source: state.selectSource }, '*');
+        window.parent.postMessage(
+          { type: 'selectionChanged', nodeId: prev, source: state.selectSource },
+          '*',
+        );
       }
     });
     return unsub;
@@ -122,15 +156,18 @@ export default function App() {
       if (e.ctrlKey || e.metaKey || e.altKey) {
         e.preventDefault();
         e.stopPropagation();
-        window.parent.postMessage({
-          type: 'forwardKeydown',
-          key: e.key,
-          code: e.code,
-          ctrlKey: e.ctrlKey,
-          shiftKey: e.shiftKey,
-          altKey: e.altKey,
-          metaKey: e.metaKey,
-        }, '*');
+        window.parent.postMessage(
+          {
+            type: 'forwardKeydown',
+            key: e.key,
+            code: e.code,
+            ctrlKey: e.ctrlKey,
+            shiftKey: e.shiftKey,
+            altKey: e.altKey,
+            metaKey: e.metaKey,
+          },
+          '*',
+        );
         return;
       }
 
@@ -138,13 +175,18 @@ export default function App() {
       if (e.key.startsWith('F') && e.key.length <= 3 && !isNaN(Number(e.key.slice(1)))) {
         e.preventDefault();
         e.stopPropagation();
-        window.parent.postMessage({
-          type: 'forwardKeydown',
-          key: e.key,
-          code: e.code,
-          ctrlKey: false, shiftKey: e.shiftKey,
-          altKey: false, metaKey: false,
-        }, '*');
+        window.parent.postMessage(
+          {
+            type: 'forwardKeydown',
+            key: e.key,
+            code: e.code,
+            ctrlKey: false,
+            shiftKey: e.shiftKey,
+            altKey: false,
+            metaKey: false,
+          },
+          '*',
+        );
         return;
       }
     };
@@ -175,6 +217,28 @@ export default function App() {
         if (tabIdx >= 0 && tabIdx < tabKeys.length) {
           useAgentStore.getState().setActiveLensTab(tabKeys[tabIdx]);
         }
+      }
+
+      // ── Easter egg sequences (work in all modes) ──
+      // Konami code: ↑↑↓↓←→←→BA
+      if (e.key === KONAMI[konamiIdx.current]) {
+        konamiIdx.current++;
+        if (konamiIdx.current === KONAMI.length) {
+          konamiIdx.current = 0;
+          activateArcadeEasterEgg('KONAMI CODE');
+        }
+      } else {
+        konamiIdx.current = e.key === KONAMI[0] ? 1 : 0;
+      }
+      // IDDQD (DOOM god mode)
+      if (e.key === IDDQD[iddqdIdx.current]) {
+        iddqdIdx.current++;
+        if (iddqdIdx.current === IDDQD.length) {
+          iddqdIdx.current = 0;
+          activateArcadeEasterEgg('IDDQD');
+        }
+      } else {
+        iddqdIdx.current = e.key === IDDQD[0] ? 1 : 0;
       }
 
       // ── Shortcuts for full browser mode only ──
@@ -210,13 +274,10 @@ export default function App() {
         const store = useAgentStore.getState();
         store.setAutoClosePrompts(!store.autoClosePrompts);
       }
-      if (e.key === 'a' && !e.ctrlKey && !e.metaKey) { // [notifications]
+      if (e.key === 'a' && !e.ctrlKey && !e.metaKey) {
+        // [notifications]
         const s = useNotificationStore.getState();
         s.setEnabled(!s.enabled);
-      }
-      if (e.key === 'g' && !e.ctrlKey && !e.metaKey) {
-        const store = useAgentStore.getState();
-        store.setArcadeMode(!store.arcadeMode);
       }
       if (e.key === 'e' && !e.ctrlKey && !e.metaKey) {
         (document.getElementById('snapshot-export-btn') as HTMLButtonElement)?.click();
@@ -231,25 +292,21 @@ export default function App() {
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only: viewMode is stable (set once from URL)
   }, []);
-
-  // ── Pixel office view ──────────────────────────────────────────
-  if (viewMode === 'pixel') {
-    return (
-      <ErrorBoundary name="PixelScene">
-        <Suspense fallback={<div className="h-screen w-screen bg-[#08080f] flex items-center justify-center text-gray-500 text-sm">Loading pixel office...</div>}>
-          <PixelPage />
-        </Suspense>
-      </ErrorBoundary>
-    );
-  }
 
   // ── Analytics view ──────────────────────────────────────────
   if (viewMode === 'analytics') {
     return (
       <div className="h-screen w-screen flex flex-col bg-[#0d1117] text-gray-200 overflow-hidden">
         <ErrorBoundary name="AnalyticsPage">
-          <Suspense fallback={<div className="flex-1 flex items-center justify-center text-gray-500 text-sm">Loading analytics...</div>}>
+          <Suspense
+            fallback={
+              <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
+                Loading analytics...
+              </div>
+            }
+          >
             <AnalyticsPage />
           </Suspense>
         </ErrorBoundary>
@@ -290,9 +347,18 @@ export default function App() {
   // ── Mobile view (phone browser) ─────────────────────────────
   if (viewMode === 'mobile') {
     return (
-      <div className="h-screen w-screen flex flex-col bg-[#0d1117] text-gray-200 overflow-hidden" style={{ height: '100dvh', overscrollBehavior: 'none', touchAction: 'manipulation' }}>
+      <div
+        className="h-screen w-screen flex flex-col bg-[#0d1117] text-gray-200 overflow-hidden"
+        style={{ height: '100dvh', overscrollBehavior: 'none', touchAction: 'manipulation' }}
+      >
         <ErrorBoundary name="MobileView">
-          <Suspense fallback={<div className="flex-1 flex items-center justify-center text-gray-500 text-sm">Loading mobile view...</div>}>
+          <Suspense
+            fallback={
+              <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
+                Loading mobile view...
+              </div>
+            }
+          >
             <MobileView />
           </Suspense>
         </ErrorBoundary>
@@ -311,14 +377,15 @@ function FullView() {
 
   return (
     <div className="h-screen w-screen flex flex-col bg-[#0d1117] text-gray-200 overflow-hidden">
-      <a href="#main-graph" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-1 focus:left-1 focus:px-3 focus:py-1.5 focus:bg-blue-600 focus:text-white focus:rounded focus:text-sm">
+      <a
+        href="#main-graph"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-1 focus:left-1 focus:px-3 focus:py-1.5 focus:bg-blue-600 focus:text-white focus:rounded focus:text-sm"
+      >
         Skip to main content
       </a>
-
       <ErrorBoundary name="Header">
         <Header />
       </ErrorBoundary>
-
       <div className="flex flex-1 overflow-hidden">
         {showLens && (
           <ErrorBoundary name="LensAdapter">
@@ -332,7 +399,6 @@ function FullView() {
           <GraphLayout />
         </main>
       </div>
-
       <WorkshopModal />
       <ToastContainer />
       <TourOverlay /> {/* [tour] */}

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useMemo, useRef, useState, useCallback, useEffect } from 'react';
 import { useAgentStore } from '../../store/agentStore';
 import { getTypeColor, formatDuration } from '@synapse-ai/core';
@@ -14,9 +17,10 @@ export function TimelinePanel() {
   const agentList = useMemo(() => [...agents.values()], [agents]);
 
   // Track "now" in a ref, updated via effect (avoids impure Date.now() during render)
-  // eslint-disable-next-line react-hooks/purity -- initializing time ref is intentionally impure
   const nowRef = useRef(Date.now());
-  useEffect(() => { nowRef.current = Date.now(); });
+  useEffect(() => {
+    nowRef.current = Date.now();
+  });
   const now = nowRef.current;
 
   // Compute time bounds
@@ -39,7 +43,7 @@ export function TimelinePanel() {
   if (agentList.length === 0) return null;
 
   return (
-    <div className="border-t border-gray-800 bg-[#161b22]">
+    <div className="border-t border-gray-800 bg-[#161b22]" aria-label="Timeline panel">
       <Tooltip content={collapsed ? 'Expand agent timeline' : 'Collapse agent timeline'}>
         <button
           onClick={() => setCollapsed(!collapsed)}
@@ -52,11 +56,7 @@ export function TimelinePanel() {
       </Tooltip>
 
       {!collapsed && (
-        <div
-          ref={containerRef}
-          className="px-4 pb-3 overflow-auto max-h-36"
-          onWheel={handleWheel}
-        >
+        <div ref={containerRef} className="px-4 pb-3 overflow-auto max-h-36" onWheel={handleWheel}>
           {/* Time axis */}
           <div className="relative h-4 mb-1" style={{ width: `${100 * zoom}%`, minWidth: '100%' }}>
             {[0, 0.25, 0.5, 0.75, 1].map((frac) => (
@@ -95,7 +95,9 @@ export function TimelinePanel() {
                     {/* Tool markers */}
                     {agent.toolCalls.map((tc) => {
                       const tcOffset =
-                        ((tc.startTime - agent.startTime) / Math.max(endTime - agent.startTime, 1)) * 100;
+                        ((tc.startTime - agent.startTime) /
+                          Math.max(endTime - agent.startTime, 1)) *
+                        100;
                       return (
                         <span
                           key={tc.toolUseId}

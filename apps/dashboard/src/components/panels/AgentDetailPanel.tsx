@@ -1,8 +1,11 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useMemo, useRef, useEffect, useCallback, type ReactNode } from 'react';
 import { useAgentStore } from '../../store/agentStore';
 import { ConfirmDialog } from '../ConfirmDialog';
 import type { ToolCallSummary, PromptAnalysis } from '@synapse-ai/core';
-import { formatTime, formatDuration } from '@synapse-ai/core';
+import { formatTime, formatDuration, getVendorColor } from '@synapse-ai/core';
 import { apiUrl } from '../../utils/api';
 import { copyToClipboard } from '../../utils/clipboard';
 import { extractUserMessage } from '../../utils/promptText';
@@ -15,7 +18,12 @@ import { ToolBadges } from '../analytics/shared/ToolBadges';
 import { ModelBadge } from '../analytics/shared/ModelBadge';
 import { ReasoningSection } from './ReasoningSection';
 import { CATEGORY_COLORS, fmtTokens } from '../analytics/shared/constants';
-import { computeCostUsd, classifyPrompt, computeComplexity, computeCacheRate } from '../analytics/shared/promptUtils';
+import {
+  computeCostUsd,
+  classifyPrompt,
+  computeComplexity,
+  computeCacheRate,
+} from '../analytics/shared/promptUtils';
 
 // ── AI Analysis helpers ─────────────────────────────────────────
 
@@ -27,19 +35,26 @@ function loadPanelMode(): AnalysisMode {
   try {
     const raw = localStorage.getItem(AI_PANEL_MODE_KEY);
     return raw === 'vibe' ? 'vibe' : 'developer';
-  } catch { return 'developer'; }
+  } catch {
+    return 'developer';
+  }
 }
 
 function loadPanelCache(): Record<string, PromptAnalysis> {
   try {
     const raw = localStorage.getItem(AI_PANEL_CACHE_KEY);
     return raw ? JSON.parse(raw) : {};
-  } catch { return {}; }
+  } catch {
+    return {};
+  }
 }
 
 function savePanelCache(cache: Record<string, PromptAnalysis>): void {
-  try { localStorage.setItem(AI_PANEL_CACHE_KEY, JSON.stringify(cache)); }
-  catch { /* quota exceeded */ }
+  try {
+    localStorage.setItem(AI_PANEL_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    /* quota exceeded */
+  }
 }
 
 function panelCacheKey(promptText: string, mode: AnalysisMode): string {
@@ -55,9 +70,27 @@ function formatInlinePanel(text: string): ReactNode[] {
   let key = 0;
   while ((match = re.exec(text)) !== null) {
     if (match.index > last) parts.push(text.slice(last, match.index));
-    if (match[2]) parts.push(<strong key={key++} className="font-semibold text-gray-200">{match[2]}</strong>);
-    else if (match[3]) parts.push(<em key={key++} className="italic text-gray-300">{match[3]}</em>);
-    else if (match[4]) parts.push(<code key={key++} className="px-1 py-0.5 rounded bg-gray-800 text-gray-300 text-[10px] font-mono">{match[4]}</code>);
+    if (match[2])
+      parts.push(
+        <strong key={key++} className="font-semibold text-gray-200">
+          {match[2]}
+        </strong>,
+      );
+    else if (match[3])
+      parts.push(
+        <em key={key++} className="italic text-gray-300">
+          {match[3]}
+        </em>,
+      );
+    else if (match[4])
+      parts.push(
+        <code
+          key={key++}
+          className="px-1 py-0.5 rounded bg-gray-800 text-gray-300 text-[10px] font-mono"
+        >
+          {match[4]}
+        </code>,
+      );
     last = match.index + match[0].length;
   }
   if (last < text.length) parts.push(text.slice(last));
@@ -77,7 +110,9 @@ function formatPanelText(text: string): ReactNode {
     const cls = ordered ? 'list-decimal' : 'list-disc';
     elements.push(
       <Tag key={elements.length} className={`${cls} pl-4 my-1 space-y-0.5`}>
-        {listItems.map((item, j) => <li key={j}>{formatInlinePanel(item.content)}</li>)}
+        {listItems.map((item, j) => (
+          <li key={j}>{formatInlinePanel(item.content)}</li>
+        ))}
       </Tag>,
     );
     listItems = [];
@@ -94,7 +129,12 @@ function formatPanelText(text: string): ReactNode {
       listItems.push({ ordered: true, content: orderedMatch[1] });
     } else {
       flushList();
-      if (line.trim()) elements.push(<p key={elements.length} className="my-0.5">{formatInlinePanel(line)}</p>);
+      if (line.trim())
+        elements.push(
+          <p key={elements.length} className="my-0.5">
+            {formatInlinePanel(line)}
+          </p>,
+        );
     }
   }
   flushList();
@@ -110,7 +150,6 @@ export function AgentDetailPanel() {
   const prompts = useAgentStore((s) => s.prompts);
   const toolCalls = useAgentStore((s) => s.toolCalls);
   const events = useAgentStore((s) => s.events);
-  const taskToolAgentMap = useAgentStore((s) => s.taskToolAgentMap);
   const toolAgentMap = useAgentStore((s) => s.toolAgentMap);
   const storeEdges = useAgentStore((s) => s.edges);
   const transcripts = useAgentStore((s) => s.transcripts);
@@ -118,7 +157,9 @@ export function AgentDetailPanel() {
   const removeNode = useAgentStore((s) => s.removeNode);
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
-  const [confirmRemove, setConfirmRemove] = useState<{ nodeId: string; label: string } | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState<{ nodeId: string; label: string } | null>(
+    null,
+  );
   const [confirmStop, setConfirmStop] = useState<string | null>(null);
   const textRef = useRef<HTMLPreElement>(null);
   const [detailTab, setDetailTab] = useState<'stats' | 'reasoning'>('stats');
@@ -130,92 +171,102 @@ export function AgentDetailPanel() {
 
   const handleModeChange = useCallback((mode: AnalysisMode) => {
     setAnalysisMode(mode);
-    try { localStorage.setItem(AI_PANEL_MODE_KEY, mode); } catch { /* quota */ }
+    try {
+      localStorage.setItem(AI_PANEL_MODE_KEY, mode);
+    } catch {
+      /* quota */
+    }
   }, []);
 
-  useEffect(() => { savePanelCache(aiCache); }, [aiCache]);
+  useEffect(() => {
+    savePanelCache(aiCache);
+  }, [aiCache]);
 
-  const runAiAnalysis = useCallback((promptText: string, skipCache = false) => {
-    const key = panelCacheKey(promptText, analysisMode);
-    if (!skipCache && aiCache[key]) return; // already cached
+  const runAiAnalysis = useCallback(
+    (promptText: string, skipCache = false) => {
+      const key = panelCacheKey(promptText, analysisMode);
+      if (!skipCache && aiCache[key]) return; // already cached
 
-    // Build conversation context from session prompts
-    let conversationContext: Record<string, unknown> | undefined;
-    let sessionContext = { model: 'unknown', toolCount: 0, category: classifyPrompt(promptText), cost: 0 };
-
-    // Find the session this prompt belongs to
-    for (const [sid, sessionPromptList] of prompts.entries()) {
-      const idx = sessionPromptList.findIndex((p) => extractUserMessage(p.text) === promptText);
-      if (idx < 0) continue;
-
-      const currentPrompt = sessionPromptList[idx];
-      const priorPrompts = sessionPromptList.slice(Math.max(0, idx - 3), idx);
-      const twoMinMs = 2 * 60 * 1000;
-      const recentInWindow = sessionPromptList
-        .slice(0, idx + 1)
-        .filter((p) => currentPrompt.timestamp - p.timestamp < twoMinMs);
-      const isConversationalMode = recentInWindow.length >= 2 &&
-        priorPrompts.length > 0 &&
-        priorPrompts.every((p) => extractUserMessage(p.text).split(/\s+/).filter(Boolean).length < 15);
-
-      const firstPrompt = sessionPromptList[0];
-      const firstText = firstPrompt ? extractUserMessage(firstPrompt.text) : '';
-      const goalEnd = firstText.search(/[.!?]/);
-      const sessionGoal = goalEnd > 0 && goalEnd < 100 ? firstText.slice(0, goalEnd + 1) : firstText.slice(0, 100);
-
-      const sess = sessions.get(sid);
-      sessionContext = {
-        model: sess?.model ?? 'unknown',
+      // Build conversation context from session prompts
+      let conversationContext: Record<string, unknown> | undefined;
+      let sessionContext = {
+        model: 'unknown',
         toolCount: 0,
         category: classifyPrompt(promptText),
         cost: 0,
       };
 
-      if (priorPrompts.length > 0) {
-        conversationContext = {
-          recentPrompts: priorPrompts.map((p) => extractUserMessage(p.text).slice(0, 500)),
-          sessionGoal,
-          turnNumber: idx + 1,
-          isConversationalMode,
-        };
-      }
-      break;
-    }
+      // Find the session this prompt belongs to
+      for (const [sid, sessionPromptList] of prompts.entries()) {
+        const idx = sessionPromptList.findIndex((p) => extractUserMessage(p.text) === promptText);
+        if (idx < 0) continue;
 
-    setAiLoading(true);
-    fetch(apiUrl('/api/analytics/ai-analyze-prompt'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        promptText,
-        mode: analysisMode,
-        skipCache,
-        sessionContext,
-        conversationContext,
-      }),
-    })
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.data) setAiCache((prev) => ({ ...prev, [key]: d.data }));
-        else if (d.meta?.reason) toast(d.meta.reason, 'warning');
+        const currentPrompt = sessionPromptList[idx];
+        const priorPrompts = sessionPromptList.slice(Math.max(0, idx - 3), idx);
+        const twoMinMs = 2 * 60 * 1000;
+        const recentInWindow = sessionPromptList
+          .slice(0, idx + 1)
+          .filter((p) => currentPrompt.timestamp - p.timestamp < twoMinMs);
+        const isConversationalMode =
+          recentInWindow.length >= 2 &&
+          priorPrompts.length > 0 &&
+          priorPrompts.every(
+            (p) => extractUserMessage(p.text).split(/\s+/).filter(Boolean).length < 15,
+          );
+
+        const firstPrompt = sessionPromptList[0];
+        const firstText = firstPrompt ? extractUserMessage(firstPrompt.text) : '';
+        const goalEnd = firstText.search(/[.!?]/);
+        const sessionGoal =
+          goalEnd > 0 && goalEnd < 100 ? firstText.slice(0, goalEnd + 1) : firstText.slice(0, 100);
+
+        const sess = sessions.get(sid);
+        sessionContext = {
+          model: sess?.model ?? 'unknown',
+          toolCount: 0,
+          category: classifyPrompt(promptText),
+          cost: 0,
+        };
+
+        if (priorPrompts.length > 0) {
+          conversationContext = {
+            recentPrompts: priorPrompts.map((p) => extractUserMessage(p.text).slice(0, 500)),
+            sessionGoal,
+            turnNumber: idx + 1,
+            isConversationalMode,
+          };
+        }
+        break;
+      }
+
+      setAiLoading(true);
+      fetch(apiUrl('/api/analytics/ai-analyze-prompt'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          promptText,
+          mode: analysisMode,
+          skipCache,
+          sessionContext,
+          conversationContext,
+        }),
       })
-      .catch(() => toast('Failed to analyze prompt', 'error'))
-      .finally(() => setAiLoading(false));
-  }, [analysisMode, aiCache, prompts, sessions]);
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.data) setAiCache((prev) => ({ ...prev, [key]: d.data }));
+          else if (d.meta?.reason) toast(d.meta.reason, 'warning');
+        })
+        .catch(() => toast('Failed to analyze prompt', 'error'))
+        .finally(() => setAiLoading(false));
+    },
+    [analysisMode, aiCache, prompts, sessions],
+  );
 
   // Determine what's selected
-  const agentId = selectedNodeId?.startsWith('agent-')
-    ? selectedNodeId.slice(6)
-    : null;
-  const sessionId = selectedNodeId?.startsWith('session-')
-    ? selectedNodeId.slice(8)
-    : null;
-  const promptId = selectedNodeId?.startsWith('prompt-')
-    ? selectedNodeId.slice(7)
-    : null;
-  const toolNodeId = selectedNodeId?.startsWith('tool-')
-    ? selectedNodeId.slice(5)
-    : null;
+  const agentId = selectedNodeId?.startsWith('agent-') ? selectedNodeId.slice(6) : null;
+  const sessionId = selectedNodeId?.startsWith('session-') ? selectedNodeId.slice(8) : null;
+  const promptId = selectedNodeId?.startsWith('prompt-') ? selectedNodeId.slice(7) : null;
+  const toolNodeId = selectedNodeId?.startsWith('tool-') ? selectedNodeId.slice(5) : null;
   const toolGroupParentId = selectedNodeId?.startsWith('toolgroup-')
     ? selectedNodeId.slice('toolgroup-'.length)
     : null;
@@ -304,16 +355,19 @@ export function AgentDetailPanel() {
     }
   }, [agentId, message]);
 
-  const handleStopAgent = useCallback(async (id?: string) => {
-    const targetId = id ?? agentId;
-    if (!targetId) return;
-    try {
-      const res = await fetch(apiUrl(`/api/agents/${targetId}`), { method: 'DELETE' });
-      if (!res.ok) throw new Error(`${res.status}`);
-    } catch {
-      toast('Failed to stop agent', 'error');
-    }
-  }, [agentId]);
+  const handleStopAgent = useCallback(
+    async (id?: string) => {
+      const targetId = id ?? agentId;
+      if (!targetId) return;
+      try {
+        const res = await fetch(apiUrl(`/api/agents/${targetId}`), { method: 'DELETE' });
+        if (!res.ok) throw new Error(`${res.status}`);
+      } catch {
+        toast('Failed to stop agent', 'error');
+      }
+    },
+    [agentId],
+  );
 
   if (!selectedNodeId || selectedNodeId === '__spawn__') {
     return null;
@@ -326,7 +380,10 @@ export function AgentDetailPanel() {
         title="Remove Node"
         message="Remove this node and all its children?"
         confirmLabel="Remove"
-        onConfirm={() => { if (confirmRemove) removeNode(confirmRemove.nodeId); setConfirmRemove(null); }}
+        onConfirm={() => {
+          if (confirmRemove) removeNode(confirmRemove.nodeId);
+          setConfirmRemove(null);
+        }}
         onCancel={() => setConfirmRemove(null)}
       />
       <ConfirmDialog
@@ -334,7 +391,10 @@ export function AgentDetailPanel() {
         title="Stop Agent"
         message="Stop this running agent?"
         confirmLabel="Stop"
-        onConfirm={() => { if (confirmStop) handleStopAgent(confirmStop); setConfirmStop(null); }}
+        onConfirm={() => {
+          if (confirmStop) handleStopAgent(confirmStop);
+          setConfirmStop(null);
+        }}
         onCancel={() => setConfirmStop(null)}
       />
     </>
@@ -389,7 +449,7 @@ export function AgentDetailPanel() {
                 }),
                 { input: 0, output: 0 },
               );
-              return (totals.input > 0 || totals.output > 0) ? (
+              return totals.input > 0 || totals.output > 0 ? (
                 <div>
                   <span className="text-gray-500 text-xs block mb-1">Tokens (all agents)</span>
                   <div className="flex gap-4">
@@ -414,7 +474,10 @@ export function AgentDetailPanel() {
                       onClick={() => selectNode(`prompt-${p.id}`)}
                       className="w-full text-left bg-amber-900/20 hover:bg-amber-900/40 border border-amber-800/30 rounded px-2 py-1.5 text-xs text-gray-300 truncate transition-colors"
                     >
-                      {(() => { const t = extractUserMessage(p.text); return t.slice(0, 60) || '(empty)'; })()}
+                      {(() => {
+                        const t = extractUserMessage(p.text);
+                        return t.slice(0, 60) || '(empty)';
+                      })()}
                     </button>
                   ))}
                 </div>
@@ -445,7 +508,9 @@ export function AgentDetailPanel() {
             <Divider />
 
             <button
-              onClick={() => setConfirmRemove({ nodeId: `session-${session.sessionId}`, label: 'session' })}
+              onClick={() =>
+                setConfirmRemove({ nodeId: `session-${session.sessionId}`, label: 'session' })
+              }
               className="w-full px-3 py-1.5 bg-red-900/30 hover:bg-red-800/40 border border-red-700/40 rounded text-xs text-red-300 transition-colors"
             >
               Remove Session
@@ -495,9 +560,7 @@ export function AgentDetailPanel() {
         }
       }
     }
-    const tools = resolvedAgentId !== undefined
-      ? (toolCalls.get(resolvedAgentId) ?? [])
-      : [];
+    const tools = resolvedAgentId !== undefined ? (toolCalls.get(resolvedAgentId) ?? []) : [];
     return (
       <>
         <ToolGroupDetailView
@@ -540,11 +603,12 @@ export function AgentDetailPanel() {
 
     if (!foundTc) return null;
 
-    const duration = foundTc.duration != null
-      ? `${(foundTc.duration / 1000).toFixed(2)}s`
-      : foundTc.startTime && foundTc.endTime
-        ? `${((foundTc.endTime - foundTc.startTime) / 1000).toFixed(2)}s`
-        : null;
+    const duration =
+      foundTc.duration != null
+        ? `${(foundTc.duration / 1000).toFixed(2)}s`
+        : foundTc.startTime && foundTc.endTime
+          ? `${((foundTc.endTime - foundTc.startTime) / 1000).toFixed(2)}s`
+          : null;
 
     const parentAgent = parentAgentId ? agents.get(parentAgentId) : null;
 
@@ -573,13 +637,17 @@ export function AgentDetailPanel() {
                     </button>
                   )}
                 </div>
-                <p className="text-gray-300 break-all font-mono text-xs">{foundTc.toolUseId.slice(0, 16)}</p>
+                <p className="text-gray-300 break-all font-mono text-xs">
+                  {foundTc.toolUseId.slice(0, 16)}
+                </p>
               </div>
               {duration && <Detail label="Duration" value={duration} />}
             </div>
             {(foundTc.startTime || foundTc.endTime) && (
               <div className="flex justify-between">
-                {foundTc.startTime && <Detail label="Started" value={formatTime(foundTc.startTime)} />}
+                {foundTc.startTime && (
+                  <Detail label="Started" value={formatTime(foundTc.startTime)} />
+                )}
                 {foundTc.endTime && <Detail label="Ended" value={formatTime(foundTc.endTime)} />}
               </div>
             )}
@@ -630,7 +698,12 @@ export function AgentDetailPanel() {
 
   const hasAgentTokens = agentMetrics.totalTokens > 0;
   const hasAgentMetrics = hasAgentTokens || agent.toolCalls.length > 0;
-  const agentCacheColor = agentMetrics.cacheRate > 50 ? 'text-emerald-400' : agentMetrics.cacheRate > 20 ? 'text-yellow-400' : 'text-red-400';
+  const agentCacheColor =
+    agentMetrics.cacheRate > 50
+      ? 'text-emerald-400'
+      : agentMetrics.cacheRate > 20
+        ? 'text-yellow-400'
+        : 'text-red-400';
 
   return (
     <PanelShell
@@ -654,7 +727,9 @@ export function AgentDetailPanel() {
               <Detail
                 label="Status"
                 value={agent.status}
-                badge={agent.status === 'running' ? 'green' : agent.status === 'error' ? 'red' : 'gray'}
+                badge={
+                  agent.status === 'running' ? 'green' : agent.status === 'error' ? 'red' : 'gray'
+                }
               />
               <Detail label="Duration" value={agentDuration} />
             </div>
@@ -690,32 +765,66 @@ export function AgentDetailPanel() {
                 <div className="grid grid-cols-2 gap-2">
                   {hasAgentTokens && (
                     <>
-                      <MetricCard label="Cost" value={`$${agentMetrics.costUsd.toFixed(4)}`} color="text-amber-400" />
-                      <MetricCard label="Total Tokens" value={fmtTokens(agentMetrics.totalTokens)} color="text-gray-200" />
-                      <MetricCard label="Cache Hit" value={`${agentMetrics.cacheRate.toFixed(0)}%`} color={agentCacheColor} />
+                      <MetricCard
+                        label="Cost"
+                        value={`$${agentMetrics.costUsd.toFixed(4)}`}
+                        color="text-amber-400"
+                      />
+                      <MetricCard
+                        label="Total Tokens"
+                        value={fmtTokens(agentMetrics.totalTokens)}
+                        color="text-gray-200"
+                      />
+                      <MetricCard
+                        label="Cache Hit"
+                        value={`${agentMetrics.cacheRate.toFixed(0)}%`}
+                        color={agentCacheColor}
+                      />
                     </>
                   )}
                   <MetricCard
                     label="Duration"
-                    value={agentDurationMs < 1000 ? `${Math.round(agentDurationMs)}ms` : `${(agentDurationMs / 1000).toFixed(1)}s`}
+                    value={
+                      agentDurationMs < 1000
+                        ? `${Math.round(agentDurationMs)}ms`
+                        : `${(agentDurationMs / 1000).toFixed(1)}s`
+                    }
                     color="text-gray-200"
                   />
                   {agent.toolCalls.length > 0 && (
-                    <MetricCard label="Tools" value={String(agent.toolCalls.length)} color="text-gray-200" />
+                    <MetricCard
+                      label="Tools"
+                      value={String(agent.toolCalls.length)}
+                      color="text-gray-200"
+                    />
                   )}
                   {agentMetrics.childAgents.length > 0 && (
-                    <MetricCard label="Children" value={String(agentMetrics.childAgents.length)} color="text-gray-200" />
+                    <MetricCard
+                      label="Children"
+                      value={String(agentMetrics.childAgents.length)}
+                      color="text-gray-200"
+                    />
                   )}
                   {(() => {
                     const tx = transcripts.get(agent.sessionId);
-                    return <>
-                      {tx?.webSearchRequests != null && tx.webSearchRequests > 0 && (
-                        <MetricCard label="Web Searches" value={String(tx.webSearchRequests)} color="text-blue-400" />
-                      )}
-                      {tx?.webFetchRequests != null && tx.webFetchRequests > 0 && (
-                        <MetricCard label="Web Fetches" value={String(tx.webFetchRequests)} color="text-blue-400" />
-                      )}
-                    </>;
+                    return (
+                      <>
+                        {tx?.webSearchRequests != null && tx.webSearchRequests > 0 && (
+                          <MetricCard
+                            label="Web Searches"
+                            value={String(tx.webSearchRequests)}
+                            color="text-blue-400"
+                          />
+                        )}
+                        {tx?.webFetchRequests != null && tx.webFetchRequests > 0 && (
+                          <MetricCard
+                            label="Web Fetches"
+                            value={String(tx.webFetchRequests)}
+                            color="text-blue-400"
+                          />
+                        )}
+                      </>
+                    );
                   })()}
                 </div>
               </>
@@ -738,13 +847,30 @@ export function AgentDetailPanel() {
               <div className="space-y-2">
                 {agentMetrics.toolNames.length > 0 && (
                   <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
-                    <ToolBadges toolNames={agentMetrics.toolNames} toolCounts={agentMetrics.toolCounts} label={`Tools (${agent.toolCalls.length})`} />
+                    <ToolBadges
+                      toolNames={agentMetrics.toolNames}
+                      toolCounts={agentMetrics.toolCounts}
+                      label={`Tools (${agent.toolCalls.length})`}
+                    />
                   </div>
                 )}
                 {agentMetrics.model !== 'unknown' && (
                   <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
                     <span className="text-xs text-gray-500 block mb-1">Model</span>
-                    <ModelBadge model={agentMetrics.model} />
+                    <div className="flex items-center gap-2">
+                      <ModelBadge model={agentMetrics.model} />
+                      {agent.vendor && (
+                        <span
+                          className="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase leading-none"
+                          style={{
+                            backgroundColor: getVendorColor(agent.vendor) + '25',
+                            color: getVendorColor(agent.vendor),
+                          }}
+                        >
+                          {agent.vendor}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -755,7 +881,10 @@ export function AgentDetailPanel() {
               <>
                 <Divider />
                 <div>
-                  <span className="text-gray-500 text-xs block mb-1">Total (self + {agentMetrics.childAgents.length} child{agentMetrics.childAgents.length !== 1 ? 'ren' : ''})</span>
+                  <span className="text-gray-500 text-xs block mb-1">
+                    Total (self + {agentMetrics.childAgents.length} child
+                    {agentMetrics.childAgents.length !== 1 ? 'ren' : ''})
+                  </span>
                   <div className="flex gap-4">
                     <Stat label="Input" value={agentMetrics.totalInput} format />
                     <Stat label="Output" value={agentMetrics.totalOutput} format />
@@ -822,7 +951,7 @@ export function AgentDetailPanel() {
       {detailTab === 'reasoning' && (
         <div className="flex-1 overflow-auto">
           <div className="p-4">
-            <ReasoningSection sessionId={agent.sessionId} />
+            <ReasoningSection key={`agent-${agent.agentId}`} sessionId={agent.sessionId} />
           </div>
         </div>
       )}
@@ -889,7 +1018,10 @@ export function PanelShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="w-80 h-full bg-[#161b22] border-l border-gray-800 flex flex-col overflow-hidden">
+    <div
+      className="w-80 h-full bg-[#161b22] border-l border-gray-800 flex flex-col overflow-hidden"
+      aria-label="Agent detail panel"
+    >
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
         <div className="flex items-center gap-3">
           <h3 className="text-sm font-semibold text-gray-200">{title}</h3>
@@ -975,21 +1107,11 @@ export function Divider({ label }: { label?: string } = {}) {
   return <hr className="border-gray-800" />;
 }
 
-export function Stat({
-  label,
-  value,
-  format,
-}: {
-  label: string;
-  value: number;
-  format?: boolean;
-}) {
+export function Stat({ label, value, format }: { label: string; value: number; format?: boolean }) {
   return (
     <div>
       <span className="text-gray-500 text-xs">{label}</span>
-      <p className="text-gray-300 font-mono text-sm">
-        {format ? value.toLocaleString() : value}
-      </p>
+      <p className="text-gray-300 font-mono text-sm">{format ? value.toLocaleString() : value}</p>
     </div>
   );
 }
@@ -1003,11 +1125,7 @@ export function StatusBadge({ status }: { status: string }) {
         : status === 'running'
           ? 'bg-purple-900/50 text-purple-300'
           : 'bg-gray-700/50 text-gray-400';
-  return (
-    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${cls}`}>
-      {status}
-    </span>
-  );
+  return <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${cls}`}>{status}</span>;
 }
 
 // ── Prompt Detail View (extracted for rich metrics) ─────────────
@@ -1041,39 +1159,50 @@ function PromptDetailView({
   onRemove: (nodeId: string) => void;
   dialogs: React.ReactNode;
 }) {
+  const [detailTab, setDetailTab] = useState<'stats' | 'reasoning'>('stats');
+
+  // Reset tab when prompt changes
+  useEffect(() => {
+    setDetailTab('stats');
+  }, [promptId]);
+
   // Find the prompt across all session prompts
   let foundPrompt = null;
   for (const sessionPromptList of prompts.values()) {
     const p = sessionPromptList.find((pp) => pp.id === promptId);
-    if (p) { foundPrompt = p; break; }
+    if (p) {
+      foundPrompt = p;
+      break;
+    }
   }
-  if (!foundPrompt) return null;
 
-  const promptText = extractUserMessage(foundPrompt.text);
-  const session = sessions.get(foundPrompt.sessionId);
+  const promptText = foundPrompt ? extractUserMessage(foundPrompt.text) : '';
+  const session = foundPrompt ? sessions.get(foundPrompt.sessionId) : undefined;
 
   // Find agents belonging to this prompt (started after this prompt, before the next)
-  const sessionPromptList = prompts.get(foundPrompt.sessionId) ?? [];
+  const sessionPromptList = foundPrompt ? (prompts.get(foundPrompt.sessionId) ?? []) : [];
   const promptIdx = sessionPromptList.findIndex((p) => p.id === promptId);
   const nextPrompt = sessionPromptList[promptIdx + 1];
 
   // Compute rich metrics from child agents AND direct tool calls
   const metrics = useMemo(() => {
-    const promptTs = foundPrompt!.timestamp;
+    if (!foundPrompt) return null;
+    const promptTs = foundPrompt.timestamp;
     const nextTs = nextPrompt?.timestamp ?? Infinity;
 
     // ── Child agents in this prompt's time window ──────────────
     const promptAgents = [...agents.values()].filter(
       (a) =>
-        a.sessionId === foundPrompt!.sessionId &&
-        a.startTime >= promptTs &&
-        a.startTime < nextTs,
+        a.sessionId === foundPrompt.sessionId && a.startTime >= promptTs && a.startTime < nextTs,
     );
 
     const inputTokens = promptAgents.reduce((s, a) => s + a.tokenUsage.input, 0);
     const outputTokens = promptAgents.reduce((s, a) => s + a.tokenUsage.output, 0);
     const cacheReadTokens = promptAgents.reduce((s, a) => s + (a.tokenUsage.cacheRead ?? 0), 0);
-    const cacheCreationTokens = promptAgents.reduce((s, a) => s + (a.tokenUsage.cacheCreation ?? 0), 0);
+    const cacheCreationTokens = promptAgents.reduce(
+      (s, a) => s + (a.tokenUsage.cacheCreation ?? 0),
+      0,
+    );
     const thinkingTokens = promptAgents.reduce((s, a) => s + (a.tokenUsage.thinking ?? 0), 0);
 
     const model = promptAgents.find((a) => a.model)?.model ?? session?.model ?? 'unknown';
@@ -1108,9 +1237,7 @@ function PromptDetailView({
     // Latency: time from prompt to last agent completion or last direct tool end
     const endTimes = promptAgents.filter((a) => a.endTime).map((a) => a.endTime!);
     if (latestToolEnd > 0) endTimes.push(latestToolEnd);
-    const latencyMs = endTimes.length > 0
-      ? Math.max(...endTimes) - promptTs
-      : 0;
+    const latencyMs = endTimes.length > 0 ? Math.max(...endTimes) - promptTs : 0;
 
     const costUsd = computeCostUsd(inputTokens, outputTokens, cacheReadTokens, model);
     const cacheRate = computeCacheRate(inputTokens, cacheReadTokens);
@@ -1136,18 +1263,23 @@ function PromptDetailView({
     };
   }, [agents, toolCalls, foundPrompt, nextPrompt, session, promptText]);
 
-  const cacheColor = metrics.cacheRate > 50 ? 'text-emerald-400' : metrics.cacheRate > 20 ? 'text-yellow-400' : 'text-red-400';
-  const complexityColor = metrics.complexity > 70 ? 'text-red-400' : metrics.complexity > 40 ? 'text-yellow-400' : 'text-emerald-400';
+  if (!foundPrompt || !metrics) return null;
+
+  const cacheColor =
+    metrics.cacheRate > 50
+      ? 'text-emerald-400'
+      : metrics.cacheRate > 20
+        ? 'text-yellow-400'
+        : 'text-red-400';
+  const complexityColor =
+    metrics.complexity > 70
+      ? 'text-red-400'
+      : metrics.complexity > 40
+        ? 'text-yellow-400'
+        : 'text-emerald-400';
   const totalTokens = metrics.inputTokens + metrics.outputTokens + metrics.cacheReadTokens;
   const hasTokens = totalTokens > 0;
   const hasMetrics = hasTokens || metrics.toolCount > 0;
-
-  const [detailTab, setDetailTab] = useState<'stats' | 'reasoning'>('stats');
-
-  // Reset tab when prompt changes
-  useEffect(() => {
-    setDetailTab('stats');
-  }, [promptId]);
 
   return (
     <>
@@ -1187,23 +1319,51 @@ function PromptDetailView({
                 <div className="grid grid-cols-2 gap-2">
                   {hasTokens && (
                     <>
-                      <MetricCard label="Cost" value={`$${metrics.costUsd.toFixed(4)}`} color="text-amber-400" />
-                      <MetricCard label="Total Tokens" value={fmtTokens(totalTokens)} color="text-gray-200" />
-                      <MetricCard label="Cache Hit" value={`${metrics.cacheRate.toFixed(0)}%`} color={cacheColor} />
+                      <MetricCard
+                        label="Cost"
+                        value={`$${metrics.costUsd.toFixed(4)}`}
+                        color="text-amber-400"
+                      />
+                      <MetricCard
+                        label="Total Tokens"
+                        value={fmtTokens(totalTokens)}
+                        color="text-gray-200"
+                      />
+                      <MetricCard
+                        label="Cache Hit"
+                        value={`${metrics.cacheRate.toFixed(0)}%`}
+                        color={cacheColor}
+                      />
                     </>
                   )}
                   <MetricCard
                     label="Latency"
-                    value={metrics.latencyMs > 0
-                      ? (metrics.latencyMs < 1000 ? `${Math.round(metrics.latencyMs)}ms` : `${(metrics.latencyMs / 1000).toFixed(1)}s`)
-                      : '\u2014'}
+                    value={
+                      metrics.latencyMs > 0
+                        ? metrics.latencyMs < 1000
+                          ? `${Math.round(metrics.latencyMs)}ms`
+                          : `${(metrics.latencyMs / 1000).toFixed(1)}s`
+                        : '\u2014'
+                    }
                     color="text-gray-200"
                   />
-                  <MetricCard label="Complexity" value={`${metrics.complexity}/100`} color={complexityColor} />
+                  <MetricCard
+                    label="Complexity"
+                    value={`${metrics.complexity}/100`}
+                    color={complexityColor}
+                  />
                   {metrics.agentCount > 0 ? (
-                    <MetricCard label="Agents" value={String(metrics.agentCount)} color="text-gray-200" />
+                    <MetricCard
+                      label="Agents"
+                      value={String(metrics.agentCount)}
+                      color="text-gray-200"
+                    />
                   ) : (
-                    <MetricCard label="Tools" value={String(metrics.toolCount)} color="text-gray-200" />
+                    <MetricCard
+                      label="Tools"
+                      value={String(metrics.toolCount)}
+                      color="text-gray-200"
+                    />
                   )}
                 </div>
               </>
@@ -1226,7 +1386,11 @@ function PromptDetailView({
               <div className="space-y-2">
                 {metrics.toolNames.length > 0 && (
                   <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
-                    <ToolBadges toolNames={metrics.toolNames} toolCounts={metrics.toolCounts} label={`Tools (${metrics.toolCount})`} />
+                    <ToolBadges
+                      toolNames={metrics.toolNames}
+                      toolCounts={metrics.toolCounts}
+                      label={`Tools (${metrics.toolCount})`}
+                    />
                   </div>
                 )}
                 {metrics.model !== 'unknown' && (
@@ -1275,7 +1439,7 @@ function PromptDetailView({
         {/* Reasoning tab */}
         {detailTab === 'reasoning' && (
           <div className="p-4 flex-1 overflow-auto">
-            <ReasoningSection sessionId={foundPrompt.sessionId} />
+            <ReasoningSection key={`prompt-${promptId}`} sessionId={foundPrompt.sessionId} />
           </div>
         )}
       </PanelShell>
@@ -1298,24 +1462,40 @@ function TranscriptToolDetail({ sessionId, toolUseId }: { sessionId: string; too
     setTried(true);
 
     fetch(apiUrl(`/api/transcript/${sessionId}/full`))
-      .then(r => {
+      .then((r) => {
         if (!r.ok) throw new Error(`${r.status}`);
         return r.json();
       })
-      .then((full: { conversations: Array<{ content: Array<{ type: string; id?: string; tool_use_id?: string; name?: string; input?: Record<string, unknown>; content?: string; is_error?: boolean }> }> }) => {
-        // Find matching tool_use block
-        for (const conv of full.conversations) {
-          for (const block of conv.content) {
-            if (block.type === 'tool_use' && block.id === toolUseId) {
-              setToolInput(block.input ?? null);
-            }
-            if (block.type === 'tool_result' && block.tool_use_id === toolUseId) {
-              setToolResult({ content: block.content ?? '', is_error: block.is_error ?? false });
+      .then(
+        (full: {
+          conversations: Array<{
+            content: Array<{
+              type: string;
+              id?: string;
+              tool_use_id?: string;
+              name?: string;
+              input?: Record<string, unknown>;
+              content?: string;
+              is_error?: boolean;
+            }>;
+          }>;
+        }) => {
+          // Find matching tool_use block
+          for (const conv of full.conversations) {
+            for (const block of conv.content) {
+              if (block.type === 'tool_use' && block.id === toolUseId) {
+                setToolInput(block.input ?? null);
+              }
+              if (block.type === 'tool_result' && block.tool_use_id === toolUseId) {
+                setToolResult({ content: block.content ?? '', is_error: block.is_error ?? false });
+              }
             }
           }
-        }
+        },
+      )
+      .catch(() => {
+        /* silently fail — transcript data is optional */
       })
-      .catch(() => { /* silently fail — transcript data is optional */ })
       .finally(() => setLoading(false));
   }, [sessionId, toolUseId, tried]);
 
@@ -1338,10 +1518,14 @@ function TranscriptToolDetail({ sessionId, toolUseId }: { sessionId: string; too
           <span className="text-gray-500 text-[10px] block mb-1">
             Full Output
             {toolResult.is_error && (
-              <span className="ml-1.5 bg-red-900/50 text-red-300 text-[9px] px-1.5 rounded">error</span>
+              <span className="ml-1.5 bg-red-900/50 text-red-300 text-[9px] px-1.5 rounded">
+                error
+              </span>
             )}
           </span>
-          <pre className={`text-[11px] bg-gray-900 rounded p-2 overflow-auto max-h-60 font-mono whitespace-pre-wrap ${toolResult.is_error ? 'text-red-300' : 'text-gray-300'}`}>
+          <pre
+            className={`text-[11px] bg-gray-900 rounded p-2 overflow-auto max-h-60 font-mono whitespace-pre-wrap ${toolResult.is_error ? 'text-red-300' : 'text-gray-300'}`}
+          >
             {toolResult.content || '(empty)'}
           </pre>
         </div>
@@ -1430,38 +1614,48 @@ function PromptAiSection({
               : 'bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20'
           }`}
         >
-          {loading
-            ? 'Analyzing...'
-            : isVibe ? 'Get prompt tips' : 'Analyze with AI'
-          }
+          {loading ? 'Analyzing...' : isVibe ? 'Get prompt tips' : 'Analyze with AI'}
         </button>
       </div>
     );
   }
 
   // Analysis result display
-  const scoreColor = analysis.score >= 8 ? 'text-emerald-400' : analysis.score >= 5 ? 'text-yellow-400' : 'text-red-400';
+  const scoreColor =
+    analysis.score >= 8
+      ? 'text-emerald-400'
+      : analysis.score >= 5
+        ? 'text-yellow-400'
+        : 'text-red-400';
 
   return (
-    <div className={`relative bg-gradient-to-b ${
-      isVibe
-        ? 'from-purple-500/5 to-pink-500/5 border-purple-500/15'
-        : 'from-blue-500/5 to-purple-500/5 border-blue-500/15'
-    } border rounded-lg p-3 space-y-2.5 ${loading ? 'opacity-40 pointer-events-none' : ''}`}>
+    <div
+      className={`relative bg-gradient-to-b ${
+        isVibe
+          ? 'from-purple-500/5 to-pink-500/5 border-purple-500/15'
+          : 'from-blue-500/5 to-purple-500/5 border-blue-500/15'
+      } border rounded-lg p-3 space-y-2.5 ${loading ? 'opacity-40 pointer-events-none' : ''}`}
+    >
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center z-10">
-          <div className={`text-xs font-medium ${isVibe ? 'text-purple-400' : 'text-blue-400'}`}>Re-analyzing...</div>
+          <div className={`text-xs font-medium ${isVibe ? 'text-purple-400' : 'text-blue-400'}`}>
+            Re-analyzing...
+          </div>
         </div>
       )}
 
       {/* Header: label + mode toggle + score + refresh */}
       <div className="flex items-center gap-2">
-        <span className={`text-[10px] font-medium uppercase tracking-wider ${isVibe ? 'text-purple-400' : 'text-blue-400'}`}>
+        <span
+          className={`text-[10px] font-medium uppercase tracking-wider ${isVibe ? 'text-purple-400' : 'text-blue-400'}`}
+        >
           {isVibe ? 'Prompt Coach' : 'AI Analysis'}
         </span>
-        <span className={`px-1 py-0.5 text-[9px] font-medium rounded ${
-          isVibe ? 'bg-purple-500/20 text-purple-300' : 'bg-blue-500/20 text-blue-300'
-        }`}>
+        <span
+          className={`px-1 py-0.5 text-[9px] font-medium rounded ${
+            isVibe ? 'bg-purple-500/20 text-purple-300' : 'bg-blue-500/20 text-blue-300'
+          }`}
+        >
           {isVibe ? 'Vibe' : 'AI'}
         </span>
         {modeToggle}
@@ -1475,8 +1669,18 @@ function PromptAiSection({
                 : 'text-blue-400/60 hover:text-blue-300 hover:bg-blue-500/10'
             }`}
           >
-            <svg className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            <svg
+              className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
             </svg>
           </button>
         </Tooltip>
@@ -1486,9 +1690,12 @@ function PromptAiSection({
       <div className="flex items-center gap-2">
         <span className={`text-sm font-semibold ${scoreColor}`}>
           {isVibe
-            ? (analysis.score >= 8 ? 'Great!' : analysis.score >= 5 ? 'Decent' : 'Needs work')
-            : `Score: ${analysis.score}/10`
-          }
+            ? analysis.score >= 8
+              ? 'Great!'
+              : analysis.score >= 5
+                ? 'Decent'
+                : 'Needs work'
+            : `Score: ${analysis.score}/10`}
         </span>
         <span className="text-[10px] text-gray-500">{analysis.score}/10</span>
       </div>
@@ -1514,7 +1721,16 @@ function PromptAiSection({
               className="absolute top-1 right-1 p-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
               title="Copy rewrite"
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
               </svg>
@@ -1546,4 +1762,3 @@ function PromptAiSection({
     </div>
   );
 }
-

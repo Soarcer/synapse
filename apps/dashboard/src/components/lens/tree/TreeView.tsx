@@ -1,4 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useMemo, useCallback, useRef, useEffect, useLayoutEffect } from 'react';
+import { Virtuoso } from 'react-virtuoso';
 import { useLens, type LensTreeNode } from '../LensContext';
 import { TreeRow } from './TreeRow';
 import { Tooltip } from '../../ui/Tooltip';
@@ -29,8 +33,8 @@ export function TreeView() {
       const newZoom = Math.max(0.5, Math.min(3, oldZoom + delta));
       if (newZoom === oldZoom) return;
 
-      const newScrollLeft = (el.scrollLeft + mouseX) * newZoom / oldZoom - mouseX;
-      const newScrollTop = (el.scrollTop + mouseY) * newZoom / oldZoom - mouseY;
+      const newScrollLeft = ((el.scrollLeft + mouseX) * newZoom) / oldZoom - mouseX;
+      const newScrollTop = ((el.scrollTop + mouseY) * newZoom) / oldZoom - mouseY;
 
       zoomRef.current = newZoom;
       pendingScrollRef.current = { left: newScrollLeft, top: newScrollTop };
@@ -66,7 +70,8 @@ export function TreeView() {
       for (const id of autoExpand) next.add(id);
       return next;
     });
-  }, [treeRoots.length]); // Only when root count changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: expand new roots only when count changes
+  }, [treeRoots.length]);
 
   // Flatten visible tree into a list
   const flatList = useMemo(() => {
@@ -123,7 +128,9 @@ export function TreeView() {
   useEffect(() => {
     if (!selectedId) return;
     // Find the node in the flat list
-    const idx = flatList.findIndex((n) => n.id === selectedId || n.groupedIds?.includes(selectedId));
+    const idx = flatList.findIndex(
+      (n) => n.id === selectedId || n.groupedIds?.includes(selectedId),
+    );
     if (idx >= 0) {
       // Scroll into view
       const el = containerRef.current;
@@ -219,25 +226,31 @@ export function TreeView() {
         </span>
       </div>
 
-      {/* Tree list — plain render, no virtualization */}
+      {/* Tree list — virtualized */}
       <div
         ref={containerRef}
-        className="flex-1 min-h-0 overflow-auto focus:outline-none"
+        className="flex-1 min-h-0 overflow-hidden focus:outline-none"
         onKeyDown={handleKeyDown}
         tabIndex={0}
       >
-        {flatList.map((node, idx) => (
-          <TreeRow
-            key={node.id}
-            node={node}
-            zoom={zoom}
-            isExpanded={expanded.has(node.id)}
-            isSelected={selectedId === node.id || (node.groupedIds?.includes(selectedId ?? '') ?? false)}
-            isFocused={idx === focusIndex}
-            onToggle={() => toggleExpand(node.id)}
-            onClick={() => onSelect(node.id)}
-          />
-        ))}
+        <Virtuoso
+          data={flatList}
+          overscan={200}
+          itemContent={(idx, node) => (
+            <TreeRow
+              key={node.id}
+              node={node}
+              zoom={zoom}
+              isExpanded={expanded.has(node.id)}
+              isSelected={
+                selectedId === node.id || (node.groupedIds?.includes(selectedId ?? '') ?? false)
+              }
+              isFocused={idx === focusIndex}
+              onToggle={() => toggleExpand(node.id)}
+              onClick={() => onSelect(node.id)}
+            />
+          )}
+        />
       </div>
     </div>
   );

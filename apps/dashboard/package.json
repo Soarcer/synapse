@@ -2,6 +2,7 @@
   "name": "@synapse-ai/dashboard",
   "version": "0.1.0",
   "private": true,
+  "license": "AGPL-3.0-or-later",
   "description": "Synapse interactive agent monitoring dashboard",
   "type": "module",
   "scripts": {
@@ -11,11 +12,11 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@dagrejs/dagre": "^2.0.4",
     "@synapse-ai/core": "workspace:*",
     "@xyflow/react": "^12.6.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-virtuoso": "^4.18.1",
     "recharts": "^3.7.0",
     "zustand": "^5.0.0"
   },
@@ -24,7 +25,6 @@
     "@tailwindcss/vite": "^4.1.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
-    "@types/dagre": "^0.7.53",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.4.0",

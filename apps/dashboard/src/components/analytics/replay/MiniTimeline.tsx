@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import type { MockTurn } from '../mockData';
 
 interface MiniTimelineProps {
@@ -17,7 +20,12 @@ export function MiniTimeline({ turns, onClickTurn, selectedTurn }: MiniTimelineP
 
   // Bucket turns into BAR_COUNT time slots
   const buckets: { tools: number; errors: number; compactions: number; turnIndices: number[] }[] =
-    Array.from({ length: BAR_COUNT }, () => ({ tools: 0, errors: 0, compactions: 0, turnIndices: [] }));
+    Array.from({ length: BAR_COUNT }, () => ({
+      tools: 0,
+      errors: 0,
+      compactions: 0,
+      turnIndices: [],
+    }));
 
   for (const t of turns) {
     const idx = Math.min(Math.floor(((t.timestamp - minTs) / range) * BAR_COUNT), BAR_COUNT - 1);

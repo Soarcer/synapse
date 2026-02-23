@@ -9,3 +9,7 @@ pnpm-lock.yaml
 package-lock.json
 node_modules/
 test-*
+*.psd
+synapse_icon.svg
+synapse-icon-black.png
+synapse-icon-black-128.png

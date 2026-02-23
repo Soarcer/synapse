@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useRef, useEffect } from 'react';
 import { useAgentStore } from '../../store/agentStore';
 import { Tooltip } from '../ui/Tooltip';
@@ -55,20 +58,27 @@ export function TimeFilterDropdown() {
   return (
     <div ref={ref} className="relative">
       <Tooltip content="Time range filter">
-      <button
-        onClick={() => setOpen(!open)}
-        className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded transition-colors ${
-          isFiltered
-            ? 'text-blue-300 bg-blue-900/40 hover:bg-blue-800/40 border border-blue-700/30'
-            : 'text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700'
-        }`}
-      >
-        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <circle cx="12" cy="12" r="10" />
-          <path d="M12 6v6l4 2" />
-        </svg>
-        {activeLabel}
-      </button>
+        <button
+          onClick={() => setOpen(!open)}
+          aria-label="Time range filter"
+          className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded transition-colors ${
+            isFiltered
+              ? 'text-blue-300 bg-blue-900/40 hover:bg-blue-800/40 border border-blue-700/30'
+              : 'text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700'
+          }`}
+        >
+          <svg
+            className="w-3 h-3"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 6v6l4 2" />
+          </svg>
+          {activeLabel}
+        </button>
       </Tooltip>
 
       {open && (

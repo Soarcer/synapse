@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import type { StructuredThinking } from '@synapse-ai/core';
 
 /**
@@ -52,7 +55,9 @@ function extractPlanSteps(text: string): Array<{ text: string; done: boolean }> 
   if (steps.length > 0) return steps;
 
   // Bullet lists after plan/steps keywords
-  const planSection = text.match(/(?:plan|steps|approach|strategy)[:\s]*\n((?:\s*[-*•]\s+.+\n?)+)/i);
+  const planSection = text.match(
+    /(?:plan|steps|approach|strategy)[:\s]*\n((?:\s*[-*•]\s+.+\n?)+)/i,
+  );
   if (planSection) {
     const bulletPattern = /^\s*[-*•]\s+(.+)/gm;
     while ((match = bulletPattern.exec(planSection[1])) !== null) {
@@ -96,20 +101,33 @@ function extractDecision(text: string): string | null {
 // ─── Confidence ──────────────────────────────────────────────────
 
 const HIGH_CONFIDENCE = [
-  /\bconfident\b/i, /\bclearly\b/i, /\bdefinitely\b/i,
-  /\bcertain\b/i, /\bthis is the (?:issue|bug|problem|fix)\b/i,
-  /\bno doubt\b/i, /\bobviously\b/i,
+  /\bconfident\b/i,
+  /\bclearly\b/i,
+  /\bdefinitely\b/i,
+  /\bcertain\b/i,
+  /\bthis is the (?:issue|bug|problem|fix)\b/i,
+  /\bno doubt\b/i,
+  /\bobviously\b/i,
 ];
 
 const MEDIUM_CONFIDENCE = [
-  /\bprobably\b/i, /\blikely\b/i, /\bI think\b/i,
-  /\bshould work\b/i, /\bseems like\b/i, /\bappears to\b/i,
+  /\bprobably\b/i,
+  /\blikely\b/i,
+  /\bI think\b/i,
+  /\bshould work\b/i,
+  /\bseems like\b/i,
+  /\bappears to\b/i,
 ];
 
 const LOW_CONFIDENCE = [
-  /\bnot sure\b/i, /\bunsure\b/i, /\bmight\b/i,
-  /\blet me try\b/i, /\bguessing\b/i, /\bperhaps\b/i,
-  /\bnot certain\b/i, /\bcould be\b/i,
+  /\bnot sure\b/i,
+  /\bunsure\b/i,
+  /\bmight\b/i,
+  /\blet me try\b/i,
+  /\bguessing\b/i,
+  /\bperhaps\b/i,
+  /\bnot certain\b/i,
+  /\bcould be\b/i,
 ];
 
 function extractConfidence(text: string): number | null {
@@ -117,9 +135,15 @@ function extractConfidence(text: string): number | null {
   let medCount = 0;
   let lowCount = 0;
 
-  for (const p of HIGH_CONFIDENCE) { if (p.test(text)) highCount++; }
-  for (const p of MEDIUM_CONFIDENCE) { if (p.test(text)) medCount++; }
-  for (const p of LOW_CONFIDENCE) { if (p.test(text)) lowCount++; }
+  for (const p of HIGH_CONFIDENCE) {
+    if (p.test(text)) highCount++;
+  }
+  for (const p of MEDIUM_CONFIDENCE) {
+    if (p.test(text)) medCount++;
+  }
+  for (const p of LOW_CONFIDENCE) {
+    if (p.test(text)) lowCount++;
+  }
 
   const total = highCount + medCount + lowCount;
   if (total === 0) return null;

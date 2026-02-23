@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { logger } from '../lib/logger.js';
 import {
   getAllPlaybooks as dbGetAllPlaybooks,
@@ -28,8 +31,16 @@ function rowToPlaybook(row: PlaybookRow): Playbook {
   let pattern: PlaybookPattern = { ...DEFAULT_PATTERN };
   let tags: string[] = [];
 
-  try { pattern = JSON.parse(row.pattern); } catch { /* ignore */ }
-  try { tags = row.tags ? JSON.parse(row.tags) : []; } catch { /* ignore */ }
+  try {
+    pattern = JSON.parse(row.pattern);
+  } catch {
+    /* ignore */
+  }
+  try {
+    tags = row.tags ? JSON.parse(row.tags) : [];
+  } catch {
+    /* ignore */
+  }
 
   return {
     id: row.id,
@@ -70,7 +81,10 @@ export function createPlaybook(params: {
     try {
       pattern = generatePlaybookFromSession(params.sourceSessionId);
     } catch (err) {
-      logger.warn({ err, sessionId: params.sourceSessionId }, 'Failed to generate pattern from session, using defaults');
+      logger.warn(
+        { err, sessionId: params.sourceSessionId },
+        'Failed to generate pattern from session, using defaults',
+      );
     }
   }
 
@@ -107,11 +121,23 @@ const BUILT_IN_TEMPLATES: {
 }[] = [
   {
     name: 'Feature Development',
-    description: 'Ideal pattern for building new features: read existing code first, implement incrementally, then verify with tests.',
+    description:
+      'Ideal pattern for building new features: read existing code first, implement incrementally, then verify with tests.',
     category: 'feature',
     tags: ['best-practice', 'built-in', 'recommended'],
     pattern: {
-      toolSequence: ['Glob', 'Read', 'Read', 'Read', 'Edit', 'Edit', 'Write', 'Bash', 'Edit', 'Bash'],
+      toolSequence: [
+        'Glob',
+        'Read',
+        'Read',
+        'Read',
+        'Edit',
+        'Edit',
+        'Write',
+        'Bash',
+        'Edit',
+        'Bash',
+      ],
       modelStrategy: 'claude-sonnet-4-5',
       avgTurns: 8,
       avgDurationMinutes: 25,
@@ -123,7 +149,8 @@ const BUILT_IN_TEMPLATES: {
   },
   {
     name: 'Bug Investigation',
-    description: 'Efficient debugging workflow: search for the issue, read surrounding code, apply a targeted fix, verify the fix works.',
+    description:
+      'Efficient debugging workflow: search for the issue, read surrounding code, apply a targeted fix, verify the fix works.',
     category: 'bugfix',
     tags: ['best-practice', 'built-in', 'debugging'],
     pattern: {
@@ -139,7 +166,8 @@ const BUILT_IN_TEMPLATES: {
   },
   {
     name: 'Code Review',
-    description: 'Thorough code review: explore changed files, read implementations, check for issues, provide structured feedback.',
+    description:
+      'Thorough code review: explore changed files, read implementations, check for issues, provide structured feedback.',
     category: 'review',
     tags: ['best-practice', 'built-in', 'quality'],
     pattern: {
@@ -196,22 +224,27 @@ export function generatePlaybookFromSession(sessionId: string): PlaybookPattern 
   const avgDurationMinutes = Math.round(ctx.durationMs / 60_000);
 
   // Read before edit
-  const readBeforeEdit = ctx.distinctFilesEdited.size > 0 &&
+  const readBeforeEdit =
+    ctx.distinctFilesEdited.size > 0 &&
     ctx.readBeforeEditFiles.size / ctx.distinctFilesEdited.size >= 0.8;
 
   // Test after edit
-  const editEvents = ctx.events.filter(e => e.tool_name === 'Edit' || e.tool_name === 'Write');
-  const testEvents = ctx.events.filter(e => {
+  const editEvents = ctx.events.filter((e) => e.tool_name === 'Edit' || e.tool_name === 'Write');
+  const testEvents = ctx.events.filter((e) => {
     if (e.tool_name !== 'Bash') return false;
     try {
       const input = JSON.parse(e.tool_input ?? '{}');
       return /\b(test|jest|vitest|pytest)\b/i.test(input.command ?? '');
-    } catch { return false; }
+    } catch {
+      return false;
+    }
   });
-  const testAfterEdit = editEvents.length > 0 && testEvents.some(t => {
-    const lastEdit = editEvents[editEvents.length - 1];
-    return t.created_at > lastEdit.created_at;
-  });
+  const testAfterEdit =
+    editEvents.length > 0 &&
+    testEvents.some((t) => {
+      const lastEdit = editEvents[editEvents.length - 1];
+      return t.created_at > lastEdit.created_at;
+    });
 
   // Subagents
   const usedSubagents = ctx.agentStartCount > 0;

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // Set DB path BEFORE any server imports
 import path from 'path';
 import os from 'os';
@@ -8,7 +11,11 @@ process.env.SYNAPSE_DB_PATH = path.join(
 
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { initDb, deleteAllEvents, insertEvent } from '../db.js';
-import { buildSessionContext, computeReportCard, getReportCardHistory } from '../services/reportCardEngine.js';
+import {
+  buildSessionContext,
+  computeReportCard,
+  getReportCardHistory,
+} from '../services/reportCardEngine.js';
 
 // ─── Setup ──────────────────────────────────────────────────────────
 
@@ -30,20 +37,23 @@ function uniqueSessionId(prefix = 'sess'): string {
   return `${prefix}-${++sessionSeq}-${Date.now()}`;
 }
 
-function makeEvent(sessionId: string, overrides: Partial<{
-  event_type: string;
-  tool_name: string;
-  tool_input: string;
-  tool_response: string;
-  status: string;
-  token_input: number;
-  token_output: number;
-  raw_payload: string;
-  model: string;
-  agent_type: string;
-  hook_event_name: string;
-  created_at: number;
-}>): void {
+function makeEvent(
+  sessionId: string,
+  overrides: Partial<{
+    event_type: string;
+    tool_name: string;
+    tool_input: string;
+    tool_response: string;
+    status: string;
+    token_input: number;
+    token_output: number;
+    raw_payload: string;
+    model: string;
+    agent_type: string;
+    hook_event_name: string;
+    created_at: number;
+  }>,
+): void {
   const seq = ++eventSeq;
   insertEvent({
     event_id: `evt-${seq}`,
@@ -99,9 +109,21 @@ describe('buildSessionContext', () => {
   it('tracks read-before-edit patterns', () => {
     const sid = uniqueSessionId();
     const now = Date.now();
-    makeEvent(sid, { tool_name: 'Read', tool_input: JSON.stringify({ file_path: '/foo.ts' }), created_at: now + 1 });
-    makeEvent(sid, { tool_name: 'Edit', tool_input: JSON.stringify({ file_path: '/foo.ts' }), created_at: now + 2 });
-    makeEvent(sid, { tool_name: 'Edit', tool_input: JSON.stringify({ file_path: '/bar.ts' }), created_at: now + 3 });
+    makeEvent(sid, {
+      tool_name: 'Read',
+      tool_input: JSON.stringify({ file_path: '/foo.ts' }),
+      created_at: now + 1,
+    });
+    makeEvent(sid, {
+      tool_name: 'Edit',
+      tool_input: JSON.stringify({ file_path: '/foo.ts' }),
+      created_at: now + 2,
+    });
+    makeEvent(sid, {
+      tool_name: 'Edit',
+      tool_input: JSON.stringify({ file_path: '/bar.ts' }),
+      created_at: now + 3,
+    });
 
     const ctx = buildSessionContext(sid);
     expect(ctx.readBeforeEditFiles.has('/foo.ts')).toBe(true);
@@ -112,7 +134,10 @@ describe('buildSessionContext', () => {
   it('detects bash file operations', () => {
     const sid = uniqueSessionId();
     makeEvent(sid, { tool_name: 'Bash', tool_input: JSON.stringify({ command: 'cat /foo.ts' }) });
-    makeEvent(sid, { tool_name: 'Bash', tool_input: JSON.stringify({ command: 'grep -r "import"' }) });
+    makeEvent(sid, {
+      tool_name: 'Bash',
+      tool_input: JSON.stringify({ command: 'grep -r "import"' }),
+    });
     makeEvent(sid, { tool_name: 'Bash', tool_input: JSON.stringify({ command: 'npm test' }) });
 
     const ctx = buildSessionContext(sid);
@@ -162,14 +187,29 @@ describe('computeReportCard', () => {
   it('returns a valid report card for a minimal session', () => {
     const sid = uniqueSessionId();
     const now = Date.now();
-    makeEvent(sid, { event_type: 'session_start', model: 'claude-sonnet-4-5', raw_payload: '{}', created_at: now });
+    makeEvent(sid, {
+      event_type: 'session_start',
+      model: 'claude-sonnet-4-5',
+      raw_payload: '{}',
+      created_at: now,
+    });
     makeEvent(sid, {
       event_type: 'user_prompt',
-      raw_payload: JSON.stringify({ prompt: 'Fix the auth bug in src/auth.ts. Ensure tests pass.' }),
+      raw_payload: JSON.stringify({
+        prompt: 'Fix the auth bug in src/auth.ts. Ensure tests pass.',
+      }),
       created_at: now + 1,
     });
-    makeEvent(sid, { tool_name: 'Read', tool_input: JSON.stringify({ file_path: '/src/auth.ts' }), created_at: now + 10 });
-    makeEvent(sid, { tool_name: 'Edit', tool_input: JSON.stringify({ file_path: '/src/auth.ts' }), created_at: now + 20 });
+    makeEvent(sid, {
+      tool_name: 'Read',
+      tool_input: JSON.stringify({ file_path: '/src/auth.ts' }),
+      created_at: now + 10,
+    });
+    makeEvent(sid, {
+      tool_name: 'Edit',
+      tool_input: JSON.stringify({ file_path: '/src/auth.ts' }),
+      created_at: now + 20,
+    });
 
     const card = computeReportCard(sid);
 
@@ -226,15 +266,34 @@ describe('computeReportCard', () => {
     });
     makeEvent(sid, {
       event_type: 'user_prompt',
-      raw_payload: JSON.stringify({ prompt: 'Fix the validation bug in src/validators.ts. The email regex should reject domains without TLDs. Run tests to verify.' }),
+      raw_payload: JSON.stringify({
+        prompt:
+          'Fix the validation bug in src/validators.ts. The email regex should reject domains without TLDs. Run tests to verify.',
+      }),
       created_at: now + 1,
     });
 
     // Read → Edit → Test pattern
-    makeEvent(sid, { tool_name: 'Read', tool_input: JSON.stringify({ file_path: '/src/validators.ts' }), created_at: now + 10 });
-    makeEvent(sid, { tool_name: 'Read', tool_input: JSON.stringify({ file_path: '/src/validators.test.ts' }), created_at: now + 20 });
-    makeEvent(sid, { tool_name: 'Edit', tool_input: JSON.stringify({ file_path: '/src/validators.ts' }), created_at: now + 30 });
-    makeEvent(sid, { tool_name: 'Bash', tool_input: JSON.stringify({ command: 'npm test' }), created_at: now + 40 });
+    makeEvent(sid, {
+      tool_name: 'Read',
+      tool_input: JSON.stringify({ file_path: '/src/validators.ts' }),
+      created_at: now + 10,
+    });
+    makeEvent(sid, {
+      tool_name: 'Read',
+      tool_input: JSON.stringify({ file_path: '/src/validators.test.ts' }),
+      created_at: now + 20,
+    });
+    makeEvent(sid, {
+      tool_name: 'Edit',
+      tool_input: JSON.stringify({ file_path: '/src/validators.ts' }),
+      created_at: now + 30,
+    });
+    makeEvent(sid, {
+      tool_name: 'Bash',
+      tool_input: JSON.stringify({ command: 'npm test' }),
+      created_at: now + 40,
+    });
 
     const card = computeReportCard(sid);
 
@@ -280,7 +339,7 @@ describe('getReportCardHistory', () => {
     const cards = getReportCardHistory(now - 60_000, now + 60_000);
 
     // At least the card we just computed should be present
-    const found = cards.find(c => c.sessionId === sid);
+    const found = cards.find((c) => c.sessionId === sid);
     expect(found).toBeDefined();
     expect(found!.grade).toBeTruthy();
     expect(found!.dimensions.length).toBe(8);

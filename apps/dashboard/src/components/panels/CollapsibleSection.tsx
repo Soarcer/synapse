@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useRef, useEffect, type ReactNode } from 'react';
 
 interface CollapsibleSectionProps {
@@ -7,7 +10,12 @@ interface CollapsibleSectionProps {
   children: ReactNode;
 }
 
-export function CollapsibleSection({ title, badge, defaultOpen = false, children }: CollapsibleSectionProps) {
+export function CollapsibleSection({
+  title,
+  badge,
+  defaultOpen = false,
+  children,
+}: CollapsibleSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
   const contentRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState<number | undefined>(defaultOpen ? undefined : 0);
@@ -27,9 +35,7 @@ export function CollapsibleSection({ title, badge, defaultOpen = false, children
           ▶
         </span>
         <span className="text-gray-400 text-xs font-medium">{title}</span>
-        {badge && (
-          <span className="text-gray-600 text-[10px] ml-auto">{badge}</span>
-        )}
+        {badge && <span className="text-gray-600 text-[10px] ml-auto">{badge}</span>}
       </button>
       <div
         ref={contentRef}

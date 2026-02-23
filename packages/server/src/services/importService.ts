@@ -1,10 +1,18 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // ─── Import Service ─────────────────────────────────────────────────
 // Handles importing usage data from various AI providers.
 
 import { nanoid } from 'nanoid';
 import { logger } from '../lib/logger.js';
 import { insertEvent, updateDailyRollup } from '../db.js';
-import { normalizeProviderEvent, normalizeCsvRow, type CsvUsageRow, type ProviderFormat } from './providerNormalizer.js';
+import {
+  normalizeProviderEvent,
+  normalizeCsvRow,
+  type CsvUsageRow,
+  type ProviderFormat,
+} from './providerNormalizer.js';
 import { computeCostUsd } from './costService.js';
 import { normalizeCwd } from '@synapse-ai/core';
 
@@ -49,7 +57,13 @@ export function importCsv(csvText: string, cwd?: string): ImportResult {
 
       const event = normalizeCsvRow(row, `csv-import-${nanoid(8)}`);
       const costUsd = event.tokenUsage
-        ? computeCostUsd(event.model || 'unknown', event.tokenUsage.input, event.tokenUsage.output, 0, event.timestamp)
+        ? computeCostUsd(
+            event.model || 'unknown',
+            event.tokenUsage.input,
+            event.tokenUsage.output,
+            0,
+            event.timestamp,
+          )
         : 0;
 
       insertEvent({
@@ -104,7 +118,13 @@ export function importJson(
       const item = items[i] as Record<string, unknown>;
       const event = normalizeProviderEvent(item, undefined, providerHint);
       const costUsd = event.tokenUsage
-        ? computeCostUsd(event.model || 'unknown', event.tokenUsage.input, event.tokenUsage.output, 0, event.timestamp)
+        ? computeCostUsd(
+            event.model || 'unknown',
+            event.tokenUsage.input,
+            event.tokenUsage.output,
+            0,
+            event.timestamp,
+          )
         : 0;
 
       insertEvent({
@@ -143,6 +163,9 @@ export function importJson(
     }
   }
 
-  logger.info({ imported: result.imported, skipped: result.skipped, provider: providerHint }, 'JSON import complete');
+  logger.info(
+    { imported: result.imported, skipped: result.skipped, provider: providerHint },
+    'JSON import complete',
+  );
   return result;
 }

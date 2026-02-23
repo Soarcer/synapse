@@ -4,13 +4,8 @@
 // Set DB path BEFORE any server imports
 import path from 'path';
 import os from 'os';
-import { fileURLToPath } from 'url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-process.env.SYNAPSE_DB_PATH = path.join(
-  os.tmpdir(),
-  'synapse-test-nudge-' + Date.now() + '.db',
-);
+process.env.SYNAPSE_DB_PATH = path.join(os.tmpdir(), 'synapse-test-nudge-' + Date.now() + '.db');
 
 import { initDb } from '../db.js';
 import { checkNudges, updateEventBuffer, getSessionAccumulator } from '../services/nudgeEngine.js';
@@ -158,11 +153,13 @@ describe('updateEventBuffer handles many events', () => {
 
     for (let i = 0; i < 25; i++) {
       expect(() =>
-        updateEventBuffer(makeEvent({
-          sessionId,
-          toolName: 'Read',
-          toolInput: { file_path: `/test/file-${i}.ts` },
-        })),
+        updateEventBuffer(
+          makeEvent({
+            sessionId,
+            toolName: 'Read',
+            toolInput: { file_path: `/test/file-${i}.ts` },
+          }),
+        ),
       ).not.toThrow();
     }
 
@@ -213,8 +210,8 @@ describe('Bash-streak detector', () => {
     }
 
     // Should have at least one bash-related nudge
-    const bashNudge = broadcaster.nudges.find(n =>
-      n.detectorId === 'tool.bash-streak' || n.detectorId === 'tool.bash-file-ops',
+    const bashNudge = broadcaster.nudges.find(
+      (n) => n.detectorId === 'tool.bash-streak' || n.detectorId === 'tool.bash-file-ops',
     );
     expect(bashNudge).toBeDefined();
     expect(bashNudge!.severity).toBe('suggestion');
@@ -234,9 +231,7 @@ describe('Bash-streak detector', () => {
       checkNudges(event, broadcaster);
     }
 
-    const bashNudge = broadcaster.nudges.find(n =>
-      n.detectorId === 'tool.bash-streak',
-    );
+    const bashNudge = broadcaster.nudges.find((n) => n.detectorId === 'tool.bash-streak');
     expect(bashNudge).toBeUndefined();
   });
 });
@@ -251,7 +246,9 @@ describe('Error spiral detector', () => {
 
     // Seed buffer with some events first
     for (let i = 0; i < 3; i++) {
-      updateEventBuffer(makeEvent({ sessionId, type: 'tool_end', toolName: 'Read', status: 'success' }));
+      updateEventBuffer(
+        makeEvent({ sessionId, type: 'tool_end', toolName: 'Read', status: 'success' }),
+      );
     }
 
     // Now push consecutive errors
@@ -267,9 +264,7 @@ describe('Error spiral detector', () => {
       checkNudges(event, broadcaster);
     }
 
-    const errorNudge = broadcaster.nudges.find(n =>
-      n.detectorId === 'verify.error-spiral',
-    );
+    const errorNudge = broadcaster.nudges.find((n) => n.detectorId === 'verify.error-spiral');
     expect(errorNudge).toBeDefined();
     expect(errorNudge!.severity).toBe('warning');
   });
@@ -285,7 +280,9 @@ describe('Edit-without-read detector', () => {
 
     // Seed buffer
     for (let i = 0; i < 3; i++) {
-      updateEventBuffer(makeEvent({ sessionId, type: 'tool_end', toolName: 'Bash', status: 'success' }));
+      updateEventBuffer(
+        makeEvent({ sessionId, type: 'tool_end', toolName: 'Bash', status: 'success' }),
+      );
     }
 
     // Edit a file that was never Read
@@ -298,9 +295,7 @@ describe('Edit-without-read detector', () => {
     updateEventBuffer(editEvent);
     checkNudges(editEvent, broadcaster);
 
-    const editNudge = broadcaster.nudges.find(n =>
-      n.detectorId === 'tool.edit-without-read',
-    );
+    const editNudge = broadcaster.nudges.find((n) => n.detectorId === 'tool.edit-without-read');
     expect(editNudge).toBeDefined();
     expect(editNudge!.severity).toBe('warning');
     expect(editNudge!.message).toContain('never-read.ts');
@@ -311,7 +306,9 @@ describe('Edit-without-read detector', () => {
 
     // Seed buffer
     for (let i = 0; i < 3; i++) {
-      updateEventBuffer(makeEvent({ sessionId, type: 'tool_end', toolName: 'Bash', status: 'success' }));
+      updateEventBuffer(
+        makeEvent({ sessionId, type: 'tool_end', toolName: 'Bash', status: 'success' }),
+      );
     }
 
     // Read the file first
@@ -334,9 +331,7 @@ describe('Edit-without-read detector', () => {
     updateEventBuffer(editEvent);
     checkNudges(editEvent, broadcaster);
 
-    const editNudge = broadcaster.nudges.find(n =>
-      n.detectorId === 'tool.edit-without-read',
-    );
+    const editNudge = broadcaster.nudges.find((n) => n.detectorId === 'tool.edit-without-read');
     expect(editNudge).toBeUndefined();
   });
 });
@@ -361,8 +356,8 @@ describe('Cooldown prevents duplicate nudges', () => {
       checkNudges(event, broadcaster);
     }
 
-    const firstCount = broadcaster.nudges.filter(n =>
-      n.detectorId === 'tool.bash-file-ops',
+    const firstCount = broadcaster.nudges.filter(
+      (n) => n.detectorId === 'tool.bash-file-ops',
     ).length;
 
     // Push more events to try to trigger again
@@ -377,8 +372,8 @@ describe('Cooldown prevents duplicate nudges', () => {
       checkNudges(event, broadcaster);
     }
 
-    const totalNudges = broadcaster.nudges.filter(n =>
-      n.detectorId === 'tool.bash-file-ops',
+    const totalNudges = broadcaster.nudges.filter(
+      (n) => n.detectorId === 'tool.bash-file-ops',
     ).length;
 
     // Should only fire once due to cooldown
@@ -396,13 +391,15 @@ describe('Conversation mode detection', () => {
     const now = Date.now();
 
     for (let i = 0; i < 4; i++) {
-      updateEventBuffer(makeEvent({
-        sessionId,
-        type: 'user_prompt',
-        toolName: undefined,
-        text: `Prompt number ${i + 1}`,
-        timestamp: now + i * 30_000,
-      }));
+      updateEventBuffer(
+        makeEvent({
+          sessionId,
+          type: 'user_prompt',
+          toolName: undefined,
+          text: `Prompt number ${i + 1}`,
+          timestamp: now + i * 30_000,
+        }),
+      );
     }
 
     const acc = getSessionAccumulator(sessionId);
@@ -416,25 +413,29 @@ describe('Conversation mode detection', () => {
   it('sessionGoalSummary extracts first sentence from first prompt', () => {
     const sessionId = 'conv-goal-' + Date.now();
 
-    updateEventBuffer(makeEvent({
-      sessionId,
-      type: 'user_prompt',
-      toolName: undefined,
-      text: 'Refactor the auth module. Make it cleaner and more maintainable.',
-      timestamp: Date.now(),
-    }));
+    updateEventBuffer(
+      makeEvent({
+        sessionId,
+        type: 'user_prompt',
+        toolName: undefined,
+        text: 'Refactor the auth module. Make it cleaner and more maintainable.',
+        timestamp: Date.now(),
+      }),
+    );
 
     const acc = getSessionAccumulator(sessionId);
     expect(acc!.sessionGoalSummary).toBe('Refactor the auth module.');
 
     // Second prompt should NOT update the goal
-    updateEventBuffer(makeEvent({
-      sessionId,
-      type: 'user_prompt',
-      toolName: undefined,
-      text: 'Also add tests for it.',
-      timestamp: Date.now() + 10_000,
-    }));
+    updateEventBuffer(
+      makeEvent({
+        sessionId,
+        type: 'user_prompt',
+        toolName: undefined,
+        text: 'Also add tests for it.',
+        timestamp: Date.now() + 10_000,
+      }),
+    );
 
     const acc2 = getSessionAccumulator(sessionId);
     expect(acc2!.sessionGoalSummary).toBe('Refactor the auth module.');
@@ -447,13 +448,15 @@ describe('Conversation mode detection', () => {
     // 3 short prompts 30 seconds apart
     const shortTexts = ['Fix the header', 'Make it blue', 'Add padding'];
     for (let i = 0; i < shortTexts.length; i++) {
-      updateEventBuffer(makeEvent({
-        sessionId,
-        type: 'user_prompt',
-        toolName: undefined,
-        text: shortTexts[i],
-        timestamp: now + i * 30_000,
-      }));
+      updateEventBuffer(
+        makeEvent({
+          sessionId,
+          type: 'user_prompt',
+          toolName: undefined,
+          text: shortTexts[i],
+          timestamp: now + i * 30_000,
+        }),
+      );
     }
 
     const acc = getSessionAccumulator(sessionId);
@@ -465,27 +468,33 @@ describe('Conversation mode detection', () => {
     const now = Date.now();
 
     // 1 long prompt, then 2 short ones — the long one is within the last 3
-    updateEventBuffer(makeEvent({
-      sessionId,
-      type: 'user_prompt',
-      toolName: undefined,
-      text: 'Refactor the entire authentication system with JWT tokens refresh flow middleware guards and update the database schema migrations',
-      timestamp: now,
-    }));
-    updateEventBuffer(makeEvent({
-      sessionId,
-      type: 'user_prompt',
-      toolName: undefined,
-      text: 'Make it blue',
-      timestamp: now + 30_000,
-    }));
-    updateEventBuffer(makeEvent({
-      sessionId,
-      type: 'user_prompt',
-      toolName: undefined,
-      text: 'Add padding',
-      timestamp: now + 60_000,
-    }));
+    updateEventBuffer(
+      makeEvent({
+        sessionId,
+        type: 'user_prompt',
+        toolName: undefined,
+        text: 'Refactor the entire authentication system with JWT tokens refresh flow middleware guards and update the database schema migrations',
+        timestamp: now,
+      }),
+    );
+    updateEventBuffer(
+      makeEvent({
+        sessionId,
+        type: 'user_prompt',
+        toolName: undefined,
+        text: 'Make it blue',
+        timestamp: now + 30_000,
+      }),
+    );
+    updateEventBuffer(
+      makeEvent({
+        sessionId,
+        type: 'user_prompt',
+        toolName: undefined,
+        text: 'Add padding',
+        timestamp: now + 60_000,
+      }),
+    );
 
     const acc = getSessionAccumulator(sessionId);
     // Long prompt in the last-3 window means NOT conversational
@@ -498,13 +507,15 @@ describe('Conversation mode detection', () => {
 
     // 3 short prompts 5 minutes apart
     for (let i = 0; i < 3; i++) {
-      updateEventBuffer(makeEvent({
-        sessionId,
-        type: 'user_prompt',
-        toolName: undefined,
-        text: `Short prompt ${i}`,
-        timestamp: now + i * 5 * 60_000,
-      }));
+      updateEventBuffer(
+        makeEvent({
+          sessionId,
+          type: 'user_prompt',
+          toolName: undefined,
+          text: `Short prompt ${i}`,
+          timestamp: now + i * 5 * 60_000,
+        }),
+      );
     }
 
     const acc = getSessionAccumulator(sessionId);
@@ -517,7 +528,15 @@ describe('Conversation mode detection', () => {
 
     // Seed with enough events for minEvents threshold
     for (let i = 0; i < 6; i++) {
-      updateEventBuffer(makeEvent({ sessionId, type: 'tool_end', toolName: 'Read', status: 'success', timestamp: now + i * 1000 }));
+      updateEventBuffer(
+        makeEvent({
+          sessionId,
+          type: 'tool_end',
+          toolName: 'Read',
+          status: 'success',
+          timestamp: now + i * 1000,
+        }),
+      );
     }
 
     // First prompt to set up patternState (short, rapid)
@@ -533,14 +552,16 @@ describe('Conversation mode detection', () => {
 
     // Simulate large output from the first prompt
     for (let i = 0; i < 3; i++) {
-      updateEventBuffer(makeEvent({
-        sessionId,
-        type: 'tool_end',
-        toolName: 'Edit',
-        status: 'success',
-        timestamp: now + 20_000 + i * 1000,
-        tokenUsage: { input: 500, output: 1000, cacheRead: 0, cacheCreation: 0 },
-      }));
+      updateEventBuffer(
+        makeEvent({
+          sessionId,
+          type: 'tool_end',
+          toolName: 'Edit',
+          status: 'success',
+          timestamp: now + 20_000 + i * 1000,
+          tokenUsage: { input: 500, output: 1000, cacheRead: 0, cacheCreation: 0 },
+        }),
+      );
     }
 
     // Second short prompt 30s later — in conversation mode, 4 words should NOT trigger vague-prompt
@@ -555,7 +576,7 @@ describe('Conversation mode detection', () => {
     broadcaster.clearNudges();
     checkNudges(prompt2, broadcaster);
 
-    const vagueNudge = broadcaster.nudges.find(n => n.detectorId === 'plan.vague-prompt');
+    const vagueNudge = broadcaster.nudges.find((n) => n.detectorId === 'plan.vague-prompt');
     expect(vagueNudge).toBeUndefined();
   });
 
@@ -577,7 +598,7 @@ describe('Conversation mode detection', () => {
       checkNudges(event, broadcaster);
     }
 
-    const rapidNudge = broadcaster.nudges.find(n => n.detectorId === 'plan.rapid-prompts');
+    const rapidNudge = broadcaster.nudges.find((n) => n.detectorId === 'plan.rapid-prompts');
     expect(rapidNudge).toBeUndefined();
   });
 
@@ -604,7 +625,7 @@ describe('Conversation mode detection', () => {
       checkNudges(event, broadcaster);
     }
 
-    const rapidNudge = broadcaster.nudges.find(n => n.detectorId === 'plan.rapid-prompts');
+    const rapidNudge = broadcaster.nudges.find((n) => n.detectorId === 'plan.rapid-prompts');
     expect(rapidNudge).toBeDefined();
   });
 });

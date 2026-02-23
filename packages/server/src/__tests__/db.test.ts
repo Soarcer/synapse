@@ -1,9 +1,9 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import os from 'os';
 import path from 'path';
-import { fileURLToPath } from 'url';
 
-// Point to a non-existent file so sql.js creates a fresh in-memory DB
-const __filename = fileURLToPath(import.meta.url);
 const tmpDbPath = path.join(os.tmpdir(), `synapse-test-${process.pid}-${Date.now()}.db`);
 process.env.SYNAPSE_DB_PATH = tmpDbPath;
 
@@ -25,6 +25,7 @@ import {
   deletePriceHistory,
   pruneOldEvents,
   pruneExcessEvents,
+  upsertSessionSummary,
 } from '../db.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -42,16 +43,6 @@ function makeEvent(overrides: Record<string, unknown> = {}) {
     created_at: Date.now(),
     ...overrides,
   };
-}
-
-function cleanAnalyticsTables(): void {
-  // Use analyticsQueryAll to verify, but we need to clean via insertions roundtrip
-  // Direct SQL cleanup through the exposed analyticsQueryAll won't work for DELETE,
-  // so we rely on the fact that analytics tables are append-only and tests are isolated.
-  // Instead, we use a workaround: delete via the exposed execute-like functions.
-  // Since there's no direct "delete analytics" export, we use analyticsQueryAll
-  // which only does SELECT. We'll accept that analytics rows accumulate but assert
-  // on specific date/cwd/model keys to keep tests deterministic.
 }
 
 function cleanPriceTable(): void {
@@ -384,7 +375,7 @@ describe('updateDailyRollup', () => {
     );
     expect(rows).toHaveLength(1);
     expect(rows[0].total_sessions).toBe(1); // Only the session_start counted
-    expect(rows[0].total_events).toBe(2);   // Both events counted
+    expect(rows[0].total_events).toBe(2); // Both events counted
   });
 });
 
@@ -530,5 +521,133 @@ describe('pruneExcessEvents', () => {
 
     const remaining = queryEvents({});
     expect(remaining).toHaveLength(2);
+  });
+});
+
+// ─── Session Summary Materialization ─────────────────────────────────
+
+describe('session_summary materialization', () => {
+  it('listSessions returns summary after upsertSessionSummary', () => {
+    const now = Date.now();
+    insertEvent(
+      makeEvent({
+        session_id: 'mat-1',
+        event_type: 'session_start',
+        cwd: '/proj',
+        created_at: now,
+      }),
+    );
+    upsertSessionSummary({
+      session_id: 'mat-1',
+      created_at: now,
+      event_type: 'session_start',
+      cwd: '/proj',
+    });
+    const sessions = listSessions();
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].session_id).toBe('mat-1');
+    expect(sessions[0].event_count).toBe(1);
+    expect(sessions[0].cwd).toBe('/proj');
+  });
+
+  it('accumulates tool_count for tool events', () => {
+    const now = Date.now();
+    insertEvent(makeEvent({ session_id: 'mat-2', event_type: 'session_start', created_at: now }));
+    upsertSessionSummary({ session_id: 'mat-2', created_at: now, event_type: 'session_start' });
+    insertEvent(
+      makeEvent({
+        session_id: 'mat-2',
+        event_type: 'tool_start',
+        tool_name: 'Read',
+        created_at: now + 1,
+      }),
+    );
+    upsertSessionSummary({ session_id: 'mat-2', created_at: now + 1, event_type: 'tool_start' });
+    insertEvent(
+      makeEvent({
+        session_id: 'mat-2',
+        event_type: 'tool_end',
+        tool_name: 'Read',
+        created_at: now + 2,
+      }),
+    );
+    upsertSessionSummary({ session_id: 'mat-2', created_at: now + 2, event_type: 'tool_end' });
+    const sessions = listSessions();
+    const s = sessions.find((s) => s.session_id === 'mat-2')!;
+    expect(s.event_count).toBe(3);
+    expect(s.tool_count).toBe(2);
+  });
+
+  it('accumulates total_tokens from token fields', () => {
+    const now = Date.now();
+    insertEvent(
+      makeEvent({
+        session_id: 'mat-3',
+        event_type: 'result',
+        token_input: 100,
+        token_output: 50,
+        created_at: now,
+      }),
+    );
+    upsertSessionSummary({
+      session_id: 'mat-3',
+      created_at: now,
+      event_type: 'result',
+      token_input: 100,
+      token_output: 50,
+    });
+    insertEvent(
+      makeEvent({
+        session_id: 'mat-3',
+        event_type: 'result',
+        token_input: 200,
+        token_output: 75,
+        created_at: now + 1,
+      }),
+    );
+    upsertSessionSummary({
+      session_id: 'mat-3',
+      created_at: now + 1,
+      event_type: 'result',
+      token_input: 200,
+      token_output: 75,
+    });
+    const sessions = listSessions();
+    const s = sessions.find((s) => s.session_id === 'mat-3')!;
+    expect(s.total_tokens).toBe(425);
+  });
+
+  it('marks has_ended when session_end event arrives', () => {
+    const now = Date.now();
+    insertEvent(makeEvent({ session_id: 'mat-4', event_type: 'session_start', created_at: now }));
+    upsertSessionSummary({ session_id: 'mat-4', created_at: now, event_type: 'session_start' });
+    let sessions = listSessions();
+    expect(sessions.find((s) => s.session_id === 'mat-4')!.has_ended).toBe(0);
+
+    insertEvent(makeEvent({ session_id: 'mat-4', event_type: 'session_end', created_at: now + 1 }));
+    upsertSessionSummary({ session_id: 'mat-4', created_at: now + 1, event_type: 'session_end' });
+    sessions = listSessions();
+    expect(sessions.find((s) => s.session_id === 'mat-4')!.has_ended).toBe(1);
+  });
+
+  it('filters by cwd', () => {
+    const now = Date.now();
+    insertEvent(makeEvent({ session_id: 'mat-5a', cwd: '/alpha', created_at: now }));
+    upsertSessionSummary({
+      session_id: 'mat-5a',
+      created_at: now,
+      event_type: 'session_start',
+      cwd: '/alpha',
+    });
+    insertEvent(makeEvent({ session_id: 'mat-5b', cwd: '/beta', created_at: now + 1 }));
+    upsertSessionSummary({
+      session_id: 'mat-5b',
+      created_at: now + 1,
+      event_type: 'session_start',
+      cwd: '/beta',
+    });
+    const filtered = listSessions(500, '/alpha');
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].session_id).toBe('mat-5a');
   });
 });

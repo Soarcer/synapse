@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import fs from 'fs';
 import path from 'path';
 import readline from 'readline';
@@ -83,7 +86,8 @@ export class JsonlBridge {
   private watchSessionsDir(agentId: string, sessionsDir: string): void {
     // Process existing JSONL files
     try {
-      const files = fs.readdirSync(sessionsDir)
+      const files = fs
+        .readdirSync(sessionsDir)
         .filter((f) => f.endsWith('.jsonl'))
         .map((f) => path.join(sessionsDir, f));
 
@@ -113,13 +117,16 @@ export class JsonlBridge {
     const timer = setInterval(() => {
       if (this.stopped) return;
       try {
-        const files = fs.readdirSync(sessionsDir)
+        const files = fs
+          .readdirSync(sessionsDir)
           .filter((f) => f.endsWith('.jsonl'))
           .map((f) => path.join(sessionsDir, f));
         for (const file of files) {
           this.tailFile(agentId, file);
         }
-      } catch { /* directory may have been removed */ }
+      } catch {
+        /* directory may have been removed */
+      }
     }, POLL_INTERVAL_MS * 10); // Poll every 5 seconds as backup
 
     this.pollTimers.push(timer);
@@ -194,7 +201,11 @@ export class JsonlBridge {
   stop(): void {
     this.stopped = true;
     for (const watcher of this.watchers) {
-      try { watcher.close(); } catch { /* ignore */ }
+      try {
+        watcher.close();
+      } catch {
+        /* ignore */
+      }
     }
     for (const timer of this.pollTimers) {
       clearInterval(timer);

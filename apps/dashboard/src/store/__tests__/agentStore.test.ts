@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // @vitest-environment jsdom
 import type { AgentEvent } from '@synapse-ai/core';
 import { PALETTES } from '@synapse-ai/core';
@@ -223,52 +226,66 @@ describe('agentStore', () => {
 
   describe('updateNodeDimensions', () => {
     it('writes measured dimensions onto matching nodes', () => {
-      useAgentStore.getState().addEvent(
-        makeEvent({ id: 'e1', type: 'session_start', sessionId: 'sess-1', timestamp: 1000 }),
-      );
+      useAgentStore
+        .getState()
+        .addEvent(
+          makeEvent({ id: 'e1', type: 'session_start', sessionId: 'sess-1', timestamp: 1000 }),
+        );
       const sessionNode = useAgentStore.getState().nodes.find((n) => n.id === 'session-sess-1');
       expect(sessionNode).toBeDefined();
       expect(sessionNode!.measured).toBeUndefined();
 
-      useAgentStore.getState().updateNodeDimensions([
-        { id: 'session-sess-1', width: 230, height: 95 },
-      ]);
+      useAgentStore
+        .getState()
+        .updateNodeDimensions([{ id: 'session-sess-1', width: 230, height: 95 }]);
 
       const updated = useAgentStore.getState().nodes.find((n) => n.id === 'session-sess-1');
       expect(updated!.measured).toEqual({ width: 230, height: 95 });
     });
 
     it('is a no-op when dimensions have not changed', () => {
-      useAgentStore.getState().addEvent(
-        makeEvent({ id: 'e1', type: 'session_start', sessionId: 'sess-1', timestamp: 1000 }),
-      );
-      useAgentStore.getState().updateNodeDimensions([
-        { id: 'session-sess-1', width: 230, height: 95 },
-      ]);
+      useAgentStore
+        .getState()
+        .addEvent(
+          makeEvent({ id: 'e1', type: 'session_start', sessionId: 'sess-1', timestamp: 1000 }),
+        );
+      useAgentStore
+        .getState()
+        .updateNodeDimensions([{ id: 'session-sess-1', width: 230, height: 95 }]);
       const nodesRef = useAgentStore.getState().nodes;
 
       // Call again with same dimensions — should be exact same array reference
-      useAgentStore.getState().updateNodeDimensions([
-        { id: 'session-sess-1', width: 230, height: 95 },
-      ]);
+      useAgentStore
+        .getState()
+        .updateNodeDimensions([{ id: 'session-sess-1', width: 230, height: 95 }]);
       expect(useAgentStore.getState().nodes).toBe(nodesRef);
     });
 
     it('ignores updates for non-existent node IDs', () => {
       const nodesBefore = useAgentStore.getState().nodes;
-      useAgentStore.getState().updateNodeDimensions([
-        { id: 'nonexistent-123', width: 100, height: 50 },
-      ]);
+      useAgentStore
+        .getState()
+        .updateNodeDimensions([{ id: 'nonexistent-123', width: 100, height: 50 }]);
       expect(useAgentStore.getState().nodes).toBe(nodesBefore);
     });
 
     it('updates multiple nodes in a single call', () => {
-      useAgentStore.getState().addEvent(
-        makeEvent({ id: 'e1', type: 'session_start', sessionId: 'sess-1', timestamp: 1000 }),
-      );
-      useAgentStore.getState().addEvent(
-        makeEvent({ id: 'e2', type: 'user_prompt', sessionId: 'sess-1', timestamp: 2000, text: 'hello' }),
-      );
+      useAgentStore
+        .getState()
+        .addEvent(
+          makeEvent({ id: 'e1', type: 'session_start', sessionId: 'sess-1', timestamp: 1000 }),
+        );
+      useAgentStore
+        .getState()
+        .addEvent(
+          makeEvent({
+            id: 'e2',
+            type: 'user_prompt',
+            sessionId: 'sess-1',
+            timestamp: 2000,
+            text: 'hello',
+          }),
+        );
 
       useAgentStore.getState().updateNodeDimensions([
         { id: 'session-sess-1', width: 225, height: 85 },
@@ -290,17 +307,31 @@ describe('agentStore', () => {
       const { addEvent } = useAgentStore.getState();
 
       addEvent(makeEvent({ id: 'e1', type: 'session_start', sessionId: 's1', timestamp: 1 }));
-      addEvent(makeEvent({ id: 'e2', type: 'user_prompt', sessionId: 's1', timestamp: 2, text: 'go' }));
+      addEvent(
+        makeEvent({ id: 'e2', type: 'user_prompt', sessionId: 's1', timestamp: 2, text: 'go' }),
+      );
       // Main agent fires Task tool
-      addEvent(makeEvent({
-        id: 'e3', type: 'tool_start', sessionId: 's1', timestamp: 3,
-        toolName: 'Task', toolUseId: 'task-1',
-      }));
+      addEvent(
+        makeEvent({
+          id: 'e3',
+          type: 'tool_start',
+          sessionId: 's1',
+          timestamp: 3,
+          toolName: 'Task',
+          toolUseId: 'task-1',
+        }),
+      );
       // SubagentStart follows
-      addEvent(makeEvent({
-        id: 'e4', type: 'agent_start', sessionId: 's1', timestamp: 4,
-        agentId: 'explore-1', agentType: 'Explore',
-      }));
+      addEvent(
+        makeEvent({
+          id: 'e4',
+          type: 'agent_start',
+          sessionId: 's1',
+          timestamp: 4,
+          agentId: 'explore-1',
+          agentType: 'Explore',
+        }),
+      );
 
       const state = useAgentStore.getState();
       // Agent should be connected to the Task tool, not the prompt
@@ -313,12 +344,20 @@ describe('agentStore', () => {
       const { addEvent } = useAgentStore.getState();
 
       addEvent(makeEvent({ id: 'e1', type: 'session_start', sessionId: 's1', timestamp: 1 }));
-      addEvent(makeEvent({ id: 'e2', type: 'user_prompt', sessionId: 's1', timestamp: 2, text: 'go' }));
+      addEvent(
+        makeEvent({ id: 'e2', type: 'user_prompt', sessionId: 's1', timestamp: 2, text: 'go' }),
+      );
       // Agent starts without a preceding Task tool (SDK-spawned)
-      addEvent(makeEvent({
-        id: 'e3', type: 'agent_start', sessionId: 's1', timestamp: 3,
-        agentId: 'agent-1', agentType: 'Plan',
-      }));
+      addEvent(
+        makeEvent({
+          id: 'e3',
+          type: 'agent_start',
+          sessionId: 's1',
+          timestamp: 3,
+          agentId: 'agent-1',
+          agentType: 'Plan',
+        }),
+      );
 
       const state = useAgentStore.getState();
       const agentEdge = state.edges.find((e) => e.target === 'agent-agent-1');
@@ -330,33 +369,70 @@ describe('agentStore', () => {
       const { addEvent } = useAgentStore.getState();
 
       addEvent(makeEvent({ id: 'e1', type: 'session_start', sessionId: 's1', timestamp: 1 }));
-      addEvent(makeEvent({ id: 'e2', type: 'user_prompt', sessionId: 's1', timestamp: 2, text: 'go' }));
+      addEvent(
+        makeEvent({ id: 'e2', type: 'user_prompt', sessionId: 's1', timestamp: 2, text: 'go' }),
+      );
       // First Task tool
-      addEvent(makeEvent({
-        id: 'e3', type: 'tool_start', sessionId: 's1', timestamp: 3,
-        toolName: 'Task', toolUseId: 'task-1',
-      }));
-      addEvent(makeEvent({
-        id: 'e4', type: 'agent_start', sessionId: 's1', timestamp: 4,
-        agentId: 'explore-1', agentType: 'Explore',
-      }));
-      addEvent(makeEvent({
-        id: 'e5', type: 'agent_stop', sessionId: 's1', timestamp: 5,
-        agentId: 'explore-1',
-      }));
-      addEvent(makeEvent({
-        id: 'e6', type: 'tool_end', sessionId: 's1', timestamp: 6,
-        toolName: 'Task', toolUseId: 'task-1',
-      }));
+      addEvent(
+        makeEvent({
+          id: 'e3',
+          type: 'tool_start',
+          sessionId: 's1',
+          timestamp: 3,
+          toolName: 'Task',
+          toolUseId: 'task-1',
+        }),
+      );
+      addEvent(
+        makeEvent({
+          id: 'e4',
+          type: 'agent_start',
+          sessionId: 's1',
+          timestamp: 4,
+          agentId: 'explore-1',
+          agentType: 'Explore',
+        }),
+      );
+      addEvent(
+        makeEvent({
+          id: 'e5',
+          type: 'agent_stop',
+          sessionId: 's1',
+          timestamp: 5,
+          agentId: 'explore-1',
+        }),
+      );
+      addEvent(
+        makeEvent({
+          id: 'e6',
+          type: 'tool_end',
+          sessionId: 's1',
+          timestamp: 6,
+          toolName: 'Task',
+          toolUseId: 'task-1',
+        }),
+      );
       // Second Task tool
-      addEvent(makeEvent({
-        id: 'e7', type: 'tool_start', sessionId: 's1', timestamp: 7,
-        toolName: 'Task', toolUseId: 'task-2',
-      }));
-      addEvent(makeEvent({
-        id: 'e8', type: 'agent_start', sessionId: 's1', timestamp: 8,
-        agentId: 'plan-1', agentType: 'Plan',
-      }));
+      addEvent(
+        makeEvent({
+          id: 'e7',
+          type: 'tool_start',
+          sessionId: 's1',
+          timestamp: 7,
+          toolName: 'Task',
+          toolUseId: 'task-2',
+        }),
+      );
+      addEvent(
+        makeEvent({
+          id: 'e8',
+          type: 'agent_start',
+          sessionId: 's1',
+          timestamp: 8,
+          agentId: 'plan-1',
+          agentType: 'Plan',
+        }),
+      );
 
       const state = useAgentStore.getState();
       const edge1 = state.edges.find((e) => e.target === 'agent-explore-1');
@@ -373,13 +449,21 @@ describe('agentStore', () => {
       const { addEvent } = useAgentStore.getState();
 
       addEvent(makeEvent({ id: 'e1', type: 'session_start', sessionId: 's1', timestamp: 1 }));
-      addEvent(makeEvent({ id: 'e2', type: 'user_prompt', sessionId: 's1', timestamp: 2, text: 'go' }));
+      addEvent(
+        makeEvent({ id: 'e2', type: 'user_prompt', sessionId: 's1', timestamp: 2, text: 'go' }),
+      );
       // Agent with parentAgentId pointing to non-existent agent
-      addEvent(makeEvent({
-        id: 'e3', type: 'agent_start', sessionId: 's1', timestamp: 3,
-        agentId: 'child-1', agentType: 'Explore',
-        parentAgentId: 'nonexistent-parent',
-      }));
+      addEvent(
+        makeEvent({
+          id: 'e3',
+          type: 'agent_start',
+          sessionId: 's1',
+          timestamp: 3,
+          agentId: 'child-1',
+          agentType: 'Explore',
+          parentAgentId: 'nonexistent-parent',
+        }),
+      );
 
       const state = useAgentStore.getState();
       const agentEdge = state.edges.find((e) => e.target === 'agent-child-1');
@@ -393,21 +477,41 @@ describe('agentStore', () => {
       const { addEvent } = useAgentStore.getState();
 
       addEvent(makeEvent({ id: 'e1', type: 'session_start', sessionId: 's1', timestamp: 1 }));
-      addEvent(makeEvent({ id: 'e2', type: 'user_prompt', sessionId: 's1', timestamp: 2, text: 'go' }));
-      addEvent(makeEvent({
-        id: 'e3', type: 'tool_start', sessionId: 's1', timestamp: 3,
-        toolName: 'Task', toolUseId: 'task-1',
-      }));
-      addEvent(makeEvent({
-        id: 'e4', type: 'agent_start', sessionId: 's1', timestamp: 4,
-        agentId: 'parent-1', agentType: 'Explore',
-      }));
+      addEvent(
+        makeEvent({ id: 'e2', type: 'user_prompt', sessionId: 's1', timestamp: 2, text: 'go' }),
+      );
+      addEvent(
+        makeEvent({
+          id: 'e3',
+          type: 'tool_start',
+          sessionId: 's1',
+          timestamp: 3,
+          toolName: 'Task',
+          toolUseId: 'task-1',
+        }),
+      );
+      addEvent(
+        makeEvent({
+          id: 'e4',
+          type: 'agent_start',
+          sessionId: 's1',
+          timestamp: 4,
+          agentId: 'parent-1',
+          agentType: 'Explore',
+        }),
+      );
       // Nested agent with valid parentAgentId
-      addEvent(makeEvent({
-        id: 'e5', type: 'agent_start', sessionId: 's1', timestamp: 5,
-        agentId: 'child-1', agentType: 'Plan',
-        parentAgentId: 'parent-1',
-      }));
+      addEvent(
+        makeEvent({
+          id: 'e5',
+          type: 'agent_start',
+          sessionId: 's1',
+          timestamp: 5,
+          agentId: 'child-1',
+          agentType: 'Plan',
+          parentAgentId: 'parent-1',
+        }),
+      );
 
       const state = useAgentStore.getState();
       const childEdge = state.edges.find((e) => e.target === 'agent-child-1');
@@ -422,12 +526,20 @@ describe('agentStore', () => {
       const { addEvent } = useAgentStore.getState();
 
       addEvent(makeEvent({ id: 'e1', type: 'session_start', sessionId: 's1', timestamp: 1 }));
-      addEvent(makeEvent({ id: 'e2', type: 'user_prompt', sessionId: 's1', timestamp: 2, text: 'go' }));
+      addEvent(
+        makeEvent({ id: 'e2', type: 'user_prompt', sessionId: 's1', timestamp: 2, text: 'go' }),
+      );
       // tool_end arrives first (async hook race)
-      addEvent(makeEvent({
-        id: 'e3', type: 'tool_end', sessionId: 's1', timestamp: 3,
-        toolName: 'Read', toolUseId: 'read-1',
-      }));
+      addEvent(
+        makeEvent({
+          id: 'e3',
+          type: 'tool_end',
+          sessionId: 's1',
+          timestamp: 3,
+          toolName: 'Read',
+          toolUseId: 'read-1',
+        }),
+      );
 
       const state = useAgentStore.getState();
       // Tool node should exist (created by finalizeToolCall)
@@ -535,12 +647,55 @@ describe('agentStore', () => {
       const events: AgentEvent[] = [
         makeEvent({ id: 'e1', type: 'session_start', sessionId: 's1', timestamp: 1 }),
         makeEvent({ id: 'e2', type: 'user_prompt', sessionId: 's1', timestamp: 2, text: 'go' }),
-        makeEvent({ id: 'e3', type: 'tool_start', sessionId: 's1', timestamp: 3, toolName: 'Task', toolUseId: 'task-1' }),
-        makeEvent({ id: 'e4', type: 'agent_start', sessionId: 's1', timestamp: 4, agentId: 'explore-1', agentType: 'Explore' }),
-        makeEvent({ id: 'e5', type: 'tool_start', sessionId: 's1', timestamp: 5, toolName: 'Glob', toolUseId: 'glob-1', agentId: 'explore-1' }),
-        makeEvent({ id: 'e6', type: 'tool_end', sessionId: 's1', timestamp: 6, toolName: 'Glob', toolUseId: 'glob-1', agentId: 'explore-1' }),
-        makeEvent({ id: 'e7', type: 'agent_stop', sessionId: 's1', timestamp: 7, agentId: 'explore-1' }),
-        makeEvent({ id: 'e8', type: 'tool_end', sessionId: 's1', timestamp: 8, toolName: 'Task', toolUseId: 'task-1' }),
+        makeEvent({
+          id: 'e3',
+          type: 'tool_start',
+          sessionId: 's1',
+          timestamp: 3,
+          toolName: 'Task',
+          toolUseId: 'task-1',
+        }),
+        makeEvent({
+          id: 'e4',
+          type: 'agent_start',
+          sessionId: 's1',
+          timestamp: 4,
+          agentId: 'explore-1',
+          agentType: 'Explore',
+        }),
+        makeEvent({
+          id: 'e5',
+          type: 'tool_start',
+          sessionId: 's1',
+          timestamp: 5,
+          toolName: 'Glob',
+          toolUseId: 'glob-1',
+          agentId: 'explore-1',
+        }),
+        makeEvent({
+          id: 'e6',
+          type: 'tool_end',
+          sessionId: 's1',
+          timestamp: 6,
+          toolName: 'Glob',
+          toolUseId: 'glob-1',
+          agentId: 'explore-1',
+        }),
+        makeEvent({
+          id: 'e7',
+          type: 'agent_stop',
+          sessionId: 's1',
+          timestamp: 7,
+          agentId: 'explore-1',
+        }),
+        makeEvent({
+          id: 'e8',
+          type: 'tool_end',
+          sessionId: 's1',
+          timestamp: 8,
+          toolName: 'Task',
+          toolUseId: 'task-1',
+        }),
       ];
 
       useAgentStore.getState().loadEvents(events);
@@ -560,14 +715,44 @@ describe('agentStore', () => {
   describe('enriched token data', () => {
     it('extracts cache/thinking tokens from Task tool_end response', () => {
       const events: AgentEvent[] = [
-        makeEvent({ id: 'e1', type: 'session_start', sessionId: 's1', timestamp: 1, model: 'claude-opus-4-6' }),
-        makeEvent({ id: 'e2', type: 'user_prompt', sessionId: 's1', timestamp: 2, text: 'go' }),
-        makeEvent({ id: 'e3', type: 'tool_start', sessionId: 's1', timestamp: 3, toolName: 'Task', toolUseId: 'task-1' }),
-        makeEvent({ id: 'e4', type: 'agent_start', sessionId: 's1', timestamp: 4, agentId: 'child-1', agentType: 'Explore' }),
-        makeEvent({ id: 'e5', type: 'agent_stop', sessionId: 's1', timestamp: 5, agentId: 'child-1' }),
         makeEvent({
-          id: 'e6', type: 'tool_end', sessionId: 's1', timestamp: 6,
-          toolName: 'Task', toolUseId: 'task-1',
+          id: 'e1',
+          type: 'session_start',
+          sessionId: 's1',
+          timestamp: 1,
+          model: 'claude-opus-4-6',
+        }),
+        makeEvent({ id: 'e2', type: 'user_prompt', sessionId: 's1', timestamp: 2, text: 'go' }),
+        makeEvent({
+          id: 'e3',
+          type: 'tool_start',
+          sessionId: 's1',
+          timestamp: 3,
+          toolName: 'Task',
+          toolUseId: 'task-1',
+        }),
+        makeEvent({
+          id: 'e4',
+          type: 'agent_start',
+          sessionId: 's1',
+          timestamp: 4,
+          agentId: 'child-1',
+          agentType: 'Explore',
+        }),
+        makeEvent({
+          id: 'e5',
+          type: 'agent_stop',
+          sessionId: 's1',
+          timestamp: 5,
+          agentId: 'child-1',
+        }),
+        makeEvent({
+          id: 'e6',
+          type: 'tool_end',
+          sessionId: 's1',
+          timestamp: 6,
+          toolName: 'Task',
+          toolUseId: 'task-1',
           toolResponse: {
             agentId: 'child-1',
             usage: {
@@ -596,8 +781,21 @@ describe('agentStore', () => {
 
     it('sets model on agent from session when not on event', () => {
       const events: AgentEvent[] = [
-        makeEvent({ id: 'e1', type: 'session_start', sessionId: 's1', timestamp: 1, model: 'claude-sonnet-4-5' }),
-        makeEvent({ id: 'e2', type: 'agent_start', sessionId: 's1', timestamp: 2, agentId: 'a1', agentType: 'Main' }),
+        makeEvent({
+          id: 'e1',
+          type: 'session_start',
+          sessionId: 's1',
+          timestamp: 1,
+          model: 'claude-sonnet-4-5',
+        }),
+        makeEvent({
+          id: 'e2',
+          type: 'agent_start',
+          sessionId: 's1',
+          timestamp: 2,
+          agentId: 'a1',
+          agentType: 'Main',
+        }),
       ];
 
       useAgentStore.getState().loadEvents(events);
@@ -611,8 +809,21 @@ describe('agentStore', () => {
     it('backfills model on agents when session_start arrives after agent_start', () => {
       // Simulate out-of-order events: agent_start arrives before session_start
       const events: AgentEvent[] = [
-        makeEvent({ id: 'e1', type: 'agent_start', sessionId: 's1', timestamp: 1, agentId: 'a1', agentType: 'Main' }),
-        makeEvent({ id: 'e2', type: 'session_start', sessionId: 's1', timestamp: 2, model: 'claude-opus-4-6' }),
+        makeEvent({
+          id: 'e1',
+          type: 'agent_start',
+          sessionId: 's1',
+          timestamp: 1,
+          agentId: 'a1',
+          agentType: 'Main',
+        }),
+        makeEvent({
+          id: 'e2',
+          type: 'session_start',
+          sessionId: 's1',
+          timestamp: 2,
+          model: 'claude-opus-4-6',
+        }),
       ];
 
       useAgentStore.getState().loadEvents(events);
@@ -626,12 +837,30 @@ describe('agentStore', () => {
     it('preserves cache/thinking tokens when agent_stop updates tokenUsage', () => {
       const events: AgentEvent[] = [
         makeEvent({ id: 'e1', type: 'session_start', sessionId: 's1', timestamp: 1 }),
-        makeEvent({ id: 'e2', type: 'tool_start', sessionId: 's1', timestamp: 2, toolName: 'Task', toolUseId: 'task-1' }),
-        makeEvent({ id: 'e3', type: 'agent_start', sessionId: 's1', timestamp: 3, agentId: 'a1', agentType: 'Explore' }),
+        makeEvent({
+          id: 'e2',
+          type: 'tool_start',
+          sessionId: 's1',
+          timestamp: 2,
+          toolName: 'Task',
+          toolUseId: 'task-1',
+        }),
+        makeEvent({
+          id: 'e3',
+          type: 'agent_start',
+          sessionId: 's1',
+          timestamp: 3,
+          agentId: 'a1',
+          agentType: 'Explore',
+        }),
         // Task tool_end sets cache/thinking tokens
         makeEvent({
-          id: 'e4', type: 'tool_end', sessionId: 's1', timestamp: 4,
-          toolName: 'Task', toolUseId: 'task-1',
+          id: 'e4',
+          type: 'tool_end',
+          sessionId: 's1',
+          timestamp: 4,
+          toolName: 'Task',
+          toolUseId: 'task-1',
           toolResponse: {
             agentId: 'a1',
             usage: {
@@ -645,7 +874,10 @@ describe('agentStore', () => {
         }),
         // agent_stop arrives with basic tokenUsage (no cache breakdown)
         makeEvent({
-          id: 'e5', type: 'agent_stop', sessionId: 's1', timestamp: 5,
+          id: 'e5',
+          type: 'agent_stop',
+          sessionId: 's1',
+          timestamp: 5,
           agentId: 'a1',
           tokenUsage: { input: 800, output: 300 },
         }),
@@ -667,8 +899,22 @@ describe('agentStore', () => {
     it('updates model from agent_stop event', () => {
       const events: AgentEvent[] = [
         makeEvent({ id: 'e1', type: 'session_start', sessionId: 's1', timestamp: 1 }),
-        makeEvent({ id: 'e2', type: 'agent_start', sessionId: 's1', timestamp: 2, agentId: 'a1', agentType: 'Main' }),
-        makeEvent({ id: 'e3', type: 'agent_stop', sessionId: 's1', timestamp: 3, agentId: 'a1', model: 'claude-haiku-4-5' }),
+        makeEvent({
+          id: 'e2',
+          type: 'agent_start',
+          sessionId: 's1',
+          timestamp: 2,
+          agentId: 'a1',
+          agentType: 'Main',
+        }),
+        makeEvent({
+          id: 'e3',
+          type: 'agent_stop',
+          sessionId: 's1',
+          timestamp: 3,
+          agentId: 'a1',
+          model: 'claude-haiku-4-5',
+        }),
       ];
 
       useAgentStore.getState().loadEvents(events);
@@ -676,6 +922,352 @@ describe('agentStore', () => {
       const agent = state.agents.get('a1');
 
       expect(agent!.model).toBe('claude-haiku-4-5');
+    });
+  });
+
+  // ── Session naming ───────────────────────────────────────────────
+
+  describe('session naming', () => {
+    it('should set session title from first user_prompt text', () => {
+      const events: AgentEvent[] = [
+        makeEvent({ id: 'e1', type: 'session_start', sessionId: 'sess1', timestamp: 1000 }),
+        makeEvent({
+          id: 'e2',
+          type: 'user_prompt',
+          sessionId: 'sess1',
+          timestamp: 1001,
+          text: 'Add dark mode toggle to the settings page with persistent state',
+        }),
+      ];
+
+      useAgentStore.getState().loadEvents(events);
+      const session = useAgentStore.getState().sessions.get('sess1');
+      expect(session?.title).toBe('Add dark mode toggle to the settings page wit...');
+    });
+
+    it('should not overwrite title from second prompt', () => {
+      const events: AgentEvent[] = [
+        makeEvent({ id: 'e1', type: 'session_start', sessionId: 'sess1', timestamp: 1000 }),
+        makeEvent({
+          id: 'e2',
+          type: 'user_prompt',
+          sessionId: 'sess1',
+          timestamp: 1001,
+          text: 'First prompt',
+        }),
+        makeEvent({
+          id: 'e3',
+          type: 'user_prompt',
+          sessionId: 'sess1',
+          timestamp: 1002,
+          text: 'Second prompt',
+        }),
+      ];
+
+      useAgentStore.getState().loadEvents(events);
+      const session = useAgentStore.getState().sessions.get('sess1');
+      expect(session?.title).toBe('First prompt');
+    });
+
+    it('should set session gitBranch from session_start event', () => {
+      const events: AgentEvent[] = [
+        makeEvent({
+          id: 'e1',
+          type: 'session_start',
+          sessionId: 'sess1',
+          timestamp: 1000,
+          gitBranch: 'feat/dark-mode',
+        }),
+      ];
+
+      useAgentStore.getState().loadEvents(events);
+      const session = useAgentStore.getState().sessions.get('sess1');
+      expect(session?.gitBranch).toBe('feat/dark-mode');
+    });
+
+    it('should compute topTools from agent tool calls', () => {
+      const events: AgentEvent[] = [
+        makeEvent({ id: 'e1', type: 'session_start', sessionId: 'sess1', timestamp: 1000 }),
+        makeEvent({
+          id: 'e2',
+          type: 'user_prompt',
+          sessionId: 'sess1',
+          timestamp: 1001,
+          text: 'go',
+        }),
+        makeEvent({
+          id: 'e3',
+          type: 'agent_start',
+          sessionId: 'sess1',
+          timestamp: 1002,
+          agentId: 'a1',
+        }),
+        makeEvent({
+          id: 'e4',
+          type: 'tool_start',
+          sessionId: 'sess1',
+          timestamp: 1003,
+          agentId: 'a1',
+          toolName: 'Read',
+          toolUseId: 'tu1',
+        }),
+        makeEvent({
+          id: 'e5',
+          type: 'tool_end',
+          sessionId: 'sess1',
+          timestamp: 1004,
+          agentId: 'a1',
+          toolName: 'Read',
+          toolUseId: 'tu1',
+        }),
+        makeEvent({
+          id: 'e6',
+          type: 'tool_start',
+          sessionId: 'sess1',
+          timestamp: 1005,
+          agentId: 'a1',
+          toolName: 'Edit',
+          toolUseId: 'tu2',
+        }),
+        makeEvent({
+          id: 'e7',
+          type: 'tool_end',
+          sessionId: 'sess1',
+          timestamp: 1006,
+          agentId: 'a1',
+          toolName: 'Edit',
+          toolUseId: 'tu2',
+        }),
+        makeEvent({
+          id: 'e8',
+          type: 'tool_start',
+          sessionId: 'sess1',
+          timestamp: 1007,
+          agentId: 'a1',
+          toolName: 'Read',
+          toolUseId: 'tu3',
+        }),
+        makeEvent({
+          id: 'e9',
+          type: 'tool_end',
+          sessionId: 'sess1',
+          timestamp: 1008,
+          agentId: 'a1',
+          toolName: 'Read',
+          toolUseId: 'tu3',
+        }),
+        makeEvent({
+          id: 'e10',
+          type: 'tool_start',
+          sessionId: 'sess1',
+          timestamp: 1009,
+          agentId: 'a1',
+          toolName: 'Bash',
+          toolUseId: 'tu4',
+        }),
+        makeEvent({
+          id: 'e11',
+          type: 'tool_end',
+          sessionId: 'sess1',
+          timestamp: 1010,
+          agentId: 'a1',
+          toolName: 'Bash',
+          toolUseId: 'tu4',
+        }),
+      ];
+
+      useAgentStore.getState().loadEvents(events);
+      const session = useAgentStore.getState().sessions.get('sess1');
+      expect(session?.topTools).toEqual(['Read', 'Edit', 'Bash']);
+    });
+  });
+
+  describe('compaction tracking', () => {
+    it('should track compaction count on agents', () => {
+      const store = useAgentStore.getState();
+      store.addEvent(
+        makeEvent({ id: 'e1', type: 'session_start', sessionId: 's1', timestamp: 1000 }),
+      );
+      store.addEvent(
+        makeEvent({
+          id: 'e2',
+          type: 'user_prompt',
+          sessionId: 's1',
+          timestamp: 1001,
+          text: 'test',
+        }),
+      );
+      store.addEvent(
+        makeEvent({
+          id: 'e3',
+          type: 'agent_start',
+          sessionId: 's1',
+          agentId: 'a1',
+          timestamp: 1002,
+        }),
+      );
+      store.addEvent(makeEvent({ id: 'e4', type: 'compact', sessionId: 's1', timestamp: 1003 }));
+
+      const agent = useAgentStore.getState().agents.get('a1');
+      expect(agent?.compactionCount).toBe(1);
+    });
+
+    it('should increment compaction count on multiple compact events', () => {
+      const store = useAgentStore.getState();
+      store.addEvent(
+        makeEvent({ id: 'e1', type: 'session_start', sessionId: 's1', timestamp: 1000 }),
+      );
+      store.addEvent(
+        makeEvent({
+          id: 'e2',
+          type: 'user_prompt',
+          sessionId: 's1',
+          timestamp: 1001,
+          text: 'test',
+        }),
+      );
+      store.addEvent(
+        makeEvent({
+          id: 'e3',
+          type: 'agent_start',
+          sessionId: 's1',
+          agentId: 'a1',
+          timestamp: 1002,
+        }),
+      );
+      store.addEvent(makeEvent({ id: 'e4', type: 'compact', sessionId: 's1', timestamp: 1003 }));
+      store.addEvent(makeEvent({ id: 'e5', type: 'compact', sessionId: 's1', timestamp: 1004 }));
+
+      const agent = useAgentStore.getState().agents.get('a1');
+      expect(agent?.compactionCount).toBe(2);
+    });
+  });
+
+  describe('FIFO validation', () => {
+    it('should warn on FIFO mismatch between Task prompt and agent description', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const store = useAgentStore.getState();
+
+      store.addEvent(
+        makeEvent({ id: 'e1', type: 'session_start', sessionId: 's1', timestamp: 1000 }),
+      );
+      store.addEvent(
+        makeEvent({ id: 'e2', type: 'user_prompt', sessionId: 's1', timestamp: 1001, text: 'go' }),
+      );
+      store.addEvent(
+        makeEvent({
+          id: 'e3',
+          type: 'agent_start',
+          sessionId: 's1',
+          agentId: 'a1',
+          timestamp: 1002,
+        }),
+      );
+      // Two concurrent Task tools
+      store.addEvent(
+        makeEvent({
+          id: 'e4',
+          type: 'tool_start',
+          sessionId: 's1',
+          agentId: 'a1',
+          toolName: 'Task',
+          toolUseId: 'tu1',
+          timestamp: 1003,
+          toolInput: { prompt: 'Search for auth files' },
+        }),
+      );
+      store.addEvent(
+        makeEvent({
+          id: 'e5',
+          type: 'tool_start',
+          sessionId: 's1',
+          agentId: 'a1',
+          toolName: 'Task',
+          toolUseId: 'tu2',
+          timestamp: 1004,
+          toolInput: { prompt: 'Run the test suite' },
+        }),
+      );
+      // Agent starts with no explicit toolUseId — FIFO assigns tu1, but agent's text says "Run the test suite"
+      store.addEvent(
+        makeEvent({
+          id: 'e6',
+          type: 'agent_start',
+          sessionId: 's1',
+          agentId: 'a2',
+          timestamp: 1005,
+          text: 'Run the test suite',
+        }),
+      );
+
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('FIFO mismatch'));
+      warnSpy.mockRestore();
+    });
+  });
+
+  describe('sidechain metadata', () => {
+    it('should attach isTaskEdge metadata to Task→Agent edges', () => {
+      const store = useAgentStore.getState();
+      store.addEvent(
+        makeEvent({ id: 'e1', type: 'session_start', sessionId: 's1', timestamp: 1000 }),
+      );
+      store.addEvent(
+        makeEvent({
+          id: 'e2',
+          type: 'user_prompt',
+          sessionId: 's1',
+          timestamp: 1001,
+          text: 'hello',
+        }),
+      );
+      store.addEvent(
+        makeEvent({
+          id: 'e3',
+          type: 'agent_start',
+          sessionId: 's1',
+          agentId: 'a1',
+          timestamp: 1002,
+        }),
+      );
+      store.addEvent(
+        makeEvent({
+          id: 'e4',
+          type: 'tool_start',
+          sessionId: 's1',
+          agentId: 'a1',
+          toolName: 'Task',
+          toolUseId: 'tu1',
+          timestamp: 1003,
+          toolInput: { prompt: 'Search for auth files' },
+        }),
+      );
+      store.addEvent(
+        makeEvent({
+          id: 'e5',
+          type: 'agent_start',
+          sessionId: 's1',
+          agentId: 'a2',
+          toolUseId: 'tu1',
+          timestamp: 1004,
+        }),
+      );
+      store.addEvent(
+        makeEvent({
+          id: 'e6',
+          type: 'tool_end',
+          sessionId: 's1',
+          agentId: 'a1',
+          toolName: 'Task',
+          toolUseId: 'tu1',
+          timestamp: 1010,
+          toolResponse: { agentId: 'a2' },
+        }),
+      );
+
+      const edges = useAgentStore.getState().edges;
+      const taskEdge = edges.find((e) => e.source === 'tool-tu1' && e.target === 'agent-a2');
+      expect(taskEdge).toBeDefined();
+      expect((taskEdge?.data as Record<string, unknown>)?.isTaskEdge).toBe(true);
     });
   });
 });

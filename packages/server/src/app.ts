@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import express, { type Request, type Response, type NextFunction } from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -38,8 +41,15 @@ export function createApp(deps: AppDeps) {
   app.use(express.json({ limit: '1mb' }));
 
   // CORS for client
-  const clientOrigin = deps.corsOrigins || process.env.CORS_ORIGIN || process.env.CLIENT_ORIGIN || 'http://localhost:5173';
-  const allowedOrigins = clientOrigin.split(',').map((o) => o.trim()).filter(Boolean);
+  const clientOrigin =
+    deps.corsOrigins ||
+    process.env.CORS_ORIGIN ||
+    process.env.CLIENT_ORIGIN ||
+    'http://localhost:5173';
+  const allowedOrigins = clientOrigin
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
 
   app.use((_req, res, next) => {
     const origin = _req.headers.origin;
@@ -62,9 +72,24 @@ export function createApp(deps: AppDeps) {
 
   // Rate limiting (can be disabled for tests)
   if (!deps.disableRateLimiting || process.env.NODE_ENV === 'production') {
-    const apiLimiter = rateLimit({ windowMs: 60_000, max: 300, standardHeaders: 'draft-8', message: { error: 'Too many requests' } });
-    const hookLimiter = rateLimit({ windowMs: 60_000, max: 200, standardHeaders: 'draft-8', message: { error: 'Too many requests' } });
-    const spawnLimiter = rateLimit({ windowMs: 60_000, max: 30, standardHeaders: 'draft-8', message: { error: 'Too many spawn requests' } });
+    const apiLimiter = rateLimit({
+      windowMs: 60_000,
+      max: 300,
+      standardHeaders: 'draft-8',
+      message: { error: 'Too many requests' },
+    });
+    const hookLimiter = rateLimit({
+      windowMs: 60_000,
+      max: 200,
+      standardHeaders: 'draft-8',
+      message: { error: 'Too many requests' },
+    });
+    const spawnLimiter = rateLimit({
+      windowMs: 60_000,
+      max: 30,
+      standardHeaders: 'draft-8',
+      message: { error: 'Too many spawn requests' },
+    });
     app.use('/api', apiLimiter);
     app.use('/api/events', hookLimiter);
     app.use('/api/agents/spawn', spawnLimiter);

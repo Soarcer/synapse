@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { getToolIcon } from '@synapse-ai/core';
 import type { ToolCallSummary } from '@synapse-ai/core';
 import { shortPath } from './shared';
@@ -39,7 +42,8 @@ function buildSummary(tc: ToolCallSummary): string {
       const path = shortPath(input.file_path as string);
       const offset = input.offset as number | undefined;
       const limit = input.limit as number | undefined;
-      if (offset || limit) return `Read ${path} (lines ${offset ?? 1}–${(offset ?? 1) + (limit ?? 0)})`;
+      if (offset || limit)
+        return `Read ${path} (lines ${offset ?? 1}–${(offset ?? 1) + (limit ?? 0)})`;
       return `Read ${path}`;
     }
     case 'Edit': {
@@ -78,7 +82,11 @@ function buildSummary(tc: ToolCallSummary): string {
       return `Search: "${input.query as string}"`;
     case 'WebFetch': {
       const url = input.url as string;
-      try { return `Fetch: ${new URL(url).hostname}`; } catch { return `Fetch: ${url?.slice(0, 50)}`; }
+      try {
+        return `Fetch: ${new URL(url).hostname}`;
+      } catch {
+        return `Fetch: ${url?.slice(0, 50)}`;
+      }
     }
     case 'Task': {
       const desc = input.description as string | undefined;

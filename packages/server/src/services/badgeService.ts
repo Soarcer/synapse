@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // ─── Badge System ───────────────────────────────────────────────────
 // Gamification through achievement badges earned by usage patterns.
 
@@ -8,7 +11,7 @@ export interface Badge {
   id: string;
   name: string;
   description: string;
-  icon: string;                  // emoji
+  icon: string; // emoji
   category: 'usage' | 'efficiency' | 'streak' | 'milestone' | 'explorer';
   condition: (stats: BadgeCheckStats) => boolean;
 }
@@ -38,36 +41,134 @@ interface BadgeCheckStats {
 
 const BADGE_DEFINITIONS: Badge[] = [
   // Usage milestones
-  { id: 'first-session', name: 'Hello World', description: 'Complete your first AI coding session', icon: '\u{1F680}', category: 'milestone', condition: (s) => s.totalSessions >= 1 },
-  { id: 'ten-sessions', name: 'Getting Started', description: 'Complete 10 sessions', icon: '\u{1F4DD}', category: 'milestone', condition: (s) => s.totalSessions >= 10 },
-  { id: 'fifty-sessions', name: 'Power User', description: 'Complete 50 sessions', icon: '\u26A1', category: 'milestone', condition: (s) => s.totalSessions >= 50 },
-  { id: 'hundred-sessions', name: 'Centurion', description: 'Complete 100 sessions', icon: '\u{1F3DB}\uFE0F', category: 'milestone', condition: (s) => s.totalSessions >= 100 },
-  { id: 'five-hundred-sessions', name: 'AI Veteran', description: 'Complete 500 sessions', icon: '\u{1F396}\uFE0F', category: 'milestone', condition: (s) => s.totalSessions >= 500 },
+  {
+    id: 'first-session',
+    name: 'Hello World',
+    description: 'Complete your first AI coding session',
+    icon: '\u{1F680}',
+    category: 'milestone',
+    condition: (s) => s.totalSessions >= 1,
+  },
+  {
+    id: 'ten-sessions',
+    name: 'Getting Started',
+    description: 'Complete 10 sessions',
+    icon: '\u{1F4DD}',
+    category: 'milestone',
+    condition: (s) => s.totalSessions >= 10,
+  },
+  {
+    id: 'fifty-sessions',
+    name: 'Power User',
+    description: 'Complete 50 sessions',
+    icon: '\u26A1',
+    category: 'milestone',
+    condition: (s) => s.totalSessions >= 50,
+  },
+  {
+    id: 'hundred-sessions',
+    name: 'Centurion',
+    description: 'Complete 100 sessions',
+    icon: '\u{1F3DB}\uFE0F',
+    category: 'milestone',
+    condition: (s) => s.totalSessions >= 100,
+  },
+  {
+    id: 'five-hundred-sessions',
+    name: 'AI Veteran',
+    description: 'Complete 500 sessions',
+    icon: '\u{1F396}\uFE0F',
+    category: 'milestone',
+    condition: (s) => s.totalSessions >= 500,
+  },
 
   // Token milestones
-  { id: 'million-tokens', name: 'Token Millionaire', description: 'Process 1M tokens total', icon: '\u{1F4B0}', category: 'milestone', condition: (s) => s.totalTokens >= 1_000_000 },
-  { id: 'ten-million-tokens', name: 'Token Whale', description: 'Process 10M tokens', icon: '\u{1F40B}', category: 'milestone', condition: (s) => s.totalTokens >= 10_000_000 },
+  {
+    id: 'million-tokens',
+    name: 'Token Millionaire',
+    description: 'Process 1M tokens total',
+    icon: '\u{1F4B0}',
+    category: 'milestone',
+    condition: (s) => s.totalTokens >= 1_000_000,
+  },
+  {
+    id: 'ten-million-tokens',
+    name: 'Token Whale',
+    description: 'Process 10M tokens',
+    icon: '\u{1F40B}',
+    category: 'milestone',
+    condition: (s) => s.totalTokens >= 10_000_000,
+  },
 
   // Efficiency badges
-  { id: 'cache-master', name: 'Cache Master', description: 'Achieve >70% cache hit rate', icon: '\u{1F3AF}', category: 'efficiency', condition: (s) => s.avgCacheHitRate > 0.7 },
-  { id: 'cost-effective', name: 'Budget Hawk', description: 'Complete 20+ sessions with <$10 total', icon: '\u{1F985}', category: 'efficiency', condition: (s) => s.totalSessions >= 20 && s.totalCost < 10 },
+  {
+    id: 'cache-master',
+    name: 'Cache Master',
+    description: 'Achieve >70% cache hit rate',
+    icon: '\u{1F3AF}',
+    category: 'efficiency',
+    condition: (s) => s.avgCacheHitRate > 0.7,
+  },
+  {
+    id: 'cost-effective',
+    name: 'Budget Hawk',
+    description: 'Complete 20+ sessions with <$10 total',
+    icon: '\u{1F985}',
+    category: 'efficiency',
+    condition: (s) => s.totalSessions >= 20 && s.totalCost < 10,
+  },
 
   // Streak badges
-  { id: 'week-streak', name: 'Week Warrior', description: 'Use AI coding 7 days in a row', icon: '\u{1F525}', category: 'streak', condition: (s) => s.maxStreak >= 7 },
-  { id: 'month-streak', name: 'Unstoppable', description: 'Use AI coding 30 days in a row', icon: '\u{1F31F}', category: 'streak', condition: (s) => s.maxStreak >= 30 },
+  {
+    id: 'week-streak',
+    name: 'Week Warrior',
+    description: 'Use AI coding 7 days in a row',
+    icon: '\u{1F525}',
+    category: 'streak',
+    condition: (s) => s.maxStreak >= 7,
+  },
+  {
+    id: 'month-streak',
+    name: 'Unstoppable',
+    description: 'Use AI coding 30 days in a row',
+    icon: '\u{1F31F}',
+    category: 'streak',
+    condition: (s) => s.maxStreak >= 30,
+  },
 
   // Explorer badges
-  { id: 'multi-model', name: 'Model Explorer', description: 'Use 3+ different AI models', icon: '\u{1F9EA}', category: 'explorer', condition: (s) => s.uniqueModels >= 3 },
-  { id: 'tool-master', name: 'Tool Belt', description: 'Use 8+ different tools', icon: '\u{1F6E0}\uFE0F', category: 'explorer', condition: (s) => s.uniqueTools >= 8 },
-  { id: 'hundred-tools', name: 'Tool Collector', description: 'Make 100+ tool calls', icon: '\u{1F9F0}', category: 'explorer', condition: (s) => s.totalToolCalls >= 100 },
+  {
+    id: 'multi-model',
+    name: 'Model Explorer',
+    description: 'Use 3+ different AI models',
+    icon: '\u{1F9EA}',
+    category: 'explorer',
+    condition: (s) => s.uniqueModels >= 3,
+  },
+  {
+    id: 'tool-master',
+    name: 'Tool Belt',
+    description: 'Use 8+ different tools',
+    icon: '\u{1F6E0}\uFE0F',
+    category: 'explorer',
+    condition: (s) => s.uniqueTools >= 8,
+  },
+  {
+    id: 'hundred-tools',
+    name: 'Tool Collector',
+    description: 'Make 100+ tool calls',
+    icon: '\u{1F9F0}',
+    category: 'explorer',
+    condition: (s) => s.totalToolCalls >= 100,
+  },
 ];
 
 // ─── Public API ─────────────────────────────────────────────────────
 
 export function getEarnedBadges(): EarnedBadge[] {
-  const rows = analyticsQueryAll(
-    'SELECT * FROM badges_earned ORDER BY earned_at DESC',
-  ) as Array<Record<string, unknown>>;
+  const rows = analyticsQueryAll('SELECT * FROM badges_earned ORDER BY earned_at DESC') as Array<
+    Record<string, unknown>
+  >;
 
   return rows.map((r) => ({
     badgeId: r.badge_id as string,
@@ -102,10 +203,13 @@ export function checkAndAwardBadges(): EarnedBadge[] {
     try {
       if (badge.condition(stats)) {
         const now = Date.now();
-        analyticsExecute(`
+        analyticsExecute(
+          `
           INSERT OR IGNORE INTO badges_earned (badge_id, name, description, icon, category, earned_at)
           VALUES (?, ?, ?, ?, ?, ?)
-        `, [badge.id, badge.name, badge.description, badge.icon, badge.category, now]);
+        `,
+          [badge.id, badge.name, badge.description, badge.icon, badge.category, now],
+        );
 
         const newBadge: EarnedBadge = {
           badgeId: badge.id,
@@ -118,7 +222,9 @@ export function checkAndAwardBadges(): EarnedBadge[] {
         newBadges.push(newBadge);
         logger.info({ badge: badge.id, name: badge.name }, 'Badge earned!');
       }
-    } catch { /* condition check failed, skip */ }
+    } catch {
+      /* condition check failed, skip */
+    }
   }
 
   return newBadges;
@@ -158,7 +264,7 @@ function gatherStats(): BadgeCheckStats {
 
   for (const row of days) {
     const d = new Date(row.date);
-    if (prevDate && (prevDate.getTime() - d.getTime()) === 86_400_000) {
+    if (prevDate && prevDate.getTime() - d.getTime() === 86_400_000) {
       currentStreak++;
     } else {
       currentStreak = 1;

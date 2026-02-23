@@ -1,19 +1,34 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import type { ReactNode } from 'react';
 
 // ── Language detection from file extension ─────────────────────
 
 const EXT_MAP: Record<string, string> = {
   '.json': 'json',
-  '.ts': 'ts', '.tsx': 'ts', '.mts': 'ts', '.cts': 'ts',
-  '.js': 'js', '.jsx': 'js', '.mjs': 'js', '.cjs': 'js',
-  '.css': 'css', '.scss': 'css',
-  '.html': 'html', '.htm': 'html',
-  '.md': 'md', '.mdx': 'md',
+  '.ts': 'ts',
+  '.tsx': 'ts',
+  '.mts': 'ts',
+  '.cts': 'ts',
+  '.js': 'js',
+  '.jsx': 'js',
+  '.mjs': 'js',
+  '.cjs': 'js',
+  '.css': 'css',
+  '.scss': 'css',
+  '.html': 'html',
+  '.htm': 'html',
+  '.md': 'md',
+  '.mdx': 'md',
   '.py': 'py',
-  '.sh': 'shell', '.bash': 'shell', '.zsh': 'shell',
+  '.sh': 'shell',
+  '.bash': 'shell',
+  '.zsh': 'shell',
   '.ps1': 'shell',
   '.sql': 'sql',
-  '.yaml': 'yaml', '.yml': 'yaml',
+  '.yaml': 'yaml',
+  '.yml': 'yaml',
   '.toml': 'toml',
   '.xml': 'html',
   '.svg': 'html',
@@ -46,7 +61,8 @@ const C = {
 
 // ── JSON highlighter ───────────────────────────────────────────
 
-const JSON_RE = /("(?:[^"\\]|\\.)*")\s*:|("(?:[^"\\]|\\.)*")|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|(\btrue\b|\bfalse\b)|(\bnull\b)|([{}[\],:])/g;
+const JSON_RE =
+  /("(?:[^"\\]|\\.)*")\s*:|("(?:[^"\\]|\\.)*")|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|(\btrue\b|\bfalse\b)|(\bnull\b)|([{}[\],:])/g;
 
 export function highlightJSON(text: string): ReactNode[] {
   const tokens: ReactNode[] = [];
@@ -67,7 +83,11 @@ export function highlightJSON(text: string): ReactNode[] {
     else if (nul) cls = C.null;
     else if (punct) cls = C.punct;
 
-    tokens.push(<span key={match.index} className={cls}>{full}</span>);
+    tokens.push(
+      <span key={match.index} className={cls}>
+        {full}
+      </span>,
+    );
     lastIndex = JSON_RE.lastIndex;
   }
   if (lastIndex < text.length) {
@@ -78,7 +98,8 @@ export function highlightJSON(text: string): ReactNode[] {
 
 // ── Shell highlighter ──────────────────────────────────────────
 
-const SHELL_RE = /(#[^\n]*)|("(?:[^"\\]|\\.)*"|'[^']*')|(\$\w+|\$\{[^}]+\})|(--?\w[\w-]*)|([|>&;]|&&|\|\||>>|<<|2>&1)|(\S+)/g;
+const SHELL_RE =
+  /(#[^\n]*)|("(?:[^"\\]|\\.)*"|'[^']*')|(\$\w+|\$\{[^}]+\})|(--?\w[\w-]*)|([|>&;]|&&|\|\||>>|<<|2>&1)|(\S+)/g;
 
 export function highlightShell(text: string): ReactNode[] {
   const tokens: ReactNode[] = [];
@@ -98,11 +119,22 @@ export function highlightShell(text: string): ReactNode[] {
     else if (variable) cls = C.num;
     else if (flag) cls = C.flag;
     else if (op) cls = C.op;
-    else if (word && isFirst) { cls = C.fn; isFirst = false; }
+    else if (word && isFirst) {
+      cls = C.fn;
+      isFirst = false;
+    }
 
     if (full === '|' || full === '&&' || full === ';') isFirst = true;
 
-    tokens.push(cls ? <span key={match.index} className={cls}>{full}</span> : full);
+    tokens.push(
+      cls ? (
+        <span key={match.index} className={cls}>
+          {full}
+        </span>
+      ) : (
+        full
+      ),
+    );
     lastIndex = SHELL_RE.lastIndex;
   }
   if (lastIndex < text.length) {
@@ -114,24 +146,96 @@ export function highlightShell(text: string): ReactNode[] {
 // ── Code highlighter (TS/JS/generic) ───────────────────────────
 
 const CODE_KEYWORDS = new Set([
-  'const', 'let', 'var', 'function', 'class', 'return', 'if', 'else',
-  'for', 'while', 'do', 'switch', 'case', 'break', 'continue',
-  'import', 'export', 'from', 'default', 'async', 'await',
-  'try', 'catch', 'finally', 'throw', 'new', 'typeof', 'instanceof',
-  'interface', 'type', 'enum', 'extends', 'implements',
-  'true', 'false', 'null', 'undefined', 'void', 'this', 'super',
-  'def', 'print', 'self', 'None', 'True', 'False', 'elif', 'lambda',
-  'with', 'as', 'yield', 'pass', 'raise', 'in', 'not', 'and', 'or',
+  'const',
+  'let',
+  'var',
+  'function',
+  'class',
+  'return',
+  'if',
+  'else',
+  'for',
+  'while',
+  'do',
+  'switch',
+  'case',
+  'break',
+  'continue',
+  'import',
+  'export',
+  'from',
+  'default',
+  'async',
+  'await',
+  'try',
+  'catch',
+  'finally',
+  'throw',
+  'new',
+  'typeof',
+  'instanceof',
+  'interface',
+  'type',
+  'enum',
+  'extends',
+  'implements',
+  'true',
+  'false',
+  'null',
+  'undefined',
+  'void',
+  'this',
+  'super',
+  'def',
+  'print',
+  'self',
+  'None',
+  'True',
+  'False',
+  'elif',
+  'lambda',
+  'with',
+  'as',
+  'yield',
+  'pass',
+  'raise',
+  'in',
+  'not',
+  'and',
+  'or',
 ]);
 
 const CODE_TYPES = new Set([
-  'string', 'number', 'boolean', 'any', 'unknown', 'never', 'object',
-  'Array', 'Map', 'Set', 'Promise', 'Record', 'Partial', 'Required',
-  'React', 'ReactNode', 'HTMLElement', 'Event',
-  'int', 'float', 'str', 'list', 'dict', 'tuple', 'set', 'bool',
+  'string',
+  'number',
+  'boolean',
+  'any',
+  'unknown',
+  'never',
+  'object',
+  'Array',
+  'Map',
+  'Set',
+  'Promise',
+  'Record',
+  'Partial',
+  'Required',
+  'React',
+  'ReactNode',
+  'HTMLElement',
+  'Event',
+  'int',
+  'float',
+  'str',
+  'list',
+  'dict',
+  'tuple',
+  'set',
+  'bool',
 ]);
 
-const CODE_RE = /(\/\/[^\n]*|\/\*[\s\S]*?\*\/|#[^\n]*)|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)|(-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b)|(\b\w+\b)|([{}()[\];:,.<>=!+\-*/%&|^~?@])/g;
+const CODE_RE =
+  /(\/\/[^\n]*|\/\*[\s\S]*?\*\/|#[^\n]*)|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)|(-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b)|(\b\w+\b)|([{}()[\];:,.<>=!+\-*/%&|^~?@])/g;
 
 export function highlightCode(text: string): ReactNode[] {
   const tokens: ReactNode[] = [];
@@ -151,10 +255,17 @@ export function highlightCode(text: string): ReactNode[] {
     else if (word) {
       if (CODE_KEYWORDS.has(word)) cls = C.kw;
       else if (CODE_TYPES.has(word)) cls = C.type;
-    }
-    else if (punct) cls = C.punct;
+    } else if (punct) cls = C.punct;
 
-    tokens.push(cls ? <span key={match.index} className={cls}>{full}</span> : full);
+    tokens.push(
+      cls ? (
+        <span key={match.index} className={cls}>
+          {full}
+        </span>
+      ) : (
+        full
+      ),
+    );
     lastIndex = CODE_RE.lastIndex;
   }
   if (lastIndex < text.length) {
@@ -167,9 +278,13 @@ export function highlightCode(text: string): ReactNode[] {
 
 export function highlight(text: string, lang: string): ReactNode[] {
   switch (lang) {
-    case 'json': return highlightJSON(text);
-    case 'shell': return highlightShell(text);
-    case 'text': return [text];
-    default: return highlightCode(text);
+    case 'json':
+      return highlightJSON(text);
+    case 'shell':
+      return highlightShell(text);
+    case 'text':
+      return [text];
+    default:
+      return highlightCode(text);
   }
 }

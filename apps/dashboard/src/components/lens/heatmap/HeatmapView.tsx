@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useLens } from '../LensContext';
 import { useAgentStore } from '../../../store/agentStore';
@@ -31,9 +34,15 @@ export function HeatmapView() {
   const setMultiHighlight = useAgentStore((s) => s.setMultiHighlight);
 
   // Compute heatmap data locally (only when heatmap tab is active)
-  const waterfallSpans = useMemo(() => buildWaterfallSpans(treeRoots, paletteIndex), [treeRoots, paletteIndex]);
+  const waterfallSpans = useMemo(
+    () => buildWaterfallSpans(treeRoots, paletteIndex),
+    [treeRoots, paletteIndex],
+  );
   const timeRange = useMemo(() => computeTimeRange(waterfallSpans), [waterfallSpans]);
-  const heatmapData = useMemo(() => buildHeatmapData(waterfallSpans, timeRange), [waterfallSpans, timeRange]);
+  const heatmapData = useMemo(
+    () => buildHeatmapData(waterfallSpans, timeRange),
+    [waterfallSpans, timeRange],
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to the cell containing the selected node
@@ -63,11 +72,7 @@ export function HeatmapView() {
   }, [bucketLabels.length]);
 
   if (actions.length === 0) {
-    return (
-      <div className="p-4 text-center text-gray-600 text-xs">
-        No data yet.
-      </div>
-    );
+    return <div className="p-4 text-center text-gray-600 text-xs">No data yet.</div>;
   }
 
   const gridWidth = bucketLabels.length * CELL_SIZE;
@@ -101,7 +106,10 @@ export function HeatmapView() {
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-800 flex-shrink-0">
         <span className="text-[10px] text-gray-500 font-medium">Action frequency over time</span>
         <div className="flex items-center gap-1">
-          <div className="w-8 h-2 rounded-sm" style={{ background: 'linear-gradient(to right, #1a1f2b, #14b87a)' }} />
+          <div
+            className="w-8 h-2 rounded-sm"
+            style={{ background: 'linear-gradient(to right, #1a1f2b, #14b87a)' }}
+          />
           <span className="text-[9px] text-gray-600 font-mono">0-{maxCount}</span>
         </div>
       </div>
@@ -125,7 +133,8 @@ export function HeatmapView() {
               <div className="flex">
                 {grid[rowIdx].map((cell, colIdx) => {
                   const intensity = maxCount > 0 ? cell.count / maxCount : 0;
-                  const isCellSelected = selectedCell?.row === rowIdx && selectedCell?.col === colIdx;
+                  const isCellSelected =
+                    selectedCell?.row === rowIdx && selectedCell?.col === colIdx;
                   const hasSelectedNode = cell.ids.some((id) => id === selectedId);
                   return (
                     <div
@@ -162,7 +171,9 @@ export function HeatmapView() {
                       {cell.count > 0 && (
                         <span
                           className="text-[7px] font-mono leading-none"
-                          style={{ color: intensity > 0.5 ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.4)' }}
+                          style={{
+                            color: intensity > 0.5 ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.4)',
+                          }}
                         >
                           {cell.count}
                         </span>
@@ -180,8 +191,13 @@ export function HeatmapView() {
               <div className="flex items-center justify-between px-3 py-1.5 mt-2 border-t border-b border-gray-800">
                 <span className="text-[10px] text-gray-500 font-medium">Token usage over time</span>
                 <div className="flex items-center gap-1">
-                  <div className="w-8 h-2 rounded-sm" style={{ background: 'linear-gradient(to right, #1a1f2b, #28a0ff)' }} />
-                  <span className="text-[9px] text-gray-600 font-mono">0-{formatTokens(maxTokens)}</span>
+                  <div
+                    className="w-8 h-2 rounded-sm"
+                    style={{ background: 'linear-gradient(to right, #1a1f2b, #28a0ff)' }}
+                  />
+                  <span className="text-[9px] text-gray-600 font-mono">
+                    0-{formatTokens(maxTokens)}
+                  </span>
                 </div>
               </div>
 
@@ -233,7 +249,10 @@ export function HeatmapView() {
                           {tokens > 0 && (
                             <span
                               className="text-[7px] font-mono leading-none"
-                              style={{ color: intensity > 0.5 ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.4)' }}
+                              style={{
+                                color:
+                                  intensity > 0.5 ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.4)',
+                              }}
                             >
                               {formatTokens(tokens)}
                             </span>

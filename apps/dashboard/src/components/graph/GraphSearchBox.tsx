@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useRef, useState, useEffect } from 'react';
 import { useAgentStore } from '../../store/agentStore';
 import { t } from '../../i18n';

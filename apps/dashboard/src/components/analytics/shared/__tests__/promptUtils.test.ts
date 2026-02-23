@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { describe, it, expect } from 'vitest';
 import {
   computeCostUsd,
@@ -97,13 +100,21 @@ describe('computeComplexity', () => {
 
   it('increases score with longer text', () => {
     const short = computeComplexity('do it', 0, 0);
-    const long = computeComplexity('please refactor the entire authentication module to use JWT tokens and add refresh token rotation with a sliding window expiry', 0, 0);
+    const long = computeComplexity(
+      'please refactor the entire authentication module to use JWT tokens and add refresh token rotation with a sliding window expiry',
+      0,
+      0,
+    );
     expect(long).toBeGreaterThan(short);
   });
 
   it('increases score with technical terms', () => {
     const simple = computeComplexity('make it work', 0, 0);
-    const technical = computeComplexity('refactor the function class interface module component', 0, 0);
+    const technical = computeComplexity(
+      'refactor the function class interface module component',
+      0,
+      0,
+    );
     expect(technical).toBeGreaterThan(simple);
   });
 
@@ -182,7 +193,9 @@ describe('resolveModelPricing', () => {
 
   it('prefers the longest matching prefix', () => {
     // "claude-sonnet-4-5-20250929" should match the dated key exactly, not the short one
-    expect(resolveModelPricing('claude-sonnet-4-5-20250929')).toBe(MODEL_PRICING['claude-sonnet-4-5-20250929']);
+    expect(resolveModelPricing('claude-sonnet-4-5-20250929')).toBe(
+      MODEL_PRICING['claude-sonnet-4-5-20250929'],
+    );
   });
 
   it('returns undefined for unknown models', () => {

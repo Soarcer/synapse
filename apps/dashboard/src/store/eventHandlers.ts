@@ -25,11 +25,7 @@ export const SPAWN_NODE: Node = {
 };
 
 /** Event types that are stored in the timeline but don't produce graph nodes */
-export const NO_GRAPH_EVENTS = new Set<string>([
-  'stop',
-  'permission_request',
-  'notification',
-]);
+export const NO_GRAPH_EVENTS = new Set<string>(['stop', 'permission_request', 'notification']);
 
 // ── Node / Edge ID helpers ───────────────────────────────────
 
@@ -99,9 +95,7 @@ export function draftFromState(state: StateDraft): StateDraft {
     prompts: new Map(state.prompts),
     activeAgents: new Map(state.activeAgents),
     toolAgentMap: new Map(state.toolAgentMap),
-    pendingTaskTools: new Map(
-      Array.from(state.pendingTaskTools, ([k, v]) => [k, [...v]]),
-    ),
+    pendingTaskTools: new Map(Array.from(state.pendingTaskTools, ([k, v]) => [k, [...v]])),
     taskToolAgentMap: new Map(state.taskToolAgentMap),
     nodes: [...state.nodes],
     edges: [...state.edges],
@@ -126,6 +120,7 @@ function ensureSession(
     placeholder: true,
     model: event?.model,
     cwd: event?.cwd,
+    vendor: event?.vendor,
   };
   draft.sessions.set(sessionId, session);
   draft.nodes.push({
@@ -154,6 +149,7 @@ function handleSessionStart(event: AgentEvent, draft: StateDraft): void {
     title: existing?.title,
     gitBranch: event.gitBranch ?? existing?.gitBranch,
     topTools: existing?.topTools,
+    vendor: event.vendor ?? existing?.vendor,
   };
   draft.sessions.set(event.sessionId, session);
 
@@ -202,9 +198,12 @@ function handleUserPrompt(event: AgentEvent, draft: StateDraft): void {
   // within a 3-second window.
   const sessionPrompts = draft.prompts.get(event.sessionId) ?? [];
   const promptText = event.text ?? '';
-  if (sessionPrompts.some(
-    (p) => p.text === promptText && Math.abs(p.timestamp - event.timestamp) < 3000,
-  )) return;
+  if (
+    sessionPrompts.some(
+      (p) => p.text === promptText && Math.abs(p.timestamp - event.timestamp) < 3000,
+    )
+  )
+    return;
   const prompt: UserPromptData = {
     id: event.id,
     sessionId: event.sessionId,
@@ -231,9 +230,8 @@ function handleUserPrompt(event: AgentEvent, draft: StateDraft): void {
   const session = draft.sessions.get(event.sessionId);
   if (session && !session.title && event.text) {
     const maxLen = 48;
-    session.title = event.text.length > maxLen
-      ? event.text.slice(0, maxLen - 3) + '...'
-      : event.text;
+    session.title =
+      event.text.length > maxLen ? event.text.slice(0, maxLen - 3) + '...' : event.text;
     updateNode(draft.nodes, nid.session(event.sessionId), { session });
   }
 }
@@ -251,6 +249,7 @@ function handleAgentStart(event: AgentEvent, draft: StateDraft): void {
     tokenUsage: { input: 0, output: 0 },
     startTime: event.timestamp,
     model: event.model ?? draft.sessions.get(event.sessionId)?.model,
+    vendor: event.vendor ?? draft.sessions.get(event.sessionId)?.vendor,
   };
   draft.agents.set(agentId, agent);
 
@@ -304,11 +303,16 @@ function handleAgentStart(event: AgentEvent, draft: StateDraft): void {
         const agentPrompt = event.text;
         if (taskToolUseId && agentPrompt) {
           const taskToolNode = draft.nodes.find((n) => n.id === nid.tool(taskToolUseId!));
-          const taskPrompt = (taskToolNode?.data as { toolCall?: ToolCallSummary })?.toolCall?.toolInput?.prompt as string | undefined;
-          if (taskPrompt && !agentPrompt.includes(taskPrompt.slice(0, 30)) && !taskPrompt.includes(agentPrompt.slice(0, 30))) {
+          const taskPrompt = (taskToolNode?.data as { toolCall?: ToolCallSummary })?.toolCall
+            ?.toolInput?.prompt as string | undefined;
+          if (
+            taskPrompt &&
+            !agentPrompt.includes(taskPrompt.slice(0, 30)) &&
+            !taskPrompt.includes(agentPrompt.slice(0, 30))
+          ) {
             console.warn(
               `[Synapse] FIFO mismatch: Task tool "${taskToolUseId}" prompt "${taskPrompt.slice(0, 50)}..." ` +
-              `does not match agent "${agentId}" prompt "${agentPrompt.slice(0, 50)}..."`,
+                `does not match agent "${agentId}" prompt "${agentPrompt.slice(0, 50)}..."`,
             );
           }
         }
@@ -329,9 +333,7 @@ function handleAgentStart(event: AgentEvent, draft: StateDraft): void {
   if (!parentNodeId) {
     const sessionPrompts = draft.prompts.get(event.sessionId);
     const latestPrompt = sessionPrompts?.[sessionPrompts.length - 1];
-    parentNodeId = latestPrompt
-      ? nid.prompt(latestPrompt.id)
-      : nid.session(event.sessionId);
+    parentNodeId = latestPrompt ? nid.prompt(latestPrompt.id) : nid.session(event.sessionId);
   }
 
   draft.edges.push({
@@ -349,7 +351,10 @@ function handleAgentStop(event: AgentEvent, draft: StateDraft): void {
 
   // Remove from active agents
   const sessionActive = draft.activeAgents.get(event.sessionId) ?? [];
-  draft.activeAgents.set(event.sessionId, sessionActive.filter((id) => id !== agentId));
+  draft.activeAgents.set(
+    event.sessionId,
+    sessionActive.filter((id) => id !== agentId),
+  );
 
   const agent = draft.agents.get(agentId);
   if (!agent) return;
@@ -405,9 +410,7 @@ function handleToolStart(event: AgentEvent, draft: StateDraft): void {
     toolName: event.toolName ?? 'unknown',
     status: 'running',
     startTime: event.timestamp,
-    inputPreview: event.toolInput
-      ? JSON.stringify(event.toolInput).slice(0, 100)
-      : undefined,
+    inputPreview: event.toolInput ? JSON.stringify(event.toolInput).slice(0, 100) : undefined,
     toolInput: event.toolInput,
   };
   draft.toolCalls.set(agentId, [...(draft.toolCalls.get(agentId) ?? []), tc]);
@@ -435,9 +438,7 @@ function handleToolStart(event: AgentEvent, draft: StateDraft): void {
   } else {
     const sessionPrompts = draft.prompts.get(event.sessionId);
     const latestPrompt = sessionPrompts?.[sessionPrompts.length - 1];
-    toolParent = latestPrompt
-      ? nid.prompt(latestPrompt.id)
-      : nid.session(event.sessionId);
+    toolParent = latestPrompt ? nid.prompt(latestPrompt.id) : nid.session(event.sessionId);
   }
   draft.edges.push({
     id: eid(toolParent, nid.tool(toolUseId)),
@@ -558,7 +559,7 @@ function handleToolEnd(event: AgentEvent, draft: StateDraft): void {
         ...draft.edges[i],
         ...(needsRepoint ? { id: eid(toolNodeId, agentNodeId), source: toolNodeId } : {}),
         data: {
-          ...(draft.edges[i].data as Record<string, unknown> ?? {}),
+          ...((draft.edges[i].data as Record<string, unknown>) ?? {}),
           isTaskEdge: true,
         },
       };
@@ -694,7 +695,10 @@ export function processEvent(event: AgentEvent, draft: StateDraft, showHookEvent
 // re-renders) when reloadAllEvents rebuilds state with identical data.
 let _prevAgentsRef: Map<string, AgentNodeData> | null = null;
 let _prevSessionsRef: Map<string, SessionData> | undefined | null = null;
-let _cachedDerived: { agentsBySession: Map<string, AgentNodeData[]>; childAgents: Map<string, AgentNodeData[]> } | null = null;
+let _cachedDerived: {
+  agentsBySession: Map<string, AgentNodeData[]>;
+  childAgents: Map<string, AgentNodeData[]>;
+} | null = null;
 
 export function buildDerivedMaps(
   agents: Map<string, AgentNodeData>,

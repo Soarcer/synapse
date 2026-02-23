@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // ─── Provider Normalizer ────────────────────────────────────────────
 // Normalizes events from different AI providers into Synapse's AgentEvent shape.
 
@@ -11,15 +14,27 @@ export type ProviderFormat = 'openai' | 'google' | 'groq' | 'anthropic' | 'gener
 
 export function detectProvider(data: Record<string, unknown>): ProviderFormat {
   // OpenAI format markers
-  if (data.object === 'chat.completion' || data.model?.toString().startsWith('gpt') || data.model?.toString().startsWith('o1') || data.model?.toString().startsWith('o3')) {
+  if (
+    data.object === 'chat.completion' ||
+    data.model?.toString().startsWith('gpt') ||
+    data.model?.toString().startsWith('o1') ||
+    data.model?.toString().startsWith('o3')
+  ) {
     return 'openai';
   }
   // Google/Gemini format markers
-  if (data.model?.toString().includes('gemini') || data.candidates !== undefined || data.promptFeedback !== undefined) {
+  if (
+    data.model?.toString().includes('gemini') ||
+    data.candidates !== undefined ||
+    data.promptFeedback !== undefined
+  ) {
     return 'google';
   }
   // Groq format markers
-  if (data['x_groq'] !== undefined || (data.model?.toString().includes('llama') && data.object === 'chat.completion')) {
+  if (
+    data['x_groq'] !== undefined ||
+    (data.model?.toString().includes('llama') && data.object === 'chat.completion')
+  ) {
     return 'groq';
   }
   // Anthropic format (our native format)
@@ -67,7 +82,9 @@ function normalizeOpenAI(data: Record<string, unknown>, sessionId?: string): Age
         event.toolUseId = tc.id as string;
         try {
           event.toolInput = JSON.parse((fn?.arguments as string) || '{}');
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }
       if (message.content) {
         event.text = message.content as string;
@@ -146,10 +163,12 @@ function normalizeGeneric(data: Record<string, unknown>, sessionId?: string): Ag
     vendor: (data.vendor as string) || 'unknown',
     eventSource: 'openclaw',
     text: data.text as string | undefined,
-    tokenUsage: data.tokenUsage ? {
-      input: Number((data.tokenUsage as Record<string, unknown>).input ?? 0),
-      output: Number((data.tokenUsage as Record<string, unknown>).output ?? 0),
-    } : undefined,
+    tokenUsage: data.tokenUsage
+      ? {
+          input: Number((data.tokenUsage as Record<string, unknown>).input ?? 0),
+          output: Number((data.tokenUsage as Record<string, unknown>).output ?? 0),
+        }
+      : undefined,
   };
 }
 
@@ -164,11 +183,16 @@ export function normalizeProviderEvent(
   logger.debug({ provider }, 'Normalizing provider event');
 
   switch (provider) {
-    case 'openai': return normalizeOpenAI(data, sessionId);
-    case 'google': return normalizeGoogle(data, sessionId);
-    case 'groq': return normalizeGroq(data, sessionId);
-    case 'anthropic': return normalizeGeneric(data, sessionId); // Anthropic events already in native format
-    default: return normalizeGeneric(data, sessionId);
+    case 'openai':
+      return normalizeOpenAI(data, sessionId);
+    case 'google':
+      return normalizeGoogle(data, sessionId);
+    case 'groq':
+      return normalizeGroq(data, sessionId);
+    case 'anthropic':
+      return normalizeGeneric(data, sessionId); // Anthropic events already in native format
+    default:
+      return normalizeGeneric(data, sessionId);
   }
 }
 
@@ -203,7 +227,8 @@ export function normalizeCsvRow(row: CsvUsageRow, sessionId?: string): AgentEven
 function inferVendorFromModel(model: string): string {
   const m = model.toLowerCase();
   if (m.includes('claude') || m.startsWith('anthropic/')) return 'anthropic';
-  if (m.includes('gpt') || m.includes('o1') || m.includes('o3') || m.startsWith('openai/')) return 'openai';
+  if (m.includes('gpt') || m.includes('o1') || m.includes('o3') || m.startsWith('openai/'))
+    return 'openai';
   if (m.includes('gemini') || m.startsWith('google/')) return 'google';
   if (m.includes('llama') || m.startsWith('groq/')) return 'groq';
   return 'unknown';

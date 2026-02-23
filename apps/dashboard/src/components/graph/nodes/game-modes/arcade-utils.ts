@@ -51,9 +51,11 @@ export function drawParticles(ctx: CanvasRenderingContext2D, particles: Particle
 export interface ScoreState {
   score: number;
   combo: number;
+  comboLabel?: string;
   lastStatus: 'success' | 'error' | 'running' | null;
 }
 
+/** Generic arcade scoring (used when no mode-specific scorer is provided). */
 export function computeScore(statuses: Array<'success' | 'error' | 'running'>): ScoreState {
   let score = 0;
   let combo = 0;
@@ -66,11 +68,10 @@ export function computeScore(statuses: Array<'success' | 'error' | 'running'>): 
     } else if (status === 'error') {
       combo = 0;
     }
-    // running doesn't affect score
     if (status !== 'running') lastStatus = status;
   }
 
-  return { score, combo, lastStatus };
+  return { score, combo, comboLabel: 'COMBO!', lastStatus };
 }
 
 // ── 8-bit sound ──────────────────────────────────────────────
@@ -90,7 +91,7 @@ export function playChirp(volume: number) {
   osc.type = 'square';
   osc.frequency.setValueAtTime(660, ctx.currentTime);
   osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.08);
-  gain.gain.setValueAtTime(volume / 100 * 0.15, ctx.currentTime);
+  gain.gain.setValueAtTime((volume / 100) * 0.15, ctx.currentTime);
   gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
   osc.connect(gain);
   gain.connect(ctx.destination);
@@ -105,7 +106,7 @@ export function playBuzz(volume: number) {
   const gain = ctx.createGain();
   osc.type = 'sawtooth';
   osc.frequency.setValueAtTime(120, ctx.currentTime);
-  gain.gain.setValueAtTime(volume / 100 * 0.12, ctx.currentTime);
+  gain.gain.setValueAtTime((volume / 100) * 0.12, ctx.currentTime);
   gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
   osc.connect(gain);
   gain.connect(ctx.destination);
@@ -122,7 +123,7 @@ export function playCombo(volume: number) {
     const gain = ctx.createGain();
     osc.type = 'square';
     osc.frequency.setValueAtTime(notes[i], ctx.currentTime + i * 0.05);
-    gain.gain.setValueAtTime(volume / 100 * 0.1, ctx.currentTime + i * 0.05);
+    gain.gain.setValueAtTime((volume / 100) * 0.1, ctx.currentTime + i * 0.05);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.05 + 0.15);
     osc.connect(gain);
     gain.connect(ctx.destination);

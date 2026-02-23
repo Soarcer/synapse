@@ -1,4 +1,7 @@
-import fs from 'fs';
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
+import fsp from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import type {
@@ -34,17 +37,23 @@ const PATH_CACHE_TTL_MS = 5 * 60 * 1000;
 const pathCache = new Map<string, { path: string | null; expiry: number }>();
 
 /** Find the JSONL transcript file for a given session (cached) */
-export function findTranscriptPath(sessionId: string, projectDir?: string): string | null {
+export async function findTranscriptPath(
+  sessionId: string,
+  projectDir?: string,
+): Promise<string | null> {
   const cacheKey = `${sessionId}:${projectDir ?? ''}`;
   const cached = pathCache.get(cacheKey);
   if (cached && Date.now() < cached.expiry) return cached.path;
 
-  const result = findTranscriptPathUncached(sessionId, projectDir);
+  const result = await findTranscriptPathUncached(sessionId, projectDir);
   pathCache.set(cacheKey, { path: result, expiry: Date.now() + PATH_CACHE_TTL_MS });
   return result;
 }
 
-function findTranscriptPathUncached(sessionId: string, projectDir?: string): string | null {
+async function findTranscriptPathUncached(
+  sessionId: string,
+  projectDir?: string,
+): Promise<string | null> {
   // Reject unsafe session IDs to prevent path traversal
   if (!SESSION_ID_PATTERN.test(sessionId)) return null;
 
@@ -54,21 +63,47 @@ function findTranscriptPathUncached(sessionId: string, projectDir?: string): str
     const hash = projectHash(projectDir);
     const direct = path.join(claudeDir, hash, `${sessionId}.jsonl`);
     if (!path.resolve(direct).startsWith(path.resolve(claudeDir))) return null;
-    if (fs.existsSync(direct)) return direct;
+    try {
+      await fsp.access(direct);
+      return direct;
+    } catch {
+      /* not found */
+    }
   }
 
   // Fallback: scan all project dirs for this session
-  if (!fs.existsSync(claudeDir)) return null;
+  try {
+    await fsp.access(claudeDir);
+  } catch {
+    return null;
+  }
 
-  for (const dir of fs.readdirSync(claudeDir)) {
+  let dirs: string[];
+  try {
+    dirs = await fsp.readdir(claudeDir);
+  } catch {
+    return null;
+  }
+
+  for (const dir of dirs) {
     const candidate = path.join(claudeDir, dir, `${sessionId}.jsonl`);
     if (!path.resolve(candidate).startsWith(path.resolve(claudeDir))) return null;
-    if (fs.existsSync(candidate)) return candidate;
+    try {
+      await fsp.access(candidate);
+      return candidate;
+    } catch {
+      /* not found */
+    }
 
     // Check subdirectory (session may have its own folder)
     const sub = path.join(claudeDir, dir, sessionId, `${sessionId}.jsonl`);
     if (!path.resolve(sub).startsWith(path.resolve(claudeDir))) return null;
-    if (fs.existsSync(sub)) return sub;
+    try {
+      await fsp.access(sub);
+      return sub;
+    } catch {
+      /* not found */
+    }
   }
 
   return null;
@@ -119,11 +154,14 @@ interface RawRecord {
   snapshot?: {
     messageId?: string;
     timestamp?: string;
-    trackedFileBackups?: Record<string, {
-      backupFileName?: string;
-      version?: number;
-      backupTime?: string;
-    }>;
+    trackedFileBackups?: Record<
+      string,
+      {
+        backupFileName?: string;
+        version?: number;
+        backupTime?: string;
+      }
+    >;
   };
 
   // Queue operation fields
@@ -231,6 +269,7 @@ function parseTurn(record: RawRecord): TranscriptTurn | null {
     textLength,
     thinkingLength,
     promptText: promptText || undefined,
+    isMeta: record.isMeta === true,
     totalInputTokens,
     cacheHitRate,
   };
@@ -272,18 +311,22 @@ function parseContentBlocks(rawContent: RawContentBlock | undefined): ContentBlo
         if (raw.text != null) blocks.push({ type: 'text', text: raw.text });
         break;
       case 'thinking':
-        if (raw.thinking != null) blocks.push({
-          type: 'thinking',
-          thinking: raw.thinking,
-          ...(raw.signature ? { signature: raw.signature } : {}),
-        });
+        if (raw.thinking != null)
+          blocks.push({
+            type: 'thinking',
+            thinking: raw.thinking,
+            ...(raw.signature ? { signature: raw.signature } : {}),
+          });
         break;
       case 'tool_use':
         blocks.push({
           type: 'tool_use',
           id: raw.id ?? '',
           name: raw.name ?? '',
-          input: (raw.input && typeof raw.input === 'object' ? raw.input : {}) as Record<string, unknown>,
+          input: (raw.input && typeof raw.input === 'object' ? raw.input : {}) as Record<
+            string,
+            unknown
+          >,
         });
         break;
       case 'tool_result': {
@@ -291,7 +334,9 @@ function parseContentBlocks(rawContent: RawContentBlock | undefined): ContentBlo
         if (typeof raw.content === 'string') {
           content = raw.content;
         } else if (Array.isArray(raw.content)) {
-          content = raw.content.map(c => ('text' in c ? (c as { text?: string }).text : '[binary]')).join('\n');
+          content = raw.content
+            .map((c) => ('text' in c ? (c as { text?: string }).text : '[binary]'))
+            .join('\n');
         }
         if (content.length > TOOL_RESULT_MAX_CHARS) {
           content = content.slice(0, TOOL_RESULT_MAX_CHARS);
@@ -322,9 +367,12 @@ function parseContentBlocks(rawContent: RawContentBlock | undefined): ContentBlo
 function parseExtendedUsage(usage: RawUsage | undefined): ExtendedUsage {
   if (!usage) {
     return {
-      inputTokens: 0, outputTokens: 0,
-      cacheReadTokens: 0, cacheCreationTokens: 0,
-      ephemeral5mTokens: 0, ephemeral1hTokens: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheCreationTokens: 0,
+      ephemeral5mTokens: 0,
+      ephemeral1hTokens: 0,
       serverToolUse: { webSearchRequests: 0, webFetchRequests: 0 },
     };
   }
@@ -466,25 +514,31 @@ function parseFileHistoryRecord(record: RawRecord, sessionId: string): FileHisto
   };
 }
 
-function parseQueueOperationRecord(record: RawRecord, sessionId: string): QueueOperationRecord | null {
+function parseQueueOperationRecord(
+  record: RawRecord,
+  sessionId: string,
+): QueueOperationRecord | null {
   if (record.type !== 'queue-operation') return null;
 
   return {
     type: 'queue_operation',
     timestamp: record.timestamp ? new Date(record.timestamp).getTime() : 0,
     sessionId: record.sessionId ?? sessionId,
-    operation: (record.operation === 'enqueue' || record.operation === 'dequeue') ? record.operation : 'enqueue',
+    operation:
+      record.operation === 'enqueue' || record.operation === 'dequeue'
+        ? record.operation
+        : 'enqueue',
     content: record.content,
   };
 }
 
 // ─── Full transcript reader (v2) ─────────────────────────────────
 
-export function readFullTranscript(
+export async function readFullTranscript(
   filePath: string,
   sessionId: string,
-): FullTranscript {
-  const raw = fs.readFileSync(filePath, 'utf-8');
+): Promise<FullTranscript> {
+  const raw = await fsp.readFile(filePath, 'utf-8');
   const lines = raw.split('\n').filter((l) => l.trim());
 
   const conversations: ConversationRecord[] = [];
@@ -508,19 +562,34 @@ export function readFullTranscript(
 
     // Parse into v2 records
     const conv = parseConversationRecord(record, sessionId);
-    if (conv) { conversations.push(conv); continue; }
+    if (conv) {
+      conversations.push(conv);
+      continue;
+    }
 
     const prog = parseProgressRecord(record, sessionId);
-    if (prog) { progress.push(prog); continue; }
+    if (prog) {
+      progress.push(prog);
+      continue;
+    }
 
     const sys = parseSystemRecord(record, sessionId);
-    if (sys) { system.push(sys); continue; }
+    if (sys) {
+      system.push(sys);
+      continue;
+    }
 
     const fh = parseFileHistoryRecord(record, sessionId);
-    if (fh) { fileHistory.push(fh); continue; }
+    if (fh) {
+      fileHistory.push(fh);
+      continue;
+    }
 
     const qo = parseQueueOperationRecord(record, sessionId);
-    if (qo) { queueOps.push(qo); continue; }
+    if (qo) {
+      queueOps.push(qo);
+      continue;
+    }
   }
 
   // Build backward-compatible summary from turns
@@ -606,7 +675,8 @@ function buildSummary(
     }
   }
 
-  const totalDuration = turns.length > 1 ? turns[turns.length - 1].timestamp - turns[0].timestamp : 0;
+  const totalDuration =
+    turns.length > 1 ? turns[turns.length - 1].timestamp - turns[0].timestamp : 0;
   const cacheRateSum = assistantTurns.reduce((s, t) => s + t.cacheHitRate, 0);
 
   return {
@@ -644,7 +714,9 @@ function extractSessionMetadata(conversations?: ConversationRecord[]): {
   if (!conversations || conversations.length === 0) return {};
 
   // Find the first record that has metadata (skip error messages)
-  const source = conversations.find(c => !c.isApiErrorMessage && (c.permissionMode || c.gitBranch || c.slug));
+  const source = conversations.find(
+    (c) => !c.isApiErrorMessage && (c.permissionMode || c.gitBranch || c.slug),
+  );
 
   // Aggregate server tool use across all turns
   let webSearches = 0;
@@ -666,9 +738,9 @@ function extractSessionMetadata(conversations?: ConversationRecord[]): {
 
 // ─── Main reader (v1 — delegates to v2) ──────────────────────────
 
-export function readTranscript(
+export async function readTranscript(
   filePath: string,
   sessionId: string,
-): TranscriptSummary {
-  return readFullTranscript(filePath, sessionId).summary;
+): Promise<TranscriptSummary> {
+  return (await readFullTranscript(filePath, sessionId)).summary;
 }

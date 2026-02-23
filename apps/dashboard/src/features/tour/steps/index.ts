@@ -7,7 +7,6 @@ import { panelChapter } from './panelSteps';
 import { headerChapter } from './headerSteps';
 import { settingsChapter } from './settingsSteps';
 import { analyticsChapter } from './analyticsSteps';
-import { pixelChapter } from './pixelSteps';
 import type { TourChapter } from '../constants';
 
 export const ALL_CHAPTERS: TourChapter[] = [
@@ -17,5 +16,4 @@ export const ALL_CHAPTERS: TourChapter[] = [
   headerChapter,
   settingsChapter,
   analyticsChapter,
-  pixelChapter,
-];
+].filter((ch) => ch.steps.length > 0);

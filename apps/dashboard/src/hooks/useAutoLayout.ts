@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { useMemo } from 'react';
 import type { Node, Edge } from '@xyflow/react';
 // Custom tree layout — no external layout library needed
@@ -7,9 +10,9 @@ import type { Node, Edge } from '@xyflow/react';
 const NODE_DEFAULTS: Record<string, { width: number; height: number }> = {
   session: { width: 220, height: 65 },
   userPrompt: { width: 240, height: 150 }, // worst case: 3-line preview + compaction + stats ≈ 127px + margin
-  agent: { width: 200, height: 100 },      // accounts for tokens + tool count badge
+  agent: { width: 200, height: 100 }, // accounts for tokens + tool count badge
   toolCall: { width: 150, height: 28 },
-  toolGroup: { width: 280, height: 120 },  // composite tool group (pill grid default)
+  toolGroup: { width: 280, height: 120 }, // composite tool group (pill grid default)
   spawnAgent: { width: 50, height: 50 },
 };
 
@@ -273,7 +276,7 @@ export function computeGraphLayout(
 
       // Position children first
       let childrenH = 0;
-      for (const kid of kids) childrenH += (subH.get(kid) ?? 0);
+      for (const kid of kids) childrenH += subH.get(kid) ?? 0;
       childrenH += (kids.length - 1) * GAP_Y;
 
       let childY = yTop + totalH / 2 - childrenH / 2;
@@ -284,8 +287,9 @@ export function computeGraphLayout(
 
       // Place parent at midpoint of first and last child's vertical center
       const fc = positions.get(kids[0])!.y + nodeDims(nodeById.get(kids[0])!).height / 2;
-      const lc = positions.get(kids[kids.length - 1])!.y
-        + nodeDims(nodeById.get(kids[kids.length - 1])!).height / 2;
+      const lc =
+        positions.get(kids[kids.length - 1])!.y +
+        nodeDims(nodeById.get(kids[kids.length - 1])!).height / 2;
       const mid = (fc + lc) / 2;
 
       // Clamp so node + tool stack stay within subtree slot
@@ -459,9 +463,10 @@ export function useAutoLayout(
         }
         const zIndex = zIndexMap.get(node.id) ?? 1;
         // Reveal nodes that were created hidden (visibility:'hidden' in eventHandlers)
-        const style = node.style?.visibility === 'hidden'
-          ? { ...node.style, visibility: 'visible' as const }
-          : node.style;
+        const style =
+          node.style?.visibility === 'hidden'
+            ? { ...node.style, visibility: 'visible' as const }
+            : node.style;
         return { ...node, position: pos, zIndex, style };
       }),
     [nodes, positions, zIndexMap],

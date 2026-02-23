@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { SynapseConfigSchema } from './config.js';
 import type { SynapseConfig, PluginDeps, OpenClawTool } from './types.js';
 import { JsonlBridge } from './layers/jsonlBridge.js';
@@ -29,7 +32,7 @@ export default {
     const serverEntry = path.join(serverDir, 'server', 'index.ts');
 
     const env: Record<string, string> = {
-      ...process.env as Record<string, string>,
+      ...(process.env as Record<string, string>),
       PORT: String(port),
       SYNAPSE_MODE: 'openclaw',
     };
@@ -71,9 +74,8 @@ export default {
     let jsonlBridge: JsonlBridge | undefined;
     if (config.layers.transcriptWatcher) {
       jsonlBridge = new JsonlBridge(port, logger);
-      const watchPaths = config.watchPaths.length > 0
-        ? config.watchPaths
-        : [path.join(configDir, 'agents')];
+      const watchPaths =
+        config.watchPaths.length > 0 ? config.watchPaths : [path.join(configDir, 'agents')];
 
       for (const watchPath of watchPaths) {
         jsonlBridge.watchAgentsDir(watchPath);

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import initSqlJs, { type Database as SqlJsDatabase } from 'sql.js';
 import fs from 'fs';
 import path from 'path';
@@ -35,7 +38,10 @@ function scheduleSave(): void {
 
   // Force immediate save if too long since last save
   if (lastSaveTime > 0 && sinceLast >= MAX_SAVE_DELAY_MS) {
-    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    if (saveTimer) {
+      clearTimeout(saveTimer);
+      saveTimer = null;
+    }
     performSave();
     return;
   }
@@ -80,7 +86,11 @@ export async function initDb(): Promise<void> {
       for (const suffix of ['-wal', '-shm']) {
         const oldFile = oldDb + suffix;
         if (fs.existsSync(oldFile)) {
-          try { fs.unlinkSync(oldFile); } catch { /* ignore */ }
+          try {
+            fs.unlinkSync(oldFile);
+          } catch {
+            /* ignore */
+          }
         }
       }
       logger.info('DB migration complete');
@@ -132,17 +142,44 @@ export async function initDb(): Promise<void> {
   db.run('CREATE INDEX IF NOT EXISTS idx_events_session_type ON events(session_id, event_type)');
 
   // Migration: add vendor column to existing databases
-  try { db.run('ALTER TABLE events ADD COLUMN vendor TEXT'); } catch { /* column already exists */ }
+  try {
+    db.run('ALTER TABLE events ADD COLUMN vendor TEXT');
+  } catch {
+    /* column already exists */
+  }
   // Migration: add cwd column to existing databases
-  try { db.run('ALTER TABLE events ADD COLUMN cwd TEXT'); } catch { /* column already exists */ }
+  try {
+    db.run('ALTER TABLE events ADD COLUMN cwd TEXT');
+  } catch {
+    /* column already exists */
+  }
 
   db.run('CREATE INDEX IF NOT EXISTS idx_events_vendor ON events(vendor)');
   db.run('CREATE INDEX IF NOT EXISTS idx_events_cwd ON events(cwd)');
   db.run('CREATE INDEX IF NOT EXISTS idx_events_tool_use_id ON events(tool_use_id)');
 
   // Migration: add model column to existing databases
-  try { db.run('ALTER TABLE events ADD COLUMN model TEXT'); } catch { /* column already exists */ }
+  try {
+    db.run('ALTER TABLE events ADD COLUMN model TEXT');
+  } catch {
+    /* column already exists */
+  }
   db.run('CREATE INDEX IF NOT EXISTS idx_events_model ON events(model)');
+
+  // ── Materialized session summary for O(1) listSessions ──────────
+  db.run(`
+    CREATE TABLE IF NOT EXISTS session_summary (
+      session_id TEXT PRIMARY KEY,
+      first_event INTEGER NOT NULL,
+      last_event INTEGER NOT NULL,
+      event_count INTEGER NOT NULL DEFAULT 0,
+      tool_count INTEGER NOT NULL DEFAULT 0,
+      total_tokens INTEGER NOT NULL DEFAULT 0,
+      model TEXT,
+      cwd TEXT,
+      has_ended INTEGER NOT NULL DEFAULT 0
+    )
+  `);
 
   // ── Analytics rollup tables ──────────────────────────────────────
   db.run(`
@@ -314,8 +351,12 @@ export async function initDb(): Promise<void> {
       scanned_at        INTEGER NOT NULL
     )
   `);
-  db.run('CREATE INDEX IF NOT EXISTS idx_transcript_index_project ON transcript_index(project_hash)');
-  db.run('CREATE INDEX IF NOT EXISTS idx_transcript_index_started ON transcript_index(started_at DESC)');
+  db.run(
+    'CREATE INDEX IF NOT EXISTS idx_transcript_index_project ON transcript_index(project_hash)',
+  );
+  db.run(
+    'CREATE INDEX IF NOT EXISTS idx_transcript_index_started ON transcript_index(started_at DESC)',
+  );
 
   logger.info({ path: DB_PATH }, 'Database initialized');
 }
@@ -393,7 +434,8 @@ export function insertEvent(params: {
   raw_payload: string;
   created_at: number;
 }): void {
-  execute(`
+  execute(
+    `
     INSERT INTO events (
       event_id, session_id, hook_event_name, event_type,
       agent_id, agent_type, parent_agent_id,
@@ -401,44 +443,87 @@ export function insertEvent(params: {
       status, error, token_input, token_output, duration_ms,
       model, vendor, cwd, raw_payload, created_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, [
-    params.event_id,
-    params.session_id,
-    params.hook_event_name,
-    params.event_type,
-    params.agent_id ?? null,
-    params.agent_type ?? null,
-    params.parent_agent_id ?? null,
-    params.tool_name ?? null,
-    params.tool_use_id ?? null,
-    params.tool_input ?? null,
-    params.tool_response ?? null,
-    params.status ?? null,
-    params.error ?? null,
-    params.token_input ?? null,
-    params.token_output ?? null,
-    params.duration_ms ?? null,
-    params.model ?? null,
-    params.vendor ?? null,
-    params.cwd ?? null,
-    params.raw_payload,
-    params.created_at,
-  ]);
+  `,
+    [
+      params.event_id,
+      params.session_id,
+      params.hook_event_name,
+      params.event_type,
+      params.agent_id ?? null,
+      params.agent_type ?? null,
+      params.parent_agent_id ?? null,
+      params.tool_name ?? null,
+      params.tool_use_id ?? null,
+      params.tool_input ?? null,
+      params.tool_response ?? null,
+      params.status ?? null,
+      params.error ?? null,
+      params.token_input ?? null,
+      params.token_output ?? null,
+      params.duration_ms ?? null,
+      params.model ?? null,
+      params.vendor ?? null,
+      params.cwd ?? null,
+      params.raw_payload,
+      params.created_at,
+    ],
+  );
+  scheduleSave();
+}
+
+export function upsertSessionSummary(params: {
+  session_id: string;
+  created_at: number;
+  event_type: string;
+  token_input?: number | null;
+  token_output?: number | null;
+  model?: string | null;
+  cwd?: string | null;
+}): void {
+  const isTool = ['tool_start', 'tool_end', 'tool_error'].includes(params.event_type);
+  const tokens = (params.token_input ?? 0) + (params.token_output ?? 0);
+  const isEnd = params.event_type === 'session_end' ? 1 : 0;
+
+  execute(
+    `
+    INSERT INTO session_summary (session_id, first_event, last_event, event_count, tool_count, total_tokens, model, cwd, has_ended)
+    VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)
+    ON CONFLICT(session_id) DO UPDATE SET
+      first_event = MIN(session_summary.first_event, excluded.first_event),
+      last_event = MAX(session_summary.last_event, excluded.last_event),
+      event_count = session_summary.event_count + 1,
+      tool_count = session_summary.tool_count + excluded.tool_count,
+      total_tokens = session_summary.total_tokens + excluded.total_tokens,
+      model = COALESCE(excluded.model, session_summary.model),
+      cwd = COALESCE(excluded.cwd, session_summary.cwd),
+      has_ended = MAX(session_summary.has_ended, excluded.has_ended)
+  `,
+    [
+      params.session_id,
+      params.created_at,
+      params.created_at,
+      isTool ? 1 : 0,
+      tokens,
+      params.model ?? null,
+      params.cwd ?? null,
+      isEnd,
+    ],
+  );
   scheduleSave();
 }
 
 export function getEventsBySession(sessionId: string, limit = 10_000): EventRow[] {
-  return queryAll(
-    'SELECT * FROM events WHERE session_id = ? ORDER BY created_at ASC LIMIT ?',
-    [sessionId, limit],
-  ) as unknown as EventRow[];
+  return queryAll('SELECT * FROM events WHERE session_id = ? ORDER BY created_at ASC LIMIT ?', [
+    sessionId,
+    limit,
+  ]) as unknown as EventRow[];
 }
 
 export function getEventsByAgent(agentId: string, limit = 10_000): EventRow[] {
-  return queryAll(
-    'SELECT * FROM events WHERE agent_id = ? ORDER BY created_at ASC LIMIT ?',
-    [agentId, limit],
-  ) as unknown as EventRow[];
+  return queryAll('SELECT * FROM events WHERE agent_id = ? ORDER BY created_at ASC LIMIT ?', [
+    agentId,
+    limit,
+  ]) as unknown as EventRow[];
 }
 
 export function queryEvents(params: {
@@ -457,12 +542,30 @@ export function queryEvents(params: {
   const clauses: string[] = [];
   const values: unknown[] = [];
 
-  if (params.cwd) { clauses.push('cwd = ?'); values.push(params.cwd); }
-  if (params.sessionId) { clauses.push('session_id = ?'); values.push(params.sessionId); }
-  if (params.agentId) { clauses.push('agent_id = ?'); values.push(params.agentId); }
-  if (params.type) { clauses.push('event_type = ?'); values.push(params.type); }
-  if (params.from != null) { clauses.push('created_at >= ?'); values.push(params.from); }
-  if (params.to != null) { clauses.push('created_at <= ?'); values.push(params.to); }
+  if (params.cwd) {
+    clauses.push('cwd = ?');
+    values.push(params.cwd);
+  }
+  if (params.sessionId) {
+    clauses.push('session_id = ?');
+    values.push(params.sessionId);
+  }
+  if (params.agentId) {
+    clauses.push('agent_id = ?');
+    values.push(params.agentId);
+  }
+  if (params.type) {
+    clauses.push('event_type = ?');
+    values.push(params.type);
+  }
+  if (params.from != null) {
+    clauses.push('created_at >= ?');
+    values.push(params.from);
+  }
+  if (params.to != null) {
+    clauses.push('created_at <= ?');
+    values.push(params.to);
+  }
 
   const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
   const order = params.sessionId || params.agentId ? 'ASC' : 'DESC';
@@ -478,12 +581,14 @@ export function queryEvents(params: {
 
 export function deleteEventsBySession(sessionId: string): number {
   const changes = execute('DELETE FROM events WHERE session_id = ?', [sessionId]);
+  execute('DELETE FROM session_summary WHERE session_id = ?', [sessionId]);
   scheduleSave();
   return changes;
 }
 
 export function deleteAllEvents(): number {
   const changes = execute('DELETE FROM events');
+  execute('DELETE FROM session_summary');
   scheduleSave();
   return changes;
 }
@@ -510,11 +615,24 @@ export function listSessions(limit = 500, cwd?: string): SessionSummary[] {
   const clauses: string[] = [];
   const values: unknown[] = [];
 
-  if (cwd) { clauses.push('cwd = ?'); values.push(cwd); }
+  if (cwd) {
+    clauses.push('cwd = ?');
+    values.push(cwd);
+  }
 
   const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
   values.push(limit);
 
+  // Try materialized summary first
+  const summaries = queryAll(
+    `SELECT session_id, first_event, last_event, event_count, tool_count, total_tokens, model, cwd, has_ended
+     FROM session_summary ${where} ORDER BY last_event DESC LIMIT ?`,
+    values,
+  ) as unknown as SessionSummary[];
+
+  if (summaries.length > 0) return summaries;
+
+  // Fallback: legacy GROUP BY for databases that haven't been backfilled
   return queryAll(
     `SELECT session_id,
       MIN(created_at) as first_event,
@@ -539,15 +657,21 @@ export interface DbStats {
 }
 
 export function getDbStats(): DbStats {
-  const eventCount = queryGet('SELECT COUNT(*) as count FROM events') as { count: number } | undefined;
-  const sessionCount = queryGet('SELECT COUNT(DISTINCT session_id) as count FROM events') as { count: number } | undefined;
+  const eventCount = queryGet('SELECT COUNT(*) as count FROM events') as
+    | { count: number }
+    | undefined;
+  const sessionCount = queryGet('SELECT COUNT(DISTINCT session_id) as count FROM events') as
+    | { count: number }
+    | undefined;
 
   let dbSizeBytes = 0;
   try {
     if (fs.existsSync(DB_PATH)) {
       dbSizeBytes = fs.statSync(DB_PATH).size;
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
   return {
     totalEvents: eventCount?.count ?? 0,
@@ -562,7 +686,10 @@ export function analyticsQueryAll(sql: string, params?: unknown[]): Record<strin
   return queryAll(sql, params);
 }
 
-export function analyticsQueryGet(sql: string, params?: unknown[]): Record<string, unknown> | undefined {
+export function analyticsQueryGet(
+  sql: string,
+  params?: unknown[],
+): Record<string, unknown> | undefined {
   return queryGet(sql, params);
 }
 
@@ -592,7 +719,10 @@ export function updateDailyRollup(event: {
   const model = event.model ?? '__all__';
   const vendor = event.vendor ?? null;
 
-  const isToolEvent = event.event_type === 'tool_start' || event.event_type === 'tool_end' || event.event_type === 'tool_error';
+  const isToolEvent =
+    event.event_type === 'tool_start' ||
+    event.event_type === 'tool_end' ||
+    event.event_type === 'tool_error';
   const isError = event.event_type === 'tool_error' || event.status === 'error';
   const isCompaction = event.event_type === 'compact';
   const isSessionStart = event.event_type === 'session_start';
@@ -603,7 +733,8 @@ export function updateDailyRollup(event: {
   const costUsd = event.cost_usd ?? 0;
 
   // Upsert daily rollup
-  execute(`
+  execute(
+    `
     INSERT INTO analytics_daily (date, cwd, model, vendor, total_events, total_sessions,
       total_input_tokens, total_output_tokens, total_cost_usd, total_tool_calls,
       total_errors, total_compactions, sum_latency_ms, count_latency, min_latency_ms, max_latency_ms)
@@ -622,24 +753,33 @@ export function updateDailyRollup(event: {
       count_latency = count_latency + excluded.count_latency,
       min_latency_ms = MIN(COALESCE(min_latency_ms, excluded.min_latency_ms), excluded.min_latency_ms),
       max_latency_ms = MAX(COALESCE(max_latency_ms, excluded.max_latency_ms), excluded.max_latency_ms)
-  `, [
-    date, cwd, model, vendor,
-    isSessionStart ? 1 : 0,
-    inputTokens, outputTokens, costUsd,
-    isToolEvent ? 1 : 0,
-    isError ? 1 : 0,
-    isCompaction ? 1 : 0,
-    latencyMs, latencyMs > 0 ? 1 : 0,
-    latencyMs > 0 ? latencyMs : null,
-    latencyMs > 0 ? latencyMs : null,
-  ]);
+  `,
+    [
+      date,
+      cwd,
+      model,
+      vendor,
+      isSessionStart ? 1 : 0,
+      inputTokens,
+      outputTokens,
+      costUsd,
+      isToolEvent ? 1 : 0,
+      isError ? 1 : 0,
+      isCompaction ? 1 : 0,
+      latencyMs,
+      latencyMs > 0 ? 1 : 0,
+      latencyMs > 0 ? latencyMs : null,
+      latencyMs > 0 ? latencyMs : null,
+    ],
+  );
 
   // Update tool-level rollup
   if (isToolEvent && event.tool_name) {
     const durationMs = event.duration_ms ?? 0;
     const isToolError = event.event_type === 'tool_error' ? 1 : 0;
 
-    execute(`
+    execute(
+      `
       INSERT INTO analytics_tool_daily (date, cwd, tool_name, call_count, error_count, total_duration_ms, avg_duration_ms)
       VALUES (?, ?, ?, 1, ?, ?, ?)
       ON CONFLICT (date, cwd, tool_name)
@@ -648,7 +788,9 @@ export function updateDailyRollup(event: {
         error_count = error_count + excluded.error_count,
         total_duration_ms = total_duration_ms + excluded.total_duration_ms,
         avg_duration_ms = CAST((total_duration_ms + excluded.total_duration_ms) AS REAL) / (call_count + 1)
-    `, [date, cwd, event.tool_name, isToolError, durationMs, durationMs]);
+    `,
+      [date, cwd, event.tool_name, isToolError, durationMs, durationMs],
+    );
     // Note: `cwd` already uses '__all__' sentinel from above
   }
 
@@ -684,14 +826,22 @@ export function insertPriceHistory(params: {
   output_per_1m: number;
   source?: string;
 }): number {
-  execute(`
+  execute(
+    `
     INSERT INTO price_history (model, vendor, effective_from, input_per_1m, cached_input_per_1m, output_per_1m, source, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `, [
-    params.model, params.vendor, params.effective_from,
-    params.input_per_1m, params.cached_input_per_1m, params.output_per_1m,
-    params.source ?? 'user', Date.now(),
-  ]);
+  `,
+    [
+      params.model,
+      params.vendor,
+      params.effective_from,
+      params.input_per_1m,
+      params.cached_input_per_1m,
+      params.output_per_1m,
+      params.source ?? 'user',
+      Date.now(),
+    ],
+  );
   scheduleSave();
   return db.getRowsModified();
 }
@@ -715,7 +865,9 @@ export function pruneOldEvents(maxAgeDays: number): number {
 }
 
 export function pruneExcessEvents(maxCount: number): number {
-  const countRow = queryGet('SELECT COUNT(*) as count FROM events') as { count: number } | undefined;
+  const countRow = queryGet('SELECT COUNT(*) as count FROM events') as
+    | { count: number }
+    | undefined;
   const total = countRow?.count ?? 0;
   if (total <= maxCount) return 0;
   const excess = total - maxCount;
@@ -776,10 +928,9 @@ export interface ReportCardRow {
 }
 
 export function getCachedReportCard(sessionId: string): ReportCardRow | undefined {
-  return queryGet(
-    'SELECT * FROM coaching_report_cards WHERE session_id = ?',
-    [sessionId],
-  ) as unknown as ReportCardRow | undefined;
+  return queryGet('SELECT * FROM coaching_report_cards WHERE session_id = ?', [
+    sessionId,
+  ]) as unknown as ReportCardRow | undefined;
 }
 
 export function upsertReportCard(params: {
@@ -790,7 +941,8 @@ export function upsertReportCard(params: {
   detector_results: string;
   summary: string;
 }): void {
-  execute(`
+  execute(
+    `
     INSERT INTO coaching_report_cards (session_id, computed_at, overall_score, dimension_scores, detector_results, summary)
     VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT (session_id) DO UPDATE SET
@@ -799,14 +951,16 @@ export function upsertReportCard(params: {
       dimension_scores = excluded.dimension_scores,
       detector_results = excluded.detector_results,
       summary = excluded.summary
-  `, [
-    params.session_id,
-    params.computed_at,
-    params.overall_score,
-    params.dimension_scores,
-    params.detector_results,
-    params.summary,
-  ]);
+  `,
+    [
+      params.session_id,
+      params.computed_at,
+      params.overall_score,
+      params.dimension_scores,
+      params.detector_results,
+      params.summary,
+    ],
+  );
   scheduleSave();
 }
 
@@ -849,27 +1003,29 @@ export function insertNudge(params: {
   severity: string;
   fired_at: number;
 }): void {
-  execute(`
+  execute(
+    `
     INSERT OR IGNORE INTO coaching_nudges (session_id, nudge_id, detector_id, title, message, recommendation, severity, fired_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `, [
-    params.session_id,
-    params.nudge_id,
-    params.detector_id,
-    params.title,
-    params.message,
-    params.recommendation ?? null,
-    params.severity,
-    params.fired_at,
-  ]);
+  `,
+    [
+      params.session_id,
+      params.nudge_id,
+      params.detector_id,
+      params.title,
+      params.message,
+      params.recommendation ?? null,
+      params.severity,
+      params.fired_at,
+    ],
+  );
   scheduleSave();
 }
 
 export function getNudgesBySession(sessionId: string): NudgeRow[] {
-  return queryAll(
-    'SELECT * FROM coaching_nudges WHERE session_id = ? ORDER BY fired_at DESC',
-    [sessionId],
-  ) as unknown as NudgeRow[];
+  return queryAll('SELECT * FROM coaching_nudges WHERE session_id = ? ORDER BY fired_at DESC', [
+    sessionId,
+  ]) as unknown as NudgeRow[];
 }
 
 export function hasNudgeFired(sessionId: string, detectorId: string, sinceMs: number): boolean {
@@ -896,7 +1052,11 @@ export interface NudgeStatsRow {
   dismiss_count: number;
 }
 
-export function getNudgeStats(): { byDetector: NudgeStatsRow[]; totalFired: number; totalDismissed: number } {
+export function getNudgeStats(): {
+  byDetector: NudgeStatsRow[];
+  totalFired: number;
+  totalDismissed: number;
+} {
   const byDetector = queryAll(`
     SELECT detector_id,
            COUNT(*) as fire_count,
@@ -936,7 +1096,9 @@ export function getAllRuleConfigs(): RuleConfigRow[] {
 }
 
 export function getRuleConfig(ruleId: string): RuleConfigRow | undefined {
-  return queryGet('SELECT * FROM nudge_rule_config WHERE rule_id = ?', [ruleId]) as RuleConfigRow | undefined;
+  return queryGet('SELECT * FROM nudge_rule_config WHERE rule_id = ?', [ruleId]) as
+    | RuleConfigRow
+    | undefined;
 }
 
 export function upsertRuleConfig(params: {
@@ -954,11 +1116,26 @@ export function upsertRuleConfig(params: {
     const fields: string[] = [];
     const values: unknown[] = [];
 
-    if (params.enabled !== undefined) { fields.push('enabled = ?'); values.push(params.enabled); }
-    if (params.severity !== undefined) { fields.push('severity = ?'); values.push(params.severity); }
-    if (params.cooldown_ms !== undefined) { fields.push('cooldown_ms = ?'); values.push(params.cooldown_ms); }
-    if (params.options !== undefined) { fields.push('options = ?'); values.push(params.options); }
-    if (params.suppressed !== undefined) { fields.push('suppressed = ?'); values.push(params.suppressed); }
+    if (params.enabled !== undefined) {
+      fields.push('enabled = ?');
+      values.push(params.enabled);
+    }
+    if (params.severity !== undefined) {
+      fields.push('severity = ?');
+      values.push(params.severity);
+    }
+    if (params.cooldown_ms !== undefined) {
+      fields.push('cooldown_ms = ?');
+      values.push(params.cooldown_ms);
+    }
+    if (params.options !== undefined) {
+      fields.push('options = ?');
+      values.push(params.options);
+    }
+    if (params.suppressed !== undefined) {
+      fields.push('suppressed = ?');
+      values.push(params.suppressed);
+    }
 
     if (fields.length > 0) {
       fields.push('updated_at = ?');
@@ -1011,10 +1188,9 @@ export function getAllPlaybooks(): PlaybookRow[] {
 }
 
 export function getPlaybookById(id: number): PlaybookRow | undefined {
-  return queryGet(
-    'SELECT * FROM coaching_playbooks WHERE id = ?',
-    [id],
-  ) as unknown as PlaybookRow | undefined;
+  return queryGet('SELECT * FROM coaching_playbooks WHERE id = ?', [id]) as unknown as
+    | PlaybookRow
+    | undefined;
 }
 
 export function insertPlaybook(params: {
@@ -1027,20 +1203,23 @@ export function insertPlaybook(params: {
   score?: number;
 }): number {
   const now = Date.now();
-  execute(`
+  execute(
+    `
     INSERT INTO coaching_playbooks (name, description, category, source_session_id, pattern, tags, score, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, [
-    params.name,
-    params.description,
-    params.category,
-    params.source_session_id ?? null,
-    params.pattern,
-    params.tags ?? null,
-    params.score ?? null,
-    now,
-    now,
-  ]);
+  `,
+    [
+      params.name,
+      params.description,
+      params.category,
+      params.source_session_id ?? null,
+      params.pattern,
+      params.tags ?? null,
+      params.score ?? null,
+      now,
+      now,
+    ],
+  );
   scheduleSave();
   // Return the last inserted ID
   const row = queryGet('SELECT last_insert_rowid() as id');
@@ -1056,7 +1235,9 @@ export function deletePlaybook(id: number): number {
 // ─── Settings Helpers ─────────────────────────────────────────────────
 
 export function getSetting(key: string): string | undefined {
-  const row = queryGet('SELECT value FROM settings WHERE key = ?', [key]) as { value: string } | undefined;
+  const row = queryGet('SELECT value FROM settings WHERE key = ?', [key]) as
+    | { value: string }
+    | undefined;
   return row?.value;
 }
 
@@ -1106,7 +1287,15 @@ export function setAiCacheEntry(params: {
     `INSERT INTO ai_coaching_cache (cache_key, method, session_id, content_hash, response, created_at, expires_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(cache_key) DO UPDATE SET response = excluded.response, created_at = excluded.created_at, expires_at = excluded.expires_at`,
-    [params.cacheKey, params.method, params.sessionId ?? null, params.contentHash, params.response, now, now + ttl],
+    [
+      params.cacheKey,
+      params.method,
+      params.sessionId ?? null,
+      params.contentHash,
+      params.response,
+      now,
+      now + ttl,
+    ],
   );
   scheduleSave();
 }
@@ -1139,14 +1328,14 @@ export interface TranscriptIndexRow {
 }
 
 export function getTranscriptIndexEntry(sessionId: string): TranscriptIndexRow | undefined {
-  return queryGet(
-    'SELECT * FROM transcript_index WHERE session_id = ?',
-    [sessionId],
-  ) as unknown as TranscriptIndexRow | undefined;
+  return queryGet('SELECT * FROM transcript_index WHERE session_id = ?', [sessionId]) as unknown as
+    | TranscriptIndexRow
+    | undefined;
 }
 
 export function upsertTranscriptIndex(params: TranscriptIndexRow): void {
-  execute(`
+  execute(
+    `
     INSERT INTO transcript_index (
       session_id, project_hash, transcript_path, started_at, ended_at,
       model, permission_mode, git_branch, slug,
@@ -1168,19 +1357,36 @@ export function upsertTranscriptIndex(params: TranscriptIndexRow): void {
       total_output_tokens = excluded.total_output_tokens,
       file_size_bytes = excluded.file_size_bytes,
       scanned_at = excluded.scanned_at
-  `, [
-    params.session_id, params.project_hash, params.transcript_path,
-    params.started_at, params.ended_at,
-    params.model, params.permission_mode, params.git_branch, params.slug,
-    params.total_turns, params.total_tool_calls, params.estimated_cost_usd,
-    params.total_input_tokens, params.total_output_tokens,
-    params.file_size_bytes, params.scanned_at,
-  ]);
+  `,
+    [
+      params.session_id,
+      params.project_hash,
+      params.transcript_path,
+      params.started_at,
+      params.ended_at,
+      params.model,
+      params.permission_mode,
+      params.git_branch,
+      params.slug,
+      params.total_turns,
+      params.total_tool_calls,
+      params.estimated_cost_usd,
+      params.total_input_tokens,
+      params.total_output_tokens,
+      params.file_size_bytes,
+      params.scanned_at,
+    ],
+  );
   scheduleSave();
 }
 
-export function getAllTranscriptIndex(limit = 100, offset = 0): { rows: TranscriptIndexRow[]; total: number } {
-  const countRow = queryGet('SELECT COUNT(*) as count FROM transcript_index') as { count: number } | undefined;
+export function getAllTranscriptIndex(
+  limit = 100,
+  offset = 0,
+): { rows: TranscriptIndexRow[]; total: number } {
+  const countRow = queryGet('SELECT COUNT(*) as count FROM transcript_index') as
+    | { count: number }
+    | undefined;
   const total = countRow?.count ?? 0;
   const rows = queryAll(
     `SELECT * FROM transcript_index
@@ -1203,5 +1409,9 @@ export function isLiveSession(sessionId: string): boolean {
 
 export function closeDb(): void {
   saveNow();
-  try { db.close(); } catch { /* already closed */ }
+  try {
+    db.close();
+  } catch {
+    /* already closed */
+  }
 }

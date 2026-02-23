@@ -1,20 +1,28 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // Shared prompt analysis utilities used by both PromptAnalyzer and AgentDetailPanel
 
 // ── Pricing ──────────────────────────────────────────────────────────
 
-export const MODEL_PRICING: Record<string, { inputPer1M: number; outputPer1M: number; cachedPer1M: number }> = {
-  'claude-opus-4-6':            { inputPer1M: 15, outputPer1M: 75, cachedPer1M: 1.5 },
-  'claude-sonnet-4-5':          { inputPer1M: 3,  outputPer1M: 15, cachedPer1M: 0.3 },
-  'claude-sonnet-4-5-20250929': { inputPer1M: 3,  outputPer1M: 15, cachedPer1M: 0.3 },
-  'claude-haiku-4-5':           { inputPer1M: 0.8, outputPer1M: 4, cachedPer1M: 0.08 },
-  'claude-haiku-4-5-20251001':  { inputPer1M: 0.8, outputPer1M: 4, cachedPer1M: 0.08 },
+export const MODEL_PRICING: Record<
+  string,
+  { inputPer1M: number; outputPer1M: number; cachedPer1M: number }
+> = {
+  'claude-opus-4-6': { inputPer1M: 15, outputPer1M: 75, cachedPer1M: 1.5 },
+  'claude-sonnet-4-5': { inputPer1M: 3, outputPer1M: 15, cachedPer1M: 0.3 },
+  'claude-sonnet-4-5-20250929': { inputPer1M: 3, outputPer1M: 15, cachedPer1M: 0.3 },
+  'claude-haiku-4-5': { inputPer1M: 0.8, outputPer1M: 4, cachedPer1M: 0.08 },
+  'claude-haiku-4-5-20251001': { inputPer1M: 0.8, outputPer1M: 4, cachedPer1M: 0.08 },
 };
 
 /**
  * Resolve pricing for a model string. Tries exact match first,
  * then prefix match (e.g. "claude-opus-4-6-20260101" → "claude-opus-4-6").
  */
-export function resolveModelPricing(model: string): { inputPer1M: number; outputPer1M: number; cachedPer1M: number } | undefined {
+export function resolveModelPricing(
+  model: string,
+): { inputPer1M: number; outputPer1M: number; cachedPer1M: number } | undefined {
   if (MODEL_PRICING[model]) return MODEL_PRICING[model];
   // Prefix match: find the longest key that is a prefix of the model string
   let best: string | undefined;
@@ -42,7 +50,16 @@ export function computeCostUsd(
 
 // ── Category Classification ──────────────────────────────────────────
 
-export type PromptCategory = 'feature' | 'bugfix' | 'refactor' | 'test' | 'docs' | 'debug' | 'review' | 'config' | 'other';
+export type PromptCategory =
+  | 'feature'
+  | 'bugfix'
+  | 'refactor'
+  | 'test'
+  | 'docs'
+  | 'debug'
+  | 'review'
+  | 'config'
+  | 'other';
 
 const CATEGORY_PATTERNS: [PromptCategory, RegExp][] = [
   ['feature', /\b(add|create|implement|build|new feature|introduce)\b/i],
@@ -67,7 +84,8 @@ export function classifyPrompt(text: string): PromptCategory {
 export function computeComplexity(text: string, outputTokens: number, toolCount: number): number {
   let score = 0;
   score += Math.min(25, text.split(/\s+/).length / 4);
-  const techMatches = (text.match(/\b(function|class|interface|type|module|component|endpoint)\b/gi) || []).length +
+  const techMatches =
+    (text.match(/\b(function|class|interface|type|module|component|endpoint)\b/gi) || []).length +
     (text.match(/[a-zA-Z]+\.[a-zA-Z]+/g) || []).length +
     (text.match(/`[^`]+`/g) || []).length;
   score += Math.min(25, techMatches * 3);

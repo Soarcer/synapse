@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 // ─── Prompt Analyzer ────────────────────────────────────────────────
 // Analyzes prompts for complexity, categorization, and optimization opportunities.
 
@@ -9,7 +12,7 @@ export interface PromptAnalysis {
   turnIndex: number;
   timestamp: number;
   promptText: string;
-  complexityScore: number;       // 0-100
+  complexityScore: number; // 0-100
   category: PromptCategory;
   inputTokens: number;
   outputTokens: number;
@@ -33,7 +36,7 @@ export interface PromptInsight {
   type: 'optimization' | 'pattern' | 'warning';
   message: string;
   impact: 'high' | 'medium' | 'low';
-  relatedPrompts: number[];     // indices into PromptAnalysis[]
+  relatedPrompts: number[]; // indices into PromptAnalysis[]
 }
 
 // ─── Category Detection ─────────────────────────────────────────────
@@ -70,8 +73,8 @@ function computeComplexity(text: string, outputTokens: number, toolCount: number
   // Specificity factor (0-25): technical terms, file paths, code references
   const technicalPatterns = [
     /\b(function|class|interface|type|module|component|endpoint)\b/gi,
-    /[a-zA-Z]+\.[a-zA-Z]+/g,  // file references like "foo.ts"
-    /`[^`]+`/g,                 // inline code
+    /[a-zA-Z]+\.[a-zA-Z]+/g, // file references like "foo.ts"
+    /`[^`]+`/g, // inline code
     /\b(async|await|promise|callback|stream|buffer)\b/gi,
   ];
   let technicalMatches = 0;
@@ -93,12 +96,15 @@ function computeComplexity(text: string, outputTokens: number, toolCount: number
 // ─── Analyze Session Prompts ────────────────────────────────────────
 
 export function analyzeSessionPrompts(sessionId: string): PromptAnalysis[] {
-  const rows = analyticsQueryAll(`
+  const rows = analyticsQueryAll(
+    `
     SELECT event_type, token_input, token_output, tool_name, model, created_at, raw_payload
     FROM events
     WHERE session_id = ?
     ORDER BY created_at ASC
-  `, [sessionId]) as Array<Record<string, unknown>>;
+  `,
+    [sessionId],
+  ) as Array<Record<string, unknown>>;
 
   const analyses: PromptAnalysis[] = [];
   let turnIndex = 0;
@@ -123,7 +129,13 @@ export function analyzeSessionPrompts(sessionId: string): PromptAnalysis[] {
           category: classifyPrompt(currentPrompt.text),
           inputTokens: turnTokenInput,
           outputTokens: turnTokenOutput,
-          costUsd: computeCostUsd(currentPrompt.model, turnTokenInput, turnTokenOutput, cacheRead, currentPrompt.timestamp),
+          costUsd: computeCostUsd(
+            currentPrompt.model,
+            turnTokenInput,
+            turnTokenOutput,
+            cacheRead,
+            currentPrompt.timestamp,
+          ),
           toolCount: turnToolCount,
           model: currentPrompt.model,
         });
@@ -134,7 +146,9 @@ export function analyzeSessionPrompts(sessionId: string): PromptAnalysis[] {
       try {
         const raw = JSON.parse((row.raw_payload as string) || '{}');
         promptText = raw.prompt || raw.message || '';
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
 
       currentPrompt = {
         text: promptText,
@@ -166,7 +180,13 @@ export function analyzeSessionPrompts(sessionId: string): PromptAnalysis[] {
       category: classifyPrompt(currentPrompt.text),
       inputTokens: turnTokenInput,
       outputTokens: turnTokenOutput,
-      costUsd: computeCostUsd(currentPrompt.model, turnTokenInput, turnTokenOutput, cacheRead, currentPrompt.timestamp),
+      costUsd: computeCostUsd(
+        currentPrompt.model,
+        turnTokenInput,
+        turnTokenOutput,
+        cacheRead,
+        currentPrompt.timestamp,
+      ),
       toolCount: turnToolCount,
       model: currentPrompt.model,
     });
@@ -214,7 +234,7 @@ export function generatePromptInsights(analyses: PromptAnalysis[]): PromptInsigh
   if (topCategory && topCategory[1] > analyses.length * 0.5) {
     insights.push({
       type: 'pattern',
-      message: `${Math.round(topCategory[1] / analyses.length * 100)}% of prompts are "${topCategory[0]}" tasks. Consider batch processing similar requests.`,
+      message: `${Math.round((topCategory[1] / analyses.length) * 100)}% of prompts are "${topCategory[0]}" tasks. Consider batch processing similar requests.`,
       impact: 'low',
       relatedPrompts: analyses.filter((a) => a.category === topCategory[0]).map((a) => a.turnIndex),
     });
@@ -236,7 +256,11 @@ export function generatePromptInsights(analyses: PromptAnalysis[]): PromptInsigh
 
 // ─── Analyze Time Range ─────────────────────────────────────────────
 
-export function analyzePromptsInRange(from: number, to: number, cwd?: string): {
+export function analyzePromptsInRange(
+  from: number,
+  to: number,
+  cwd?: string,
+): {
   analyses: PromptAnalysis[];
   insights: PromptInsight[];
   categoryBreakdown: Record<PromptCategory, number>;
@@ -250,9 +274,12 @@ export function analyzePromptsInRange(from: number, to: number, cwd?: string): {
     params.push(cwd);
   }
 
-  const sessions = analyticsQueryAll(`
+  const sessions = analyticsQueryAll(
+    `
     SELECT DISTINCT session_id FROM events WHERE ${conditions.join(' AND ')}
-  `, params) as Array<{ session_id: string }>;
+  `,
+    params,
+  ) as Array<{ session_id: string }>;
 
   const allAnalyses: PromptAnalysis[] = [];
   for (const s of sessions) {
@@ -262,15 +289,24 @@ export function analyzePromptsInRange(from: number, to: number, cwd?: string): {
   const insights = generatePromptInsights(allAnalyses);
 
   const categoryBreakdown: Record<PromptCategory, number> = {
-    feature: 0, bugfix: 0, refactor: 0, test: 0, docs: 0, debug: 0, review: 0, config: 0, other: 0,
+    feature: 0,
+    bugfix: 0,
+    refactor: 0,
+    test: 0,
+    docs: 0,
+    debug: 0,
+    review: 0,
+    config: 0,
+    other: 0,
   };
   for (const a of allAnalyses) {
     categoryBreakdown[a.category]++;
   }
 
-  const avgComplexity = allAnalyses.length > 0
-    ? Math.round(allAnalyses.reduce((s, a) => s + a.complexityScore, 0) / allAnalyses.length)
-    : 0;
+  const avgComplexity =
+    allAnalyses.length > 0
+      ? Math.round(allAnalyses.reduce((s, a) => s + a.complexityScore, 0) / allAnalyses.length)
+      : 0;
 
   return { analyses: allAnalyses, insights, categoryBreakdown, avgComplexity };
 }

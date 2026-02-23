@@ -1,7 +1,17 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { memo, useMemo } from 'react';
 import { Handle, type NodeProps } from '@xyflow/react';
 import type { AgentNodeData } from '@synapse-ai/core';
-import { formatTokens, formatElapsed, formatTime, statusIcon, statusBorderColor, getVendorColor } from '@synapse-ai/core';
+import {
+  formatTokens,
+  formatElapsed,
+  formatTime,
+  statusIcon,
+  statusBorderColor,
+  getVendorColor,
+} from '@synapse-ai/core';
 import { useHandlePositions } from '../../../hooks/useHandlePositions';
 import { useAgentStore } from '../../../store/agentStore';
 import { CollapsibleSourceHandle } from '../CollapsibleSourceHandle';
@@ -12,9 +22,7 @@ const EMPTY_AGENTS: AgentNodeData[] = [];
 function AgentNodeComponent({ data }: NodeProps) {
   const agent = (data as { agent: AgentNodeData }).agent;
   const isRunning = agent.status === 'running';
-  const preview = agent.streamingText
-    ? agent.streamingText.slice(-50).replace(/\n/g, ' ')
-    : null;
+  const preview = agent.streamingText ? agent.streamingText.slice(-50).replace(/\n/g, ' ') : null;
   const { source, target, sourceStyle } = useHandlePositions();
   const children = useAgentStore((s) => s.childAgents.get(agent.agentId)) ?? EMPTY_AGENTS;
   const selectedNodeId = useAgentStore((s) => s.selectedNodeId);
@@ -23,8 +31,8 @@ function AgentNodeComponent({ data }: NodeProps) {
   const isSelected = selectedNodeId === nodeId;
   const isHighlighted = !isSelected && highlightedNodeIds?.has(nodeId);
   // Tools are expanded when this agent (or one of its tools) is selected
-  const toolsExpanded = isSelected ||
-    agent.toolCalls.some((tc) => selectedNodeId === `tool-${tc.toolUseId}`);
+  const toolsExpanded =
+    isSelected || agent.toolCalls.some((tc) => selectedNodeId === `tool-${tc.toolUseId}`);
 
   const { inputTokens, outputTokens } = useMemo(() => {
     let input = agent.tokenUsage.input;
@@ -51,14 +59,32 @@ function AgentNodeComponent({ data }: NodeProps) {
       `}
       style={vendorBorderStyle}
     >
-      <Handle type="target" position={target} className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-800" />
+      <Handle
+        type="target"
+        position={target}
+        className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-800"
+      />
 
       <div className="px-3 py-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <span className="text-green-400/60 text-[10px] font-semibold uppercase tracking-wider">Agent</span>
+            <span className="text-green-400/60 text-[10px] font-semibold uppercase tracking-wider">
+              Agent
+            </span>
             {agent.parentAgentId && (
-              <span className="bg-purple-900/50 text-purple-300 text-[9px] px-1.5 rounded">Task</span>
+              <span className="bg-purple-900/50 text-purple-300 text-[9px] px-1.5 rounded">
+                Task
+              </span>
+            )}
+            {agent.compactionCount != null && agent.compactionCount > 0 && (
+              <Tooltip
+                content={`Context compacted ${agent.compactionCount} time${agent.compactionCount > 1 ? 's' : ''}`}
+              >
+                <span className="bg-orange-900/50 text-orange-300 text-[9px] px-1.5 rounded">
+                  {'\u2702'}
+                  {agent.compactionCount > 1 ? ` \u00d7${agent.compactionCount}` : ''}
+                </span>
+              </Tooltip>
             )}
           </div>
           <span className="text-[10px] text-gray-400">
@@ -69,9 +95,7 @@ function AgentNodeComponent({ data }: NodeProps) {
         {/* Header */}
         <div className="flex items-center justify-between gap-2 mt-0.5">
           <div className="flex flex-col min-w-0">
-            <span className="text-sm font-semibold text-gray-100 truncate">
-              {agent.agentType}
-            </span>
+            <span className="text-sm font-semibold text-gray-100 truncate">{agent.agentType}</span>
             <span className="text-[10px] text-gray-500 leading-tight">
               {formatElapsed(agent.startTime, agent.endTime)}
             </span>
@@ -97,22 +121,30 @@ function AgentNodeComponent({ data }: NodeProps) {
             {(inputTokens > 0 || outputTokens > 0) && (
               <span className="text-[10px] font-mono">
                 <Tooltip content="Input tokens">
-                  <span className="text-cyan-400/60">{formatTokens(inputTokens)}{'\u2193'}</span>
-                </Tooltip>
-                {' '}
+                  <span className="text-cyan-400/60">
+                    {formatTokens(inputTokens)}
+                    {'\u2193'}
+                  </span>
+                </Tooltip>{' '}
                 <Tooltip content="Output tokens">
-                  <span className="text-orange-400/60">{formatTokens(outputTokens)}{'\u2191'}</span>
+                  <span className="text-orange-400/60">
+                    {formatTokens(outputTokens)}
+                    {'\u2191'}
+                  </span>
                 </Tooltip>
               </span>
             )}
             {agent.toolCalls.length > 0 && (
               <Tooltip content="Tool calls by this agent">
-                <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
-                  toolsExpanded
-                    ? 'bg-purple-600/40 text-purple-200'
-                    : 'bg-purple-600/20 text-purple-400'
-                }`}>
-                  {toolsExpanded ? '\u25BE' : '\u25B8'} {agent.toolCalls.length} tool{agent.toolCalls.length !== 1 ? 's' : ''}
+                <span
+                  className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+                    toolsExpanded
+                      ? 'bg-purple-600/40 text-purple-200'
+                      : 'bg-purple-600/20 text-purple-400'
+                  }`}
+                >
+                  {toolsExpanded ? '\u25BE' : '\u25B8'} {agent.toolCalls.length} tool
+                  {agent.toolCalls.length !== 1 ? 's' : ''}
                 </span>
               </Tooltip>
             )}
@@ -134,7 +166,12 @@ function AgentNodeComponent({ data }: NodeProps) {
         </div>
       )}
 
-      <CollapsibleSourceHandle nodeId={nodeId} position={source} style={sourceStyle} baseClassName="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-800" />
+      <CollapsibleSourceHandle
+        nodeId={nodeId}
+        position={source}
+        style={sourceStyle}
+        baseClassName="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-800"
+      />
     </div>
   );
 }

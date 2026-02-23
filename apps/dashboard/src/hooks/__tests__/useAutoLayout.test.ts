@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import type { Node, Edge } from '@xyflow/react';
 import { computeGraphLayout } from '../useAutoLayout';
 
@@ -31,10 +34,7 @@ describe('computeGraphLayout', () => {
       makeNode('agent-1', 'agent'),
       makeNode('tool-1', 'toolCall'),
     ];
-    const edges = [
-      makeEdge('session-1', 'agent-1'),
-      makeEdge('agent-1', 'tool-1'),
-    ];
+    const edges = [makeEdge('session-1', 'agent-1'), makeEdge('agent-1', 'tool-1')];
 
     const { positions } = computeGraphLayout(nodes, edges, null);
 
@@ -48,10 +48,7 @@ describe('computeGraphLayout', () => {
   });
 
   it('lays out children to the right of their parents (LR direction)', () => {
-    const nodes = [
-      makeNode('session-1', 'session'),
-      makeNode('agent-1', 'agent'),
-    ];
+    const nodes = [makeNode('session-1', 'session'), makeNode('agent-1', 'agent')];
     const edges = [makeEdge('session-1', 'agent-1')];
 
     const { positions } = computeGraphLayout(nodes, edges, null);
@@ -67,7 +64,7 @@ describe('computeGraphLayout', () => {
   it('uses measured dimensions when available', () => {
     const nodesDefault = [
       makeNode('session-1', 'session'), // defaults: 220x80
-      makeNode('agent-1', 'agent'),     // defaults: 200x110
+      makeNode('agent-1', 'agent'), // defaults: 200x110
     ];
     const nodesWider = [
       makeNode('session-1', 'session', { width: 300, height: 80 }), // wider
@@ -108,10 +105,7 @@ describe('computeGraphLayout', () => {
   });
 
   it('positions orphan nodes (no edges) without errors', () => {
-    const nodes = [
-      makeNode('session-1', 'session'),
-      makeNode('orphan-1', 'agent'),
-    ];
+    const nodes = [makeNode('session-1', 'session'), makeNode('orphan-1', 'agent')];
     const edges: Edge[] = []; // no edges at all
 
     const { positions } = computeGraphLayout(nodes, edges, null);
@@ -171,9 +165,7 @@ describe('computeGraphLayout', () => {
   });
 
   it('assigns z-index for stacked tools (later tools on top)', () => {
-    const tools = Array.from({ length: 3 }, (_, i) =>
-      makeNode(`tool-${i}`, 'toolCall'),
-    );
+    const tools = Array.from({ length: 3 }, (_, i) => makeNode(`tool-${i}`, 'toolCall'));
     const nodes = [makeNode('agent-1', 'agent'), ...tools];
     const edges = tools.map((t) => makeEdge('agent-1', t.id));
 
@@ -215,10 +207,7 @@ describe('computeGraphLayout', () => {
       makeNode('prompt-1', 'userPrompt', { width: 240, height: 138 }),
       makeNode('prompt-2', 'userPrompt', { width: 240, height: 138 }),
     ];
-    const edges = [
-      makeEdge('session-1', 'prompt-1'),
-      makeEdge('session-1', 'prompt-2'),
-    ];
+    const edges = [makeEdge('session-1', 'prompt-1'), makeEdge('session-1', 'prompt-2')];
 
     const { positions } = computeGraphLayout(nodes, edges, null);
 

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { parseThinking } from '../services/thinkingParser.js';
 
 describe('parseThinking', () => {
@@ -16,7 +19,8 @@ describe('parseThinking', () => {
   });
 
   it('extracts intent from "The user wants" pattern', () => {
-    const text = 'The user wants to fix a bug in the login handler. I should look at the code first.';
+    const text =
+      'The user wants to fix a bug in the login handler. I should look at the code first.';
     const result = parseThinking(text)!;
     expect(result.intent).toContain('fix a bug');
   });
@@ -36,13 +40,14 @@ Let me start with step 1.`;
   });
 
   it('extracts decision from "I\'ll" pattern', () => {
-    const text = 'After looking at the results, I\'ll use grep to search for the auth handler since it\'s the fastest approach.';
+    const text =
+      "After looking at the results, I'll use grep to search for the auth handler since it's the fastest approach.";
     const result = parseThinking(text)!;
     expect(result.decision).toContain('grep');
   });
 
   it('extracts high confidence', () => {
-    const text = 'I\'m confident this is the bug. The comparison uses < instead of <=.';
+    const text = "I'm confident this is the bug. The comparison uses < instead of <=.";
     const result = parseThinking(text)!;
     expect(result.confidence).toBeGreaterThanOrEqual(0.8);
   });
@@ -55,7 +60,7 @@ Let me start with step 1.`;
   });
 
   it('extracts low confidence', () => {
-    const text = 'I\'m not sure what the issue is. Let me try looking at the logs.';
+    const text = "I'm not sure what the issue is. Let me try looking at the logs.";
     const result = parseThinking(text)!;
     expect(result.confidence).toBeLessThan(0.5);
   });

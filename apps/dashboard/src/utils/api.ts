@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
+import type { ReasoningData } from '@synapse-ai/core';
+
 // VITE_API_ORIGIN is only needed when the dashboard is served from a different
 // origin than the API (e.g. VS Code webview). When empty, relative paths work.
 const apiOrigin = (import.meta.env.VITE_API_ORIGIN ?? '').replace(/\/$/, '');
@@ -51,6 +56,16 @@ export async function scanTranscripts(signal?: AbortSignal): Promise<ScanResult>
   if (resp.status === 409) throw new Error('Scan already in progress');
   if (!resp.ok) throw new Error(`Scan failed: ${resp.status}`);
   return resp.json();
+}
+
+export async function fetchTranscriptReasoning(
+  sessionId: string,
+  signal?: AbortSignal,
+): Promise<ReasoningData | null> {
+  const resp = await fetch(apiUrl(`/api/transcript/${sessionId}/reasoning`), { signal });
+  if (!resp.ok) return null;
+  const data = await resp.json();
+  return data.found === false ? null : data;
 }
 
 export async function fetchHistory(

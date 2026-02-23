@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { TOOL_COLORS } from './constants';
 
 interface ToolBadgesProps {
@@ -25,7 +28,8 @@ export function ToolBadges({ toolNames, toolCounts, label }: ToolBadgesProps) {
                 color: TOOL_COLORS[name] ?? '#6b7280',
               }}
             >
-              {name}{count != null && count > 1 ? ` \u00d7${count}` : ''}
+              {name}
+              {count != null && count > 1 ? ` \u00d7${count}` : ''}
             </span>
           );
         })}

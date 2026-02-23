@@ -2,6 +2,7 @@
   "name": "@synapse-ai/openclaw",
   "version": "0.1.0",
   "description": "Real-time AI agent monitoring dashboard for OpenClaw",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "main": "dist/plugin.js",
   "types": "dist/plugin.d.ts",
@@ -19,7 +20,9 @@
       "import": "./dist/plugin.js"
     }
   },
-  "files": ["dist/"],
+  "files": [
+    "dist/"
+  ],
   "scripts": {
     "build": "node esbuild.mjs",
     "simulate": "tsx scripts/simulate_openclaw.ts",

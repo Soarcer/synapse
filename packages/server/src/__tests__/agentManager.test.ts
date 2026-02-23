@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import type { SpawnAgentRequest } from '@synapse-ai/core';
 import type { Broadcaster } from '../services/broadcaster';
 
@@ -16,7 +19,7 @@ vi.mock('../db', () => ({
 // Mock nanoid to produce deterministic IDs
 let nanoidCounter = 0;
 vi.mock('nanoid', () => ({
-  nanoid: (size?: number) => `id-${++nanoidCounter}`,
+  nanoid: (_size?: number) => `id-${++nanoidCounter}`,
 }));
 
 // Silence logger output during tests

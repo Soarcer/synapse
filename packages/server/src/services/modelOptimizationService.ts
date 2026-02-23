@@ -1,6 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { analyticsQueryAll } from '../db.js';
-import { getPrice } from './costService.js';
-import { logger } from '../lib/logger.js';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -52,8 +53,14 @@ export interface ModelOptimizationResult {
 // ─── Model Definitions ──────────────────────────────────────────────
 
 const MODELS = [
-  { id: 'claude-opus-4-6', label: 'Opus 4.6', inputPer1M: 15, outputPer1M: 75, cachedPer1M: 1.50 },
-  { id: 'claude-sonnet-4-5', label: 'Sonnet 4.5', inputPer1M: 3, outputPer1M: 15, cachedPer1M: 0.30 },
+  { id: 'claude-opus-4-6', label: 'Opus 4.6', inputPer1M: 15, outputPer1M: 75, cachedPer1M: 1.5 },
+  {
+    id: 'claude-sonnet-4-5',
+    label: 'Sonnet 4.5',
+    inputPer1M: 3,
+    outputPer1M: 15,
+    cachedPer1M: 0.3,
+  },
   { id: 'claude-haiku-4-5', label: 'Haiku 4.5', inputPer1M: 1, outputPer1M: 5, cachedPer1M: 0.08 },
 ];
 
@@ -61,7 +68,8 @@ const MODELS = [
 
 function classifyTurnComplexity(turn: TurnData): 'simple' | 'moderate' | 'complex' {
   // Complex: many tools, thinking tokens, high output
-  if (turn.thinkingTokens > 5000 || turn.toolCount > 5 || turn.outputTokens > 10000) return 'complex';
+  if (turn.thinkingTokens > 5000 || turn.toolCount > 5 || turn.outputTokens > 10000)
+    return 'complex';
   // Simple: few or no tools, low output
   if (turn.toolCount <= 1 && turn.outputTokens < 2000 && turn.thinkingTokens === 0) return 'simple';
   return 'moderate';
@@ -81,9 +89,12 @@ function computeTurnCost(turn: TurnData, modelId: string): number {
 
 function suggestModel(complexity: 'simple' | 'moderate' | 'complex'): string {
   switch (complexity) {
-    case 'simple': return 'claude-haiku-4-5';
-    case 'moderate': return 'claude-sonnet-4-5';
-    case 'complex': return 'claude-opus-4-6';
+    case 'simple':
+      return 'claude-haiku-4-5';
+    case 'moderate':
+      return 'claude-sonnet-4-5';
+    case 'complex':
+      return 'claude-opus-4-6';
   }
 }
 
@@ -111,9 +122,13 @@ export function computeModelOptimization(
   // Get turn-level data from transcripts
   const conditions = ['t.created_at >= ? AND t.created_at <= ?'];
   const params: unknown[] = [from, to];
-  if (cwd) { conditions.push('t.cwd = ?'); params.push(cwd); }
+  if (cwd) {
+    conditions.push('t.cwd = ?');
+    params.push(cwd);
+  }
 
-  const rows = analyticsQueryAll(`
+  const rows = analyticsQueryAll(
+    `
     SELECT
       t.session_id as sessionId,
       t.turn_index as turnIndex,
@@ -128,13 +143,21 @@ export function computeModelOptimization(
     WHERE ${conditions.join(' AND ')}
     ORDER BY t.created_at
     LIMIT 1000
-  `, params) as unknown as TurnData[];
+  `,
+    params,
+  ) as unknown as TurnData[];
 
   if (rows.length === 0) {
     return {
       currentTotalCost: 0,
       turnCount: 0,
-      alternatives: MODELS.map((m) => ({ model: m.id, label: m.label, cost: 0, savings: 0, savingsPct: 0 })),
+      alternatives: MODELS.map((m) => ({
+        model: m.id,
+        label: m.label,
+        cost: 0,
+        savings: 0,
+        savingsPct: 0,
+      })),
       topSwitchingOpportunities: [],
       summary: { simpleTurns: 0, complexTurns: 0, potentialSavings: 0, potentialSavingsPct: 0 },
     };

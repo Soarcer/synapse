@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import path from 'path';
@@ -61,7 +64,16 @@ function makeSummary(overrides: Partial<TranscriptSummary> = {}): TranscriptSumm
     totalOutputTokens: 200,
     totalCacheReadTokens: 0,
     totalCacheCreationTokens: 0,
-    modelUsage: [{ model: 'claude-sonnet-4-20250514', calls: 1, inputTokens: 500, outputTokens: 200, cacheReadTokens: 0, cacheCreationTokens: 0 }],
+    modelUsage: [
+      {
+        model: 'claude-sonnet-4-20250514',
+        calls: 1,
+        inputTokens: 500,
+        outputTokens: 200,
+        cacheReadTokens: 0,
+        cacheCreationTokens: 0,
+      },
+    ],
     estimatedCostUsd: 0.005,
     avgCacheHitRate: 0,
     peakCacheHitRate: 0,
@@ -111,7 +123,8 @@ describe('scanTranscriptsInDir', () => {
     fs.writeFileSync(path.join(tmpDir, 'session-bbb.jsonl'), '{"type":"user"}\n');
 
     const { readTranscript } = await import('../services/transcriptReader.js');
-    const { upsertTranscriptIndex, getTranscriptIndexEntry, isLiveSession } = await import('../db.js');
+    const { upsertTranscriptIndex, getTranscriptIndexEntry, isLiveSession } =
+      await import('../db.js');
 
     (isLiveSession as ReturnType<typeof vi.fn>).mockReturnValue(false);
     (getTranscriptIndexEntry as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
@@ -176,11 +189,13 @@ describe('scanTranscriptsInDir', () => {
 
   it('re-indexes files that have grown', async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'synapse-scanner-test-'));
-    const content = '{"type":"user"}\n{"type":"assistant","message":{"model":"claude-sonnet-4-20250514","content":[]}}\n';
+    const content =
+      '{"type":"user"}\n{"type":"assistant","message":{"model":"claude-sonnet-4-20250514","content":[]}}\n';
     fs.writeFileSync(path.join(tmpDir, 'grown.jsonl'), content);
     const actualSize = fs.statSync(path.join(tmpDir, 'grown.jsonl')).size;
 
-    const { getTranscriptIndexEntry, isLiveSession, upsertTranscriptIndex } = await import('../db.js');
+    const { getTranscriptIndexEntry, isLiveSession, upsertTranscriptIndex } =
+      await import('../db.js');
     const { readTranscript } = await import('../services/transcriptReader.js');
 
     (isLiveSession as ReturnType<typeof vi.fn>).mockReturnValue(false);
@@ -240,7 +255,8 @@ describe('scanTranscriptsInDir', () => {
     fs.writeFileSync(path.join(tmpDir, 'bad-file.jsonl'), '{"type":"user"}\n');
 
     const { readTranscript } = await import('../services/transcriptReader.js');
-    const { isLiveSession, getTranscriptIndexEntry, upsertTranscriptIndex } = await import('../db.js');
+    const { isLiveSession, getTranscriptIndexEntry, upsertTranscriptIndex } =
+      await import('../db.js');
 
     (isLiveSession as ReturnType<typeof vi.fn>).mockReturnValue(false);
     (getTranscriptIndexEntry as ReturnType<typeof vi.fn>).mockReturnValue(undefined);

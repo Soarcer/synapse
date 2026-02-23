@@ -1,7 +1,14 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import fs from 'fs';
 import { Router, type Request, type Response } from 'express';
 import { logger } from '../lib/logger.js';
-import { findTranscriptPath, readTranscript, readFullTranscript } from '../services/transcriptReader.js';
+import {
+  findTranscriptPath,
+  readTranscript,
+  readFullTranscript,
+} from '../services/transcriptReader.js';
 import { parseThinking } from '../services/thinkingParser.js';
 import {
   scanProjectTranscripts,
@@ -12,7 +19,7 @@ import { queryEvents } from '../db.js';
 import type { ReasoningTurn, ReasoningToolCall, ReasoningData } from '@synapse-ai/core';
 
 /** Resolve transcript path for a session, checking DB then scanning dirs */
-function resolveTranscriptPath(sessionId: string): string | null {
+async function resolveTranscriptPath(sessionId: string): Promise<string | null> {
   let transcriptPath: string | null = null;
 
   const rows = queryEvents({ sessionId, type: 'session_start', limit: 1 });
@@ -22,11 +29,13 @@ function resolveTranscriptPath(sessionId: string): string | null {
       if (raw.transcript_path && fs.existsSync(raw.transcript_path)) {
         transcriptPath = raw.transcript_path;
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   if (!transcriptPath) {
-    transcriptPath = findTranscriptPath(sessionId, process.cwd());
+    transcriptPath = await findTranscriptPath(sessionId, process.cwd());
   }
 
   if (!transcriptPath || !fs.existsSync(transcriptPath)) return null;
@@ -60,7 +69,7 @@ export function createTranscriptRouter(): Router {
       const { sessions, total } = getHistorySessions(limit, offset);
 
       res.json({
-        sessions: sessions.map(s => ({
+        sessions: sessions.map((s) => ({
           sessionId: s.session_id,
           projectHash: s.project_hash,
           transcriptPath: s.transcript_path,
@@ -86,22 +95,66 @@ export function createTranscriptRouter(): Router {
     }
   });
 
+  // POST /api/transcript/batch — fetch summaries for multiple sessions
+  router.post('/batch', async (req: Request, res: Response) => {
+    try {
+      const { sessionIds } = req.body as { sessionIds?: string[] };
+
+      if (!Array.isArray(sessionIds) || sessionIds.length === 0) {
+        res.status(400).json({ error: 'sessionIds array required' });
+        return;
+      }
+      if (sessionIds.length > 20) {
+        res.status(400).json({ error: 'Maximum 20 session IDs per batch' });
+        return;
+      }
+
+      const results: Record<string, unknown> = {};
+
+      await Promise.all(
+        sessionIds.map(async (sessionId) => {
+          try {
+            const transcriptPath = await resolveTranscriptPath(sessionId);
+            if (!transcriptPath) {
+              results[sessionId] = null;
+              return;
+            }
+            results[sessionId] = await readTranscript(transcriptPath, sessionId);
+          } catch {
+            results[sessionId] = null;
+          }
+        }),
+      );
+
+      res.json(results);
+    } catch (err: unknown) {
+      logger.error({ err }, 'Batch transcript error');
+      res.status(500).json({ error: 'Batch transcript read failed' });
+    }
+  });
+
   // GET /api/transcript/:sessionId/full — full transcript with all record types
-  router.get('/:sessionId/full', (req: Request, res: Response) => {
+  router.get('/:sessionId/full', async (req: Request, res: Response) => {
     try {
       const sessionId = req.params.sessionId as string;
-      const transcriptPath = resolveTranscriptPath(sessionId);
+      const transcriptPath = await resolveTranscriptPath(sessionId);
 
       if (!transcriptPath) {
         res.status(404).json({ error: 'Transcript not found', sessionId });
         return;
       }
 
-      const fullTranscript = readFullTranscript(transcriptPath, sessionId);
+      const fullTranscript = await readFullTranscript(transcriptPath, sessionId);
       res.json(fullTranscript);
     } catch (err: unknown) {
-      if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT') {
-        res.status(404).json({ error: 'Transcript not found', sessionId: req.params.sessionId as string });
+      if (
+        err instanceof Error &&
+        'code' in err &&
+        (err as NodeJS.ErrnoException).code === 'ENOENT'
+      ) {
+        res
+          .status(404)
+          .json({ error: 'Transcript not found', sessionId: req.params.sessionId as string });
         return;
       }
       logger.error({ err }, 'Full transcript error');
@@ -110,20 +163,23 @@ export function createTranscriptRouter(): Router {
   });
 
   // GET /api/transcript/:sessionId/reasoning — thinking blocks + linked tool calls
-  router.get('/:sessionId/reasoning', (req: Request, res: Response) => {
+  router.get('/:sessionId/reasoning', async (req: Request, res: Response) => {
     try {
       const sessionId = req.params.sessionId as string;
-      const transcriptPath = resolveTranscriptPath(sessionId);
+      const transcriptPath = await resolveTranscriptPath(sessionId);
 
       if (!transcriptPath) {
         res.status(404).json({ error: 'Transcript not found', sessionId });
         return;
       }
 
-      const full = readFullTranscript(transcriptPath, sessionId);
+      const full = await readFullTranscript(transcriptPath, sessionId);
 
       // Build a map of tool_use_id → tool_result for linking
-      const toolResultMap = new Map<string, { content: string; is_error: boolean; timestamp: number }>();
+      const toolResultMap = new Map<
+        string,
+        { content: string; is_error: boolean; timestamp: number }
+      >();
       for (const conv of full.conversations) {
         for (const block of conv.content) {
           if (block.type === 'tool_result') {
@@ -141,24 +197,22 @@ export function createTranscriptRouter(): Router {
       for (const conv of full.conversations) {
         if (conv.type !== 'assistant') continue;
 
-        const thinkingBlocks = conv.content.filter(b => b.type === 'thinking');
-        const textBlocks = conv.content.filter(b => b.type === 'text');
-        const toolUseBlocks = conv.content.filter(b => b.type === 'tool_use');
+        const thinkingBlocks = conv.content.filter((b) => b.type === 'thinking');
+        const textBlocks = conv.content.filter((b) => b.type === 'text');
+        const toolUseBlocks = conv.content.filter((b) => b.type === 'tool_use');
 
         // Skip turns with no thinking and no tool calls
         if (thinkingBlocks.length === 0 && toolUseBlocks.length === 0) continue;
 
-        const thinkingText = thinkingBlocks
-          .map(b => b.type === 'thinking' ? b.thinking : '')
-          .join('\n\n') || null;
+        const thinkingText =
+          thinkingBlocks.map((b) => (b.type === 'thinking' ? b.thinking : '')).join('\n\n') || null;
 
-        const responseText = textBlocks
-          .map(b => b.type === 'text' ? b.text : '')
-          .join('\n\n') || null;
+        const responseText =
+          textBlocks.map((b) => (b.type === 'text' ? b.text : '')).join('\n\n') || null;
 
         const toolCalls: ReasoningToolCall[] = toolUseBlocks
           .filter((b): b is Extract<typeof b, { type: 'tool_use' }> => b.type === 'tool_use')
-          .map(b => {
+          .map((b) => {
             const result = toolResultMap.get(b.id);
             return {
               id: b.id,
@@ -193,8 +247,14 @@ export function createTranscriptRouter(): Router {
       const data: ReasoningData = { sessionId, turns };
       res.json(data);
     } catch (err: unknown) {
-      if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT') {
-        res.status(404).json({ error: 'Transcript not found', sessionId: req.params.sessionId as string });
+      if (
+        err instanceof Error &&
+        'code' in err &&
+        (err as NodeJS.ErrnoException).code === 'ENOENT'
+      ) {
+        res
+          .status(404)
+          .json({ error: 'Transcript not found', sessionId: req.params.sessionId as string });
         return;
       }
       logger.error({ err }, 'Reasoning endpoint error');
@@ -205,20 +265,24 @@ export function createTranscriptRouter(): Router {
   // GET /api/transcript/:sessionId — parse JSONL transcript for a session (summary)
   // Returns 200 with empty data when transcript is unavailable (not 404)
   // to avoid browser console errors from bulk-fetching all sessions.
-  router.get('/:sessionId', (req: Request, res: Response) => {
+  router.get('/:sessionId', async (req: Request, res: Response) => {
     try {
       const sessionId = req.params.sessionId as string;
-      const transcriptPath = resolveTranscriptPath(sessionId);
+      const transcriptPath = await resolveTranscriptPath(sessionId);
 
       if (!transcriptPath) {
         res.json({ sessionId, turns: [], found: false });
         return;
       }
 
-      const summary = readTranscript(transcriptPath, sessionId);
+      const summary = await readTranscript(transcriptPath, sessionId);
       res.json(summary);
     } catch (err: unknown) {
-      if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT') {
+      if (
+        err instanceof Error &&
+        'code' in err &&
+        (err as NodeJS.ErrnoException).code === 'ENOENT'
+      ) {
         res.json({ sessionId: req.params.sessionId as string, turns: [], found: false });
         return;
       }
@@ -228,7 +292,7 @@ export function createTranscriptRouter(): Router {
   });
 
   // GET /api/transcript — list available transcripts for all known sessions
-  router.get('/', (_req: Request, res: Response) => {
+  router.get('/', async (_req: Request, res: Response) => {
     try {
       // Get unique session IDs from events
       const rows = queryEvents({ type: 'session_start', limit: 100 });
@@ -239,9 +303,11 @@ export function createTranscriptRouter(): Router {
         try {
           const raw = JSON.parse(row.raw_payload);
           if (raw.transcript_path && fs.existsSync(raw.transcript_path)) tp = raw.transcript_path;
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
 
-        if (!tp) tp = findTranscriptPath(row.session_id, process.cwd());
+        if (!tp) tp = await findTranscriptPath(row.session_id, process.cwd());
 
         available.push({ sessionId: row.session_id, transcriptPath: tp });
       }

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Synapse Contributors
+
 import { WebSocket } from 'ws';
 import { logger } from '../lib/logger.js';
 import type { AgentEvent, WsServerMessage, ActiveAgentInfo, CoachingNudge } from '@synapse-ai/core';

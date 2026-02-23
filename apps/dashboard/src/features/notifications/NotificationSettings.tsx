@@ -9,8 +9,6 @@ interface Props {
 }
 
 export function NotificationSettings({ onClose }: Props) {
-  if (!NOTIFICATIONS_ENABLED) return null;
-
   const enabled = useNotificationStore((s) => s.enabled);
   const setEnabled = useNotificationStore((s) => s.setEnabled);
   const showToasts = useNotificationStore((s) => s.showToasts);
@@ -18,15 +16,43 @@ export function NotificationSettings({ onClose }: Props) {
   const showPulse = useNotificationStore((s) => s.showPulse);
   const setShowPulse = useNotificationStore((s) => s.setShowPulse);
 
+  if (!NOTIFICATIONS_ENABLED) return null;
+
   const toggles = [
-    { label: 'Show Alerts', key: 'A', active: enabled, onToggle: () => { setEnabled(!enabled); onClose(); } },
-    { label: 'Toast Popups', key: '', active: showToasts, onToggle: () => { setShowToasts(!showToasts); onClose(); } },
-    { label: 'Graph Pulse', key: '', active: showPulse, onToggle: () => { setShowPulse(!showPulse); onClose(); } },
+    {
+      label: 'Show Alerts',
+      key: 'A',
+      active: enabled,
+      onToggle: () => {
+        setEnabled(!enabled);
+        onClose();
+      },
+    },
+    {
+      label: 'Toast Popups',
+      key: '',
+      active: showToasts,
+      onToggle: () => {
+        setShowToasts(!showToasts);
+        onClose();
+      },
+    },
+    {
+      label: 'Graph Pulse',
+      key: '',
+      active: showPulse,
+      onToggle: () => {
+        setShowPulse(!showPulse);
+        onClose();
+      },
+    },
   ];
 
   return (
     <div className="border-t border-gray-700/50 mt-1 pt-1">
-      <div className="px-2 py-1 text-[10px] text-gray-500 uppercase tracking-wider">Notifications</div>
+      <div className="px-2 py-1 text-[10px] text-gray-500 uppercase tracking-wider">
+        Notifications
+      </div>
       {toggles.map(({ label, key, active, onToggle }) => (
         <button
           key={label}
@@ -35,7 +61,9 @@ export function NotificationSettings({ onClose }: Props) {
           role="switch"
           aria-checked={active}
         >
-          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${active ? 'bg-green-400' : 'bg-gray-600'}`} />
+          <span
+            className={`w-2 h-2 rounded-full flex-shrink-0 ${active ? 'bg-green-400' : 'bg-gray-600'}`}
+          />
           <span className="flex-1">{label}</span>
           {key && <kbd className="text-[10px] text-gray-600 bg-gray-800 px-1 rounded">{key}</kbd>}
         </button>
