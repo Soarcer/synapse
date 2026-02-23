@@ -84,9 +84,9 @@ describe('tourStore', () => {
     useTourStore.getState().startTour();
     useTourStore.getState().transitionToManual();
 
-    // Chapter 0 (graph) has 10 steps — advance to step 9 (last)
+    // Chapter 0 (graph) has 5 steps — advance to last
     const ch0Len = useTourStore.getState().currentChapterLength();
-    expect(ch0Len).toBe(10);
+    expect(ch0Len).toBe(5);
     for (let i = 0; i < ch0Len - 1; i++) {
       useTourStore.getState().nextStep();
     }
@@ -127,7 +127,7 @@ describe('tourStore', () => {
       useTourStore.getState().nextStep();
     }
     // Verify we're on the last chapter, last step
-    expect(useTourStore.getState().chapterIndex).toBe(6); // pixelChapter (index 6)
+    expect(useTourStore.getState().chapterIndex).toBe(5); // analyticsChapter (index 5)
     expect(useTourStore.getState().stepIndex).toBe(1); // last step (2 steps, index 1)
     expect(useTourStore.getState().active).toBe(true);
 
@@ -177,23 +177,22 @@ describe('tourStore', () => {
     useTourStore.getState().nextStep();
     expect(useTourStore.getState().globalStepIndex()).toBe(2);
 
-    // Move to chapter 1, step 0 → globalStepIndex = ch0.length (10)
+    // Move to chapter 1, step 0 → globalStepIndex = ch0.length (5)
     useTourStore.getState().goToChapter(1);
-    expect(useTourStore.getState().globalStepIndex()).toBe(10);
+    expect(useTourStore.getState().globalStepIndex()).toBe(5);
 
-    // Move to chapter 2, step 0 → globalStepIndex = ch0 (10) + ch1 (8) = 18
+    // Move to chapter 2, step 0 → globalStepIndex = ch0 (5) + ch1 (3) = 8
     useTourStore.getState().goToChapter(2);
-    expect(useTourStore.getState().globalStepIndex()).toBe(18);
+    expect(useTourStore.getState().globalStepIndex()).toBe(8);
 
-    // Advance 3 steps into chapter 2 → 18 + 3 = 21
+    // Advance 2 steps into chapter 2 → 8 + 2 = 10
     useTourStore.getState().nextStep();
     useTourStore.getState().nextStep();
-    useTourStore.getState().nextStep();
-    expect(useTourStore.getState().globalStepIndex()).toBe(21);
+    expect(useTourStore.getState().globalStepIndex()).toBe(10);
   });
 
   it('totalSteps sums all chapter step counts', () => {
-    // 10 + 8 + 6 + 7 + 6 + 2 + 2 = 41
-    expect(useTourStore.getState().totalSteps()).toBe(41);
+    // 5 + 3 + 3 + 3 + 2 + 2 = 18
+    expect(useTourStore.getState().totalSteps()).toBe(18);
   });
 });

@@ -3,45 +3,47 @@
 
 import type { TourChapter } from '../constants';
 
+/** Select an agent node so the detail panel opens. */
+function selectDemoAgent(): void {
+  import('../../../store/agentStore').then(({ useAgentStore }) => {
+    useAgentStore.getState().selectNode('agent-tour-agent-explore', 'graph');
+  });
+}
+
+/** Expand the timeline panel if it's collapsed. */
+function expandTimeline(): void {
+  const panel = document.querySelector('[aria-label="Timeline panel"]');
+  if (!panel) return;
+  // Check if there's no expanded content — the button is the toggle
+  const btn = panel.querySelector('button');
+  const content = panel.querySelector('.overflow-auto');
+  if (btn && !content) btn.click();
+}
+
 export const panelChapter: TourChapter = {
   id: 'panels',
   titleKey: 'tour.chapter.panels',
   steps: [
     {
-      target: '[data-id^="agent-"]',
-      titleKey: 'tour.panels.selectNode.title',
-      bodyKey: 'tour.panels.selectNode.body',
-      placement: 'right',
-    },
-    {
       target: '[aria-label="Agent detail panel"]',
       titleKey: 'tour.panels.agentDetail.title',
       bodyKey: 'tour.panels.agentDetail.body',
       placement: 'left',
+      onEnter: selectDemoAgent,
     },
     {
-      target: '[aria-label="Reasoning section"]',
+      target: '[aria-label="Agent detail panel"]',
       titleKey: 'tour.panels.reasoning.title',
       bodyKey: 'tour.panels.reasoning.body',
       placement: 'left',
+      onEnter: selectDemoAgent,
     },
     {
       target: '[aria-label="Timeline panel"]',
       titleKey: 'tour.panels.timeline.title',
       bodyKey: 'tour.panels.timeline.body',
       placement: 'top',
-    },
-    {
-      target: '[aria-label="Tool log panel"]',
-      titleKey: 'tour.panels.toolLog.title',
-      bodyKey: 'tour.panels.toolLog.body',
-      placement: 'left',
-    },
-    {
-      target: '.react-flow__renderer',
-      titleKey: 'tour.panels.keyboardNav.title',
-      bodyKey: 'tour.panels.keyboardNav.body',
-      placement: 'bottom',
+      onEnter: expandTimeline,
     },
   ],
 };

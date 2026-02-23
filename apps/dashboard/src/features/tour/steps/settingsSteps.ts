@@ -3,45 +3,33 @@
 
 import type { TourChapter } from '../constants';
 
+/** Open the settings dropdown if it isn't already open. */
+function openSettingsDropdown(): void {
+  const btn = document.querySelector<HTMLButtonElement>('[aria-label="View settings"]');
+  if (!btn) return;
+  // aria-expanded="true" means it's already open
+  if (btn.getAttribute('aria-expanded') !== 'true') {
+    btn.click();
+  }
+}
+
 export const settingsChapter: TourChapter = {
   id: 'settings',
   titleKey: 'tour.chapter.settings',
   steps: [
     {
-      target: '[aria-label="View settings"]',
+      target: '[data-tour="settings-dropdown"]',
       titleKey: 'tour.settings.overview.title',
       bodyKey: 'tour.settings.overview.body',
-      placement: 'bottom',
+      placement: 'left',
+      onEnter: openSettingsDropdown,
     },
     {
-      target: '[aria-label="View settings"]',
-      titleKey: 'tour.settings.lockViewport.title',
-      bodyKey: 'tour.settings.lockViewport.body',
-      placement: 'bottom',
-    },
-    {
-      target: '[aria-label="View settings"]',
-      titleKey: 'tour.settings.expandTools.title',
-      bodyKey: 'tour.settings.expandTools.body',
-      placement: 'bottom',
-    },
-    {
-      target: '[aria-label="View settings"]',
-      titleKey: 'tour.settings.hookEvents.title',
-      bodyKey: 'tour.settings.hookEvents.body',
-      placement: 'bottom',
-    },
-    {
-      target: '[aria-label="View settings"]',
-      titleKey: 'tour.settings.autoClosePrompts.title',
-      bodyKey: 'tour.settings.autoClosePrompts.body',
-      placement: 'bottom',
-    },
-    {
-      target: '[aria-label="View settings"]',
+      target: '[data-tour="settings-dropdown"]',
       titleKey: 'tour.settings.toolViewModes.title',
       bodyKey: 'tour.settings.toolViewModes.body',
-      placement: 'bottom',
+      placement: 'left',
+      onEnter: openSettingsDropdown,
     },
   ],
 };

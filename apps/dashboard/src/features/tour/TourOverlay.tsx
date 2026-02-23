@@ -28,7 +28,20 @@ function getTargetRect(selector: string): Rect | null {
   const el = document.querySelector(selector);
   if (!el) return null;
   const r = el.getBoundingClientRect();
-  return { top: r.top, left: r.left, width: r.width, height: r.height };
+  let top = r.top, left = r.left, right = r.right, bottom = r.bottom;
+
+  // Expand to include direct children that overflow the element
+  // (e.g., absolutely-positioned dropdown menus below a button wrapper)
+  for (const child of el.children) {
+    const cr = child.getBoundingClientRect();
+    if (cr.width === 0 || cr.height === 0) continue;
+    top = Math.min(top, cr.top);
+    left = Math.min(left, cr.left);
+    right = Math.max(right, cr.right);
+    bottom = Math.max(bottom, cr.bottom);
+  }
+
+  return { top, left, width: right - left, height: bottom - top };
 }
 
 /** Continuously track a DOM element's position (accounts for zoom/pan animations). */
@@ -146,13 +159,16 @@ function ManualOverlay() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- handleNext/handleFinishHere change every render; refs keep them current
   }, [nextStep, prevStep, endTour, showContinuation, isAtOptionalBoundary]);
 
   // Fire onEnter + zoom to graph node when step changes
   const onEnterRef = useRef(step?.onEnter);
-  onEnterRef.current = step?.onEnter;
   const targetRef = useRef(target);
-  targetRef.current = target;
+  useEffect(() => {
+    onEnterRef.current = step?.onEnter;
+    targetRef.current = target;
+  });
   useEffect(() => {
     onEnterRef.current?.();
     // Zoom to the target node if it's a graph node — uses selectNode('lens')
@@ -162,6 +178,7 @@ function ManualOverlay() {
     const timer = setTimeout(() => focusGraphNode(targetRef.current), 150);
     return () => clearTimeout(timer);
   }, [globalIndex]);
+
 
   if (!chapter || !step) return null;
 
@@ -213,18 +230,16 @@ function ManualOverlay() {
           {t(step.bodyKey)}
         </div>
 
-        {/* Progress */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex gap-1">
-            {Array.from({ length: totalSteps }, (_, i) => (
-              <span
-                key={i}
-                className={`w-1.5 h-1.5 rounded-full ${i === globalIndex ? 'bg-violet-500' : i < globalIndex ? 'bg-violet-500/50' : 'bg-violet-500/15'}`}
-              />
-            ))}
+        {/* Progress bar */}
+        <div className="flex items-center gap-3 mb-3">
+          <div className="flex-1 h-1 rounded-full bg-violet-500/15 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-violet-500 transition-all duration-300"
+              style={{ width: `${((globalIndex + 1) / totalSteps) * 100}%` }}
+            />
           </div>
-          <span className="text-[11px] text-gray-500">
-            {globalIndex + 1} / {totalSteps}
+          <span className="text-[11px] text-gray-500 tabular-nums whitespace-nowrap">
+            {globalIndex + 1}/{totalSteps}
           </span>
         </div>
 
@@ -332,29 +347,89 @@ function AutoPlayOverlay() {
   );
 }
 
+/** Card dimensions (w-80 = 320px, estimated height ~240px) */
+const CARD_W = 320;
+const CARD_H = 240;
+const VIEWPORT_MARGIN = 12;
+
 function computeCardPosition(
   rect: Rect | null,
   placement: string,
 ): React.CSSProperties {
   if (!rect)
     return { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
+
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
   const PAD_OFFSET = 24;
-  switch (placement) {
+
+  // Compute ideal position for the requested placement
+  let top: number;
+  let left: number;
+
+  // Try preferred placement, flip if it would overflow
+  const effectivePlacement = pickPlacement(rect, placement, vw, vh, PAD_OFFSET);
+
+  switch (effectivePlacement) {
     case 'right':
-      return { top: rect.top, left: rect.left + rect.width + PAD_OFFSET };
+      top = rect.top;
+      left = rect.left + rect.width + PAD_OFFSET;
+      break;
     case 'left':
-      return { top: rect.top, left: rect.left - 320 - PAD_OFFSET };
+      top = rect.top;
+      left = rect.left - CARD_W - PAD_OFFSET;
+      break;
     case 'bottom':
-      return {
-        top: rect.top + rect.height + 16,
-        left: rect.left + rect.width / 2 - 160,
-      };
+      top = rect.top + rect.height + 16;
+      left = rect.left + rect.width / 2 - CARD_W / 2;
+      break;
     case 'top':
-      return {
-        top: rect.top - 200,
-        left: rect.left + rect.width / 2 - 160,
-      };
+      top = rect.top - CARD_H - 16;
+      left = rect.left + rect.width / 2 - CARD_W / 2;
+      break;
     default:
-      return { top: rect.top, left: rect.left + rect.width + PAD_OFFSET };
+      top = rect.top;
+      left = rect.left + rect.width + PAD_OFFSET;
+  }
+
+  // Clamp to viewport bounds
+  top = Math.max(VIEWPORT_MARGIN, Math.min(top, vh - CARD_H - VIEWPORT_MARGIN));
+  left = Math.max(VIEWPORT_MARGIN, Math.min(left, vw - CARD_W - VIEWPORT_MARGIN));
+
+  return { top, left };
+}
+
+/** Pick the best placement, flipping if the preferred side overflows. */
+function pickPlacement(
+  rect: Rect,
+  preferred: string,
+  vw: number,
+  vh: number,
+  pad: number,
+): string {
+  const spaceRight = vw - (rect.left + rect.width + pad);
+  const spaceLeft = rect.left - pad;
+  const spaceBottom = vh - (rect.top + rect.height + 16);
+  const spaceTop = rect.top - 16;
+
+  switch (preferred) {
+    case 'right':
+      if (spaceRight >= CARD_W) return 'right';
+      if (spaceLeft >= CARD_W) return 'left';
+      return spaceBottom >= CARD_H ? 'bottom' : 'top';
+    case 'left':
+      if (spaceLeft >= CARD_W) return 'left';
+      if (spaceRight >= CARD_W) return 'right';
+      return spaceBottom >= CARD_H ? 'bottom' : 'top';
+    case 'bottom':
+      if (spaceBottom >= CARD_H) return 'bottom';
+      if (spaceTop >= CARD_H) return 'top';
+      return spaceRight >= CARD_W ? 'right' : 'left';
+    case 'top':
+      if (spaceTop >= CARD_H) return 'top';
+      if (spaceBottom >= CARD_H) return 'bottom';
+      return spaceRight >= CARD_W ? 'right' : 'left';
+    default:
+      return preferred;
   }
 }

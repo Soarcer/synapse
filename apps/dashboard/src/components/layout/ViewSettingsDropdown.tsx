@@ -35,7 +35,10 @@ export function ViewSettingsDropdown() {
   useEffect(() => {
     if (!open) return;
     const handle = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      // Don't close when clicking on tour overlay elements
+      const target = e.target as HTMLElement;
+      if (target.closest('[aria-modal="true"]') || target.closest('.tour-card-enter')) return;
+      if (ref.current && !ref.current.contains(target)) setOpen(false);
     };
     document.addEventListener('mousedown', handle);
     return () => document.removeEventListener('mousedown', handle);
@@ -52,7 +55,7 @@ export function ViewSettingsDropdown() {
   const activeCount = [lockViewport, showAllTools, autoClosePrompts, !showHookEvents].filter(Boolean).length;
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative" data-tour="settings-dropdown">
       <Tooltip content="View settings">
       <button
         onClick={() => setOpen(!open)}
