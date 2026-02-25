@@ -91,6 +91,16 @@ export default function App() {
     };
   }, [viewMode]);
 
+  // Inform the user when the Vite proxy is about to restart due to a server port change.
+  // The synapse:port-changing HMR event is sent by the synapsePortWatcher Vite plugin.
+  useEffect(() => {
+    if (!import.meta.hot) return; // No-op in production builds
+    const cleanup = import.meta.hot.on('synapse:port-changing', (data: { port: string }) => {
+      toast(`Server restarted on port ${data.port} — reconnecting…`, 'info');
+    });
+    return cleanup;
+  }, []);
+
   // Listen for messages from VS Code extension (cross-panel sync + event relay)
   useEffect(() => {
     if (viewMode === 'full' || viewMode === 'mobile') return;
@@ -274,6 +284,10 @@ export default function App() {
         const store = useAgentStore.getState();
         store.setAutoClosePrompts(!store.autoClosePrompts);
       }
+      if (e.key === 'l' && !e.ctrlKey && !e.metaKey) {
+        const store = useAgentStore.getState();
+        store.setLensVisible(!store.lensVisible);
+      }
       if (e.key === 'a' && !e.ctrlKey && !e.metaKey) {
         // [notifications]
         const s = useNotificationStore.getState();
@@ -373,7 +387,8 @@ export default function App() {
 
 function FullView() {
   const bp = useBreakpoint();
-  const showLens = bp !== 'sm';
+  const lensVisible = useAgentStore((s) => s.lensVisible);
+  const showLens = bp !== 'sm' && lensVisible;
 
   return (
     <div className="h-screen w-screen flex flex-col bg-[#0d1117] text-gray-200 overflow-hidden">
