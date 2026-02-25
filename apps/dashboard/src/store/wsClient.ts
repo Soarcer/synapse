@@ -44,7 +44,11 @@ class WSClient {
   }
 
   connect() {
-    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return;
+    if (
+      this.ws &&
+      (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)
+    )
+      return;
 
     this.shouldReconnect = true;
     this.setStatus('reconnecting');
@@ -148,13 +152,13 @@ class WSClient {
   }
 }
 
-// Determine WS URL: allow override via VITE_WS_URL
+// Determine WS URL: allow override via VITE_WS_URL.
+// Always use window.location.host (includes port), which routes through the
+// Vite proxy in dev and hits the real origin in production. Never hardcode
+// the backend port here — that bypassed the proxy and broke port auto-discovery.
 const envWsUrl = import.meta.env.VITE_WS_URL as string | undefined;
-const wsUrl =
-  envWsUrl?.trim()
-    ? envWsUrl
-    : import.meta.env.DEV
-        ? `ws://${window.location.hostname}:4000/ws`
-        : `ws${window.location.protocol === 'https:' ? 's' : ''}://${window.location.host}/ws`;
+const wsUrl = envWsUrl?.trim()
+  ? envWsUrl
+  : `ws${window.location.protocol === 'https:' ? 's' : ''}://${window.location.host}/ws`;
 
 export const wsClient = new WSClient(wsUrl);
