@@ -11,7 +11,7 @@ import {
   useReactFlow,
   ReactFlowProvider,
 } from '@xyflow/react';
-import type { NodeChange } from '@xyflow/react';
+import type { NodeChange, Viewport } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useAgentStore, reloadAllEvents } from '../../store/agentStore';
 import { useAutoLayout } from '../../hooks/useAutoLayout';
@@ -25,7 +25,6 @@ import { NudgeBadge } from './NudgeBadge';
 import { registerToastNavigator, unregisterToastNavigator } from '../Toast';
 import { buildParentMap, collectAncestors } from '../../utils/graphSearch';
 import type { AgentNodeData } from '@synapse-ai/core';
-
 
 // ── Main graph component ─────────────────────────────────────
 
@@ -41,9 +40,9 @@ function AgentGraphInner() {
   const { fitView, getViewport, setViewport } = useReactFlow();
   const prevNodeCountRef = useRef(rawNodes.length);
   const prevExpandedRef = useRef<string | null>(null);
-  const [toolGroupDims, setToolGroupDims] = useState<Map<string, { width: number; height: number }>>(
-    () => new Map(),
-  );
+  const [toolGroupDims, setToolGroupDims] = useState<
+    Map<string, { width: number; height: number }>
+  >(() => new Map());
 
   // Register toast click→node navigator so toasts can zoom to nodes
   useEffect(() => {
@@ -53,6 +52,28 @@ function AgentGraphInner() {
     });
     return unregisterToastNavigator;
   }, []);
+
+  // Restore viewport if we just returned from a port-change proxy restart.
+  useEffect(() => {
+    const saved = sessionStorage.getItem('synapse-viewport');
+    if (!saved) return;
+    sessionStorage.removeItem('synapse-viewport');
+    try {
+      setViewport(JSON.parse(saved) as Viewport);
+    } catch {
+      // Corrupt data — silently ignore
+    }
+  }, [setViewport]);
+
+  // Save viewport just before the Vite proxy restarts.
+  // The plugin sends synapse:port-changing ~300 ms before server.restart().
+  useEffect(() => {
+    if (!import.meta.hot) return;
+    const cleanup = import.meta.hot.on('synapse:port-changing', () => {
+      sessionStorage.setItem('synapse-viewport', JSON.stringify(getViewport()));
+    });
+    return cleanup;
+  }, [getViewport]);
 
   // ── Tool collapse: hide leaf tools, keep structural tools (Task→child agent) ──
 
@@ -118,7 +139,12 @@ function AgentGraphInner() {
     const prev = prevConnectedRef.current;
     if (prev && prev.size === ids.size) {
       let same = true;
-      for (const id of ids) { if (!prev.has(id)) { same = false; break; } }
+      for (const id of ids) {
+        if (!prev.has(id)) {
+          same = false;
+          break;
+        }
+      }
       if (same) return prev;
     }
     prevConnectedRef.current = ids;
@@ -141,7 +167,12 @@ function AgentGraphInner() {
     const prev = prevMergedRef.current;
     if (prev && prev.size === merged.size) {
       let same = true;
-      for (const id of merged) { if (!prev.has(id)) { same = false; break; } }
+      for (const id of merged) {
+        if (!prev.has(id)) {
+          same = false;
+          break;
+        }
+      }
       if (same) return prev;
     }
     prevMergedRef.current = merged;
@@ -306,10 +337,7 @@ function AgentGraphInner() {
     if (selectSource === 'lens' && selectedNodeId) {
       const zoomTarget = resolveVisibleId(selectedNodeId);
       if (zoomTarget) {
-        setTimeout(
-          () => fitView({ nodes: [{ id: zoomTarget }], duration: 300, padding: 1 }),
-          50,
-        );
+        setTimeout(() => fitView({ nodes: [{ id: zoomTarget }], duration: 300, padding: 1 }), 50);
       }
       useAgentStore.setState({ selectSource: null });
     }
@@ -342,8 +370,12 @@ function AgentGraphInner() {
       const vp = getViewport();
       const width = layoutNode.width ?? 200;
       const height = layoutNode.height ?? 100;
-      const nodeX = (layoutNode as unknown as { positionAbsolute?: { x: number } }).positionAbsolute?.x ?? layoutNode.position.x;
-      const nodeY = (layoutNode as unknown as { positionAbsolute?: { y: number } }).positionAbsolute?.y ?? layoutNode.position.y;
+      const nodeX =
+        (layoutNode as unknown as { positionAbsolute?: { x: number } }).positionAbsolute?.x ??
+        layoutNode.position.x;
+      const nodeY =
+        (layoutNode as unknown as { positionAbsolute?: { y: number } }).positionAbsolute?.y ??
+        layoutNode.position.y;
 
       const targetZoom = Math.min(
         containerEl.clientWidth / (width * (1 + zoomInPadding * 2)),
@@ -367,9 +399,7 @@ function AgentGraphInner() {
       const isFramed = isWithinView && zoomClose;
 
       if (isFramed) {
-        const childIds = visibleEdges
-          .filter((e) => e.source === node.id)
-          .map((e) => e.target);
+        const childIds = visibleEdges.filter((e) => e.source === node.id).map((e) => e.target);
 
         if (childIds.length > 0) {
           fitView({
@@ -402,7 +432,10 @@ function AgentGraphInner() {
         // Frame parent + its toolGroup child (or structural tool children)
         const nodeIds = [expandedParentId];
         for (const edge of visibleEdges) {
-          if (edge.source === expandedParentId && (edge.target.startsWith('tool-') || edge.target.startsWith('toolgroup-'))) {
+          if (
+            edge.source === expandedParentId &&
+            (edge.target.startsWith('tool-') || edge.target.startsWith('toolgroup-'))
+          ) {
             nodeIds.push(edge.target);
           }
         }
@@ -422,16 +455,22 @@ function AgentGraphInner() {
 
         if (nodeRightScreen > containerWidth - 40) {
           const shift = nodeRightScreen - containerWidth + 100;
-          setViewport(
-            { x: vp.x - shift, y: vp.y, zoom: vp.zoom },
-            { duration: 300 },
-          );
+          setViewport({ x: vp.x - shift, y: vp.y, zoom: vp.zoom }, { duration: 300 });
         }
       }
     }, 200);
 
     return () => clearTimeout(timer);
-  }, [selectedNodeId, selectSource, expandedParentId, visibleEdges, layoutNodes, fitView, getViewport, setViewport]);
+  }, [
+    selectedNodeId,
+    selectSource,
+    expandedParentId,
+    visibleEdges,
+    layoutNodes,
+    fitView,
+    getViewport,
+    setViewport,
+  ]);
 
   // ── Arrow-key graph navigation ──────────────────────────────
   useGraphNavigation(visibleNodes, visibleEdges, selectNode, fitView);
@@ -491,8 +530,20 @@ function AgentGraphInner() {
         <div className="absolute inset-0 flex items-center justify-center z-10">
           <div className="text-gray-500 text-sm flex items-center gap-2">
             <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+                fill="none"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+              />
             </svg>
             Loading events...
           </div>
@@ -518,14 +569,19 @@ function AgentGraphInner() {
             <div className="text-3xl mb-3 text-gray-600">&#x2B22;</div>
             <h3 className="text-sm font-medium text-gray-300 mb-2">No active sessions</h3>
             <p className="text-xs text-gray-500">
-              Start a Claude Code session in this project, or run a simulation script to see the graph in action.
+              Start a Claude Code session in this project, or run a simulation script to see the
+              graph in action.
             </p>
           </div>
         </div>
       )}
       {!hasContentNodes && events.length > 0 && !showHookEvents && (
         <div className="absolute top-14 left-1/2 -translate-x-1/2 z-10 px-4 py-2 bg-amber-900/70 border border-amber-600/40 rounded-lg text-xs text-amber-200 backdrop-blur-sm text-center">
-          Hook events are hidden — press <kbd className="px-1.5 py-0.5 bg-amber-800/60 rounded text-amber-100 font-mono mx-0.5">H</kbd> to show them
+          Hook events are hidden — press{' '}
+          <kbd className="px-1.5 py-0.5 bg-amber-800/60 rounded text-amber-100 font-mono mx-0.5">
+            H
+          </kbd>{' '}
+          to show them
         </div>
       )}
       <ReactFlow
