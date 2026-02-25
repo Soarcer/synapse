@@ -7,14 +7,12 @@ export default defineConfig({
     include: [
       'packages/*/src/**/*.test.ts',
       'apps/*/src/**/*.test.{ts,tsx}',
+      'apps/*/vite-plugins/**/*.test.ts',
     ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
-      include: [
-        'packages/*/src/**/*.ts',
-        'apps/*/src/**/*.{ts,tsx}',
-      ],
+      include: ['packages/*/src/**/*.ts', 'apps/*/src/**/*.{ts,tsx}'],
       exclude: ['**/*.test.*', '**/*.d.ts', '**/index.ts'],
       thresholds: {
         statements: 60,
