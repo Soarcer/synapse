@@ -124,6 +124,17 @@ const actualPort = await tryListen(PORT, HOST);
 process.stdout.write(`SYNAPSE_PORT=${actualPort}\n`);
 logger.info({ host: HOST, port: actualPort }, 'Synapse server started');
 
+// Write port file for hook scripts and Vite dev server auto-discovery.
+// process.cwd() is the monorepo root when started via start-server.ps1 or pnpm dev.
+// Best-effort: if the write fails (e.g. read-only FS), log a warning and continue.
+try {
+  const claudeDir = path.join(process.cwd(), '.claude');
+  fs.mkdirSync(claudeDir, { recursive: true });
+  fs.writeFileSync(path.join(claudeDir, '.synapse-port'), String(actualPort));
+} catch {
+  logger.warn('Could not write .synapse-port — port auto-discovery may not work');
+}
+
 // Attach WebSocket server AFTER port is bound (avoids WSS catching EADDRINUSE errors)
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 1 * 1024 * 1024 }); // 1MB max message
 
