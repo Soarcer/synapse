@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAgentStore } from '../store/agentStore';
@@ -104,7 +104,13 @@ export function WorkshopModal() {
                 className="p-1 text-gray-500 hover:text-gray-200 transition-colors rounded"
                 aria-label="Close Prompt Lab"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
                   <path d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>

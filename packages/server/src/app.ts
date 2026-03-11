@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 import express, { type Request, type Response, type NextFunction } from 'express';
 import helmet from 'helmet';
@@ -114,6 +114,7 @@ export function createApp(deps: AppDeps) {
       agents: agentManager.getActive().length,
       mode: process.env.SYNAPSE_MODE || 'standalone',
       db: dbStats,
+      memoryUsage: process.memoryUsage(),
     });
   });
 

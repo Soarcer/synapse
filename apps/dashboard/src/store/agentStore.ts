@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 import { create } from 'zustand';
 import type { Node, Edge } from '@xyflow/react';
@@ -234,6 +234,7 @@ interface AgentStore {
   loadError: string | null;
 
   // Lens Panel state
+  lensVisible: boolean;
   activeLensTab: string;
   lensPanelWidth: number;
   lensSearchQuery: string;
@@ -264,6 +265,7 @@ interface AgentStore {
   expandNode: (nodeId: string) => void;
   setHighlightedNodeIds: (ids: Set<string> | null) => void;
   setMultiHighlight: (ids: Set<string> | null) => void;
+  setLensVisible: (visible: boolean) => void;
   setActiveLensTab: (tab: string) => void;
   setLensPanelWidth: (width: number) => void;
   setLensSearchQuery: (query: string) => void;
@@ -329,6 +331,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   loadError: null,
 
   // Lens Panel state
+  lensVisible: true,
   activeLensTab: 'treemap',
   lensPanelWidth: 320,
   lensSearchQuery: '',
@@ -433,6 +436,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   },
   setMultiHighlight: (multiHighlightIds) => set({ multiHighlightIds }),
 
+  setLensVisible: (lensVisible) => set({ lensVisible }),
   setActiveLensTab: (activeLensTab) => set({ activeLensTab }),
   setLensPanelWidth: (lensPanelWidth) => set({ lensPanelWidth }),
   setLensSearchQuery: (lensSearchQuery) => set({ lensSearchQuery }),

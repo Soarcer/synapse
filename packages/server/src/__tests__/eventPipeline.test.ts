@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 // Set DB path to a non-existent temp location BEFORE any server imports
 // so sql.js creates a fresh in-memory database.

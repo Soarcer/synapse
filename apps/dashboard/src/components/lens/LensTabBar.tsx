@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 import { useState, useRef, useEffect } from 'react';
 import { useLens } from './LensContext';
@@ -49,7 +49,14 @@ function GraphOpenButton() {
           aria-label="More open options"
         >
           <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor">
-            <path d="M1 2.5 L4 5.5 L7 2.5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+            <path
+              d="M1 2.5 L4 5.5 L7 2.5"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         </button>
       </div>
@@ -57,13 +64,19 @@ function GraphOpenButton() {
       {open && (
         <div className="absolute right-0 top-full mt-1 z-50 min-w-[160px] bg-gray-900 border border-gray-700 rounded shadow-lg py-0.5">
           <button
-            onClick={() => { setOpen(false); window.parent.postMessage({ type: 'openGraphPanel' }, '*'); }}
+            onClick={() => {
+              setOpen(false);
+              window.parent.postMessage({ type: 'openGraphPanel' }, '*');
+            }}
             className="w-full text-left px-3 py-1.5 text-[11px] text-gray-300 hover:bg-gray-800 transition-colors"
           >
             Open in side panel
           </button>
           <button
-            onClick={() => { setOpen(false); window.parent.postMessage({ type: 'openGraphInBrowser' }, '*'); }}
+            onClick={() => {
+              setOpen(false);
+              window.parent.postMessage({ type: 'openGraphInBrowser' }, '*');
+            }}
             className="w-full text-left px-3 py-1.5 text-[11px] text-gray-300 hover:bg-gray-800 transition-colors"
           >
             Open in browser
@@ -78,7 +91,8 @@ export function LensTabBar() {
   const { activeTab, onTabChange, statusCounts, onSpawnClick } = useLens();
   const notifCount = useNotificationStore((s) => s.notifications.length); // [notifications]
 
-  const total = statusCounts.running + statusCounts.success + statusCounts.error + statusCounts.stopped;
+  const total =
+    statusCounts.running + statusCounts.success + statusCounts.error + statusCounts.stopped;
 
   return (
     <div className="flex-shrink-0">
@@ -90,9 +104,11 @@ export function LensTabBar() {
               onClick={() => onTabChange(tab.key)}
               className={`
                 relative px-2 py-1 rounded text-[11px] font-medium transition-colors
-                ${activeTab === tab.key
-                  ? 'bg-gray-800 text-gray-100'
-                  : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'}
+                ${
+                  activeTab === tab.key
+                    ? 'bg-gray-800 text-gray-100'
+                    : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
+                }
               `}
             >
               {tab.label}

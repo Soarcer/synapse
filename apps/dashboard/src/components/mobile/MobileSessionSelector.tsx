@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 import { useMemo } from 'react';
 import { useAgentStore } from '../../store/agentStore';
@@ -42,7 +42,8 @@ export function MobileSessionSelector() {
       {sessionList.map((s) => (
         <option key={s.sessionId} value={s.sessionId}>
           {s.isRunning ? '\u25CF ' : '\u25CB '}
-          {formatRelativeTime(s.startTime)} \u00B7 {formatDuration(s.duration)} \u00B7 {s.eventCount} events
+          {formatRelativeTime(s.startTime)} \u00B7 {formatDuration(s.duration)} \u00B7{' '}
+          {s.eventCount} events
         </option>
       ))}
     </select>

@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 import { useState, useRef, useEffect } from 'react';
 import { useAgentStore } from '../../store/agentStore';
@@ -37,7 +37,10 @@ export function MobileSearchButton() {
         className="flex-1 bg-gray-800/90 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 backdrop-blur-sm focus:outline-none focus:border-blue-500"
       />
       <button
-        onClick={() => { setGraphSearchQuery(''); setOpen(false); }}
+        onClick={() => {
+          setGraphSearchQuery('');
+          setOpen(false);
+        }}
         className="px-3 py-2 bg-gray-800/90 border border-gray-700 rounded-lg text-gray-400 text-sm backdrop-blur-sm"
       >
         &times;

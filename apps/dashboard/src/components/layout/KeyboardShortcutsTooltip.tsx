@@ -1,12 +1,12 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 import { useState } from 'react';
 
 const SHORTCUTS = [
   { key: 'Space', action: 'Pause / Resume' },
   { key: 'T', action: 'Tool log' },
-
+  { key: 'L', action: 'Toggle lens panel' },
   { key: 'V', action: 'Lock viewport' },
   { key: 'F', action: 'Show all tools' },
   { key: 'H', action: 'Hook events' },

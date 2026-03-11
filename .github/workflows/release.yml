@@ -1,0 +1,77 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # needed for creating GitHub Release
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Build core (required before tests)
+        run: pnpm --filter @synapse-ai/core build
+
+      - name: Run unit tests
+        run: pnpm test
+
+      - name: Build server
+        run: pnpm --filter @synapse-ai/server build
+
+      - name: Build CLI
+        run: pnpm --filter @synapse-ai/cli build
+
+      - name: Run Playwright E2E
+        run: |
+          pnpm --filter @synapse-ai/dashboard exec playwright install --with-deps chromium
+          pnpm --filter @synapse-ai/dashboard exec playwright test
+
+      - name: Publish @synapse-ai/cli to npm
+        run: pnpm --filter @synapse-ai/cli publish --no-git-checks --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Build VS Code extension (.vsix)
+        run: pnpm --filter synapse-vscode package
+
+      - name: Publish to VS Code Marketplace
+        run: npx @vscode/vsce publish --packagePath apps/vscode/*.vsix --pat $VSCE_PAT
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      - name: Publish to Open VSX
+        run: npx ovsx publish apps/vscode/*.vsix --pat $OVSX_TOKEN
+        env:
+          OVSX_TOKEN: ${{ secrets.OVSX_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: apps/vscode/*.vsix
+          generate_release_notes: true
+          draft: false
+          prerelease: false

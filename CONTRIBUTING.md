@@ -18,7 +18,7 @@ For a high-level overview of what Synapse does, see the [README](README.md).
 ### Getting Started
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/synapse.git
+git clone https://github.com/Soarcer/synapse.git
 cd synapse
 pnpm install
 ```
@@ -71,7 +71,6 @@ Synapse/
 │   ├── dashboard/        # React 19 + React Flow v12 frontend
 │   └── vscode/           # VS Code extension (embedded dashboard)
 ├── hooks/                # Claude Code hook scripts (plain Node.js, no dependencies)
-├── ee/                   # Enterprise features (separate license — see below)
 ├── scripts/              # Build, simulation, and utility scripts
 └── docs/                 # Architecture and planning docs
 ```
@@ -116,7 +115,7 @@ Signed-off-by: Your Name <your.email@example.com>
 ### Why DCO instead of CLA?
 
 - **Trust** — you retain copyright over your contributions
-- **No relicensing risk** — DCO prevents the project from being relicensed without contributor consent
+- **Explicit MIT licensing** — DCO ensures all contributions are explicitly MIT-licensed, keeping the project's licensing clear and consistent
 - **Lower friction** — no legal forms to sign, no corporate approval workflow
 
 ### The DCO v1.1 Text
@@ -160,24 +159,6 @@ By making a contribution to this project, I certify that:
 
 ---
 
-## The `/ee` Boundary
-
-Synapse uses an **open-core model**:
-
-- **Everything outside `/ee`** is licensed under **AGPL-3.0** — free to use, modify, and distribute under the same license.
-- **The `/ee` directory** is under the **Synapse Enterprise License** — free to view and evaluate, but production use requires a subscription.
-
-Contributions to either area are welcome. Just understand which license applies to the code you're touching:
-
-| Directory | License | Can I contribute? |
-|-----------|---------|-------------------|
-| Everything except `/ee` | AGPL-3.0 | Yes |
-| `/ee/*` | Synapse Enterprise License | Yes |
-
-If your contribution spans both areas, note that in your PR description.
-
----
-
 ## Code Style
 
 - **TypeScript strict mode** throughout the entire codebase
@@ -192,11 +173,11 @@ Never use `?? []` inside Zustand selectors — it creates a new array reference 
 
 ```typescript
 // Bad — infinite re-renders
-const items = useStore(s => s.items ?? []);
+const items = useStore((s) => s.items ?? []);
 
 // Good — stable reference
 const EMPTY: Item[] = [];
-const items = useStore(s => s.items ?? EMPTY);
+const items = useStore((s) => s.items ?? EMPTY);
 ```
 
 ---
@@ -229,4 +210,4 @@ Feature requests are also welcome as issues — describe the use case and why it
 
 ## Code of Conduct
 
-This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating, you agree to uphold its standards. Please report unacceptable behavior to synapse-conduct@example.com.
+This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating, you agree to uphold its standards. Please report unacceptable behavior by opening a GitHub issue.

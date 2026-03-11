@@ -1,5 +1,10 @@
 packages:
-  - packages/*
-  - apps/*
+  - 'packages/core'
+  - 'packages/server'
+  - 'packages/cli'
+  - 'apps/*'
+  # openclaw excluded: requires better-sqlite3 (native C++ dep, breaks CI)
+  # re-enable with: pnpm --filter @synapse-ai/openclaw ...
 
-onlyBuiltDependencies: '[\"better-sqlite3\", \"esbuild\"]'
+onlyBuiltDependencies:
+  - esbuild

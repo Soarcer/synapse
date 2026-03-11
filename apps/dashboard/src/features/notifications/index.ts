@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 //
 // Feature flag — set to false to disable all notification features.
 // All exports become no-ops so existing touchpoints in the app
@@ -8,7 +8,14 @@
 export { NOTIFICATIONS_ENABLED } from './constants';
 
 export { useNotificationStore } from './notificationStore';
-export { NOTIFICATION_TYPES, FALLBACK_TYPE, sessionLabel, formatElapsed, formatWait, targetNodeId } from './constants';
+export {
+  NOTIFICATION_TYPES,
+  FALLBACK_TYPE,
+  sessionLabel,
+  formatElapsed,
+  formatWait,
+  targetNodeId,
+} from './constants';
 
 import { NOTIFICATIONS_ENABLED } from './constants';
 import { useAgentStore } from '../../store/agentStore';
@@ -43,9 +50,12 @@ export function initNotifications(): void {
 
         // Fire toast if enabled
         if (useNotificationStore.getState().showToasts) {
-          const typeLabel = event.notificationType === 'permission_prompt' ? 'Permission needed'
-            : event.notificationType === 'elicitation_dialog' ? 'Question for you'
-            : 'Notification';
+          const typeLabel =
+            event.notificationType === 'permission_prompt'
+              ? 'Permission needed'
+              : event.notificationType === 'elicitation_dialog'
+                ? 'Question for you'
+                : 'Notification';
           const preview = (event.text ?? '').slice(0, 80);
           toast(`${typeLabel}: ${preview}`, 'warning', targetNodeId(event));
         }

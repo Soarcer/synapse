@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 import { useState, useMemo, useCallback, useRef, useEffect, useLayoutEffect } from 'react';
 import { useLens, type LensTreeNode, type ProfileMetric } from '../LensContext';
@@ -36,7 +36,10 @@ function squarify(
   if (total === 0 || items.length === 0 || w <= 0 || h <= 0) return [];
 
   const rects: Rect[] = [];
-  let cx = x, cy = y, cw = w, ch = h;
+  let cx = x,
+    cy = y,
+    cw = w,
+    ch = h;
 
   const sorted = [...items].sort((a, b) => b.value - a.value);
 
@@ -58,9 +61,8 @@ function squarify(
       let worst = 0;
       for (const item of candidate) {
         const itemLen = (item.value / candidateSum) * side;
-        const ratio = rowLen > 0 && itemLen > 0
-          ? Math.max(rowLen / itemLen, itemLen / rowLen)
-          : Infinity;
+        const ratio =
+          rowLen > 0 && itemLen > 0 ? Math.max(rowLen / itemLen, itemLen / rowLen) : Infinity;
         worst = Math.max(worst, ratio);
       }
 
@@ -88,8 +90,13 @@ function squarify(
       offset += itemLen;
     }
 
-    if (isVertical) { cx += rowLen; cw -= rowLen; }
-    else { cy += rowLen; ch -= rowLen; }
+    if (isVertical) {
+      cx += rowLen;
+      cw -= rowLen;
+    } else {
+      cy += rowLen;
+      ch -= rowLen;
+    }
 
     i += row.length;
   }
@@ -146,9 +153,7 @@ function layoutNested(
     const node = nodeMap.get(rect.id);
     if (!node) return { ...rect, children: [] };
 
-    const childrenWithValue = node.children.filter(
-      (c) => effectiveValue(c, metric) > 0,
-    );
+    const childrenWithValue = node.children.filter((c) => effectiveValue(c, metric) > 0);
 
     if (childrenWithValue.length > 0 && rect.w > 24 && rect.h > LABEL_H + 8) {
       const innerX = rect.x + NEST_PAD;
@@ -156,7 +161,16 @@ function layoutNested(
       const innerW = Math.max(rect.w - NEST_PAD * 2, 0);
       const innerH = Math.max(rect.h - LABEL_H - NEST_PAD, 0);
 
-      const children = layoutNested(childrenWithValue, metric, innerX, innerY, innerW, innerH, depth + 1, paletteIndex);
+      const children = layoutNested(
+        childrenWithValue,
+        metric,
+        innerX,
+        innerY,
+        innerW,
+        innerH,
+        depth + 1,
+        paletteIndex,
+      );
       return { ...rect, children };
     }
 
@@ -167,7 +181,8 @@ function layoutNested(
 // ── Component ─────────────────────────────────────────────────
 
 export function TreemapView() {
-  const { treeRoots, profileMetric, selectedId, onSelect, onProfileMetricChange, hasTokenData } = useLens();
+  const { treeRoots, profileMetric, selectedId, onSelect, onProfileMetricChange, hasTokenData } =
+    useLens();
   const paletteIndex = useAgentStore((s) => s.paletteIndex);
   const containerRef = useRef<HTMLDivElement>(null);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; node: NestedRect } | null>(null);
@@ -189,7 +204,10 @@ export function TreemapView() {
     observer.observe(el);
     // Defer initial measurement so flex layout has settled
     const raf = requestAnimationFrame(measure);
-    return () => { observer.disconnect(); cancelAnimationFrame(raf); };
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(raf);
+    };
   }, []);
 
   // Shift+scroll zoom centered on mouse position (native listener for passive:false)
@@ -210,8 +228,8 @@ export function TreemapView() {
       if (newZoom === oldZoom) return;
 
       // Keep the content point under the mouse fixed
-      const newScrollLeft = (el.scrollLeft + mouseX) * newZoom / oldZoom - mouseX;
-      const newScrollTop = (el.scrollTop + mouseY) * newZoom / oldZoom - mouseY;
+      const newScrollLeft = ((el.scrollLeft + mouseX) * newZoom) / oldZoom - mouseX;
+      const newScrollTop = ((el.scrollTop + mouseY) * newZoom) / oldZoom - mouseY;
 
       zoomRef.current = newZoom;
       pendingScrollRef.current = { left: newScrollLeft, top: newScrollTop };
@@ -232,7 +250,12 @@ export function TreemapView() {
   }, [zoom]);
 
   const formatValue = useCallback(
-    (v: number) => profileMetric === 'tokens' ? formatTokens(v) : profileMetric === 'duration' ? formatDuration(v) : formatCount(v),
+    (v: number) =>
+      profileMetric === 'tokens'
+        ? formatTokens(v)
+        : profileMetric === 'duration'
+          ? formatDuration(v)
+          : formatCount(v),
     [profileMetric],
   );
 
@@ -247,7 +270,8 @@ export function TreemapView() {
   );
 
   const totalValue = useMemo(() => {
-    const getValue = (n: LensTreeNode) => profileMetric === 'tokens' ? n.tokens : profileMetric === 'duration' ? n.duration : n.count;
+    const getValue = (n: LensTreeNode) =>
+      profileMetric === 'tokens' ? n.tokens : profileMetric === 'duration' ? n.duration : n.count;
     return source.reduce((s, n) => s + Math.max(getValue(n), 0), 0);
   }, [source, profileMetric]);
 
@@ -293,7 +317,10 @@ export function TreemapView() {
           strokeWidth={isParent ? 0.8 : 0.5}
           strokeOpacity={isParent ? 0.4 : 1}
           className="cursor-pointer treemap-rect"
-          onClick={(e) => { e.stopPropagation(); onSelect(rect.id); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect(rect.id);
+          }}
           onDoubleClick={(e) => {
             e.stopPropagation();
             const node = findTreeNode(rect.id);
@@ -380,7 +407,9 @@ export function TreemapView() {
             <button
               onClick={() => onProfileMetricChange('tokens')}
               className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
-                profileMetric === 'tokens' ? 'bg-gray-700 text-gray-100' : 'text-gray-500 hover:text-gray-300'
+                profileMetric === 'tokens'
+                  ? 'bg-gray-700 text-gray-100'
+                  : 'text-gray-500 hover:text-gray-300'
               }`}
             >
               Tokens
@@ -388,7 +417,9 @@ export function TreemapView() {
             <button
               onClick={() => onProfileMetricChange('duration')}
               className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
-                profileMetric === 'duration' ? 'bg-gray-700 text-gray-100' : 'text-gray-500 hover:text-gray-300'
+                profileMetric === 'duration'
+                  ? 'bg-gray-700 text-gray-100'
+                  : 'text-gray-500 hover:text-gray-300'
               }`}
             >
               Duration
@@ -396,16 +427,24 @@ export function TreemapView() {
             <button
               onClick={() => onProfileMetricChange('count')}
               className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
-                profileMetric === 'count' ? 'bg-gray-700 text-gray-100' : 'text-gray-500 hover:text-gray-300'
+                profileMetric === 'count'
+                  ? 'bg-gray-700 text-gray-100'
+                  : 'text-gray-500 hover:text-gray-300'
               }`}
             >
               Count
             </button>
           </div>
           <span className="text-[10px] text-gray-500 font-mono">
-            {profileMetric === 'tokens' && !hasTokenData
-              ? <span className="text-yellow-600" title="Hook sessions don't provide token data">no data</span>
-              : <>{formatValue(totalValue)} <span className="text-gray-600">Shift+scroll zoom</span></>}
+            {profileMetric === 'tokens' && !hasTokenData ? (
+              <span className="text-yellow-600" title="Hook sessions don't provide token data">
+                no data
+              </span>
+            ) : (
+              <>
+                {formatValue(totalValue)} <span className="text-gray-600">Shift+scroll zoom</span>
+              </>
+            )}
           </span>
         </div>
       )}
@@ -435,7 +474,9 @@ export function TreemapView() {
             {nestedRects.map(renderRect)}
           </svg>
         ) : (
-          <div className="h-full flex items-center justify-center text-gray-600 text-xs">No data yet.</div>
+          <div className="h-full flex items-center justify-center text-gray-600 text-xs">
+            No data yet.
+          </div>
         )}
       </div>
 
@@ -446,8 +487,17 @@ export function TreemapView() {
           style={{ left: tooltip.x, top: tooltip.y, transform: 'translate(-50%, -100%)' }}
         >
           <div className="font-medium text-gray-100">{tooltip.node.label}</div>
-          <div>{profileMetric === 'tokens' ? 'Tokens' : profileMetric === 'duration' ? 'Duration' : 'Count'}: {formatValue(tooltip.node.value)}</div>
-          <div>{totalValue > 0 ? ((tooltip.node.value / totalValue) * 100).toFixed(1) : 0}% of total</div>
+          <div>
+            {profileMetric === 'tokens'
+              ? 'Tokens'
+              : profileMetric === 'duration'
+                ? 'Duration'
+                : 'Count'}
+            : {formatValue(tooltip.node.value)}
+          </div>
+          <div>
+            {totalValue > 0 ? ((tooltip.node.value / totalValue) * 100).toFixed(1) : 0}% of total
+          </div>
           {tooltip.node.children.length > 0 && (
             <div className="text-gray-500">Double-click to zoom in</div>
           )}

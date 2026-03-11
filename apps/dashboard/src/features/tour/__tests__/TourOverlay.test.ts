@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -15,7 +15,9 @@ vi.mock('../../../store/wsClient', () => ({
     setOnStatusChange: vi.fn(),
     setOnReconnect: vi.fn(),
     send: vi.fn(),
-    get status() { return 'disconnected'; },
+    get status() {
+      return 'disconnected';
+    },
   },
 }));
 

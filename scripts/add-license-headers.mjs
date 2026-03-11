@@ -1,13 +1,15 @@
 #!/usr/bin/env node
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 /**
  * Adds SPDX license headers to all TypeScript/JavaScript source files.
  *
  * Usage:
- *   node scripts/add-license-headers.mjs          # dry-run (default)
- *   node scripts/add-license-headers.mjs --write   # actually modify files
+ *   node scripts/add-license-headers.mjs                        # dry-run (default)
+ *   node scripts/add-license-headers.mjs --write                # actually modify files
+ *   node scripts/add-license-headers.mjs --replace-agpl         # dry-run replace AGPL → MIT
+ *   node scripts/add-license-headers.mjs --replace-agpl --write # actually replace AGPL → MIT
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
@@ -29,15 +31,24 @@ const EE_HEADER = `// SPDX-License-Identifier: LicenseRef-Synapse-Enterprise
 // See /ee/LICENSE for terms
 `;
 
+const MIT_HEADER = `// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
+`;
+
 const DIRS = [
   "packages/core/src",
   "packages/server/src",
+  "packages/cli/src",
   "packages/openclaw/src",
   "apps/dashboard/src",
   "apps/vscode/src",
 ];
 
-const SINGLE_FILES = ["hooks/send_event.cjs"];
+const SINGLE_FILES = [
+  "hooks/send_event.cjs",
+  "hooks/send_gemini_event.cjs",
+  "hooks/send_codex_event.cjs",
+];
 
 const EXTENSIONS = new Set([".ts", ".tsx", ".cjs", ".mjs"]);
 
@@ -67,6 +78,28 @@ function walk(dir) {
   return results;
 }
 
+function replaceAgplHeader(content) {
+  // Replace AGPL SPDX identifier line — handle both LF and CRLF line endings
+  const agplPattern = /\/\/ SPDX-License-Identifier: AGPL-3\.0-only\r?\n/;
+  const agplOrLaterPattern = /\/\/ SPDX-License-Identifier: AGPL-3\.0-or-later\r?\n/;
+  // Replace ee enterprise header too
+  const eePattern =
+    /\/\/ SPDX-License-Identifier: LicenseRef-Synapse-Enterprise\r?\n\/\/ Copyright \(c\) 2026 Synapse Contributors\r?\n\/\/ See \/ee\/LICENSE for terms\r?\n/;
+
+  // Detect the line ending style of the file so we write back consistently
+  const eol = content.includes("\r\n") ? "\r\n" : "\n";
+  const mitLine = `// SPDX-License-Identifier: MIT${eol}`;
+  const mitHeaderEol = `// SPDX-License-Identifier: MIT${eol}// Copyright (c) 2026 Bernhard${eol}`;
+
+  let result = content
+    .replace(agplPattern, mitLine)
+    .replace(agplOrLaterPattern, mitLine)
+    .replace(eePattern, mitHeaderEol)
+    .replace(/\/\/ Copyright \(c\) 2026 Synapse Contributors\r?\n/g, `// Copyright (c) 2026 Bernhard${eol}`);
+
+  return result;
+}
+
 function needsHeader(content) {
   // Already has a header (with or without leading shebang)
   const withoutShebang = content.startsWith("#!") ? content.slice(content.indexOf("\n") + 1) : content;
@@ -92,6 +125,7 @@ function addHeader(content, header) {
 
 function main() {
   const dryRun = !process.argv.includes("--write");
+  const replaceMode = process.argv.includes("--replace-agpl");
 
   if (dryRun) {
     console.log("DRY RUN — pass --write to actually modify files\n");
@@ -117,29 +151,51 @@ function main() {
   let modified = 0;
   let skipped = 0;
 
-  for (const file of files) {
-    const content = readFileSync(file, "utf-8");
-    const rel = relative(ROOT, file).replace(/\\/g, "/");
-
-    if (!needsHeader(content)) {
-      skipped++;
-      continue;
+  if (replaceMode) {
+    // Replace AGPL headers with MIT in all files
+    for (const file of files) {
+      const content = readFileSync(file, "utf-8");
+      const rel = relative(ROOT, file).replace(/\\/g, "/");
+      const newContent = replaceAgplHeader(content);
+      if (newContent === content) {
+        skipped++;
+        continue;
+      }
+      if (dryRun) {
+        console.log(`  would replace header: ${rel}`);
+      } else {
+        writeFileSync(file, newContent, "utf-8");
+        console.log(`  replaced header: ${rel}`);
+      }
+      modified++;
     }
+  } else {
+    // Add missing headers to files that don't have one
+    for (const file of files) {
+      const content = readFileSync(file, "utf-8");
+      const rel = relative(ROOT, file).replace(/\\/g, "/");
 
-    const header = getHeader(file);
-    const newContent = addHeader(content, header);
+      if (!needsHeader(content)) {
+        skipped++;
+        continue;
+      }
 
-    if (dryRun) {
-      console.log(`  would add header: ${rel}`);
-    } else {
-      writeFileSync(file, newContent, "utf-8");
-      console.log(`  added header: ${rel}`);
+      const header = getHeader(file);
+      const newContent = addHeader(content, header);
+
+      if (dryRun) {
+        console.log(`  would add header: ${rel}`);
+      } else {
+        writeFileSync(file, newContent, "utf-8");
+        console.log(`  added header: ${rel}`);
+      }
+      modified++;
     }
-    modified++;
   }
 
+  const skipReason = replaceMode ? "no AGPL header found" : "already has header";
   console.log(
-    `\n${dryRun ? "Would modify" : "Modified"}: ${modified} files | Skipped (already has header): ${skipped}`,
+    `\n${dryRun ? "Would modify" : "Modified"}: ${modified} files | Skipped (${skipReason}): ${skipped}`,
   );
 }
 

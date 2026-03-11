@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 import { useAgentStore } from '../../store/agentStore';
 
@@ -23,9 +23,7 @@ export function MobileTabBar({ activeTab, onTabChange }: MobileTabBarProps) {
   const runningCount = [...agents.values()].filter((a) => a.status === 'running').length;
 
   return (
-    <nav
-      className="flex-shrink-0 bg-[#161b22] border-t border-gray-800 flex z-[60]"
-    >
+    <nav className="flex-shrink-0 bg-[#161b22] border-t border-gray-800 flex z-[60]">
       {TABS.map((tab) => (
         <button
           key={tab.id}

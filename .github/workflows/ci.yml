@@ -8,10 +8,12 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        node-version: [20]
+        os: [ubuntu-latest, windows-latest]
+        node-version: [20, 22]
 
     steps:
       - uses: actions/checkout@v4
@@ -34,11 +36,24 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Build core (required before tests)
+        run: pnpm --filter @synapse-ai/core build
+
       - name: Test
         run: pnpm test
 
-      - name: Build
-        run: pnpm -r build
+      - name: Build remaining packages (ordered)
+        run: |
+          pnpm --filter @synapse-ai/server build
+          pnpm --filter @synapse-ai/cli build
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @synapse-ai/dashboard exec playwright install --with-deps chromium
+        if: matrix.os == 'ubuntu-latest'
+
+      - name: Run Playwright E2E
+        run: pnpm --filter @synapse-ai/dashboard exec playwright test
+        if: matrix.os == 'ubuntu-latest'
 
       - name: Audit (non-blocking)
         run: pnpm audit --audit-level=high

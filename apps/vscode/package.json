@@ -2,16 +2,17 @@
   "name": "synapse-vscode",
   "displayName": "Synapse — Agent Monitor",
   "description": "Real-time Claude agent monitoring dashboard inside VS Code",
-  "version": "0.10.0",
+  "version": "0.1.0",
   "publisher": "Soarcer",
-  "license": "AGPL-3.0-or-later",
+  "license": "MIT",
   "icon": "synapse-icon.png",
   "engines": {
     "vscode": "^1.95.0"
   },
   "categories": [
+    "Machine Learning",
     "Visualization",
-    "Other"
+    "Debuggers"
   ],
   "activationEvents": [
     "workspaceContains:.claude/settings.json",
@@ -187,14 +188,20 @@
     "watch": "node esbuild.mjs --watch",
     "package": "npx @vscode/vsce package --no-dependencies --allow-missing-repository",
     "prepackage": "node esbuild.mjs",
-    "clean": "node -e \"const fs=require('fs'); if(fs.existsSync('resources'))fs.rmSync('resources',{recursive:true}); if(fs.existsSync('out'))fs.rmSync('out',{recursive:true})\""
+    "clean": "node -e \"const fs=require('fs'); if(fs.existsSync('resources'))fs.rmSync('resources',{recursive:true}); if(fs.existsSync('out'))fs.rmSync('out',{recursive:true})\"",
+    "test": "node out/test/runTest.js",
+    "pretest": "node esbuild.mjs --skip-server"
   },
   "devDependencies": {
-    "@types/vscode": "^1.95.0",
+    "@types/mocha": "^10.0.10",
     "@types/node": "^22.0.0",
+    "@types/vscode": "^1.95.0",
     "@types/ws": "^8.5.0",
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.0.0",
     "esbuild": "^0.24.0",
-    "ws": "^8.18.0",
-    "@vscode/vsce": "^3.0.0"
+    "glob": "^13.0.6",
+    "mocha": "^11.7.5",
+    "ws": "^8.18.0"
   }
 }

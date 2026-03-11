@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { formatRewrite } from '../shared/formatMarkdown';
@@ -30,12 +30,17 @@ function loadHistory(): WorkshopResult[] {
   try {
     const raw = localStorage.getItem(WORKSHOP_HISTORY_KEY);
     return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
 
 function saveHistory(history: WorkshopResult[]): void {
-  try { localStorage.setItem(WORKSHOP_HISTORY_KEY, JSON.stringify(history)); }
-  catch { /* quota exceeded — silently skip */ }
+  try {
+    localStorage.setItem(WORKSHOP_HISTORY_KEY, JSON.stringify(history));
+  } catch {
+    /* quota exceeded — silently skip */
+  }
 }
 
 // ─── Workshop Context persistence ─────────────────────────────────────
@@ -43,7 +48,7 @@ function saveHistory(history: WorkshopResult[]): void {
 const WORKSHOP_CONTEXT_KEY = 'synapse-workshop-context';
 
 interface WorkshopContext {
-  sessionId: string | null;   // null = auto (most recent), '' = none
+  sessionId: string | null; // null = auto (most recent), '' = none
   notes: string;
   panelOpen: boolean;
 }
@@ -58,12 +63,17 @@ function loadContext(): WorkshopContext {
   try {
     const raw = localStorage.getItem(WORKSHOP_CONTEXT_KEY);
     return raw ? { ...DEFAULT_CONTEXT, ...JSON.parse(raw) } : DEFAULT_CONTEXT;
-  } catch { return DEFAULT_CONTEXT; }
+  } catch {
+    return DEFAULT_CONTEXT;
+  }
 }
 
 function saveContext(ctx: WorkshopContext): void {
-  try { localStorage.setItem(WORKSHOP_CONTEXT_KEY, JSON.stringify(ctx)); }
-  catch { /* quota exceeded */ }
+  try {
+    localStorage.setItem(WORKSHOP_CONTEXT_KEY, JSON.stringify(ctx));
+  } catch {
+    /* quota exceeded */
+  }
 }
 
 // ─── Favorites persistence ────────────────────────────────────────────
@@ -75,19 +85,30 @@ function loadFavorites(): WorkshopResult[] {
   try {
     const raw = localStorage.getItem(WORKSHOP_FAVORITES_KEY);
     return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
 
 function saveFavorites(favorites: WorkshopResult[]): void {
-  try { localStorage.setItem(WORKSHOP_FAVORITES_KEY, JSON.stringify(favorites)); }
-  catch { /* quota exceeded */ }
+  try {
+    localStorage.setItem(WORKSHOP_FAVORITES_KEY, JSON.stringify(favorites));
+  } catch {
+    /* quota exceeded */
+  }
 }
 
 // ─── SVG Icons ───────────────────────────────────────────────────────
 
 function CopyIcon() {
   return (
-    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <svg
+      className="w-3.5 h-3.5"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
       <path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
     </svg>
   );
@@ -95,7 +116,13 @@ function CopyIcon() {
 
 function TerminalIcon() {
   return (
-    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <svg
+      className="w-3.5 h-3.5"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
       <path d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
     </svg>
   );
@@ -103,7 +130,13 @@ function TerminalIcon() {
 
 function PencilIcon() {
   return (
-    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <svg
+      className="w-3.5 h-3.5"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
       <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
     </svg>
   );
@@ -111,7 +144,13 @@ function PencilIcon() {
 
 function SparkleIcon() {
   return (
-    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <svg
+      className="w-3.5 h-3.5"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
       <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
     </svg>
   );
@@ -119,7 +158,13 @@ function SparkleIcon() {
 
 function ClockIcon() {
   return (
-    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <svg
+      className="w-3.5 h-3.5"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
       <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   );
@@ -127,8 +172,18 @@ function ClockIcon() {
 
 function RegenIcon() {
   return (
-    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+    <svg
+      className="w-3.5 h-3.5"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+      />
     </svg>
   );
 }
@@ -137,7 +192,10 @@ function ChevronIcon({ open }: { open: boolean }) {
   return (
     <svg
       className={`w-3 h-3 transition-transform ${open ? 'rotate-90' : ''}`}
-      fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
     >
       <path d="M9 5l7 7-7 7" />
     </svg>
@@ -146,7 +204,11 @@ function ChevronIcon({ open }: { open: boolean }) {
 
 function StarIcon({ filled }: { filled: boolean }) {
   return (
-    <svg className="w-3 h-3" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+    <svg
+      className="w-3 h-3"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
       fill={filled ? 'currentColor' : 'none'}
     >
       <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
@@ -179,9 +241,15 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
   // Persist history on change
   const [favorites, setFavorites] = useState<WorkshopResult[]>(loadFavorites);
 
-  useEffect(() => { saveHistory(history); }, [history]);
-  useEffect(() => { saveContext(workshopCtx); }, [workshopCtx]);
-  useEffect(() => { saveFavorites(favorites); }, [favorites]);
+  useEffect(() => {
+    saveHistory(history);
+  }, [history]);
+  useEffect(() => {
+    saveContext(workshopCtx);
+  }, [workshopCtx]);
+  useEffect(() => {
+    saveFavorites(favorites);
+  }, [favorites]);
 
   // Per-session turn fetch for explicitly selected sessions
   useEffect(() => {
@@ -195,23 +263,25 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
       .then((data) => {
         const raw = data.data ?? data;
         if (Array.isArray(raw)) {
-          setSessionSpecificTurns(raw.map((t: Record<string, unknown>) => ({
-            sessionId: (t.sessionId as string) || '',
-            turnIndex: t.turnIndex as number,
-            timestamp: t.timestamp as number,
-            promptText: (t.promptText as string) || '',
-            inputTokens: t.inputTokens as number,
-            outputTokens: t.outputTokens as number,
-            cacheReadTokens: (t.cacheReadTokens as number) || 0,
-            cacheCreationTokens: (t.cacheCreationTokens as number) || 0,
-            thinkingTokens: (t.thinkingTokens as number) || 0,
-            toolCount: (t.toolCount as number) || 0,
-            toolNames: (t.toolNames as string[]) || [],
-            latencyMs: (t.latencyMs as number) || 0,
-            costUsd: (t.costUsd as number) || 0,
-            model: (t.model as string) || 'claude-sonnet-4-5',
-            compactionBefore: (t.compactionBefore as boolean) || false,
-          })));
+          setSessionSpecificTurns(
+            raw.map((t: Record<string, unknown>) => ({
+              sessionId: (t.sessionId as string) || '',
+              turnIndex: t.turnIndex as number,
+              timestamp: t.timestamp as number,
+              promptText: (t.promptText as string) || '',
+              inputTokens: t.inputTokens as number,
+              outputTokens: t.outputTokens as number,
+              cacheReadTokens: (t.cacheReadTokens as number) || 0,
+              cacheCreationTokens: (t.cacheCreationTokens as number) || 0,
+              thinkingTokens: (t.thinkingTokens as number) || 0,
+              toolCount: (t.toolCount as number) || 0,
+              toolNames: (t.toolNames as string[]) || [],
+              latencyMs: (t.latencyMs as number) || 0,
+              costUsd: (t.costUsd as number) || 0,
+              model: (t.model as string) || 'claude-sonnet-4-5',
+              compactionBefore: (t.compactionBefore as boolean) || false,
+            })),
+          );
         }
       })
       .catch(() => setSessionSpecificTurns([]));
@@ -246,10 +316,9 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
 
     // Detect conversational mode: 2+ of the last 3 turns within 2min AND all short
     const twoMinMs = 2 * 60 * 1000;
-    const recentPrior = priorTurns.filter(
-      (t) => lastTurn.timestamp - t.timestamp < twoMinMs,
-    );
-    const isConversationalMode = recentPrior.length >= 2 &&
+    const recentPrior = priorTurns.filter((t) => lastTurn.timestamp - t.timestamp < twoMinMs);
+    const isConversationalMode =
+      recentPrior.length >= 2 &&
       recentPrior.every((t) => t.promptText.split(/\s+/).filter(Boolean).length < 15);
 
     // Session goal: first sentence / first 100 chars of first prompt
@@ -329,7 +398,15 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
     } finally {
       setIsAnalyzing(false);
     }
-  }, [promptText, analysisMode, isAnalyzing, modelId, resolvedSession, conversationContext, workshopCtx.notes]);
+  }, [
+    promptText,
+    analysisMode,
+    isAnalyzing,
+    modelId,
+    resolvedSession,
+    conversationContext,
+    workshopCtx.notes,
+  ]);
 
   const handleRegen = useCallback(async () => {
     if (!promptText.trim() || isAnalyzing) return;
@@ -394,7 +471,15 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
     } finally {
       setIsAnalyzing(false);
     }
-  }, [promptText, analysisMode, isAnalyzing, modelId, resolvedSession, conversationContext, workshopCtx.notes]);
+  }, [
+    promptText,
+    analysisMode,
+    isAnalyzing,
+    modelId,
+    resolvedSession,
+    conversationContext,
+    workshopCtx.notes,
+  ]);
 
   const handleCopy = useCallback(async (text: string) => {
     const ok = await copyToClipboard(text);
@@ -469,9 +554,10 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
     return `${score}/10`;
   };
 
-  const gradientClass = analysisMode === 'vibe'
-    ? 'from-purple-500/5 to-pink-500/5 border-purple-500/15'
-    : 'from-blue-500/5 to-purple-500/5 border-blue-500/15';
+  const gradientClass =
+    analysisMode === 'vibe'
+      ? 'from-purple-500/5 to-pink-500/5 border-purple-500/15'
+      : 'from-blue-500/5 to-purple-500/5 border-blue-500/15';
 
   return (
     <div className="max-w-[1400px] mx-auto p-4 space-y-4">
@@ -507,9 +593,11 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
               ref={textareaRef}
               value={promptText}
               onChange={(e) => setPromptText(e.target.value)}
-              placeholder={analysisMode === 'vibe'
-                ? 'Type what you want Claude to do... e.g. "make the sidebar wider and add a dark theme toggle"'
-                : 'Enter your prompt for improvement... e.g. "Add authentication to the Express API with JWT tokens and refresh flow"'}
+              placeholder={
+                analysisMode === 'vibe'
+                  ? 'Type what you want Claude to do... e.g. "make the sidebar wider and add a dark theme toggle"'
+                  : 'Enter your prompt for improvement... e.g. "Add authentication to the Express API with JWT tokens and refresh flow"'
+              }
               className="w-full h-32 bg-[#0d1117] border border-gray-800 rounded-lg p-3 text-sm text-gray-200 placeholder-gray-600 resize-y focus:border-blue-500/50 focus:outline-none transition-colors"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -558,12 +646,16 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
                   Context
                 </span>
                 <span className="text-xs text-gray-600 truncate">
-                  {resolvedSession
-                    ? <>&middot; {workshopCtx.sessionId === null ? 'auto' : 'linked'} &middot; {resolvedSession.name} ({sessionTurns.length} turns)</>
-                    : workshopCtx.notes
-                      ? <>&middot; custom notes</>
-                      : <>&middot; none</>
-                  }
+                  {resolvedSession ? (
+                    <>
+                      &middot; {workshopCtx.sessionId === null ? 'auto' : 'linked'} &middot;{' '}
+                      {resolvedSession.name} ({sessionTurns.length} turns)
+                    </>
+                  ) : workshopCtx.notes ? (
+                    <>&middot; custom notes</>
+                  ) : (
+                    <>&middot; none</>
+                  )}
                 </span>
               </button>
 
@@ -624,7 +716,9 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
                     </label>
                     <textarea
                       value={workshopCtx.notes}
-                      onChange={(e) => setWorkshopCtx((prev) => ({ ...prev, notes: e.target.value }))}
+                      onChange={(e) =>
+                        setWorkshopCtx((prev) => ({ ...prev, notes: e.target.value }))
+                      }
                       placeholder="e.g. Working on the dashboard header, fixing a CSS z-index issue..."
                       className="w-full h-16 max-h-32 bg-[#161b22] border border-gray-700 rounded-md px-2.5 py-1.5 text-xs text-gray-300 placeholder-gray-600 resize-y focus:border-blue-500/50 focus:outline-none"
                     />
@@ -643,7 +737,9 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
 
           {/* Loading skeleton */}
           {isAnalyzing && !currentResult && (
-            <div className={`bg-gradient-to-r ${gradientClass} border rounded-xl p-4 space-y-3 animate-pulse`}>
+            <div
+              className={`bg-gradient-to-r ${gradientClass} border rounded-xl p-4 space-y-3 animate-pulse`}
+            >
               <div className="flex items-center justify-between">
                 <div className="h-3 bg-gray-700/50 rounded w-24" />
                 <div className="h-4 bg-gray-700/50 rounded w-12" />
@@ -665,7 +761,9 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
                   <span className="text-xs font-medium uppercase tracking-wider text-gray-500">
                     {analysisMode === 'vibe' ? 'Prompt Coach' : 'AI Analysis'}
                   </span>
-                  <span className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-500/10 text-blue-400 rounded">AI</span>
+                  <span className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-500/10 text-blue-400 rounded">
+                    AI
+                  </span>
                 </div>
                 <span className={`text-sm font-semibold ${scoreColor(currentResult.score)}`}>
                   {scoreLabel(currentResult.score, currentResult.mode)}
@@ -697,9 +795,11 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
                         className="p-1.5 rounded-md bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
                         title="Copy to clipboard"
                       >
-                        {copyFeedback
-                          ? <span className="text-emerald-400 text-[10px] font-medium">OK</span>
-                          : <CopyIcon />}
+                        {copyFeedback ? (
+                          <span className="text-emerald-400 text-[10px] font-medium">OK</span>
+                        ) : (
+                          <CopyIcon />
+                        )}
                       </button>
 
                       {/* Send to Claude */}
@@ -711,11 +811,13 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
                         className="p-1.5 rounded-md bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
                         title="Send to Claude terminal"
                       >
-                        {sendFeedback === 'sent'
-                          ? <span className="text-emerald-400 text-[10px] font-medium">Sent</span>
-                          : sendFeedback === 'copied'
-                            ? <span className="text-yellow-400 text-[10px] font-medium">Clip</span>
-                            : <TerminalIcon />}
+                        {sendFeedback === 'sent' ? (
+                          <span className="text-emerald-400 text-[10px] font-medium">Sent</span>
+                        ) : sendFeedback === 'copied' ? (
+                          <span className="text-yellow-400 text-[10px] font-medium">Clip</span>
+                        ) : (
+                          <TerminalIcon />
+                        )}
                       </button>
 
                       {/* Iterate */}
@@ -755,7 +857,8 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
           {/* Send feedback toast */}
           {sendFeedback === 'copied' && (
             <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 text-xs text-yellow-400">
-              No VS Code extension connected — prompt copied to clipboard instead. Paste it into your Claude session.
+              No VS Code extension connected — prompt copied to clipboard instead. Paste it into
+              your Claude session.
             </div>
           )}
         </div>
@@ -808,7 +911,10 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
                       </div>
                     </button>
                     <button
-                      onClick={(e) => { e.stopPropagation(); handleToggleFavorite(item); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleFavorite(item);
+                      }}
                       className="absolute top-2 right-2 text-amber-400 hover:text-amber-300 transition-colors"
                       title="Remove from favorites"
                     >
@@ -823,38 +929,43 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
             )}
 
             {/* Regular history (excluding favorites) */}
-            {history.filter((h) => !favoriteIds.has(h.id)).map((item) => (
-              <div key={item.id} className="relative group">
-                <button
-                  onClick={() => handleRestoreHistory(item)}
-                  className={`w-full text-left p-2 rounded-lg transition-colors ${
-                    currentResult?.id === item.id
-                      ? 'bg-blue-500/10 border border-blue-500/20'
-                      : 'hover:bg-[#0d1117]/50 border border-transparent'
-                  }`}
-                >
-                  <div className="text-xs text-gray-300 truncate pr-5">{item.promptText}</div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className={`text-[10px] font-medium ${scoreColor(item.score)}`}>
-                      {item.score}/10
-                    </span>
-                    <span className="text-[10px] text-gray-600">
-                      {item.mode === 'vibe' ? 'Vibe' : 'Dev'}
-                    </span>
-                    <span className="text-[10px] text-gray-600 ml-auto">
-                      {formatTimestamp(item.timestamp)}
-                    </span>
-                  </div>
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleToggleFavorite(item); }}
-                  className="absolute top-2 right-2 text-gray-600 opacity-0 group-hover:opacity-100 hover:text-amber-400 transition-all"
-                  title="Add to favorites"
-                >
-                  <StarIcon filled={false} />
-                </button>
-              </div>
-            ))}
+            {history
+              .filter((h) => !favoriteIds.has(h.id))
+              .map((item) => (
+                <div key={item.id} className="relative group">
+                  <button
+                    onClick={() => handleRestoreHistory(item)}
+                    className={`w-full text-left p-2 rounded-lg transition-colors ${
+                      currentResult?.id === item.id
+                        ? 'bg-blue-500/10 border border-blue-500/20'
+                        : 'hover:bg-[#0d1117]/50 border border-transparent'
+                    }`}
+                  >
+                    <div className="text-xs text-gray-300 truncate pr-5">{item.promptText}</div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`text-[10px] font-medium ${scoreColor(item.score)}`}>
+                        {item.score}/10
+                      </span>
+                      <span className="text-[10px] text-gray-600">
+                        {item.mode === 'vibe' ? 'Vibe' : 'Dev'}
+                      </span>
+                      <span className="text-[10px] text-gray-600 ml-auto">
+                        {formatTimestamp(item.timestamp)}
+                      </span>
+                    </div>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleFavorite(item);
+                    }}
+                    className="absolute top-2 right-2 text-gray-600 opacity-0 group-hover:opacity-100 hover:text-amber-400 transition-all"
+                    title="Add to favorites"
+                  >
+                    <StarIcon filled={false} />
+                  </button>
+                </div>
+              ))}
           </div>
         )}
       </div>

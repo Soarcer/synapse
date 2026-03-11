@@ -10,6 +10,7 @@ synapse.db-wal
 *.tsbuildinfo
 *.vsix
 hook_debug.log
+/migrate-to-products.ps1
 nul
 c:temp*
 *synapse_stop.json

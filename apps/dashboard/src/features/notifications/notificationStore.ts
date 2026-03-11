@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 import { create } from 'zustand';
 import type { AgentEvent } from '@synapse-ai/core';
@@ -35,13 +35,23 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     });
   },
 
-  dismiss: (id) => set((s) => ({
-    notifications: s.notifications.filter((n) => n.id !== id),
-  })),
+  dismiss: (id) =>
+    set((s) => ({
+      notifications: s.notifications.filter((n) => n.id !== id),
+    })),
 
   clearAll: () => set({ notifications: [] }),
 
-  setEnabled: (enabled) => { saveSettings({ enabled }); set({ enabled }); },
-  setShowToasts: (showToasts) => { saveSettings({ showToasts }); set({ showToasts }); },
-  setShowPulse: (showPulse) => { saveSettings({ showPulse }); set({ showPulse }); },
+  setEnabled: (enabled) => {
+    saveSettings({ enabled });
+    set({ enabled });
+  },
+  setShowToasts: (showToasts) => {
+    saveSettings({ showToasts });
+    set({ showToasts });
+  },
+  setShowPulse: (showPulse) => {
+    saveSettings({ showPulse });
+    set({ showPulse });
+  },
 }));

@@ -1,12 +1,8 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ReactFlow,
-  ReactFlowProvider,
-  useReactFlow,
-} from '@xyflow/react';
+import { ReactFlow, ReactFlowProvider, useReactFlow } from '@xyflow/react';
 import type { NodeChange } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useAgentStore } from '../../store/agentStore';
@@ -41,9 +37,9 @@ function MobileGraphInner() {
   const { fitView } = useReactFlow();
 
   // Own toolGroupDims state (same pattern as AgentGraph)
-  const [toolGroupDims, setToolGroupDims] = useState<Map<string, { width: number; height: number }>>(
-    () => new Map(),
-  );
+  const [toolGroupDims, setToolGroupDims] = useState<
+    Map<string, { width: number; height: number }>
+  >(() => new Map());
 
   // Own expandedParentId computation (same as AgentGraph lines 57-71)
   const expandedParentId = useMemo(() => {
@@ -73,10 +69,7 @@ function MobileGraphInner() {
   const layoutNodes = useAutoLayout(visibleNodes, visibleEdges, expandedParentId);
 
   // Filter out spawn node on mobile
-  const mobileNodes = useMemo(
-    () => layoutNodes.filter((n) => n.id !== '__spawn__'),
-    [layoutNodes],
-  );
+  const mobileNodes = useMemo(() => layoutNodes.filter((n) => n.id !== '__spawn__'), [layoutNodes]);
 
   // Own onNodesChange callback (same pattern as AgentGraph lines 558-590)
   const updateNodeDimensions = useAgentStore((s) => s.updateNodeDimensions);

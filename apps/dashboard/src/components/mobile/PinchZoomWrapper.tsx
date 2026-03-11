@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 import { useRef, useCallback, useEffect, type ReactNode } from 'react';
 
@@ -55,32 +55,29 @@ export function PinchZoomWrapper({
     y: (t1.clientY + t2.clientY) / 2,
   });
 
-  const handleTouchStart = useCallback(
-    (e: TouchEvent) => {
-      if (e.touches.length === 2) {
-        // Start pinch
-        e.preventDefault();
-        panRef.current = null;
-        const d = getDistance(e.touches[0], e.touches[1]);
-        const mid = getMidpoint(e.touches[0], e.touches[1]);
-        gestureRef.current = {
-          initialDistance: d,
-          initialScale: scaleRef.current,
-          initialMidpoint: mid,
-          initialTranslate: { ...translateRef.current },
-        };
-      } else if (e.touches.length === 1 && scaleRef.current > 1) {
-        // Start pan (only when zoomed in)
-        e.preventDefault();
-        panRef.current = {
-          startX: e.touches[0].clientX,
-          startY: e.touches[0].clientY,
-          startTranslate: { ...translateRef.current },
-        };
-      }
-    },
-    [],
-  );
+  const handleTouchStart = useCallback((e: TouchEvent) => {
+    if (e.touches.length === 2) {
+      // Start pinch
+      e.preventDefault();
+      panRef.current = null;
+      const d = getDistance(e.touches[0], e.touches[1]);
+      const mid = getMidpoint(e.touches[0], e.touches[1]);
+      gestureRef.current = {
+        initialDistance: d,
+        initialScale: scaleRef.current,
+        initialMidpoint: mid,
+        initialTranslate: { ...translateRef.current },
+      };
+    } else if (e.touches.length === 1 && scaleRef.current > 1) {
+      // Start pan (only when zoomed in)
+      e.preventDefault();
+      panRef.current = {
+        startX: e.touches[0].clientX,
+        startY: e.touches[0].clientY,
+        startTranslate: { ...translateRef.current },
+      };
+    }
+  }, []);
 
   const handleTouchMove = useCallback(
     (e: TouchEvent) => {

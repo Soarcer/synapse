@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 import { useMemo } from 'react';
 import { useAgentStore } from '../../store/agentStore';
@@ -13,7 +13,7 @@ import { formatRelativeTime, formatDuration } from '@synapse-ai/core';
 const TIME_RANGE_MAP: Record<string, string> = {
   'Last hour': '1h',
   'Last 4h': '6h',
-  'Today': '24h',
+  Today: '24h',
   'This week': '7d',
   'Last 30 days': '30d',
   'All time': 'all',
@@ -37,7 +37,9 @@ export function MobileAnalyticsView() {
 
   const totalTokens = useMemo(() => {
     if (!overview) return 0;
-    return overview.totalTokens.input + overview.totalTokens.output + overview.totalTokens.cacheRead;
+    return (
+      overview.totalTokens.input + overview.totalTokens.output + overview.totalTokens.cacheRead
+    );
   }, [overview]);
 
   if (isLoading) {

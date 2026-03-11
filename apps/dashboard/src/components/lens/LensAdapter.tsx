@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 import { useMemo, useCallback, useEffect, useRef } from 'react';
 import type { Node, Edge } from '@xyflow/react';
@@ -9,6 +9,7 @@ import type {
   AgentNodeData,
   UserPromptData,
   TranscriptSummary,
+  ToolCallSummary,
 } from '@synapse-ai/core';
 import { apiUrl } from '../../utils/api';
 import { extractUserMessage } from '../../utils/promptText';
