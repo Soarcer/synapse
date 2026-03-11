@@ -4,7 +4,7 @@
 import { Router, type Request, type Response } from 'express';
 import { logger } from '../lib/logger.js';
 import { storeNormalized, storePreNormalized, getStoredEvents } from '../services/eventStore.js';
-import { deleteEventsBySession, deleteAllEvents, listSessions } from '../db.js';
+import { deleteEventsBySession, deleteAllEvents, listSessions, listProjectCwds } from '../db.js';
 import type { Broadcaster } from '../services/broadcaster.js';
 import { AgentEventSchema, EventQuerySchema, normalizeCwd } from '@synapse-ai/core';
 import { validateBody, validateQuery } from '../lib/validate.js';
@@ -109,6 +109,17 @@ export function createEventsRouter(broadcaster: Broadcaster): Router {
     } catch (err: unknown) {
       logger.error({ err }, 'Error listing sessions');
       res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // GET /api/events/projects — list distinct project cwds
+  router.get('/projects', (_req: Request, res: Response) => {
+    try {
+      const projects = listProjectCwds();
+      res.json({ projects });
+    } catch (err: unknown) {
+      logger.error({ err }, 'Error listing projects');
+      res.json({ projects: [] });
     }
   });
 

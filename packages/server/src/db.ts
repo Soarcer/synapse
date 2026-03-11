@@ -686,6 +686,13 @@ export function analyticsQueryAll(sql: string, params?: unknown[]): Record<strin
   return queryAll(sql, params);
 }
 
+export function listProjectCwds(): string[] {
+  const rows = queryAll(
+    "SELECT DISTINCT cwd FROM events WHERE cwd IS NOT NULL AND cwd != '' ORDER BY cwd",
+  );
+  return rows.map((r) => String(r['cwd']));
+}
+
 export function analyticsQueryGet(
   sql: string,
   params?: unknown[],

@@ -8,6 +8,7 @@
 //   synapse start [--port N] [--background] [--no-open] [--no-hook]
 //   synapse stop
 //   synapse status
+//   synapse open           — open the dashboard in browser (any terminal, any time)
 //   synapse hook           — configure hooks for current project
 //   synapse unhook         — remove hooks from current project
 
@@ -60,7 +61,8 @@ async function main() {
 
       // Open browser (unless --no-open or --background)
       if (!noOpen && !background) {
-        await openBrowser(`http://localhost:${actualPort}`);
+        const cwdParam = encodeURIComponent(cwd);
+        await openBrowser(`http://localhost:${actualPort}?cwd=${cwdParam}`);
       }
 
       if (background) {
@@ -79,12 +81,28 @@ async function main() {
     case 'status': {
       const info = await status();
       if (info.running) {
-        console.log(`Synapse is running (PID ${info.pid}, port ${info.port})`);
-        console.log(`  Dashboard: http://localhost:${info.port}`);
-        console.log(`  Hooks configured: ${isHooked(process.cwd()) ? 'yes' : 'no'}`);
+        console.log(`\nSynapse is running`);
+        console.log(`  Dashboard  →  http://localhost:${info.port}`);
+        console.log(`  PID           ${info.pid}`);
+        console.log(
+          `  Hooked here   ${isHooked(process.cwd()) ? 'yes' : 'no (run "synapse hook")'}\n`,
+        );
       } else {
-        console.log('Synapse is not running');
+        console.log('Synapse is not running. Start with: synapse start -d');
       }
+      break;
+    }
+
+    case 'open': {
+      const info = await status();
+      if (!info.running || !info.port) {
+        console.error('Synapse is not running. Start with: synapse start -d');
+        process.exit(1);
+      }
+      const cwdParam = encodeURIComponent(process.cwd());
+      const url = `http://localhost:${info.port}?cwd=${cwdParam}`;
+      await openBrowser(url);
+      console.log(`Opening ${url}`);
       break;
     }
 
@@ -112,20 +130,21 @@ Synapse — monitor AI coding agents from the terminal
 Usage:
   synapse start [options]     Start the Synapse server
   synapse stop                Stop the running server
-  synapse status              Check if the server is running
-  synapse hook                Configure hooks for current project
+  synapse status              Show URL, PID, and hook status
+  synapse open                Open the dashboard in your browser
+  synapse hook                Hook current project to the running server
   synapse unhook              Remove hooks from current project
 
 Start options:
-  --port N         Preferred port (default: 4000, auto-increments if busy)
+  --port N         Preferred port (default: 27246, auto-increments if busy)
   --background     Run as background daemon (alias: --bg, -d)
   --no-open        Don't open browser
   --no-hook        Don't configure hooks for current project
 
 Examples:
-  synapse start               Start server, hook current project, open browser
-  synapse start -d            Start as daemon, hook current project
-  synapse start --no-hook     Start server without configuring hooks
+  synapse start -d            Start daemon, hook current project
+  synapse status              See the dashboard URL (even if port shifted)
+  synapse open                Reopen dashboard from any terminal
   cd ~/other-project && synapse hook    Hook another project to the running daemon
 `);
       break;
