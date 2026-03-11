@@ -1,17 +1,44 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 export const NOTIFICATIONS_ENABLED = true;
 
 export const MAX_NOTIFICATIONS = 50;
 
-export const NOTIFICATION_TYPES: Record<string, { label: string; color: string; dot: string; border: string; bg: string }> = {
-  permission_prompt: { label: 'Permission', color: 'text-red-400', dot: 'bg-red-400', border: 'border-red-700/40', bg: 'bg-red-950/80' },
-  elicitation_dialog: { label: 'Question', color: 'text-amber-400', dot: 'bg-amber-400', border: 'border-amber-700/40', bg: 'bg-amber-950/80' },
-  warning: { label: 'Warning', color: 'text-amber-400', dot: 'bg-amber-400', border: 'border-amber-700/40', bg: 'bg-amber-950/80' },
+export const NOTIFICATION_TYPES: Record<
+  string,
+  { label: string; color: string; dot: string; border: string; bg: string }
+> = {
+  permission_prompt: {
+    label: 'Permission',
+    color: 'text-red-400',
+    dot: 'bg-red-400',
+    border: 'border-red-700/40',
+    bg: 'bg-red-950/80',
+  },
+  elicitation_dialog: {
+    label: 'Question',
+    color: 'text-amber-400',
+    dot: 'bg-amber-400',
+    border: 'border-amber-700/40',
+    bg: 'bg-amber-950/80',
+  },
+  warning: {
+    label: 'Warning',
+    color: 'text-amber-400',
+    dot: 'bg-amber-400',
+    border: 'border-amber-700/40',
+    bg: 'bg-amber-950/80',
+  },
 };
 
-export const FALLBACK_TYPE = { label: 'Alert', color: 'text-gray-400', dot: 'bg-gray-400', border: 'border-gray-700/40', bg: 'bg-gray-900/80' };
+export const FALLBACK_TYPE = {
+  label: 'Alert',
+  color: 'text-gray-400',
+  dot: 'bg-gray-400',
+  border: 'border-gray-700/40',
+  bg: 'bg-gray-900/80',
+};
 
 const SETTINGS_KEY = 'synapse-notification-settings';
 
@@ -40,7 +67,9 @@ export function saveSettings(partial: Partial<NotificationSettings>): void {
   try {
     const current = loadSettings();
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...current, ...partial }));
-  } catch { /* quota exceeded */ }
+  } catch {
+    /* quota exceeded */
+  }
 }
 
 export function sessionLabel(sessionId: string, sessions: Map<string, { cwd?: string }>): string {

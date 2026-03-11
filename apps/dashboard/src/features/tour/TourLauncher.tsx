@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 import { useState, useEffect, useCallback } from 'react';
 import { useTourStore } from './tourStore';
@@ -47,13 +47,19 @@ export function TourLauncher() {
           <div className="text-xs text-gray-400 mb-4">{t('tour.launcher.body')}</div>
           <div className="flex gap-2">
             <button
-              onClick={() => { setShowWelcome(false); handleStart(); }}
+              onClick={() => {
+                setShowWelcome(false);
+                handleStart();
+              }}
               className="flex-1 px-3 py-1.5 rounded-md bg-violet-600 text-white text-xs font-semibold hover:bg-violet-500 transition-colors"
             >
               {t('tour.launcher.start')}
             </button>
             <button
-              onClick={() => { setShowWelcome(false); localStorage.setItem('synapse-tour-completed', '1'); }}
+              onClick={() => {
+                setShowWelcome(false);
+                localStorage.setItem('synapse-tour-completed', '1');
+              }}
               className="px-3 py-1.5 rounded-md border border-gray-700 text-gray-400 text-xs hover:text-gray-200 transition-colors"
             >
               {t('tour.launcher.dismiss')}

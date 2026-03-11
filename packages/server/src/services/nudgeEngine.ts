@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 import { nanoid } from 'nanoid';
 import { logger } from '../lib/logger.js';
@@ -15,18 +15,24 @@ import type {
   SessionAccumulator,
   DeliveryConfig,
 } from '@synapse-ai/core';
-import { incrementToolCallCount, shouldRunPeriodicCheck, tryEscalateNudge } from './aiNudgeEscalator.js';
+import {
+  incrementToolCallCount,
+  shouldRunPeriodicCheck,
+  tryEscalateNudge,
+} from './aiNudgeEscalator.js';
 
 // ─── Bash File-Op Detection ──────────────────────────────────────────
 
 const BASH_FILE_OPS_RE = /\b(cat|head|tail|sed|awk|grep|rg|find)\b/;
-const TEST_CMD_RE = /\b(test|jest|vitest|pytest|cargo test|go test|npm test|pnpm test|bun test|make test)\b/i;
+const TEST_CMD_RE =
+  /\b(test|jest|vitest|pytest|cargo test|go test|npm test|pnpm test|bun test|make test)\b/i;
 const GIT_COMMIT_RE = /\bgit\s+commit\b/;
 const GIT_DIFF_RE = /\bgit\s+diff\b/;
 const GIT_ADD_ALL_RE = /\bgit\s+add\s+(-A|\.)\b/;
 const GIT_FORCE_RE = /\bgit\s+push\s+.*(-f|--force)\b/;
 const PROCESS_KILL_ALL_RE = /\btaskkill\b.*\/\/IM\b/i;
-const SECRET_PATTERN_RE = /\b(API_KEY|SECRET|PASSWORD|PRIVATE_KEY|ACCESS_TOKEN)\s*[:=]\s*["']?[A-Za-z0-9+/=_-]{8,}/;
+const SECRET_PATTERN_RE =
+  /\b(API_KEY|SECRET|PASSWORD|PRIVATE_KEY|ACCESS_TOKEN)\s*[:=]\s*["']?[A-Za-z0-9+/=_-]{8,}/;
 const BEARER_RE = /Bearer\s+[A-Za-z0-9._~+/=-]{20,}/;
 const SENSITIVE_FILES_RE = /\.(env|pem|key|pfx|p12)$|credentials\.json|\.secret/i;
 const MAIN_BRANCH_RE = /\b(main|master)\b/;
@@ -154,9 +160,10 @@ function updateAccumulator(acc: SessionAccumulator, event: AgentEvent): void {
     // Session goal: extract from first prompt (first sentence or first 100 chars)
     if (acc.promptCount === 1 && capped.length > 0) {
       const sentenceEnd = capped.search(/[.!?]/);
-      acc.sessionGoalSummary = sentenceEnd > 0 && sentenceEnd < 100
-        ? capped.slice(0, sentenceEnd + 1)
-        : capped.slice(0, 100);
+      acc.sessionGoalSummary =
+        sentenceEnd > 0 && sentenceEnd < 100
+          ? capped.slice(0, sentenceEnd + 1)
+          : capped.slice(0, 100);
     }
 
     // Conversation mode: 2+ of the last 3 prompts within 2min AND all short (<15 words)
@@ -183,7 +190,10 @@ function updateAccumulator(acc: SessionAccumulator, event: AgentEvent): void {
   }
 
   // Tool tracking
-  if (event.toolName && (event.type === 'tool_start' || event.type === 'tool_end' || event.type === 'tool_error')) {
+  if (
+    event.toolName &&
+    (event.type === 'tool_start' || event.type === 'tool_end' || event.type === 'tool_error')
+  ) {
     const toolName = event.toolName;
 
     if (event.type === 'tool_end' || event.type === 'tool_start') {
@@ -198,11 +208,21 @@ function updateAccumulator(acc: SessionAccumulator, event: AgentEvent): void {
     }
 
     // Track subagent file access
-    if (event.agentId && (toolName === 'Read' || toolName === 'Edit' || toolName === 'Write' || toolName === 'Grep' || toolName === 'Glob')) {
+    if (
+      event.agentId &&
+      (toolName === 'Read' ||
+        toolName === 'Edit' ||
+        toolName === 'Write' ||
+        toolName === 'Grep' ||
+        toolName === 'Glob')
+    ) {
       const filePath = extractFilePath(event);
       if (filePath) {
         let files = acc.subagentFiles.get(event.agentId);
-        if (!files) { files = new Set(); acc.subagentFiles.set(event.agentId, files); }
+        if (!files) {
+          files = new Set();
+          acc.subagentFiles.set(event.agentId, files);
+        }
         files.add(filePath);
       }
     }
@@ -288,8 +308,8 @@ function updateAccumulator(acc: SessionAccumulator, event: AgentEvent): void {
 // ─── Dual Windows ────────────────────────────────────────────────────
 
 interface SessionWindows {
-  countWindow: AgentEvent[];      // Last N events
-  timeWindow: AgentEvent[];       // Events within last T ms
+  countWindow: AgentEvent[]; // Last N events
+  timeWindow: AgentEvent[]; // Events within last T ms
   lastActivity: number;
 }
 
@@ -333,8 +353,8 @@ interface CooldownEntry {
 
 interface DeliveryState {
   nudgesFired: number;
-  cooldowns: Map<string, CooldownEntry>;  // ruleId → cooldown
-  suppressedRules: Set<string>;           // rules auto-suppressed this session
+  cooldowns: Map<string, CooldownEntry>; // ruleId → cooldown
+  suppressedRules: Set<string>; // rules auto-suppressed this session
 }
 
 function createDeliveryState(): DeliveryState {
@@ -455,7 +475,12 @@ export function updateEventBuffer(event: AgentEvent): void {
 
 // Event types that the engine examines
 const NUDGE_RELEVANT_TYPES = new Set<AgentEventType>([
-  'tool_start', 'tool_end', 'tool_error', 'agent_start', 'agent_stop', 'user_prompt',
+  'tool_start',
+  'tool_end',
+  'tool_error',
+  'agent_start',
+  'agent_stop',
+  'user_prompt',
 ]);
 
 export function checkNudges(event: AgentEvent, broadcaster: Broadcaster): void {
@@ -515,7 +540,9 @@ export function checkNudges(event: AgentEvent, broadcaster: Broadcaster): void {
 
   // Severity prioritization: deliver highest severity first
   const severityOrder: Record<NudgeSeverity, number> = { warning: 3, suggestion: 2, info: 1 };
-  candidates.sort((a, b) => severityOrder[b.candidate.severity] - severityOrder[a.candidate.severity]);
+  candidates.sort(
+    (a, b) => severityOrder[b.candidate.severity] - severityOrder[a.candidate.severity],
+  );
 
   // Deliver top candidate (or all warnings if multiple)
   const delivered: CoachingNudge[] = [];
@@ -553,7 +580,10 @@ export function checkNudges(event: AgentEvent, broadcaster: Broadcaster): void {
     delivered.push(nudge);
 
     recordDelivery(delivery, rule, DEFAULT_DELIVERY_CONFIG);
-    logger.info({ sessionId: event.sessionId, ruleId: rule.meta.id, severity: nudge.severity }, 'Nudge fired');
+    logger.info(
+      { sessionId: event.sessionId, ruleId: rule.meta.id, severity: nudge.severity },
+      'Nudge fired',
+    );
 
     // AI escalation for warnings (fire-and-forget)
     if (nudge.severity === 'warning') {
@@ -594,7 +624,10 @@ export function getSessionAccumulator(sessionId: string): SessionAccumulator | u
  * for tool-level choices like cat/grep/sed — users don't type those words.
  * Tool selection is always an agent decision.
  */
-export function userExplicitlyRequested(acc: Readonly<SessionAccumulator>, patterns: RegExp): boolean {
+export function userExplicitlyRequested(
+  acc: Readonly<SessionAccumulator>,
+  patterns: RegExp,
+): boolean {
   if (!acc.lastPromptText) return false;
   return patterns.test(acc.lastPromptText);
 }

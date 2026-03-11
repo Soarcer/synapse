@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 import { useState, useMemo } from 'react';
 import { useAgentStore } from '../../store/agentStore';
@@ -23,14 +23,20 @@ export function MobileStatusBar() {
   }, [agents]);
 
   const statusColor =
-    connectionStatus === 'connected' ? 'bg-green-500' :
-    connectionStatus === 'reconnecting' ? 'bg-yellow-500 animate-pulse' :
-    'bg-red-500';
+    connectionStatus === 'connected'
+      ? 'bg-green-500'
+      : connectionStatus === 'reconnecting'
+        ? 'bg-yellow-500 animate-pulse'
+        : 'bg-red-500';
 
   const statusLabel =
-    connectionStatus === 'connected' ? 'Connected' :
-    connectionStatus === 'reconnecting' ? 'Reconnecting...' :
-    connectionStatus === 'failed' ? 'Failed' : 'Disconnected';
+    connectionStatus === 'connected'
+      ? 'Connected'
+      : connectionStatus === 'reconnecting'
+        ? 'Reconnecting...'
+        : connectionStatus === 'failed'
+          ? 'Failed'
+          : 'Disconnected';
 
   return (
     <div className="flex-shrink-0 bg-[#161b22] border-b border-gray-800">
@@ -41,7 +47,9 @@ export function MobileStatusBar() {
         <span className={`w-2 h-2 rounded-full flex-shrink-0 ${statusColor}`} />
         <span>{statusLabel}</span>
         {paused && (
-          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-500/20 text-yellow-400">Paused</span>
+          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-500/20 text-yellow-400">
+            Paused
+          </span>
         )}
         <span className="text-gray-600">|</span>
         <span>{runningCount > 0 ? `${runningCount} running` : `${totalAgents} agents`}</span>
@@ -63,7 +71,9 @@ export function MobileStatusBar() {
       {expanded && (
         <div className="px-3 pb-2 text-xs text-gray-500 space-y-1 border-t border-gray-800/50 pt-1.5">
           <div>Sessions: {sessions.size}</div>
-          <div>Total agents: {totalAgents} ({runningCount} running)</div>
+          <div>
+            Total agents: {totalAgents} ({runningCount} running)
+          </div>
           <div>Tokens: {totalTokens.toLocaleString()}</div>
           <a
             href={`${window.location.pathname}?view=full`}

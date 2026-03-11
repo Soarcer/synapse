@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 export const TOUR_ENABLED = true;
 export const LS_KEY_COMPLETED = 'synapse-tour-completed';

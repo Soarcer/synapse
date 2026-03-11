@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { MobileStatusBar } from './MobileStatusBar';
@@ -18,9 +18,7 @@ const MobileAnalyticsView = lazy(() =>
 
 function TabFallback() {
   return (
-    <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
-      Loading...
-    </div>
+    <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">Loading...</div>
   );
 }
 
@@ -70,7 +68,10 @@ export default function MobileView() {
   }, []);
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden relative" style={{ overscrollBehavior: 'none' }}>
+    <div
+      className="flex-1 flex flex-col overflow-hidden relative"
+      style={{ overscrollBehavior: 'none' }}
+    >
       <MobileStatusBar />
       <MobileSettingsButton />
 

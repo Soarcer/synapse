@@ -1,11 +1,17 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 import { createHash } from 'crypto';
 import { logger } from '../lib/logger.js';
 import { resolveApiKey, getAiCoachModel, isAiCoachEnabled } from './settingsService.js';
 import { getAiCacheEntry, setAiCacheEntry, pruneAiCache } from '../db.js';
-import type { PromptAnalysis, SessionSummary, EnrichedNudge, CoachingNudge, AiCoachStatus } from '@synapse-ai/core';
+import type {
+  PromptAnalysis,
+  SessionSummary,
+  EnrichedNudge,
+  CoachingNudge,
+  AiCoachStatus,
+} from '@synapse-ai/core';
 
 // ─── Rate Limiting ───────────────────────────────────────────────────
 
@@ -78,7 +84,7 @@ async function callAnthropic(params: {
           throw new Error(`Anthropic API error (${response.status})`);
         }
 
-        const data = await response.json() as {
+        const data = (await response.json()) as {
           content: { type: string; text: string }[];
         };
 
@@ -139,7 +145,8 @@ export async function summarizeSession(context: {
 
   if (!isAvailable()) {
     return {
-      summary: 'AI summary unavailable — configure an API key in Settings to enable AI-powered insights.',
+      summary:
+        'AI summary unavailable — configure an API key in Settings to enable AI-powered insights.',
       roiMetrics: { timeSaved: 'N/A', costPerTask: 'N/A', successRate: 'N/A' },
     };
   }
@@ -147,7 +154,8 @@ export async function summarizeSession(context: {
   const model = getAiCoachModel();
   const text = await callAnthropic({
     model,
-    system: 'You are an expert AI coding assistant analyst. Provide concise, actionable summaries. Respond in JSON format.',
+    system:
+      'You are an expert AI coding assistant analyst. Provide concise, actionable summaries. Respond in JSON format.',
     userMessage: `Summarize this coding session in exactly 3 sentences, and estimate ROI metrics.
 
 Session data:
@@ -168,14 +176,26 @@ Respond with JSON: { "summary": "3 sentences...", "roiMetrics": { "timeSaved": "
     const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
     const result = JSON.parse(jsonMatch?.[0] ?? '{}') as SessionSummary;
     if (result.summary) {
-      setAiCacheEntry({ cacheKey, method: 'summarize', sessionId: context.sessionId, contentHash: hash, response: JSON.stringify(result) });
+      setAiCacheEntry({
+        cacheKey,
+        method: 'summarize',
+        sessionId: context.sessionId,
+        contentHash: hash,
+        response: JSON.stringify(result),
+      });
       return result;
     }
-  } catch { /* parse error, fall through */ }
+  } catch {
+    /* parse error, fall through */
+  }
 
   return {
     summary: text.slice(0, 500),
-    roiMetrics: { timeSaved: 'N/A', costPerTask: `$${context.totalCost.toFixed(4)}`, successRate: 'N/A' },
+    roiMetrics: {
+      timeSaved: 'N/A',
+      costPerTask: `$${context.totalCost.toFixed(4)}`,
+      successRate: 'N/A',
+    },
   };
 }
 
@@ -194,9 +214,9 @@ export async function analyzePrompt(params: {
     cost: number;
   };
   conversationContext?: {
-    recentPrompts: string[];       // last 3 prompts before the current one
-    sessionGoal: string;           // extracted from prompt 1
-    turnNumber: number;            // 1-based prompt count
+    recentPrompts: string[]; // last 3 prompts before the current one
+    sessionGoal: string; // extracted from prompt 1
+    turnNumber: number; // 1-based prompt count
     isConversationalMode: boolean;
   };
 }): Promise<PromptAnalysis> {
@@ -259,8 +279,9 @@ Be warm and brief. Respond in JSON format.`
 
   // Build conversation context block for both modes
   const convCtx = params.conversationContext;
-  const contextBlock = convCtx && convCtx.recentPrompts.length > 0
-    ? `\nConversation context:
+  const contextBlock =
+    convCtx && convCtx.recentPrompts.length > 0
+      ? `\nConversation context:
 - Turn number: ${convCtx.turnNumber} of the session
 - Session goal: ${convCtx.sessionGoal || 'unknown'}
 - Conversational mode: ${convCtx.isConversationalMode ? 'yes (iterative feedback loop — rapid short prompts are expected)' : 'no'}
@@ -268,7 +289,7 @@ Be warm and brief. Respond in JSON format.`
 ${convCtx.recentPrompts.map((p, i) => `  [${i + 1}] ${p.slice(0, 200)}`).join('\n')}
 
 IMPORTANT: If conversational mode is active, short or referential prompts ("make it black", "yes do that", "now the header") are entirely appropriate. Do not penalize brevity when the conversation context makes the intent clear.\n`
-    : '';
+      : '';
 
   const projectAwareBlock = `
 NOTE: This prompt is being sent to a coding AI that has FULL access to the user's project — the entire codebase, configuration files, CLAUDE.md instructions, and file tree. The AI can read, search, and navigate the project freely. Therefore:
@@ -303,9 +324,10 @@ Context: Model=${params.sessionContext.model}, tools=${params.sessionContext.too
 
 Respond with JSON: { "score": 1-10, "explanation": "why this score", "rewrite": "improved version of the prompt", "estimatedSavings": "e.g. 30% fewer tokens", "historyComparison": "how this compares to typical prompts" }`;
 
-  const aiModel = (params.modelOverride && ALLOWED_MODELS.has(params.modelOverride))
-    ? params.modelOverride
-    : getAiCoachModel();
+  const aiModel =
+    params.modelOverride && ALLOWED_MODELS.has(params.modelOverride)
+      ? params.modelOverride
+      : getAiCoachModel();
   const text = await callAnthropic({
     model: aiModel,
     system,
@@ -318,12 +340,25 @@ Respond with JSON: { "score": 1-10, "explanation": "why this score", "rewrite": 
     const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
     const result = JSON.parse(jsonMatch?.[0] ?? '{}') as PromptAnalysis;
     if (result.score) {
-      setAiCacheEntry({ cacheKey, method: 'prompt', contentHash: hash, response: JSON.stringify(result) });
+      setAiCacheEntry({
+        cacheKey,
+        method: 'prompt',
+        contentHash: hash,
+        response: JSON.stringify(result),
+      });
       return result;
     }
-  } catch { /* parse error */ }
+  } catch {
+    /* parse error */
+  }
 
-  return { score: 5, explanation: text.slice(0, 300), rewrite: '', estimatedSavings: 'N/A', historyComparison: 'N/A' };
+  return {
+    score: 5,
+    explanation: text.slice(0, 300),
+    rewrite: '',
+    estimatedSavings: 'N/A',
+    historyComparison: 'N/A',
+  };
 }
 
 /**
@@ -341,14 +376,21 @@ export async function generateRecommendations(context: {
   const cacheKey = `recommendations:${hash}`;
 
   const cached = getAiCacheEntry(cacheKey);
-  if (cached) return JSON.parse(cached) as { title: string; description: string; impact: string; howTo: string[] }[];
+  if (cached)
+    return JSON.parse(cached) as {
+      title: string;
+      description: string;
+      impact: string;
+      howTo: string[];
+    }[];
 
   if (!isAvailable()) return [];
 
   const model = getAiCoachModel();
   const text = await callAnthropic({
     model,
-    system: 'You are an AI coding efficiency expert. Provide exactly 3 recommendations. Each MUST include a "howTo" array with 2-3 short, concrete examples. Keep each howTo step under 30 words. Respond with a raw JSON array only — no markdown, no code fences, no extra text.',
+    system:
+      'You are an AI coding efficiency expert. Provide exactly 3 recommendations. Each MUST include a "howTo" array with 2-3 short, concrete examples. Keep each howTo step under 30 words. Respond with a raw JSON array only — no markdown, no code fences, no extra text.',
     userMessage: `Based on this usage data, provide 3 actionable recommendations:
 
 - Total cost: $${context.totalCost.toFixed(2)}
@@ -369,16 +411,32 @@ howTo must be specific: "Type /fast to switch to Haiku" not "use a cheaper model
     const cleaned = text.replace(/```(?:json)?\s*/g, '').trim();
     const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
     if (!jsonMatch) {
-      logger.warn({ textPreview: cleaned.slice(0, 200) }, 'AI recommendations: no JSON array found in response');
+      logger.warn(
+        { textPreview: cleaned.slice(0, 200) },
+        'AI recommendations: no JSON array found in response',
+      );
       return [];
     }
-    const result = JSON.parse(jsonMatch[0]) as { title: string; description: string; impact: string; howTo: string[] }[];
+    const result = JSON.parse(jsonMatch[0]) as {
+      title: string;
+      description: string;
+      impact: string;
+      howTo: string[];
+    }[];
     if (result.length > 0) {
-      setAiCacheEntry({ cacheKey, method: 'recommendations', contentHash: hash, response: JSON.stringify(result) });
+      setAiCacheEntry({
+        cacheKey,
+        method: 'recommendations',
+        contentHash: hash,
+        response: JSON.stringify(result),
+      });
       return result;
     }
   } catch (err) {
-    logger.warn({ err, textPreview: text.slice(0, 200) }, 'AI recommendations: failed to parse response');
+    logger.warn(
+      { err, textPreview: text.slice(0, 200) },
+      'AI recommendations: failed to parse response',
+    );
   }
 
   return [];
@@ -387,7 +445,10 @@ howTo must be specific: "Type /fast to switch to Haiku" not "use a cheaper model
 /**
  * AI-enhance a nudge with deeper analysis.
  */
-export async function escalateNudge(nudge: CoachingNudge, recentEvents: string[]): Promise<EnrichedNudge> {
+export async function escalateNudge(
+  nudge: CoachingNudge,
+  recentEvents: string[],
+): Promise<EnrichedNudge> {
   if (!isAvailable()) {
     return {
       originalNudge: nudge,
@@ -400,7 +461,8 @@ export async function escalateNudge(nudge: CoachingNudge, recentEvents: string[]
   const model = getAiCoachModel();
   const text = await callAnthropic({
     model,
-    system: 'You are an AI coding coach. Analyze the situation and provide specific action items. Respond in JSON format.',
+    system:
+      'You are an AI coding coach. Analyze the situation and provide specific action items. Respond in JSON format.',
     userMessage: `A coaching nudge was triggered:
 
 Title: ${nudge.title}
@@ -416,7 +478,10 @@ Respond with JSON: { "aiAnalysis": "deeper analysis of what's happening", "actio
 
   try {
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    const parsed = JSON.parse(jsonMatch?.[0] ?? '{}') as { aiAnalysis: string; actionItems: string[] };
+    const parsed = JSON.parse(jsonMatch?.[0] ?? '{}') as {
+      aiAnalysis: string;
+      actionItems: string[];
+    };
     return {
       originalNudge: nudge,
       aiAnalysis: parsed.aiAnalysis ?? text.slice(0, 300),
@@ -434,4 +499,8 @@ Respond with JSON: { "aiAnalysis": "deeper analysis of what's happening", "actio
 }
 
 // Prune expired cache on startup (guarded — db may not be ready in tests)
-try { pruneAiCache(); } catch { /* db not initialized yet */ }
+try {
+  pruneAiCache();
+} catch {
+  /* db not initialized yet */
+}

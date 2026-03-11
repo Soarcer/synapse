@@ -1,8 +1,13 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 import { createContext, useContext } from 'react';
-import type { AgentNodeData, UserPromptData, AgentEvent, TranscriptSummary } from '@synapse-ai/core';
+import type {
+  AgentNodeData,
+  UserPromptData,
+  AgentEvent,
+  TranscriptSummary,
+} from '@synapse-ai/core';
 
 // ── Data types for the Lens Panel ───────────────────────────
 
@@ -14,8 +19,8 @@ export interface CompactEvent {
   id: string;
   sessionId: string;
   timestamp: number;
-  trigger?: string;              // 'manual' | 'auto'
-  preTokens?: number;            // Token count before compaction (from transcript v2)
+  trigger?: string; // 'manual' | 'auto'
+  preTokens?: number; // Token count before compaction (from transcript v2)
 }
 
 export interface CostTurn {
@@ -23,20 +28,20 @@ export interface CostTurn {
   promptText: string;
   sessionId: string;
   timestamp: number;
-  turnIndex: number;             // 0-based within session
-  inputTokens: number;           // tokens for this turn's agents
+  turnIndex: number; // 0-based within session
+  inputTokens: number; // tokens for this turn's agents
   outputTokens: number;
-  cumulativeInput: number;       // running total across session
+  cumulativeInput: number; // running total across session
   cumulativeOutput: number;
-  toolCount: number;             // number of tool calls in this turn
-  compactionBefore: boolean;     // true if a compaction happened before this turn
+  toolCount: number; // number of tool calls in this turn
+  compactionBefore: boolean; // true if a compaction happened before this turn
   // Transcript-sourced data (richer than hook-only)
-  cacheReadTokens?: number;      // from JSONL transcript
+  cacheReadTokens?: number; // from JSONL transcript
   cacheCreationTokens?: number;
-  model?: string;                // model used this turn
-  responseLatencyMs?: number;    // user→assistant delay
-  thinkingLength?: number;       // chars of thinking content
-  textLength?: number;           // chars of text output
+  model?: string; // model used this turn
+  responseLatencyMs?: number; // user→assistant delay
+  thinkingLength?: number; // chars of thinking content
+  textLength?: number; // chars of text output
   dataSource: 'hook' | 'transcript';
 }
 
@@ -46,7 +51,7 @@ export interface LensTreeNode {
   label: string;
   status: 'running' | 'success' | 'error' | 'stopped' | 'ended';
   tokens: number;
-  count: number;       // leaf=1, parent=sum of children counts
+  count: number; // leaf=1, parent=sum of children counts
   startTime: number;
   endTime?: number;
   duration: number;
@@ -71,22 +76,22 @@ export interface WaterfallSpan {
 
 export interface HeatmapCell {
   count: number;
-  ids: string[];    // graph node IDs that fall in this cell
+  ids: string[]; // graph node IDs that fall in this cell
 }
 
 export interface SankeyNode {
   id: string;
   label: string;
   kind: LensNodeKind;
-  layer: number;     // 0=session, 1=prompt, 2=agent, 3=tool
-  value: number;     // tokens or duration
+  layer: number; // 0=session, 1=prompt, 2=agent, 3=tool
+  value: number; // tokens or duration
   color: string;
 }
 
 export interface SankeyLink {
-  source: string;    // node id
-  target: string;    // node id
-  value: number;     // tokens or duration flowing through
+  source: string; // node id
+  target: string; // node id
+  value: number; // tokens or duration flowing through
 }
 
 export interface SankeyData {

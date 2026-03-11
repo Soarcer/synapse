@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 // Codex CLI notify hook — reads JSON from the LAST CLI ARGUMENT (not stdin!).
 // Codex invokes notify hooks as: node send_codex_event.cjs '{"type":"agent-turn-complete",...}'

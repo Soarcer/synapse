@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 import { useEffect, useState, useRef } from 'react';
 import { useTourStore } from './tourStore';
@@ -11,9 +11,7 @@ import { useAgentStore } from '../../store/agentStore';
 import { t } from '../../i18n';
 
 /** Index of the first optional chapter in ALL_CHAPTERS */
-const FIRST_OPTIONAL_IDX = ALL_CHAPTERS.findIndex((ch) =>
-  OPTIONAL_CHAPTERS.includes(ch.id),
-);
+const FIRST_OPTIONAL_IDX = ALL_CHAPTERS.findIndex((ch) => OPTIONAL_CHAPTERS.includes(ch.id));
 
 interface Rect {
   top: number;
@@ -28,7 +26,10 @@ function getTargetRect(selector: string): Rect | null {
   const el = document.querySelector(selector);
   if (!el) return null;
   const r = el.getBoundingClientRect();
-  let top = r.top, left = r.left, right = r.right, bottom = r.bottom;
+  let top = r.top,
+    left = r.left,
+    right = r.right,
+    bottom = r.bottom;
 
   // Expand to include direct children that overflow the element
   // (e.g., absolutely-positioned dropdown menus below a button wrapper)
@@ -101,8 +102,7 @@ export function TourOverlay() {
 }
 
 function ManualOverlay() {
-  const { chapterIndex, stepIndex, nextStep, prevStep, endTour, goToChapter } =
-    useTourStore();
+  const { chapterIndex, stepIndex, nextStep, prevStep, endTour, goToChapter } = useTourStore();
   const globalIndex = useTourStore((s) => s.globalStepIndex());
   const totalSteps = useTourStore((s) => s.totalSteps());
   const [showContinuation, setShowContinuation] = useState(false);
@@ -159,7 +159,7 @@ function ManualOverlay() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- handleNext/handleFinishHere change every render; refs keep them current
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleNext/handleFinishHere change every render; refs keep them current
   }, [nextStep, prevStep, endTour, showContinuation, isAtOptionalBoundary]);
 
   // Fire onEnter + zoom to graph node when step changes
@@ -179,13 +179,10 @@ function ManualOverlay() {
     return () => clearTimeout(timer);
   }, [globalIndex]);
 
-
   if (!chapter || !step) return null;
 
   const isFirst = chapterIndex === 0 && stepIndex === 0;
-  const isLast =
-    chapterIndex === ALL_CHAPTERS.length - 1 &&
-    stepIndex === chapter.steps.length - 1;
+  const isLast = chapterIndex === ALL_CHAPTERS.length - 1 && stepIndex === chapter.steps.length - 1;
 
   // Spotlight dimensions (padded)
   const sx = rect ? rect.left - PAD : -9999;
@@ -223,12 +220,8 @@ function ManualOverlay() {
         <div className="text-[10px] font-semibold text-violet-400 uppercase tracking-wider mb-1">
           {t(chapter.titleKey)}
         </div>
-        <div className="text-[15px] font-semibold text-gray-100 mb-2">
-          {t(step.titleKey)}
-        </div>
-        <div className="text-[13px] text-gray-400 leading-relaxed mb-4">
-          {t(step.bodyKey)}
-        </div>
+        <div className="text-[15px] font-semibold text-gray-100 mb-2">{t(step.titleKey)}</div>
+        <div className="text-[13px] text-gray-400 leading-relaxed mb-4">{t(step.bodyKey)}</div>
 
         {/* Progress bar */}
         <div className="flex items-center gap-3 mb-3">
@@ -325,7 +318,10 @@ function AutoPlayOverlay() {
         <div className="text-[10px] font-semibold text-violet-400 uppercase tracking-wider mb-2">
           {t('tour.auto.title')}
         </div>
-        <div className="text-[13px] text-gray-300 leading-relaxed mb-4 transition-opacity duration-300" key={autoPlayIndex}>
+        <div
+          className="text-[13px] text-gray-300 leading-relaxed mb-4 transition-opacity duration-300"
+          key={autoPlayIndex}
+        >
           {narrationText}
         </div>
         <div className="flex justify-between">
@@ -352,12 +348,8 @@ const CARD_W = 320;
 const CARD_H = 240;
 const VIEWPORT_MARGIN = 12;
 
-function computeCardPosition(
-  rect: Rect | null,
-  placement: string,
-): React.CSSProperties {
-  if (!rect)
-    return { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
+function computeCardPosition(rect: Rect | null, placement: string): React.CSSProperties {
+  if (!rect) return { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
 
   const vw = window.innerWidth;
   const vh = window.innerHeight;
@@ -400,13 +392,7 @@ function computeCardPosition(
 }
 
 /** Pick the best placement, flipping if the preferred side overflows. */
-function pickPlacement(
-  rect: Rect,
-  preferred: string,
-  vw: number,
-  vh: number,
-  pad: number,
-): string {
+function pickPlacement(rect: Rect, preferred: string, vw: number, vh: number, pad: number): string {
   const spaceRight = vw - (rect.left + rect.width + pad);
   const spaceLeft = rect.left - pad;
   const spaceBottom = vh - (rect.top + rect.height + 16);

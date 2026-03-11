@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 import { useMemo } from 'react';
 import type { ToolCallSummary } from '@synapse-ai/core';
@@ -7,12 +7,21 @@ import { formatDuration } from '@synapse-ai/core';
 import { Tooltip } from '../../../ui/Tooltip';
 
 const TOOL_COLORS: Record<string, string> = {
-  Read: '#0d9488', Edit: '#7c3aed', Bash: '#ea580c', Grep: '#2563eb',
-  Glob: '#0891b2', Write: '#9333ea', Task: '#059669', WebSearch: '#d97706',
-  WebFetch: '#d97706', TodoWrite: '#4f46e5',
+  Read: '#0d9488',
+  Edit: '#7c3aed',
+  Bash: '#ea580c',
+  Grep: '#2563eb',
+  Glob: '#0891b2',
+  Write: '#9333ea',
+  Task: '#059669',
+  WebSearch: '#d97706',
+  WebFetch: '#d97706',
+  TodoWrite: '#4f46e5',
 };
 const DEFAULT_COLOR = '#6b7280';
-function getColor(name: string) { return TOOL_COLORS[name] ?? DEFAULT_COLOR; }
+function getColor(name: string) {
+  return TOOL_COLORS[name] ?? DEFAULT_COLOR;
+}
 
 const COLS = 10;
 const ROWS = 16;
@@ -30,17 +39,17 @@ interface BlockPlacement {
 function mulberry32(seed: number) {
   return () => {
     seed |= 0;
-    seed = seed + 0x6D2B79F5 | 0;
-    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
 
 function hashCode(str: string): number {
   let h = 0;
   for (let i = 0; i < str.length; i++) {
-    h = Math.imul(31, h) + str.charCodeAt(i) | 0;
+    h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
   }
   return h;
 }
@@ -169,9 +178,15 @@ export function TetrisMode({ tools, selectedNodeId, selectNode }: Props) {
         const x = col * CELL;
 
         return (
-          <Tooltip key={tc.toolUseId} content={`${tc.toolName}${dur ? ` \u00b7 ${dur}` : ''} \u00b7 ${tc.status}`}>
+          <Tooltip
+            key={tc.toolUseId}
+            content={`${tc.toolName}${dur ? ` \u00b7 ${dur}` : ''} \u00b7 ${tc.status}`}
+          >
             <button
-              onClick={(e) => { e.stopPropagation(); selectNode(nodeId, 'graph'); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                selectNode(nodeId, 'graph');
+              }}
               className={`absolute transition-all cursor-pointer rounded-sm border border-white/10 ${
                 isSelected ? 'ring-1 ring-purple-400 z-10' : 'hover:brightness-125'
               }`}
@@ -182,7 +197,9 @@ export function TetrisMode({ tools, selectedNodeId, selectNode }: Props) {
                 height: height * CELL - 1,
                 backgroundColor: color,
                 opacity: isRunning ? 0.5 : 0.85,
-                animation: isRunning ? undefined : 'tetris-drop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                animation: isRunning
+                  ? undefined
+                  : 'tetris-drop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1)',
                 backgroundImage: isError
                   ? 'repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(0,0,0,0.25) 3px, rgba(0,0,0,0.25) 6px)'
                   : undefined,

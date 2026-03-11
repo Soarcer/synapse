@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { AgentDetailPanel } from '../panels/AgentDetailPanel';
@@ -41,7 +41,8 @@ export function GraphLayout() {
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement ||
         (e.target instanceof HTMLElement && e.target.isContentEditable)
-      ) return;
+      )
+        return;
       if (e.key === 't' && !e.ctrlKey && !e.metaKey) {
         toggleToolLog();
       }
@@ -60,13 +61,11 @@ export function GraphLayout() {
                 <AgentGraph />
               </Suspense>
             </ErrorBoundary>
-
             {paused && (
               <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 px-3 py-1.5 bg-yellow-900/80 border border-yellow-600/50 rounded-lg text-xs text-yellow-200 backdrop-blur-sm">
                 Paused — press Space to resume
               </div>
             )}
-
             <Tooltip content="Toggle tool log" shortcut="T">
               <button
                 onClick={() => setShowToolLog(!showToolLog)}
@@ -79,8 +78,8 @@ export function GraphLayout() {
           </div>
 
           {/* Detail panel: sidebar on md+, overlay sheet on sm */}
-          {showDetail && (
-            isSmall ? (
+          {showDetail &&
+            (isSmall ? (
               <>
                 {/* Backdrop */}
                 <div
@@ -97,12 +96,13 @@ export function GraphLayout() {
               <ErrorBoundary name="AgentDetailPanel">
                 <AgentDetailPanel />
               </ErrorBoundary>
-            )
-          )}
+            ))}
         </div>
 
         {showToolLog && (
-          <div className={`border-t border-gray-800 bg-[#161b22] flex-shrink-0 ${isSmall ? 'h-48' : 'h-64'}`}>
+          <div
+            className={`border-t border-gray-800 bg-[#161b22] flex-shrink-0 ${isSmall ? 'h-48' : 'h-64'}`}
+          >
             <ErrorBoundary name="ToolLogPanel">
               <ToolLogPanel />
             </ErrorBoundary>

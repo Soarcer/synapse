@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (c) 2026 Synapse Contributors
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Bernhard
 
 // @vitest-environment jsdom
 import type { AgentEvent } from '@synapse-ai/core';
@@ -275,17 +275,15 @@ describe('agentStore', () => {
         .addEvent(
           makeEvent({ id: 'e1', type: 'session_start', sessionId: 'sess-1', timestamp: 1000 }),
         );
-      useAgentStore
-        .getState()
-        .addEvent(
-          makeEvent({
-            id: 'e2',
-            type: 'user_prompt',
-            sessionId: 'sess-1',
-            timestamp: 2000,
-            text: 'hello',
-          }),
-        );
+      useAgentStore.getState().addEvent(
+        makeEvent({
+          id: 'e2',
+          type: 'user_prompt',
+          sessionId: 'sess-1',
+          timestamp: 2000,
+          text: 'hello',
+        }),
+      );
 
       useAgentStore.getState().updateNodeDimensions([
         { id: 'session-sess-1', width: 225, height: 85 },
