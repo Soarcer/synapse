@@ -2,7 +2,7 @@
   "name": "@synapse-ai/cli",
   "version": "0.9.0",
   "description": "Synapse CLI — monitor AI coding agents from the terminal",
-  "license": "AGPL-3.0-or-later",
+  "license": "MIT",
   "type": "module",
   "bin": {
     "synapse": "./bin/synapse.mjs"

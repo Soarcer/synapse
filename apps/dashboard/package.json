@@ -2,7 +2,7 @@
   "name": "@synapse-ai/dashboard",
   "version": "0.1.0",
   "private": true,
-  "license": "AGPL-3.0-or-later",
+  "license": "MIT",
   "description": "Synapse interactive agent monitoring dashboard",
   "type": "module",
   "scripts": {

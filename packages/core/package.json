@@ -2,7 +2,7 @@
   "name": "@synapse-ai/core",
   "version": "0.1.0",
   "description": "Shared types, validation schemas, and utilities for Synapse",
-  "license": "AGPL-3.0-or-later",
+  "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

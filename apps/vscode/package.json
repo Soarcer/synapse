@@ -4,7 +4,7 @@
   "description": "Real-time Claude agent monitoring dashboard inside VS Code",
   "version": "0.10.0",
   "publisher": "Soarcer",
-  "license": "AGPL-3.0-or-later",
+  "license": "MIT",
   "icon": "synapse-icon.png",
   "engines": {
     "vscode": "^1.95.0"

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Synapse — Interactive Agent Orchestration Dashboard (monorepo)",
   "private": true,
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "concurrently \"pnpm --filter @synapse-ai/server dev\" \"pnpm --filter @synapse-ai/dashboard dev\"",
