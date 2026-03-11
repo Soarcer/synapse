@@ -7,12 +7,12 @@ A visual node-based dashboard that monitors, visualizes, and controls Claude age
 1. **Claude Code Hooks** — observe existing Claude Code sessions (subagent spawning, tool calls, session lifecycle)
 2. **Claude Agent SDK** — programmatically spawn, control, and stream custom agents
 
-The frontend uses React Flow for an interactive node graph. The backend uses Express + SQLite + WebSocket.
+The frontend uses React Flow for an interactive node graph. The backend uses Express + sql.js + WebSocket. Server and VS Code extension use `sql.js` (pure JS, no native deps). Only `packages/openclaw` uses `better-sqlite3` (excluded from workspace).
 
 ## Tech Stack
 
 - **Frontend**: React 19, @xyflow/react v12, Zustand 5, Tailwind CSS 4, Vite 6
-- **Backend**: Node.js, Express 5, ws 8, better-sqlite3, tsx
+- **Backend**: Node.js, Express 5, ws 8, sql.js (pure JS, no native deps), tsx
 - **Agent SDK**: @anthropic-ai/claude-agent-sdk (TypeScript)
 - **Monorepo**: pnpm workspaces, @synapse-ai npm scope
 - **Language**: TypeScript throughout
@@ -25,7 +25,7 @@ Synapse/
 ├── tsconfig.base.json
 ├── packages/
 │   ├── core/           # @synapse-ai/core — types, Zod schemas, format utils
-│   ├── server/         # @synapse-ai/server — Express + SQLite + WebSocket
+│   ├── server/         # @synapse-ai/server — Express + sql.js + WebSocket
 │   └── openclaw/       # @synapse-ai/openclaw — OpenClaw monitoring plugin
 ├── apps/
 │   ├── dashboard/      # React frontend (not published)
@@ -107,7 +107,7 @@ See `docs/PACKAGE.md` for the per-project package checklist.
 - WebSocket messages use the `AgentEvent` type from `@synapse-ai/core`
 - React Flow nodes use custom components in `apps/dashboard/src/components/graph/nodes/`
 - Backend API routes are prefixed with `/api/`
-- The SQLite database file is stored at `packages/server/synapse.db` (gitignored)
+- The sql.js database file is stored at `packages/server/synapse.db` (gitignored)
 - Zod for runtime validation at system boundaries (API inputs, WS messages)
 - No `any` types — use `unknown` and narrow with type guards
 - `pino` for server logging (not console.log)
