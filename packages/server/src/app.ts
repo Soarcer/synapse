@@ -114,6 +114,7 @@ export function createApp(deps: AppDeps) {
       agents: agentManager.getActive().length,
       mode: process.env.SYNAPSE_MODE || 'standalone',
       db: dbStats,
+      memoryUsage: process.memoryUsage(),
     });
   });
 
