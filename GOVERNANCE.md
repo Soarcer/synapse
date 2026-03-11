@@ -2,7 +2,7 @@
 
 ## Overview
 
-Synapse is an open-source agent monitoring dashboard that provides real-time observability into AI agent orchestration. The core project is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0).
+Synapse is a single-maintainer open-source project, MIT licensed, community contributions welcome via PRs and issues. The project provides real-time observability into AI agent orchestration as a free, standalone tool for individual developers and teams.
 
 The project is currently maintained by its creator. As the community grows, governance will evolve to reflect the people who invest their time and expertise in making Synapse better.
 
@@ -42,23 +42,12 @@ Active contributors who demonstrate consistent, high-quality contributions may b
 - Provide feedback on proposed features and changes
 - Help other users with setup and usage questions
 
-## Commercial Relationship
-
-Transparency matters. Here is the relationship between the open-source project and its commercial layer:
-
-- Synapse has **enterprise features** in the [`/ee`](ee/) directory, licensed under the [Synapse Enterprise License](ee/LICENSE).
-- The open-source core will **never** be relicensed or made proprietary. This is a commitment, not a marketing line.
-- The free, open-source tier is a **complete, standalone product** for individual developers. It does everything described in the README without any paid features.
-- Enterprise features are **additive, not restrictive** — they add capabilities for teams and organizations (audit logs, SSO, advanced analytics) but never remove or gate existing open-source functionality.
-- Revenue from enterprise features funds continued development of the open-source core.
-
-If you have questions about where the boundary falls between open-source and enterprise, see the [Contributing Guide](CONTRIBUTING.md#the-ee-boundary).
-
 ## Roadmap
 
 The project roadmap lives at [docs/ROADMAP.md](docs/ROADMAP.md).
 
 Community input on the roadmap is welcome via:
+
 - **GitHub Discussions** — for open-ended ideas and conversations
 - **GitHub Issues** — for concrete feature requests and bug reports
 
@@ -66,4 +55,4 @@ Roadmap priorities are influenced by community feedback, contributor interest, a
 
 ## Code of Conduct
 
-All participants in the Synapse community are expected to follow our [Code of Conduct](CODE_OF_CONDUCT.md). Please report unacceptable behavior to synapse-conduct@example.com.
+All participants in the Synapse community are expected to follow our [Code of Conduct](CODE_OF_CONDUCT.md). Please report unacceptable behavior by opening a GitHub issue.
