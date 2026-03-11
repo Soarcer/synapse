@@ -48,6 +48,7 @@ interface PersistedViewSettings {
   toolGroupMode?: string;
   lockViewport?: boolean;
   autoClosePrompts?: boolean;
+  lensVisible?: boolean;
   arcadeUnlocked?: boolean;
   arcadeMode?: boolean;
   arcadeSoundEnabled?: boolean;
@@ -283,6 +284,8 @@ interface AgentStore {
   undismissNudge: (id: string) => void;
   clearEvents: () => void;
   loadEvents: (events: AgentEvent[]) => void;
+  setCwdFilter: (cwd: string | null) => void;
+  reloadEvents: () => void;
 }
 
 // ── Store ────────────────────────────────────────────────────
@@ -319,6 +322,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   arcadeVolume: savedViewSettings.arcadeVolume ?? 15,
   lockViewport: savedViewSettings.lockViewport ?? false,
   autoClosePrompts: savedViewSettings.autoClosePrompts ?? false,
+  lensVisible: savedViewSettings.lensVisible ?? true,
   cwdFilter: projectCwd,
   timeRange: computeTimeRange(savedTimeLabel),
   timePresetLabel: savedTimeLabel,
@@ -331,7 +335,6 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   loadError: null,
 
   // Lens Panel state
-  lensVisible: true,
   activeLensTab: 'treemap',
   lensPanelWidth: 320,
   lensSearchQuery: '',
@@ -414,6 +417,10 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     persistViewSettings({ autoClosePrompts });
     set({ autoClosePrompts });
   },
+  setLensVisible: (lensVisible) => {
+    persistViewSettings({ lensVisible });
+    set({ lensVisible });
+  },
   setGraphSearchQuery: (graphSearchQuery) => set({ graphSearchQuery }),
 
   toggleCollapsed: (nodeId) => {
@@ -436,7 +443,6 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   },
   setMultiHighlight: (multiHighlightIds) => set({ multiHighlightIds }),
 
-  setLensVisible: (lensVisible) => set({ lensVisible }),
   setActiveLensTab: (activeLensTab) => set({ activeLensTab }),
   setLensPanelWidth: (lensPanelWidth) => set({ lensPanelWidth }),
   setLensSearchQuery: (lensSearchQuery) => set({ lensSearchQuery }),
@@ -672,6 +678,16 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       transcriptReasoning: new Map(),
       liveNudges: EMPTY_NUDGES,
     });
+  },
+
+  setCwdFilter: (cwd) => {
+    set({ cwdFilter: cwd ? normalizeCwd(cwd) : null });
+    // reloadAllEvents reads cwdFilter from store state, so call after set
+    reloadAllEvents({ showLoading: true });
+  },
+
+  reloadEvents: () => {
+    reloadAllEvents({ showLoading: true });
   },
 
   loadEvents: (events) => {

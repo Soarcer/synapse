@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Bernhard
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useAgentStore } from '../../store/agentStore';
 import { GAME_MODE_REGISTRY } from '../graph/nodes/game-modes';
 import { wsClient } from '../../store/wsClient';
@@ -25,9 +25,20 @@ export function Header() {
   const setPaused = useAgentStore((s) => s.setPaused);
   const events = useAgentStore((s) => s.events);
   const loadError = useAgentStore((s) => s.loadError);
+  const cwdFilter = useAgentStore((s) => s.cwdFilter);
+  const setCwdFilter = useAgentStore((s) => s.setCwdFilter);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [projects, setProjects] = useState<string[]>([]);
+
+  // Fetch project list; refresh when connection status changes to 'connected'
+  useEffect(() => {
+    fetch('/api/events/projects')
+      .then((r) => r.json())
+      .then((data: { projects?: string[] }) => setProjects(data.projects ?? []))
+      .catch(() => {});
+  }, [connectionStatus]);
 
   // Easter egg: 7 rapid clicks on the Synapse title
   const clickTimesRef = useRef<number[]>([]);
@@ -187,6 +198,25 @@ export function Header() {
         <GraphStats />
 
         <div className="flex-1" />
+
+        {/* Project filter */}
+        {projects.length > 0 && (
+          <div className="relative">
+            <select
+              value={cwdFilter ?? ''}
+              onChange={(e) => setCwdFilter(e.target.value || null)}
+              className="text-xs bg-transparent border border-white/20 rounded px-2 py-1 text-white/80 hover:border-white/40 cursor-pointer"
+              title={cwdFilter ?? 'All projects'}
+            >
+              <option value="">All projects</option>
+              {projects.map((p) => (
+                <option key={p} value={p} title={p}>
+                  {p.split(/[/\\]/).pop() ?? p}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Time filter */}
         <TimeFilterDropdown />
