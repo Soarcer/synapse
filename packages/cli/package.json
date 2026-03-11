@@ -1,6 +1,6 @@
 {
   "name": "@synapse-ai/cli",
-  "version": "0.9.0",
+  "version": "0.1.0",
   "description": "Synapse CLI — monitor AI coding agents from the terminal",
   "license": "MIT",
   "type": "module",

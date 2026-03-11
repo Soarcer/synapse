@@ -2,7 +2,7 @@
   "name": "synapse-vscode",
   "displayName": "Synapse — Agent Monitor",
   "description": "Real-time Claude agent monitoring dashboard inside VS Code",
-  "version": "0.10.0",
+  "version": "0.1.0",
   "publisher": "Soarcer",
   "license": "MIT",
   "icon": "synapse-icon.png",
@@ -10,8 +10,9 @@
     "vscode": "^1.95.0"
   },
   "categories": [
+    "Machine Learning",
     "Visualization",
-    "Other"
+    "Debuggers"
   ],
   "activationEvents": [
     "workspaceContains:.claude/settings.json",
