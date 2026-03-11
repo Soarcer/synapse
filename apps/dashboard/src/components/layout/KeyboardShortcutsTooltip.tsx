@@ -6,7 +6,7 @@ import { useState } from 'react';
 const SHORTCUTS = [
   { key: 'Space', action: 'Pause / Resume' },
   { key: 'T', action: 'Tool log' },
-
+  { key: 'L', action: 'Toggle lens panel' },
   { key: 'V', action: 'Lock viewport' },
   { key: 'F', action: 'Show all tools' },
   { key: 'H', action: 'Hook events' },

@@ -9,6 +9,7 @@ import type {
   AgentNodeData,
   UserPromptData,
   TranscriptSummary,
+  ToolCallSummary,
 } from '@synapse-ai/core';
 import { apiUrl } from '../../utils/api';
 import { extractUserMessage } from '../../utils/promptText';
