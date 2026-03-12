@@ -16,6 +16,7 @@ import type {
 import { PALETTES, normalizeCwd } from '@synapse-ai/core';
 import { wsClient } from './wsClient';
 import { toast } from '../components/Toast';
+import { handlePermissionWsMessage, hydratePermissions } from './permissionStore';
 import { t } from '../i18n';
 import { apiUrl } from '../utils/api';
 
@@ -802,6 +803,18 @@ function isWsDuplicate(event: AgentEvent): boolean {
 // ── Wire WebSocket to store ──────────────────────────────────
 
 wsClient.setOnEvent((msg) => {
+  // Route permission messages to dedicated store; fire toast on new request
+  if (msg.type === 'pendingPermission') {
+    const data = msg.data as { tool_name?: string };
+    toast(`Permission requested: ${data.tool_name ?? 'Tool'} needs approval`, 'info');
+  }
+  if (handlePermissionWsMessage(msg)) return;
+
+  // Hydrate permissions on initial connect
+  if (msg.type === 'connected') {
+    hydratePermissions();
+  }
+
   if (msg.type === 'event') {
     const event = msg.data;
 
@@ -865,6 +878,7 @@ wsClient.setOnStatusChange((status) => {
 
 wsClient.setOnReconnect(() => {
   reloadAllEvents();
+  hydratePermissions();
 });
 
 // ── Sliding time window refresh ──────────────────────────────
