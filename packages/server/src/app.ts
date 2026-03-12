@@ -15,6 +15,7 @@ import { createSnapshotRouter } from './routes/snapshot.js';
 import { createAnalyticsRouter } from './routes/analytics.js';
 import { createCoachingRouter } from './routes/coaching.js';
 import { createSettingsRouter } from './routes/settings.js';
+import { createPermissionsRouter } from './routes/permissions.js';
 import { getDbStats } from './db.js';
 import { logger } from './lib/logger.js';
 
@@ -68,7 +69,14 @@ export function createApp(deps: AppDeps) {
   });
 
   // API key auth (no-op if SYNAPSE_API_KEY not set)
-  app.use('/api', apiKeyAuth);
+  // Permission and hook endpoints are exempt from API key auth
+  // (Claude Code can't send Bearer tokens; phones need unauthenticated access)
+  // Note: req.path is the FULL path in Express 5 app.use (not stripped)
+  app.use('/api', (req: Request, res: Response, next: NextFunction) => {
+    const exempt = ['/api/permissions', '/api/hooks/', '/api/push/', '/api/hook-server/'];
+    if (exempt.some((p) => req.path.startsWith(p))) return next();
+    return apiKeyAuth(req, res, next);
+  });
 
   // Rate limiting (can be disabled for tests)
   if (!deps.disableRateLimiting || process.env.NODE_ENV === 'production') {
@@ -104,6 +112,7 @@ export function createApp(deps: AppDeps) {
   app.use('/api/analytics', createAnalyticsRouter(broadcaster));
   app.use('/api/analytics/coaching', createCoachingRouter());
   app.use('/api/settings', createSettingsRouter());
+  app.use('/api/permissions', createPermissionsRouter(broadcaster));
 
   // Health check
   app.get('/api/health', (_req, res) => {
