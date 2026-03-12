@@ -4,11 +4,11 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useAnalyticsData, type AnalyticsFilters } from './useAnalyticsData';
 import type { MockData } from './mockData';
-import { ExecutiveOverview } from './executive/ExecutiveOverview';
+// import { ExecutiveOverview } from './executive/ExecutiveOverview'; // hidden for v0.1.0
 import { PromptAnalyzer, type AnalysisMode, loadAnalysisMode } from './prompts/PromptAnalyzer';
 import { InsightsView } from './insights/InsightsView';
 import { LiveNudgesView } from './nudges/LiveNudgesView';
-import { PromptWorkshop } from './workshop/PromptWorkshop';
+// import { PromptWorkshop } from './workshop/PromptWorkshop'; // hidden for v0.1.0 (Prompt Lab — kept for v0.2.0)
 import { ExportDialog } from './export/ExportDialog';
 import { TimeRangeSelector } from './shared/TimeRangeSelector';
 import { ProjectFilter } from './shared/ProjectFilter';
@@ -19,9 +19,9 @@ import { Tooltip } from '../ui/Tooltip';
 type AnalyticsTab = 'executive' | 'prompts' | 'workshop' | 'insights' | 'nudges';
 
 const TABS: { id: AnalyticsTab; label: string; description: string }[] = [
-  { id: 'executive', label: 'Executive', description: 'KPI overview with sparklines' },
+  // { id: 'executive', label: 'Executive', description: 'KPI overview with sparklines' }, // hidden for v0.1.0
   { id: 'prompts', label: 'Prompts', description: 'Prompt analysis with session replay' },
-  { id: 'workshop', label: 'Workshop', description: 'Draft and improve prompts before sending' },
+  // { id: 'workshop', label: 'Workshop', description: 'Draft and improve prompts before sending' }, // hidden for v0.1.0 (code kept — used as Prompt Lab)
   { id: 'insights', label: 'Insights', description: 'AI coach, badges & budget' },
   { id: 'nudges', label: 'Live Nudges', description: 'Real-time coaching & nudge config' },
 ];
@@ -43,7 +43,7 @@ function loadSelectedModel(): string | undefined {
 }
 
 export function AnalyticsPage() {
-  const [activeTab, setActiveTab] = useState<AnalyticsTab>('executive');
+  const [activeTab, setActiveTab] = useState<AnalyticsTab>('prompts');
   const [timeRange, setTimeRange] = useState('7d');
   const [selectedCwd, setSelectedCwd] = useState<string | undefined>();
   const [selectedSessionIds, setSelectedSessionIds] = useState<string[]>([]);
@@ -251,16 +251,11 @@ export function AnalyticsPage() {
 
       {/* Tab content */}
       <div className="flex-1 overflow-auto">
-        {activeTab === 'executive' && <ExecutiveOverview data={mockData} />}
+        {/* executive tab hidden for v0.1.0 */}
+        {activeTab === 'executive' ? null : null}
         {activeTab === 'prompts' && <PromptAnalyzer data={mockData} analysisMode={analysisMode} />}
-        {activeTab === 'workshop' && (
-          <PromptWorkshop
-            analysisMode={analysisMode}
-            modelId={selectedModel}
-            sessions={mockData.sessions}
-            turns={mockData.turns}
-          />
-        )}
+        {/* workshop tab hidden for v0.1.0 (PromptWorkshop code kept — used as Prompt Lab) */}
+        {activeTab === 'workshop' ? null : null}
         {activeTab === 'insights' && <InsightsView data={mockData} sessions={analytics.sessions} />}
         {activeTab === 'nudges' && <LiveNudgesView />}
       </div>

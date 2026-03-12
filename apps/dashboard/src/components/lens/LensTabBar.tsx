@@ -18,18 +18,25 @@ const TABS: { key: LensTab; label: string; fullName: string; shortcut: string }[
   { key: 'alerts', label: 'Alerts', fullName: 'Notification alerts', shortcut: '7' }, // [notifications]
 ];
 
+// VS Code injects data-vscode-theme-kind on <html>. Absent in standalone browser.
+const isVSCode =
+  typeof document !== 'undefined' &&
+  document.documentElement.hasAttribute('data-vscode-theme-kind');
+
 function GraphOpenButton() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!open) return;
+    if (!isVSCode || !open) return;
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
+
+  if (!isVSCode) return null;
 
   return (
     <div ref={ref} className="relative">
