@@ -12,6 +12,7 @@ vi.mock('../../../store/wsClient', () => ({
     connect: vi.fn(),
     disconnect: vi.fn(),
     setOnEvent: vi.fn(),
+    setOnBatchEvent: vi.fn(),
     setOnStatusChange: vi.fn(),
     setOnReconnect: vi.fn(),
     send: vi.fn(),

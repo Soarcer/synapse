@@ -13,7 +13,7 @@ interface Props {
 }
 
 function CollapsibleSourceHandleInner({ nodeId, position, style, baseClassName }: Props) {
-  const hasChildren = useAgentStore((s) => s.edges.some((e) => e.source === nodeId));
+  const hasChildren = useAgentStore((s) => s.sourceHasEdge.has(nodeId));
   const isCollapsed = useAgentStore((s) => s.collapsedNodes.has(nodeId));
   const toggleCollapsed = useAgentStore((s) => s.toggleCollapsed);
 

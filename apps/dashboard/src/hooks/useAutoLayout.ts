@@ -397,20 +397,23 @@ export function useAutoLayout(
   edges: Edge[],
   expandedParentId: string | null = null,
 ): Node[] {
-  // Fingerprint: recompute when structure or measurements change
-  let idHash = 0;
-  let dimHash = 0;
-  for (const n of nodes) {
-    for (let i = 0; i < n.id.length; i++) {
-      idHash = ((idHash << 5) - idHash + n.id.charCodeAt(i)) | 0;
+  // Memoize fingerprint to skip O(nodes×id_len) hash on non-structural renders
+  // (e.g., selection changes, search input). The inner useMemo on `key` still
+  // correctly gates computeGraphLayout via the string comparison.
+  const key = useMemo(() => {
+    let idHash = 0;
+    let dimHash = 0;
+    for (const n of nodes) {
+      for (let i = 0; i < n.id.length; i++) {
+        idHash = ((idHash << 5) - idHash + n.id.charCodeAt(i)) | 0;
+      }
+      if (n.measured?.width) {
+        dimHash = ((dimHash << 5) - dimHash + (n.measured.width | 0)) | 0;
+        dimHash = ((dimHash << 5) - dimHash + ((n.measured.height ?? 0) | 0)) | 0;
+      }
     }
-    // Include measured dimensions so layout recomputes when React Flow measures nodes
-    if (n.measured?.width) {
-      dimHash = ((dimHash << 5) - dimHash + (n.measured.width | 0)) | 0;
-      dimHash = ((dimHash << 5) - dimHash + ((n.measured.height ?? 0) | 0)) | 0;
-    }
-  }
-  const key = `${nodes.length}:${edges.length}:${idHash}:${dimHash}:${expandedParentId}`;
+    return `${nodes.length}:${edges.length}:${idHash}:${dimHash}:${expandedParentId}`;
+  }, [nodes, edges, expandedParentId]);
 
   const { positions, zIndexMap } = useMemo(() => {
     const graphNodes = nodes.filter((n) => n.id !== '__spawn__');

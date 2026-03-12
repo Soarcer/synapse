@@ -9,6 +9,7 @@ import { PALETTES } from '@synapse-ai/core';
 vi.mock('../wsClient', () => ({
   wsClient: {
     setOnEvent: vi.fn(),
+    setOnBatchEvent: vi.fn(),
     setOnStatusChange: vi.fn(),
     setOnReconnect: vi.fn(),
     connect: vi.fn(),

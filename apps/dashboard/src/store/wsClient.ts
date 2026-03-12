@@ -3,8 +3,44 @@
 
 import type { WsServerMessage, WsClientMessage } from '@synapse-ai/core';
 
+// ── Event batching ──────────────────────────────────────────
+// Batches rapid WS messages into a single callback per microtask.
+// Only 'event' type messages are batched; all other types (permissions,
+// agent_text, connected, stale, coaching_nudge) bypass for low latency.
+
+export function createEventBatcher(
+  onBatch: (events: WsServerMessage[]) => void,
+  onImmediate?: (event: WsServerMessage) => void,
+) {
+  let queue: WsServerMessage[] = [];
+  let scheduled = false;
+
+  function flush() {
+    const batch = queue;
+    queue = [];
+    scheduled = false;
+    if (batch.length > 0) onBatch(batch);
+  }
+
+  function batchEvent(msg: WsServerMessage) {
+    // Only 'event' type messages are batched — everything else fires immediately
+    if (msg.type !== 'event') {
+      onImmediate?.(msg);
+      return;
+    }
+    queue.push(msg);
+    if (!scheduled) {
+      scheduled = true;
+      queueMicrotask(flush);
+    }
+  }
+
+  return { batchEvent, flush };
+}
+
 type ConnectionStatus = 'connected' | 'disconnected' | 'reconnecting' | 'failed';
 type EventCallback = (msg: WsServerMessage) => void;
+type BatchEventCallback = (msgs: WsServerMessage[]) => void;
 type StatusCallback = (status: ConnectionStatus) => void;
 type ReconnectCallback = () => void;
 
@@ -12,13 +48,15 @@ class WSClient {
   private ws: WebSocket | null = null;
   private url: string;
   private reconnectDelay = 1000;
-  private maxReconnectDelay = 30000;
-  private maxRetries = 20;
+  private maxReconnectDelay = 15000;
+  private maxRetries = Infinity;
   private reconnectCount = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private onEvent: EventCallback | null = null;
+  private onBatchEvent: BatchEventCallback | null = null;
   private onStatusChange: StatusCallback | null = null;
   private onReconnect: ReconnectCallback | null = null;
+  private batcher: ReturnType<typeof createEventBatcher> | null = null;
   private _status: ConnectionStatus = 'disconnected';
   private shouldReconnect = true;
   private wasConnected = false;
@@ -33,6 +71,23 @@ class WSClient {
 
   setOnEvent(cb: EventCallback) {
     this.onEvent = cb;
+    this.rebuildBatcher();
+  }
+
+  setOnBatchEvent(cb: BatchEventCallback) {
+    this.onBatchEvent = cb;
+    this.rebuildBatcher();
+  }
+
+  private rebuildBatcher() {
+    if (this.onBatchEvent) {
+      this.batcher = createEventBatcher(
+        (batch) => this.onBatchEvent?.(batch),
+        (msg) => this.onEvent?.(msg),
+      );
+    } else {
+      this.batcher = null;
+    }
   }
 
   setOnStatusChange(cb: StatusCallback) {
@@ -44,11 +99,9 @@ class WSClient {
   }
 
   connect() {
-    if (
-      this.ws &&
-      (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)
-    )
-      return;
+    if (this.ws?.readyState === WebSocket.OPEN) return;
+    // If CONNECTING, let it finish — but if failed/disconnected, proceed
+    if (this.ws?.readyState === WebSocket.CONNECTING) return;
 
     this.shouldReconnect = true;
     this.setStatus('reconnecting');
@@ -71,7 +124,11 @@ class WSClient {
       this.ws.onmessage = (event) => {
         try {
           const msg: WsServerMessage = JSON.parse(event.data);
-          this.onEvent?.(msg);
+          if (this.batcher) {
+            this.batcher.batchEvent(msg);
+          } else {
+            this.onEvent?.(msg);
+          }
         } catch {
           console.warn('[wsClient] Malformed message:', String(event.data).slice(0, 80));
         }

@@ -8,6 +8,7 @@ import { useNotificationStore } from '../notificationStore';
 vi.mock('../../../store/wsClient', () => ({
   wsClient: {
     setOnEvent: vi.fn(),
+    setOnBatchEvent: vi.fn(),
     setOnStatusChange: vi.fn(),
     connect: vi.fn(),
     disconnect: vi.fn(),

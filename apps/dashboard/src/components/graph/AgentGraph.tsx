@@ -26,6 +26,26 @@ import { registerToastNavigator, unregisterToastNavigator } from '../Toast';
 import { buildParentMap, collectAncestors } from '../../utils/graphSearch';
 import type { AgentNodeData } from '@synapse-ai/core';
 
+// ── MiniMap ───────────────────────────────────────────────────
+const MINIMAP_THRESHOLD = 300;
+
+// Module-level callback — uses no closure state, avoids re-creation on render
+function miniMapNodeColor(node: { type?: string }): string {
+  switch (node.type) {
+    case 'session':
+      return '#3b82f6';
+    case 'userPrompt':
+      return '#f59e0b';
+    case 'agent':
+      return '#22c55e';
+    case 'toolCall':
+    case 'toolGroup':
+      return '#a855f7';
+    default:
+      return '#6b7280';
+  }
+}
+
 // ── Main graph component ─────────────────────────────────────
 
 function AgentGraphInner() {
@@ -52,6 +72,32 @@ function AgentGraphInner() {
     });
     return unregisterToastNavigator;
   }, []);
+
+  // Shared cancellation — prevents competing fitView calls from racing.
+  // Any new scheduleFitView call cancels any pending one, ensuring only the
+  // latest fitView executes.
+  const pendingFitRef = useRef<{ raf1: number; raf2?: number } | null>(null);
+  const cancelPendingFit = useCallback(() => {
+    if (pendingFitRef.current) {
+      cancelAnimationFrame(pendingFitRef.current.raf1);
+      if (pendingFitRef.current.raf2 != null) cancelAnimationFrame(pendingFitRef.current.raf2);
+      pendingFitRef.current = null;
+    }
+  }, []);
+  const scheduleFitView = useCallback(
+    (opts: Parameters<typeof fitView>[0]) => {
+      cancelPendingFit();
+      const pending: { raf1: number; raf2?: number } = { raf1: 0 };
+      pending.raf1 = requestAnimationFrame(() => {
+        pending.raf2 = requestAnimationFrame(() => {
+          pendingFitRef.current = null;
+          fitView(opts);
+        });
+      });
+      pendingFitRef.current = pending;
+    },
+    [fitView, cancelPendingFit],
+  );
 
   // Restore viewport if we just returned from a port-change proxy restart.
   useEffect(() => {
@@ -238,45 +284,37 @@ function AgentGraphInner() {
     return { cumTokens, maxCum };
   }, [visibleNodes, visibleEdges, mergedHighlightIds]);
 
-  // Use smoothstep edges for clean routing; dim non-connected edges when selected; apply cost gradient
+  // Single-pass edge styling: smoothstep type + cost gradient + highlight opacity
   const styledEdges = useMemo(() => {
-    // Smoothstep edges route in L-shapes: edges from the same parent share the
-    // horizontal segment and only diverge vertically, creating clean overlapping paths
-    let result = visibleEdges.map((e) => ({
-      ...e,
-      type: 'smoothstep' as const,
-      pathOptions: { borderRadius: 12 },
-    }));
-    // Cost gradient coloring (only when no highlight active)
-    if (edgeCostMap && !mergedHighlightIds) {
-      result = result.map((e) => {
-        const cum = edgeCostMap.cumTokens.get(e.target) ?? 0;
+    const hasHighlight = mergedHighlightIds && mergedHighlightIds.size > 0;
+    return visibleEdges.map((edge) => {
+      const style: Record<string, unknown> = { ...edge.style };
+
+      // Cost gradient (only when no highlight active)
+      if (!hasHighlight && edgeCostMap) {
+        const cum = edgeCostMap.cumTokens.get(edge.target) ?? 0;
         const ratio = cum / edgeCostMap.maxCum;
-        // HSL: 220 (blue) → 0 (red) as cost accumulates
         const hue = Math.round(220 - ratio * 220);
-        const width = 1 + ratio * 2;
-        return {
-          ...e,
-          style: {
-            ...e.style,
-            stroke: `hsl(${hue}, 70%, 50%)`,
-            strokeWidth: width,
-            transition: 'stroke 0.3s ease, stroke-width 0.3s ease',
-          },
-        };
-      });
-    }
-    if (mergedHighlightIds) {
-      result = result.map((e) => ({
-        ...e,
-        style: {
-          ...e.style,
-          opacity: mergedHighlightIds.has(e.source) && mergedHighlightIds.has(e.target) ? 1 : 0.1,
-          transition: 'opacity 0.2s ease',
-        },
-      }));
-    }
-    return result;
+        style.stroke = `hsl(${hue}, 70%, 50%)`;
+        style.strokeWidth = 1 + ratio * 2;
+        style.transition = 'stroke 0.3s ease, stroke-width 0.3s ease';
+      }
+
+      // Highlight opacity
+      if (hasHighlight) {
+        const connected =
+          mergedHighlightIds.has(edge.source) && mergedHighlightIds.has(edge.target);
+        style.opacity = connected ? 1 : 0.1;
+        style.transition = 'opacity 0.2s ease';
+      }
+
+      return {
+        ...edge,
+        type: 'smoothstep' as const,
+        pathOptions: { borderRadius: 12 },
+        style,
+      };
+    });
   }, [visibleEdges, mergedHighlightIds, edgeCostMap]);
 
   // Resolve a node ID to a visible ID — if the node is a grouped tool,
@@ -310,16 +348,16 @@ function AgentGraphInner() {
       if (target) {
         const visibleId = resolveVisibleId(target.id);
         if (visibleId) {
-          setTimeout(() => fitView({ nodes: [{ id: visibleId }], duration: 300, padding: 1 }), 100);
+          scheduleFitView({ nodes: [{ id: visibleId }], duration: 300, padding: 1 });
         }
         // No visible representation (collapsed/hidden) — skip zoom
       } else {
-        setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 100);
+        scheduleFitView({ padding: 0.2, duration: 300 });
       }
     }
     prevNodeCountRef.current = rawNodes.length;
     prevNodeIdsRef.current = new Set(rawNodes.map((n) => n.id));
-  }, [rawNodes, fitView, lockViewport, selectedNodeId, resolveVisibleId]);
+  }, [rawNodes, lockViewport, selectedNodeId, resolveVisibleId, scheduleFitView]);
 
   // One-time fitView after initial measurement pass — snaps layout into correct positions
   const initialMeasureDoneRef = useRef(false);
@@ -328,20 +366,44 @@ function AgentGraphInner() {
     const hasMeasured = layoutNodes.some((n) => n.measured?.width);
     if (hasMeasured && layoutNodes.length > 1) {
       initialMeasureDoneRef.current = true;
-      setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 50);
+      scheduleFitView({ padding: 0.2, duration: 300 });
     }
-  }, [layoutNodes, fitView]);
+  }, [layoutNodes, scheduleFitView]);
+
+  // Re-fit view when tool view mode changes (density shifts can lose the graph).
+  // If a node is selected, zoom to it; otherwise fit the whole graph.
+  const toolGroupMode = useAgentStore((s) => s.toolGroupMode);
+  const showAllTools = useAgentStore((s) => s.showAllTools);
+  const prevToolGroupModeRef = useRef(toolGroupMode);
+  const prevShowAllToolsRef = useRef(showAllTools);
+  useEffect(() => {
+    if (
+      toolGroupMode === prevToolGroupModeRef.current &&
+      showAllTools === prevShowAllToolsRef.current
+    )
+      return;
+    prevToolGroupModeRef.current = toolGroupMode;
+    prevShowAllToolsRef.current = showAllTools;
+    if (selectedNodeId) {
+      const visibleId = resolveVisibleId(selectedNodeId);
+      if (visibleId) {
+        scheduleFitView({ nodes: [{ id: visibleId }], duration: 300, padding: 0.8 });
+        return;
+      }
+    }
+    scheduleFitView({ padding: 0.2, duration: 300 });
+  }, [toolGroupMode, showAllTools, selectedNodeId, resolveVisibleId, scheduleFitView]);
 
   // Center on node when selected from lens panel
   useEffect(() => {
     if (selectSource === 'lens' && selectedNodeId) {
       const zoomTarget = resolveVisibleId(selectedNodeId);
       if (zoomTarget) {
-        setTimeout(() => fitView({ nodes: [{ id: zoomTarget }], duration: 300, padding: 1 }), 50);
+        scheduleFitView({ nodes: [{ id: zoomTarget }], duration: 300, padding: 1 });
       }
       useAgentStore.setState({ selectSource: null });
     }
-  }, [selectSource, selectedNodeId, visibleNodes, fitView, resolveVisibleId]);
+  }, [selectSource, selectedNodeId, visibleNodes, resolveVisibleId, scheduleFitView]);
 
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: { id: string }) => {
@@ -605,31 +667,18 @@ function AgentGraphInner() {
         className="bg-transparent"
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#1e293b" />
-        <MiniMap
-          position="bottom-right"
-          pannable
-          zoomable
-          style={{ background: '#0d1117', border: '1px solid #1e293b' }}
-          maskColor="rgba(13, 17, 23, 0.7)"
-          maskStrokeColor="rgba(96, 165, 250, 0.5)"
-          maskStrokeWidth={2}
-          nodeColor={(node) => {
-            switch (node.type) {
-              case 'session':
-                return '#3b82f6';
-              case 'userPrompt':
-                return '#f59e0b';
-              case 'agent':
-                return '#22c55e';
-              case 'toolCall':
-                return '#a855f7';
-              case 'toolGroup':
-                return '#a855f7';
-              default:
-                return '#6b7280';
-            }
-          }}
-        />
+        {rawNodes.length <= MINIMAP_THRESHOLD && (
+          <MiniMap
+            position="bottom-right"
+            pannable
+            zoomable
+            style={{ background: '#0d1117', border: '1px solid #1e293b' }}
+            maskColor="rgba(13, 17, 23, 0.7)"
+            maskStrokeColor="rgba(96, 165, 250, 0.5)"
+            maskStrokeWidth={2}
+            nodeColor={miniMapNodeColor}
+          />
+        )}
         <Controls
           position="bottom-left"
           style={{ background: '#161b22', border: '1px solid #30363d', borderRadius: '8px' }}

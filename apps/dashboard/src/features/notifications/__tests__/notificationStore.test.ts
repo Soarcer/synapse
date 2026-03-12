@@ -2,7 +2,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 vi.mock('../../../store/wsClient', () => ({
-  wsClient: { setOnEvent: vi.fn(), setOnStatusChange: vi.fn(), connect: vi.fn(), disconnect: vi.fn() },
+  wsClient: {
+    setOnEvent: vi.fn(),
+    setOnBatchEvent: vi.fn(),
+    setOnStatusChange: vi.fn(),
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+  },
 }));
 
 import { useNotificationStore } from '../notificationStore';
@@ -41,9 +47,9 @@ describe('Notification Store', () => {
 
   it('limits notifications to MAX_NOTIFICATIONS', () => {
     for (let i = 0; i < 60; i++) {
-      useNotificationStore.getState().addNotification(
-        makeNotification({ id: `n-${i}`, timestamp: Date.now() + i }),
-      );
+      useNotificationStore
+        .getState()
+        .addNotification(makeNotification({ id: `n-${i}`, timestamp: Date.now() + i }));
     }
     expect(useNotificationStore.getState().notifications).toHaveLength(50);
   });

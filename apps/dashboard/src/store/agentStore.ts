@@ -204,9 +204,11 @@ interface AgentStore {
   pendingTaskTools: Map<string, string[]>;
   taskToolAgentMap: Map<string, string>;
   events: AgentEvent[];
+  eventIds: Set<string>;
   pauseQueue: AgentEvent[];
   nodes: Node[];
   edges: Edge[];
+  sourceHasEdge: Set<string>;
   selectedNodeId: string | null;
   highlightedNodeIds: Set<string> | null;
   multiHighlightIds: Set<string> | null;
@@ -246,6 +248,7 @@ interface AgentStore {
 
   // Actions
   addEvent: (event: AgentEvent) => void;
+  addEvents: (events: AgentEvent[]) => void;
   selectNode: (id: string | null, source?: 'graph' | 'lens') => void;
   setFilter: (filter: { sessionId?: string; agentType?: string; vendor?: string }) => void;
   setConnectionStatus: (s: 'connected' | 'disconnected' | 'reconnecting' | 'failed') => void;
@@ -289,6 +292,72 @@ interface AgentStore {
   reloadEvents: () => void;
 }
 
+// ── Shared per-event state transformation ─────────────────────
+// Used by both addEvent and addEvents. Does NOT call buildDerivedMaps —
+// callers must do that once after all events are applied.
+
+type AgentState = ReturnType<typeof useAgentStore.getState>;
+
+/** Build a Set of node IDs that have at least one outgoing edge. O(edges). */
+function buildSourceHasEdge(edges: Edge[]): Set<string> {
+  const result = new Set<string>();
+  for (const edge of edges) {
+    result.add(edge.source);
+  }
+  return result;
+}
+
+function applyEvent(state: AgentState, event: AgentEvent): AgentState {
+  if (state.paused) {
+    return { ...state, pauseQueue: [...state.pauseQueue, event] };
+  }
+
+  // Dedup: O(1) Set lookup instead of O(n) linear scan
+  if (event.type !== 'text_delta' && state.eventIds.has(event.id)) {
+    return state;
+  }
+
+  // Clone eventIds Set and add new ID (clone preserves Zustand middleware compatibility)
+  const eventIds = new Set(state.eventIds);
+  eventIds.add(event.id);
+
+  // Fast path: text_delta — only copy agents Map + nodes array
+  if (event.type === 'text_delta') {
+    const agentId = event.agentId ?? '';
+    const agent = state.agents.get(agentId);
+    const events = insertEventSorted(state.events, event, MAX_EVENTS);
+    if (!agent) {
+      return { ...state, events, eventIds };
+    }
+    const updated = {
+      ...agent,
+      streamingText: (agent.streamingText ?? '') + (event.text ?? ''),
+    };
+    const agents = new Map(state.agents);
+    agents.set(agentId, updated);
+    const nodes = state.nodes.map((n) =>
+      n.id === nid.agent(agentId) ? { ...n, data: { agent: updated } } : n,
+    );
+    return { ...state, agents, nodes, events, eventIds };
+  }
+
+  const events = insertEventSorted(state.events, event, MAX_EVENTS);
+
+  // Hidden hook events: store event, skip graph processing
+  if (event.eventSource === 'hook' && !state.showHookEvents) {
+    return { ...state, events, eventIds };
+  }
+
+  // No-op events: store event, skip graph processing
+  if (NO_GRAPH_EVENTS.has(event.type)) {
+    return { ...state, events, eventIds };
+  }
+
+  const draft = draftFromState(state);
+  processEvent(event, draft, state.showHookEvents);
+  return { ...state, ...draft, events, eventIds };
+}
+
 // ── Store ────────────────────────────────────────────────────
 
 export const useAgentStore = create<AgentStore>((set, get) => ({
@@ -303,9 +372,11 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   pendingTaskTools: new Map(),
   taskToolAgentMap: new Map(),
   events: [],
+  eventIds: new Set<string>(),
   pauseQueue: [],
   nodes: [{ ...SPAWN_NODE }],
   edges: [],
+  sourceHasEdge: new Set<string>(),
   selectedNodeId: null,
   highlightedNodeIds: null,
   multiHighlightIds: null,
@@ -347,52 +418,31 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
   addEvent: (event) => {
     set((state) => {
-      // Queue events while paused (don't discard)
-      if (state.paused) {
-        return { ...state, pauseQueue: [...state.pauseQueue, event] };
+      const next = applyEvent(state, event);
+      if (next === state) return state; // dedup no-op
+      const derived = buildDerivedMaps(next.agents, next.sessions);
+      // Rebuild sourceHasEdge only when edges ref changed
+      const sourceHasEdge =
+        next.edges !== state.edges ? buildSourceHasEdge(next.edges) : state.sourceHasEdge;
+      return { ...next, ...derived, sourceHasEdge };
+    });
+  },
+
+  // ── addEvents (batch) ─────────────────────────────────────
+  // Applies multiple events in a single set() call. buildDerivedMaps
+  // runs once after the loop, not per event.
+
+  addEvents: (events) => {
+    set((state) => {
+      let current = state;
+      for (const event of events) {
+        current = applyEvent(current, event);
       }
-
-      // Dedup: skip events already in the store (protects against WS + HTTP load races
-      // and duplicate broadcasts from overlapping hook sources)
-      if (event.type !== 'text_delta' && state.events.some((e) => e.id === event.id)) {
-        return state;
-      }
-
-      // Fast path: text_delta — only copy agents Map + nodes array
-      if (event.type === 'text_delta') {
-        const agentId = event.agentId ?? '';
-        const agent = state.agents.get(agentId);
-        const events = insertEventSorted(state.events, event, MAX_EVENTS);
-        if (!agent) {
-          return { ...state, events };
-        }
-        const updated = {
-          ...agent,
-          streamingText: (agent.streamingText ?? '') + (event.text ?? ''),
-        };
-        const agents = new Map(state.agents);
-        agents.set(agentId, updated);
-        const nodes = state.nodes.map((n) =>
-          n.id === nid.agent(agentId) ? { ...n, data: { agent: updated } } : n,
-        );
-        return { ...state, agents, nodes, events, ...buildDerivedMaps(agents, state.sessions) };
-      }
-
-      const events = insertEventSorted(state.events, event, MAX_EVENTS);
-
-      // Hidden hook events: store event, skip graph processing
-      if (event.eventSource === 'hook' && !state.showHookEvents) {
-        return { ...state, events };
-      }
-
-      // No-op events: store event, skip graph processing
-      if (NO_GRAPH_EVENTS.has(event.type)) {
-        return { ...state, events };
-      }
-
-      const draft = draftFromState(state);
-      processEvent(event, draft, state.showHookEvents);
-      return { ...state, ...draft, events, ...buildDerivedMaps(draft.agents, draft.sessions) };
+      if (current === state) return state; // all deduped
+      const derived = buildDerivedMaps(current.agents, current.sessions);
+      const sourceHasEdge =
+        current.edges !== state.edges ? buildSourceHasEdge(current.edges) : state.sourceHasEdge;
+      return { ...current, ...derived, sourceHasEdge };
     });
   },
 
@@ -624,6 +674,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       events,
       nodes,
       edges,
+      sourceHasEdge: buildSourceHasEdge(edges),
       selectedNodeId:
         state.selectedNodeId && removeIds.has(state.selectedNodeId) ? null : state.selectedNodeId,
     });
@@ -668,9 +719,11 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       pendingTaskTools: new Map(),
       taskToolAgentMap: new Map(),
       events: [],
+      eventIds: new Set<string>(),
       pauseQueue: [],
       nodes: [{ ...SPAWN_NODE }],
       edges: [],
+      sourceHasEdge: new Set<string>(),
       selectedNodeId: null,
       highlightedNodeIds: null,
       multiHighlightIds: null,
@@ -721,10 +774,14 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     }
 
     // Events stored newest-first for timeline display
+    const finalEvents = deduped.reverse().slice(0, MAX_EVENTS);
+    const eventIds = new Set<string>(finalEvents.map((e) => e.id));
     set({
       ...draft,
       ...buildDerivedMaps(draft.agents, draft.sessions),
-      events: deduped.reverse().slice(0, MAX_EVENTS),
+      events: finalEvents,
+      eventIds,
+      sourceHasEdge: buildSourceHasEdge(draft.edges),
       selectedNodeId: null,
       highlightedNodeIds: null,
       multiHighlightIds: null,
@@ -802,6 +859,78 @@ function isWsDuplicate(event: AgentEvent): boolean {
 
 // ── Wire WebSocket to store ──────────────────────────────────
 
+// Batch handler: receives batched 'event' type messages from the batcher.
+// All messages in the batch are type: 'event' — non-event types bypass batching.
+wsClient.setOnBatchEvent((msgs) => {
+  const eventsToAdd: AgentEvent[] = [];
+  for (const msg of msgs) {
+    if (msg.type !== 'event') continue;
+    const event = msg.data;
+
+    // Skip events from other projects when cwd filter is active
+    const { cwdFilter, timePresetLabel } = useAgentStore.getState();
+    if (cwdFilter && event.cwd && normalizeCwd(event.cwd) !== cwdFilter) continue;
+
+    // Skip events outside the active time range
+    const liveRange = computeTimeRange(timePresetLabel);
+    if (liveRange && event.timestamp < liveRange.from) continue;
+
+    // Content-based dedup
+    if (isWsDuplicate(event)) continue;
+
+    eventsToAdd.push(event);
+  }
+
+  if (eventsToAdd.length === 1) {
+    // Single event — use addEvent for efficiency (avoids batch overhead)
+    useAgentStore.getState().addEvent(eventsToAdd[0]);
+    // Toast for single event
+    const event = eventsToAdd[0];
+    if (event.type === 'agent_start') {
+      const agentId = event.agentId ?? event.id;
+      toast(`Agent started: ${event.agentType ?? 'unknown'}`, 'info', nid.agent(agentId));
+    } else if (event.type === 'agent_stop') {
+      const agentId = event.agentId ?? event.id;
+      toast(
+        `Agent ${event.status === 'error' ? 'failed' : 'completed'}: ${event.agentType ?? 'unknown'}`,
+        event.status === 'error' ? 'error' : 'success',
+        nid.agent(agentId),
+      );
+    } else if (event.type === 'user_prompt') {
+      const preview = (event.text ?? '').slice(0, 60);
+      toast(
+        `Prompt: ${preview}${(event.text?.length ?? 0) > 60 ? '...' : ''}`,
+        'info',
+        nid.prompt(event.id),
+      );
+    }
+  } else if (eventsToAdd.length > 1) {
+    useAgentStore.getState().addEvents(eventsToAdd);
+    // Fire toasts for notable events in the batch
+    for (const event of eventsToAdd) {
+      if (event.type === 'agent_start') {
+        const agentId = event.agentId ?? event.id;
+        toast(`Agent started: ${event.agentType ?? 'unknown'}`, 'info', nid.agent(agentId));
+      } else if (event.type === 'agent_stop') {
+        const agentId = event.agentId ?? event.id;
+        toast(
+          `Agent ${event.status === 'error' ? 'failed' : 'completed'}: ${event.agentType ?? 'unknown'}`,
+          event.status === 'error' ? 'error' : 'success',
+          nid.agent(agentId),
+        );
+      } else if (event.type === 'user_prompt') {
+        const preview = (event.text ?? '').slice(0, 60);
+        toast(
+          `Prompt: ${preview}${(event.text?.length ?? 0) > 60 ? '...' : ''}`,
+          'info',
+          nid.prompt(event.id),
+        );
+      }
+    }
+  }
+});
+
+// Immediate handler: receives non-batched messages (permissions, agent_text, etc.)
 wsClient.setOnEvent((msg) => {
   // Route permission messages to dedicated store; fire toast on new request
   if (msg.type === 'pendingPermission') {
@@ -863,8 +992,15 @@ wsClient.setOnEvent((msg) => {
       timestamp: Date.now(),
     });
   } else if (msg.type === 'coaching_nudge') {
-    useAgentStore.getState().addNudge(msg.data);
-    toast(`Coach: ${msg.data.title}`, msg.data.severity === 'warning' ? 'warning' : 'info');
+    // Suppress live nudges on mobile — no settings UI to control them
+    const isMobile =
+      window.matchMedia('(pointer: coarse)').matches &&
+      window.matchMedia('(max-width: 1024px)').matches &&
+      navigator.maxTouchPoints > 0;
+    if (!isMobile) {
+      useAgentStore.getState().addNudge(msg.data);
+      toast(`Coach: ${msg.data.title}`, msg.data.severity === 'warning' ? 'warning' : 'info');
+    }
   } else if (msg.type === 'stale') {
     // Server signals missed events due to backpressure — do full reload
     toast('Catching up — some events were buffered', 'info');

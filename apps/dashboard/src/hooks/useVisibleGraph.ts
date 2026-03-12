@@ -47,8 +47,10 @@ export function useVisibleGraph(options: UseVisibleGraphOptions): UseVisibleGrap
   // showAllTools/toolGroupMode affect rendering but are already reflected in rawNodes
   // via the AgentGraph visibility memo, so no need to include them here.
 
-  return useMemo(() => {
-    // Phase 1: Replace leaf tools with synthetic toolGroup nodes
+  // Phase 1: Toolgroup synthesis (only depends on structure + dims).
+  // Cached across selection/search changes so clicking through nodes
+  // rapidly skips the O(edges) toolgroup synthesis.
+  const { baseNodes, baseEdges } = useMemo(() => {
     const structuralToolIds = new Set<string>();
     for (const edge of rawEdges) {
       if (edge.source.startsWith('tool-') && edge.target.startsWith('agent-')) {
@@ -97,14 +99,14 @@ export function useVisibleGraph(options: UseVisibleGraphOptions): UseVisibleGrap
       });
     }
 
-    // Base node/edge sets: leaf tools replaced by toolGroup nodes
-    const baseNodes = [...rawNodes.filter((n) => !leafToolNodeIds.has(n.id)), ...syntheticNodes];
-    const baseEdges = [
-      ...rawEdges.filter((e) => !leafToolNodeIds.has(e.target)),
-      ...syntheticEdges,
-    ];
+    return {
+      baseNodes: [...rawNodes.filter((n) => !leafToolNodeIds.has(n.id)), ...syntheticNodes],
+      baseEdges: [...rawEdges.filter((e) => !leafToolNodeIds.has(e.target)), ...syntheticEdges],
+    };
+  }, [rawNodes, rawEdges, toolGroupDims]);
 
-    // Phase 2: Search or collapse filtering
+  // Phase 2+: Search, auto-close, collapse (depends on selection, search, etc.)
+  return useMemo(() => {
     const query = graphSearchQuery.toLowerCase().trim();
 
     if (query) {
@@ -133,7 +135,6 @@ export function useVisibleGraph(options: UseVisibleGraphOptions): UseVisibleGrap
       const parentOf = buildParentMap(baseEdges);
       let expandedPrompt: string | null = null;
       if (selectedNodeId) {
-        // If selected is a tool inside a group, walk from its agent parent
         let walkStart: string | undefined = selectedNodeId;
         if (selectedNodeId.startsWith('tool-')) {
           for (const edge of rawEdges) {
@@ -195,12 +196,12 @@ export function useVisibleGraph(options: UseVisibleGraphOptions): UseVisibleGrap
       searchMatchCount: null as number | null,
     };
   }, [
-    rawNodes,
+    baseNodes,
+    baseEdges,
     rawEdges,
     graphSearchQuery,
     autoClosePrompts,
     selectedNodeId,
     collapsedNodes,
-    toolGroupDims,
   ]);
 }
