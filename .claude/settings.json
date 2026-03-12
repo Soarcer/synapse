@@ -1,4 +1,15 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(xxd:*)",
+      "Bash(npx eslint:*)",
+      "Bash(test:*)",
+      "WebFetch(domain:docs.openclaw.ai)",
+      "WebFetch(domain:openclaw.ai)",
+      "WebFetch(domain:open-claw.bot)",
+      "WebFetch(domain:clawhub.ai)"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {
@@ -80,6 +91,11 @@
             "type": "command",
             "command": "node hooks/send_event.cjs",
             "async": true
+          },
+          {
+            "type": "http",
+            "url": "http://localhost:27247/api/hooks/permission",
+            "timeout": 1800
           }
         ]
       }
