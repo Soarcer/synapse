@@ -76,6 +76,14 @@ export class Broadcaster {
     }
   }
 
+  /** Broadcast a raw WsServerMessage without wrapping in { type: 'event' }. */
+  broadcastRaw(msg: WsServerMessage): void {
+    const payload = JSON.stringify(msg);
+    for (const client of this.clients) {
+      this.safeSend(client, payload);
+    }
+  }
+
   broadcastText(agentId: string, text: string, isPartial: boolean): void {
     const msg: WsServerMessage = {
       type: 'agent_text',
