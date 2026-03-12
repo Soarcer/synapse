@@ -123,6 +123,7 @@ export function LensTabBar() {
         ))}
         <div className="flex items-center gap-1 ml-auto">
           <GraphOpenButton />
+          {/* TODO v0.2.0: Spawn Agent deferred — needs output panel + conversation model
           <Tooltip content="Spawn Agent" shortcut="N">
             <button
               onClick={onSpawnClick}
@@ -131,6 +132,7 @@ export function LensTabBar() {
               +
             </button>
           </Tooltip>
+          */}
         </div>
       </div>
 

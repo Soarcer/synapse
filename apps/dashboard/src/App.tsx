@@ -262,9 +262,10 @@ export default function App() {
         e.preventDefault();
         store.setPaused(!store.paused);
       }
-      if (e.key === 'n' && !e.ctrlKey && !e.metaKey) {
-        useAgentStore.getState().setShowSpawnDialog(true);
-      }
+      // TODO v0.2.0: Spawn Agent — deferred, needs output panel + conversation model
+      // if (e.key === 'n' && !e.ctrlKey && !e.metaKey) {
+      //   useAgentStore.getState().setShowSpawnDialog(true);
+      // }
       if (e.key === 'w' && !e.ctrlKey && !e.metaKey) {
         useAgentStore.getState().setShowWorkshop(true);
       }

@@ -9,7 +9,10 @@ import { Tooltip } from '../../ui/Tooltip';
 function SpawnAgentNodeComponent(_props: NodeProps) {
   const setShowSpawnDialog = useAgentStore((s) => s.setShowSpawnDialog);
 
-  return (
+  // TODO v0.2.0: Spawn Agent deferred — needs output panel + conversation model
+  return null;
+
+  /* return (
     <Tooltip content="Spawn a new agent" shortcut="N">
       <button
         onClick={() => setShowSpawnDialog(true)}
@@ -25,7 +28,7 @@ function SpawnAgentNodeComponent(_props: NodeProps) {
         +
       </button>
     </Tooltip>
-  );
+  ); */
 }
 
 export const SpawnAgentNode = memo(SpawnAgentNodeComponent);
