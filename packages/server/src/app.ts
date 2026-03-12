@@ -16,6 +16,7 @@ import { createAnalyticsRouter } from './routes/analytics.js';
 import { createCoachingRouter } from './routes/coaching.js';
 import { createSettingsRouter } from './routes/settings.js';
 import { createPermissionsRouter } from './routes/permissions.js';
+import { createNetworkRouter } from './routes/network.js';
 import { getDbStats } from './db.js';
 import { logger } from './lib/logger.js';
 
@@ -113,6 +114,7 @@ export function createApp(deps: AppDeps) {
   app.use('/api/analytics/coaching', createCoachingRouter());
   app.use('/api/settings', createSettingsRouter());
   app.use('/api/permissions', createPermissionsRouter(broadcaster));
+  app.use('/api/network', createNetworkRouter());
 
   // Health check
   app.get('/api/health', (_req, res) => {
