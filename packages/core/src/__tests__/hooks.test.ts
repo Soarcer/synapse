@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { ClaudeHookEvent } from '@synapse-ai/core';
+import type { ClaudeHookEvent, WsServerMessage } from '@synapse-ai/core';
 
 describe('ClaudeHookEvent', () => {
   it('accepts a valid PermissionRequest hook payload', () => {
@@ -30,5 +30,29 @@ describe('ClaudeHookEvent', () => {
     };
     expect(event.session_id).toBeDefined();
     expect(event.hook_event_name).toBeDefined();
+  });
+});
+
+describe('WsServerMessage permission variants', () => {
+  it('accepts pendingPermission message', () => {
+    const msg: WsServerMessage = {
+      type: 'pendingPermission',
+      data: {
+        id: 'perm-1',
+        tool_name: 'Bash',
+        tool_input_preview: 'rm -rf build/',
+        createdAt: Date.now(),
+        expiresAt: Date.now() + 1800000,
+      },
+    };
+    expect(msg.type).toBe('pendingPermission');
+  });
+
+  it('accepts permissionResolved message', () => {
+    const msg: WsServerMessage = {
+      type: 'permissionResolved',
+      data: { id: 'perm-1', behavior: 'allow' },
+    };
+    expect(msg.type).toBe('permissionResolved');
   });
 });

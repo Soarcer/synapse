@@ -147,7 +147,18 @@ export type WsServerMessage =
   | { type: 'agent_text'; data: { agentId: string; text: string; isPartial: boolean } }
   | { type: 'stale'; data: Record<string, never> }
   | { type: 'coaching_nudge'; data: import('./coaching.js').CoachingNudge }
-  | { type: 'terminal_send'; data: { text: string } };
+  | { type: 'terminal_send'; data: { text: string } }
+  | {
+      type: 'pendingPermission';
+      data: {
+        id: string;
+        tool_name: string;
+        tool_input_preview: string;
+        createdAt: number;
+        expiresAt: number;
+      };
+    }
+  | { type: 'permissionResolved'; data: { id: string; behavior: 'allow' | 'deny' } };
 
 export type WsClientMessage =
   | { type: 'subscribe'; sessionId: string }
