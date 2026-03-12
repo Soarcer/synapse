@@ -16,9 +16,11 @@ import { createApp } from './app.js';
 import { initDb, closeDb, startPruneTimer } from './db.js';
 import { seedBuiltInTemplates } from './services/playbookService.js';
 import { registerAllRules } from './services/rules/index.js';
+import { createHookApp, HOOK_PORT } from './hookServer.js';
+import { pending } from './state/permissionState.js';
 
 const HOST = process.env.HOST || 'localhost';
-const PORT = parseInt(process.env.PORT || '4000', 10);
+const PORT = parseInt(process.env.PORT || '27246', 10);
 
 // --- Initialize database (async — sql.js requires WASM init) ---
 await initDb();
@@ -40,6 +42,12 @@ const agentManager = new AgentManager();
 // --- Express App ---
 
 const app = createApp({ broadcaster, agentManager });
+
+// --- Hook server status on main server (must be before catch-all SPA route) ---
+let hookServerRunning = false;
+app.get('/api/hook-server/status', (_req, res) => {
+  res.json({ running: hookServerRunning, port: HOOK_PORT, pending: pending.size });
+});
 
 // --- Serve built frontend OR dev status page ---
 
@@ -135,6 +143,37 @@ try {
   logger.warn('Could not write .synapse-port — port auto-discovery may not work');
 }
 
+// --- Hook Server (fixed port for Claude Code HTTP hooks) ---
+const hookApp = createHookApp({ broadcaster });
+const hookHttpServer = createServer(hookApp);
+hookHttpServer.timeout = 0; // No request timeout — permissions can be held for 30+ min
+
+try {
+  await new Promise<void>((resolve, reject) => {
+    hookHttpServer.once('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE') {
+        logger.warn(
+          { port: HOOK_PORT },
+          'Hook server port in use — permission routing unavailable',
+        );
+        resolve(); // Graceful degradation
+      } else {
+        reject(err);
+      }
+    });
+    hookHttpServer.once('listening', () => {
+      hookServerRunning = true;
+      resolve();
+    });
+    hookHttpServer.listen(HOOK_PORT, HOST);
+  });
+  if (hookServerRunning) {
+    logger.info({ host: HOST, port: HOOK_PORT }, 'Hook server started');
+  }
+} catch (err) {
+  logger.error({ err }, 'Hook server failed to start');
+}
+
 // Attach WebSocket server AFTER port is bound (avoids WSS catching EADDRINUSE errors)
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 1 * 1024 * 1024 }); // 1MB max message
 
@@ -174,22 +213,45 @@ function shutdown() {
   // 0. Stop prune timer
   if (pruneTimer) clearInterval(pruneTimer);
 
-  // 1. Stop all running agents (clears timeout + cleanup timers)
+  // 1. Drain pending permissions — deny all before shutdown
+  for (const [, entry] of pending.entries()) {
+    clearTimeout(entry.timer);
+    try {
+      entry.res.json({
+        hookSpecificOutput: {
+          hookEventName: 'PermissionRequest',
+          decision: { behavior: 'deny', message: 'Synapse server is shutting down.' },
+        },
+      });
+    } catch {
+      // Response may already be closed
+    }
+  }
+  pending.clear();
+
+  // 2. Close hook server
+  if (hookServerRunning) {
+    hookHttpServer.close(() => {
+      logger.info('Hook server closed');
+    });
+  }
+
+  // 3. Stop all running agents (clears timeout + cleanup timers)
   agentManager.stopAll();
 
-  // 2. Stop heartbeat and close all WebSocket connections
+  // 4. Stop heartbeat and close all WebSocket connections
   broadcaster.destroy();
   for (const client of wss.clients) {
     client.close(1001, 'Server shutting down');
   }
   wss.close();
 
-  // 3. Close HTTP server first (stop accepting new connections)
+  // 5. Close HTTP server first (stop accepting new connections)
   server.close(() => {
     logger.info('HTTP server closed, draining...');
   });
 
-  // 4. Drain period: close DB after 5s, then exit
+  // 6. Drain period: close DB after 5s, then exit
   const drainTimer = setTimeout(() => {
     closeDb();
     logger.info('Shutdown complete');
