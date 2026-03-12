@@ -358,6 +358,39 @@ export async function initDb(): Promise<void> {
     'CREATE INDEX IF NOT EXISTS idx_transcript_index_started ON transcript_index(started_at DESC)',
   );
 
+  // ─── Permission & Push tables (Phase A1) ────────────────────────────
+  db.run(`
+    CREATE TABLE IF NOT EXISTS permission_events (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      tool_name TEXT NOT NULL,
+      tool_input TEXT,
+      behavior TEXT NOT NULL,
+      latency_ms INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    )
+  `);
+  db.run(
+    'CREATE INDEX IF NOT EXISTS idx_permission_events_session ON permission_events(session_id)',
+  );
+  db.run(
+    'CREATE INDEX IF NOT EXISTS idx_permission_events_created ON permission_events(created_at)',
+  );
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id TEXT PRIMARY KEY,
+      endpoint TEXT NOT NULL UNIQUE,
+      keys_p256dh TEXT NOT NULL,
+      keys_auth TEXT NOT NULL,
+      user_agent TEXT,
+      created_at INTEGER NOT NULL
+    )
+  `);
+  db.run(
+    'CREATE INDEX IF NOT EXISTS idx_push_subscriptions_endpoint ON push_subscriptions(endpoint)',
+  );
+
   logger.info({ path: DB_PATH }, 'Database initialized');
 }
 
