@@ -16,6 +16,7 @@ import { ViewSettingsDropdown } from './ViewSettingsDropdown';
 import { KeyboardShortcutsTooltip } from './KeyboardShortcutsTooltip';
 import { ActionsMenu } from './ActionsMenu';
 import { GraphStats } from './GraphStats';
+import { HookControlsTab } from '../settings/HookControlsTab';
 
 export function Header() {
   const connectionStatus = useAgentStore((s) => s.connectionStatus);
@@ -31,10 +32,11 @@ export function Header() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [projects, setProjects] = useState<string[]>([]);
+  const [hookControlsOpen, setHookControlsOpen] = useState(false);
 
   // Fetch project list; refresh when connection status changes to 'connected'
   useEffect(() => {
-    fetch('/api/events/projects')
+    fetch(apiUrl('/api/events/projects'))
       .then((r) => r.json())
       .then((data: { projects?: string[] }) => setProjects(data.projects ?? []))
       .catch(() => {});
@@ -201,16 +203,25 @@ export function Header() {
 
         {/* Project filter */}
         {projects.length > 0 && (
-          <div className="relative">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-white/40 select-none">Project</span>
             <select
               value={cwdFilter ?? ''}
               onChange={(e) => setCwdFilter(e.target.value || null)}
-              className="text-xs bg-transparent border border-white/20 rounded px-2 py-1 text-white/80 hover:border-white/40 cursor-pointer"
+              className="text-xs border border-white/20 rounded px-2 py-1 hover:border-white/40 cursor-pointer"
+              style={{ background: '#1e1e2e', color: 'rgba(255,255,255,0.8)' }}
               title={cwdFilter ?? 'All projects'}
             >
-              <option value="">All projects</option>
+              <option value="" style={{ background: '#1e1e2e', color: '#cdd6f4' }}>
+                All projects
+              </option>
               {projects.map((p) => (
-                <option key={p} value={p} title={p}>
+                <option
+                  key={p}
+                  value={p}
+                  title={p}
+                  style={{ background: '#1e1e2e', color: '#cdd6f4' }}
+                >
                   {p.split(/[/\\]/).pop() ?? p}
                 </option>
               ))}
@@ -219,6 +230,7 @@ export function Header() {
         )}
 
         {/* Time filter */}
+
         <TimeFilterDropdown />
 
         {/* Session selector */}
@@ -242,6 +254,29 @@ export function Header() {
           >
             Analytics
           </a>
+        </Tooltip>
+
+        {/* Hook Controls */}
+        <Tooltip content="Hook Controls">
+          <button
+            onClick={() => setHookControlsOpen(true)}
+            className="flex items-center justify-center w-7 h-7 rounded text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700 transition-colors"
+            aria-label="Hook Controls"
+          >
+            <svg
+              className="w-3.5 h-3.5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+              />
+            </svg>
+          </button>
         </Tooltip>
 
         {/* View settings */}
@@ -279,6 +314,8 @@ export function Header() {
           onCancel={() => setShowClearConfirm(false)}
         />
       </header>
+
+      <HookControlsTab open={hookControlsOpen} onClose={() => setHookControlsOpen(false)} />
 
       {/* Server-down banner */}
       {showServerBanner && (
