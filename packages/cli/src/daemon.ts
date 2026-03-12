@@ -93,19 +93,22 @@ export async function status(): Promise<{
   const pid = readPid();
   const port = readPort();
 
-  if (!pid || !isProcessAlive(pid)) {
+  if (pid && !isProcessAlive(pid)) {
     // Stale PID file — clean up
-    if (pid) cleanupFiles();
+    cleanupFiles();
     return { running: false, pid: null, port: null };
   }
 
-  // PID is alive — verify it's actually our server
+  // Health-check the port — works whether server was started by CLI or VS Code extension
   if (port) {
     const healthy = await healthCheck(port);
     if (healthy) return { running: true, pid, port };
   }
 
-  return { running: true, pid, port: null };
+  // PID alive but no healthy port (server still starting or crashed)
+  if (pid) return { running: true, pid, port: null };
+
+  return { running: false, pid: null, port: null };
 }
 
 // ── Start ────────────────────────────────────────────────────
@@ -117,12 +120,13 @@ export interface StartOptions {
 }
 
 export async function start(opts: StartOptions = {}): Promise<number> {
-  const preferredPort = opts.port ?? 4000;
+  const preferredPort = opts.port ?? 27246;
 
   // Check if already running
   const current = await status();
   if (current.running && current.port) {
-    console.log(`Synapse is already running on port ${current.port} (PID ${current.pid})`);
+    console.log(`\nSynapse already running  →  http://localhost:${current.port}`);
+    console.log(`Run "synapse open" to open the dashboard.\n`);
     return current.port;
   }
 
@@ -171,7 +175,8 @@ export async function start(opts: StartOptions = {}): Promise<number> {
     const actualPort = await waitForServer(preferredPort, 10_000);
     writePort(actualPort);
 
-    console.log(`Synapse started in background (PID ${child.pid}, port ${actualPort})`);
+    console.log(`\nSynapse started (PID ${child.pid})`);
+    console.log(`Logs: ${path.join(SYNAPSE_HOME, 'server.log')}\n`);
     return actualPort;
   } else {
     // ── Foreground mode ────────────────────────────────────
