@@ -3,6 +3,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useAgentStore } from '../../store/agentStore';
+import { GAME_MODE_OPTIONS } from '../graph/nodes/game-modes';
+import { PushSetup } from '../settings/PushSetup';
 
 const TOOL_VIEW_MODES = [
   { value: 'pillGrid' as const, label: 'Pill Grid' },
@@ -48,6 +50,9 @@ export function MobileSettingsButton() {
   const paused = useAgentStore((s) => s.paused);
   const timePresetLabel = useAgentStore((s) => s.timePresetLabel);
   const setTimeRange = useAgentStore((s) => s.setTimeRange);
+  const arcadeUnlocked = useAgentStore((s) => s.arcadeUnlocked);
+  const arcadeMode = useAgentStore((s) => s.arcadeMode);
+  const arcadeSoundEnabled = useAgentStore((s) => s.arcadeSoundEnabled);
 
   // Close on outside tap
   useEffect(() => {
@@ -66,7 +71,11 @@ export function MobileSettingsButton() {
   }, [open]);
 
   return (
-    <div ref={panelRef} className="absolute top-2 right-2 z-20">
+    <div
+      ref={panelRef}
+      className="absolute right-2 z-20"
+      style={{ top: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)' }}
+    >
       <button
         onClick={() => setOpen((v) => !v)}
         className="w-8 h-8 flex items-center justify-center bg-gray-800/90 border border-gray-700 rounded-full text-gray-400 text-sm backdrop-blur-sm"
@@ -150,6 +159,49 @@ export function MobileSettingsButton() {
               ))}
             </div>
           </div>
+
+          {/* Push Notifications */}
+          <div className="border-t border-gray-700 pt-2">
+            <PushSetup />
+          </div>
+
+          {/* Arcade — only visible after easter egg unlock */}
+          {arcadeUnlocked && (
+            <div className="border-t border-gray-700 pt-2 space-y-2">
+              <Toggle
+                label="Arcade Mode"
+                checked={arcadeMode}
+                onChange={(v) => {
+                  useAgentStore.getState().setArcadeMode(v);
+                  if (!v) useAgentStore.getState().setToolGroupMode('heatmap');
+                }}
+              />
+              {arcadeMode && (
+                <>
+                  <div className="grid grid-cols-2 gap-1">
+                    {GAME_MODE_OPTIONS.map((m) => (
+                      <button
+                        key={m.value}
+                        onClick={() => useAgentStore.getState().setToolGroupMode(m.value)}
+                        className={`px-2 py-1 text-[10px] rounded border transition-colors ${
+                          toolGroupMode === m.value
+                            ? 'bg-purple-600/30 border-purple-500/50 text-purple-300'
+                            : 'bg-gray-800 border-gray-700 text-gray-500'
+                        }`}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                  <Toggle
+                    label="Sound effects"
+                    checked={arcadeSoundEnabled}
+                    onChange={(v) => useAgentStore.getState().setArcadeSoundEnabled(v)}
+                  />
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -172,13 +224,13 @@ function Toggle({
     >
       <span className="text-gray-300">{label}</span>
       <span
-        className={`w-8 h-4.5 rounded-full relative transition-colors ${
+        className={`w-8 h-[18px] shrink-0 rounded-full relative transition-colors ${
           checked ? 'bg-blue-600' : 'bg-gray-700'
         }`}
       >
         <span
-          className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white transition-transform ${
-            checked ? 'translate-x-4' : 'translate-x-0.5'
+          className={`absolute top-0.5 left-0 w-3.5 h-3.5 rounded-full bg-white transition-transform ${
+            checked ? 'translate-x-[14px]' : 'translate-x-0.5'
           }`}
         />
       </span>

@@ -17,6 +17,7 @@ import { createCoachingRouter } from './routes/coaching.js';
 import { createSettingsRouter } from './routes/settings.js';
 import { createPermissionsRouter } from './routes/permissions.js';
 import { createNetworkRouter } from './routes/network.js';
+import { createPushRouter } from './routes/push.js';
 import { getDbStats } from './db.js';
 import { logger } from './lib/logger.js';
 
@@ -44,10 +45,7 @@ export function createApp(deps: AppDeps) {
 
   // CORS for client
   const clientOrigin =
-    deps.corsOrigins ||
-    process.env.CORS_ORIGIN ||
-    process.env.CLIENT_ORIGIN ||
-    'http://localhost:5173';
+    deps.corsOrigins || process.env.CORS_ORIGIN || process.env.CLIENT_ORIGIN || '*';
   const allowedOrigins = clientOrigin
     .split(',')
     .map((o) => o.trim())
@@ -115,6 +113,7 @@ export function createApp(deps: AppDeps) {
   app.use('/api/settings', createSettingsRouter());
   app.use('/api/permissions', createPermissionsRouter(broadcaster));
   app.use('/api/network', createNetworkRouter());
+  app.use('/api/push', createPushRouter());
 
   // Health check
   app.get('/api/health', (_req, res) => {

@@ -3,16 +3,20 @@
 
 import express from 'express';
 import crypto from 'crypto';
+import os from 'os';
 import rateLimit from 'express-rate-limit';
 import { logger } from './lib/logger.js';
 import type { Broadcaster } from './services/broadcaster.js';
 import { pending, MAX_PENDING, PERMISSION_TIMEOUT_MS } from './state/permissionState.js';
 import { sendToAll } from './services/pushService.js';
+import { selectLanIp } from './routes/network.js';
 
 const HOOK_PORT = parseInt(process.env.SYNAPSE_HOOK_PORT ?? '27247', 10);
 
 export interface HookAppDeps {
   broadcaster: Broadcaster;
+  /** The actual bound port of the main HTTP server (from tryListen) */
+  mainPort?: number;
   /** Disable rate limiting (useful for tests) */
   disableRateLimiting?: boolean;
 }
@@ -22,7 +26,7 @@ export interface HookAppDeps {
  * Exported for testing — listen() is called separately in index.ts.
  */
 export function createHookApp(deps: HookAppDeps): express.Express {
-  const { broadcaster } = deps;
+  const { broadcaster, mainPort = 27246 } = deps;
   const app = express();
 
   app.use(express.json({ limit: '1mb' }));
@@ -73,24 +77,39 @@ export function createHookApp(deps: HookAppDeps): express.Express {
 
     // Broadcast to dashboard via WS
     const toolName = (req.body.tool_name as string) ?? '';
-    const toolInput = String(req.body.tool_input ?? '');
+    const rawInput = req.body.tool_input ?? '';
+    const toolInput = typeof rawInput === 'string' ? rawInput : JSON.stringify(rawInput);
     broadcaster.broadcastRaw({
       type: 'pendingPermission',
       data: {
         id,
         tool_name: toolName,
         tool_input_preview: toolInput.slice(0, 200),
+        tool_input_raw: rawInput,
         createdAt,
         expiresAt,
       },
     });
 
-    // Fire-and-forget push notification
+    // Fire-and-forget push notification with absolute URLs
+    const lanIp = selectLanIp(os.networkInterfaces()) ?? 'localhost';
+    const protocol = process.env.SYNAPSE_TLS_CERT ? 'https' : 'http';
+    const baseUrl = `${protocol}://${lanIp}:${mainPort}`;
+
+    // Format notification based on tool type
+    const isQuestion = toolName === 'AskUserQuestion';
+    const timeoutMin = Math.round(PERMISSION_TIMEOUT_MS / 60000);
+    const title = isQuestion ? `💬 Claude needs your input` : `🔒 Approve ${toolName || 'action'}?`;
+    const body = isQuestion
+      ? toolInput.slice(0, 120)
+      : `${toolInput.slice(0, 100)}\n⏱ ${timeoutMin}m to respond`;
+
     sendToAll({
-      title: `⏸ Synapse — ${toolName || 'Permission'} request`,
-      body: `${toolInput.slice(0, 60)}  ·  ${Math.round(PERMISSION_TIMEOUT_MS / 60000)}:00 remaining`,
+      title,
+      body,
       requestId: id,
-      url: '/',
+      decisionUrl: `${baseUrl}/api/permissions/${id}/decision`,
+      url: baseUrl,
     }).catch((err) => logger.error({ err }, 'Push send failed'));
 
     // res intentionally NOT called — held until decision or timeout

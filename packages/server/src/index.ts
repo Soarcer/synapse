@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Bernhard
 
-import { createServer } from 'http';
+import { createServer as createHttpServer } from 'http';
+import { createServer as createHttpsServer } from 'https';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { IncomingMessage } from 'http';
 import path from 'path';
@@ -18,8 +19,9 @@ import { seedBuiltInTemplates } from './services/playbookService.js';
 import { registerAllRules } from './services/rules/index.js';
 import { createHookApp, HOOK_PORT } from './hookServer.js';
 import { pending } from './state/permissionState.js';
+import { initPush } from './services/pushService.js';
 
-const HOST = process.env.HOST || 'localhost';
+const HOST = process.env.HOST || '0.0.0.0';
 const PORT = parseInt(process.env.PORT || '27246', 10);
 
 // --- Initialize database (async — sql.js requires WASM init) ---
@@ -33,6 +35,9 @@ seedBuiltInTemplates();
 
 // Start periodic DB pruning
 const pruneTimer = startPruneTimer();
+
+// Initialize push notification service (reads VAPID keys from env)
+initPush();
 
 // --- Services ---
 
@@ -93,9 +98,21 @@ if (dashDir) {
   });
 }
 
-// --- HTTP + WebSocket Server ---
+// --- HTTP(S) + WebSocket Server ---
 
-const server = createServer(app);
+const tlsCert = process.env.SYNAPSE_TLS_CERT;
+const tlsKey = process.env.SYNAPSE_TLS_KEY;
+
+let server: import('http').Server;
+if (tlsCert && tlsKey && fs.existsSync(tlsCert) && fs.existsSync(tlsKey)) {
+  server = createHttpsServer({ cert: fs.readFileSync(tlsCert), key: fs.readFileSync(tlsKey) }, app);
+  logger.info('HTTPS enabled — push notifications available on LAN');
+} else {
+  server = createHttpServer(app);
+  if (tlsCert || tlsKey) {
+    logger.warn('TLS cert/key specified but files not found — falling back to HTTP');
+  }
+}
 
 // --- Start (auto-scan ports if preferred is busy) ---
 
@@ -144,8 +161,8 @@ try {
 }
 
 // --- Hook Server (fixed port for Claude Code HTTP hooks) ---
-const hookApp = createHookApp({ broadcaster });
-const hookHttpServer = createServer(hookApp);
+const hookApp = createHookApp({ broadcaster, mainPort: actualPort });
+const hookHttpServer = createHttpServer(hookApp);
 hookHttpServer.timeout = 0; // No request timeout — permissions can be held for 30+ min
 
 try {

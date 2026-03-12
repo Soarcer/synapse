@@ -42,9 +42,11 @@ export function selectLanIp(interfaces: NodeJS.Dict<os.NetworkInterfaceInfo[]>):
     }
   }
 
-  // Prefer 192.168.x or 10.x (typical home/office LAN)
-  const preferred = candidates.find((a) => a.startsWith('192.168.') || a.startsWith('10.'));
-  return preferred ?? candidates[0] ?? null;
+  // Prefer 192.168.x over 10.x — 10.x is often VPN (WireGuard, ZeroTier, etc.)
+  const lan192 = candidates.find((a) => a.startsWith('192.168.'));
+  if (lan192) return lan192;
+  const lan10 = candidates.find((a) => a.startsWith('10.'));
+  return lan10 ?? candidates[0] ?? null;
 }
 
 export function createNetworkRouter(): Router {
