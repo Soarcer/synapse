@@ -13,6 +13,9 @@ export const SETTINGS_KEYS = {
   AI_TOKEN_BUDGET: 'ai_token_budget_usd',
   CLAUDE_PLAN: 'claude_plan',
   MONTHLY_BUDGET: 'monthly_budget_usd',
+  PERMISSION_APPROVAL_ENABLED: 'permission_approval_enabled',
+  PERMISSION_TIMEOUT_MINUTES: 'permission_timeout_minutes',
+  PROMPT_INTERCEPTOR_ENABLED: 'prompt_interceptor_enabled',
 } as const;
 
 const DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
