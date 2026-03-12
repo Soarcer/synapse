@@ -5,6 +5,34 @@ import * as vscode from 'vscode';
 import { ChildProcess, spawn, execSync } from 'child_process';
 import * as path from 'path';
 import * as http from 'http';
+import * as fs from 'fs';
+import * as os from 'os';
+
+// ── Global Synapse daemon paths (~/.synapse/) ─────────────────
+const SYNAPSE_HOME = path.join(os.homedir(), '.synapse');
+const GLOBAL_PORT_FILE = path.join(SYNAPSE_HOME, 'port');
+
+function readPortFile(): number | null {
+  try {
+    const p = parseInt(fs.readFileSync(GLOBAL_PORT_FILE, 'utf-8').trim(), 10);
+    return p > 0 && p < 65536 ? p : null;
+  } catch {
+    return null;
+  }
+}
+
+function writePortFile(port: number): void {
+  fs.mkdirSync(SYNAPSE_HOME, { recursive: true });
+  fs.writeFileSync(GLOBAL_PORT_FILE, String(port));
+}
+
+function deletePortFile(): void {
+  try {
+    fs.unlinkSync(GLOBAL_PORT_FILE);
+  } catch {
+    /* ok — file may not exist */
+  }
+}
 
 export class ServerManager {
   private process: ChildProcess | null = null;
@@ -14,7 +42,9 @@ export class ServerManager {
   private storagePath: string | undefined;
   private outputChannel: vscode.OutputChannel;
   private killTimer: ReturnType<typeof setTimeout> | null = null;
-  private _isExternalServer = false;
+
+  /** How VS Code is currently connected to the server. */
+  private _mode: 'owned' | 'attached' | null = null;
 
   private _startTime: number | null = null;
 
@@ -43,12 +73,17 @@ export class ServerManager {
     return this._port;
   }
 
-  get isRunning(): boolean {
-    return this._isExternalServer || (this.process !== null && !this.process.killed);
+  get mode(): 'owned' | 'attached' | null {
+    return this._mode;
   }
 
+  get isRunning(): boolean {
+    return this._mode === 'attached' || (this.process !== null && !this.process.killed);
+  }
+
+  /** @deprecated Use `mode === 'attached'` instead. Kept for extension.ts compatibility. */
   get isExternalServer(): boolean {
-    return this._isExternalServer;
+    return this._mode === 'attached';
   }
 
   get uptime(): number {
@@ -61,6 +96,28 @@ export class ServerManager {
       vscode.window.showInformationMessage(`Synapse is already running on port ${this._port}`);
       return;
     }
+
+    // ── Step 1: Try to attach to an existing CLI daemon ──────────
+    const existingPort = readPortFile();
+    if (existingPort !== null) {
+      const healthy = await this.checkHealth(existingPort);
+      if (healthy) {
+        this._port = existingPort;
+        this._mode = 'attached';
+        this._startTime = Date.now();
+        this.outputChannel.appendLine(
+          `Attaching to existing Synapse daemon on port ${existingPort}`,
+        );
+        this._onStarted.fire();
+        return;
+      } else {
+        this.outputChannel.appendLine(
+          `Port file found (port ${existingPort}) but server is not healthy — starting own server.`,
+        );
+      }
+    }
+
+    // ── Step 2: No existing server — start our own ────────────────
 
     // Check for Node.js before attempting to start
     if (!this.hasNode()) {
@@ -149,6 +206,7 @@ export class ServerManager {
     this.process.on('exit', (code) => {
       this.outputChannel.appendLine(`Server exited with code ${code}`);
       this.process = null;
+      this._mode = null;
       this._onStopped.fire();
     });
 
@@ -156,6 +214,12 @@ export class ServerManager {
     try {
       await this.waitForReady(10000);
       this._startTime = Date.now();
+      this._mode = 'owned';
+      // Write port file so CLI can discover this VS Code–managed server
+      writePortFile(this._port);
+      this.outputChannel.appendLine(
+        `Wrote port file ${GLOBAL_PORT_FILE} (port ${this._port}) for CLI discovery`,
+      );
       this._onStarted.fire();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Server startup failed';
@@ -165,12 +229,19 @@ export class ServerManager {
   }
 
   stop(): void {
-    if (this._isExternalServer) {
-      this._isExternalServer = false;
+    if (this._mode === 'attached') {
+      // Don't stop the server — it belongs to the CLI daemon.
+      // Just disconnect and clear our state.
+      this.outputChannel.appendLine(
+        'Detaching from Synapse daemon (server continues running as CLI daemon)',
+      );
+      this._mode = null;
       this._startTime = null;
       this._onStopped.fire();
       return;
     }
+
+    // mode === 'owned' (or null): stop the server we started
     if (this.killTimer) {
       clearTimeout(this.killTimer);
       this.killTimer = null;
@@ -185,11 +256,15 @@ export class ServerManager {
         }
         this.killTimer = null;
       }, 10_000);
+      // Clean up port file since we owned it
+      deletePortFile();
     } else {
       // No process running — fire stopped immediately
+      this._mode = null;
       this._onStopped.fire();
     }
-    // Note: _onStopped fires from the 'exit' handler when process is running
+    // Note: _onStopped fires from the 'exit' handler when process is running,
+    // and _mode is cleared there too.
     this._startTime = null;
   }
 
