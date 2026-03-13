@@ -13,6 +13,7 @@ export interface PendingSummary {
   id: string;
   tool_name: string;
   tool_input_preview: string;
+  /** Raw tool_input object — used for tool-specific rendering (e.g. AskUserQuestion options) */
   tool_input_raw?: unknown;
   createdAt: number;
   expiresAt: number;
@@ -28,6 +29,27 @@ const EMPTY_PENDING: PendingSummary[] = [];
 const EMPTY_RESOLVED: ResolvedPermission[] = [];
 
 const MAX_RESOLVED = 50;
+const DISMISSED_STORAGE_KEY = 'synapse-dismissed-permissions';
+
+// ── SessionStorage helpers ────────────────────────────────
+
+function loadDismissedIds(): Set<string> {
+  try {
+    const raw = sessionStorage.getItem(DISMISSED_STORAGE_KEY);
+    if (!raw) return new Set();
+    return new Set(JSON.parse(raw) as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveDismissedIds(ids: Set<string>): void {
+  try {
+    sessionStorage.setItem(DISMISSED_STORAGE_KEY, JSON.stringify([...ids]));
+  } catch {
+    // sessionStorage full or unavailable — non-fatal
+  }
+}
 
 // ── Store interface ───────────────────────────────────────────
 
@@ -36,11 +58,15 @@ interface PermissionStore {
   pending: PendingSummary[];
   resolved: ResolvedPermission[];
   errorIds: Set<string>;
+  dismissedIds: Set<string>;
 
   addPending: (item: PendingSummary) => void;
   resolvePending: (id: string, behavior: 'allow' | 'deny') => void;
+  dismiss: (id: string) => void;
+  cycleToBottom: (id: string) => void;
+  clearAllDismissed: () => void;
   hydrate: (items: PendingSummary[]) => void;
-  approve: (id: string) => Promise<void>;
+  approve: (id: string, answers?: Record<string, string>) => Promise<void>;
   deny: (id: string) => Promise<void>;
   clearError: (id: string) => void;
 }
@@ -51,6 +77,7 @@ export const usePermissionStore = create<PermissionStore>((set, get) => ({
   pending: EMPTY_PENDING,
   resolved: EMPTY_RESOLVED,
   errorIds: new Set<string>(),
+  dismissedIds: loadDismissedIds(),
 
   addPending: (item) => {
     set((s) => {
@@ -61,15 +88,53 @@ export const usePermissionStore = create<PermissionStore>((set, get) => ({
 
   resolvePending: (id, behavior) => {
     set((s) => {
+      // Clean up dismissedIds when a permission resolves server-side
+      const newDismissed = new Set(s.dismissedIds);
+      newDismissed.delete(id);
+      if (newDismissed.size !== s.dismissedIds.size) saveDismissedIds(newDismissed);
+
       const idx = s.pending.findIndex((p) => p.id === id);
-      if (idx === -1) return s;
+      if (idx === -1) return { dismissedIds: newDismissed };
+
       const item = s.pending[idx];
       const pending = s.pending.filter((p) => p.id !== id);
       const resolved = [{ ...item, behavior, resolvedAt: Date.now() }, ...s.resolved].slice(
         0,
         MAX_RESOLVED,
       );
-      return { pending, resolved };
+      return { pending, resolved, dismissedIds: newDismissed };
+    });
+  },
+
+  dismiss: (id) => {
+    set((s) => {
+      const newDismissed = new Set(s.dismissedIds);
+      newDismissed.add(id);
+      saveDismissedIds(newDismissed);
+      return {
+        pending: s.pending.filter((p) => p.id !== id),
+        dismissedIds: newDismissed,
+      };
+    });
+  },
+
+  cycleToBottom: (id) => {
+    set((s) => {
+      const idx = s.pending.findIndex((p) => p.id === id);
+      if (idx === -1 || s.pending.length < 2) return s;
+      const item = s.pending[idx];
+      const rest = s.pending.filter((p) => p.id !== id);
+      // Display is reversed (newest=last is on top), so prepend to move to visual bottom
+      return { pending: [item, ...rest] };
+    });
+  },
+
+  clearAllDismissed: () => {
+    set((s) => {
+      const newDismissed = new Set(s.dismissedIds);
+      for (const p of s.pending) newDismissed.add(p.id);
+      saveDismissedIds(newDismissed);
+      return { pending: [], dismissedIds: newDismissed };
     });
   },
 
@@ -79,20 +144,25 @@ export const usePermissionStore = create<PermissionStore>((set, get) => ({
       const existingIds = new Set(s.pending.map((p) => p.id));
       const resolvedIds = new Set(s.resolved.map((r) => r.id));
       const newItems = items.filter(
-        (item) => !existingIds.has(item.id) && !resolvedIds.has(item.id),
+        (item) =>
+          !existingIds.has(item.id) && !resolvedIds.has(item.id) && !s.dismissedIds.has(item.id),
       );
       return { pending: [...s.pending, ...newItems] };
     });
   },
 
   // P1: network errors set errorIds instead of silently resolving
-  approve: async (id) => {
+  approve: async (id, answers) => {
     try {
       set((s) => ({ errorIds: new Set([...s.errorIds].filter((e) => e !== id)) }));
+      const payload: Record<string, unknown> = { behavior: 'allow' };
+      if (answers && Object.keys(answers).length > 0) {
+        payload.answers = answers;
+      }
       const res = await fetch(apiUrl(`/api/permissions/${id}/decision`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ behavior: 'allow' }),
+        body: JSON.stringify(payload),
       });
       if (res.ok || res.status === 404) {
         // 404 = already resolved — silent dismiss
@@ -139,7 +209,14 @@ export function handlePermissionWsMessage(msg: WsServerMessage): boolean {
       typeof data.createdAt === 'number' &&
       typeof data.expiresAt === 'number'
     ) {
-      usePermissionStore.getState().addPending(data as unknown as PendingSummary);
+      usePermissionStore.getState().addPending({
+        id: data.id,
+        tool_name: data.tool_name,
+        tool_input_preview: data.tool_input_preview,
+        tool_input_raw: data.tool_input_raw,
+        createdAt: data.createdAt,
+        expiresAt: data.expiresAt,
+      });
     }
     return true;
   }

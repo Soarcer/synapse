@@ -11,7 +11,7 @@ import { useUrlSync } from './hooks/useUrlSync';
 const AnalyticsPage = lazy(() => import('./components/analytics/AnalyticsPageLazy'));
 const MobileView = lazy(() => import('./components/mobile/MobileView'));
 import { ToastContainer, toast } from './components/Toast';
-import { PermissionPanel } from './components/permissions/PermissionPanel';
+import { PermissionStack } from './components/permissions/PermissionStack';
 import { WorkshopModal } from './components/WorkshopModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useAgentStore, reloadAllEvents } from './store/agentStore';
@@ -417,7 +417,7 @@ function FullView() {
         </main>
       </div>
       <WorkshopModal />
-      <PermissionPanel />
+      <PermissionStack />
       <ToastContainer />
       <TourOverlay /> {/* [tour] */}
       <TourLauncher /> {/* [tour] */}
