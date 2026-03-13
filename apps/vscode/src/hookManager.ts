@@ -47,21 +47,9 @@ export class HookManager {
         .join(this.resourcesPath, 'synapse-server', 'hooks', 'send_event.cjs')
         .replace(/\\/g, '/');
       if (!content.includes(expectedScript)) return true;
-      // Always update port file even when hooks don't need reconfiguration
-      this.writePortFile(claudeDir, port);
       return false;
     } catch {
       return true;
-    }
-  }
-
-  /** Write the current port to .claude/.synapse-port so the hook script can read it at runtime. */
-  writePortFile(claudeDir: string, port: number): void {
-    try {
-      fs.mkdirSync(claudeDir, { recursive: true });
-      fs.writeFileSync(path.join(claudeDir, '.synapse-port'), String(port));
-    } catch {
-      /* best effort */
     }
   }
 
@@ -105,17 +93,6 @@ export class HookManager {
         }
       }
 
-      // If no --port in command, read from port file
-      if (detectedPort === null) {
-        try {
-          const portFile = path.join(workspaceFolder.uri.fsPath, '.claude', '.synapse-port');
-          const content = fs.readFileSync(portFile, 'utf-8').trim();
-          detectedPort = parseInt(content, 10) || null;
-        } catch {
-          /* no port file */
-        }
-      }
-
       return {
         configured: enabledEvents.length > 0,
         port: detectedPort,
@@ -142,14 +119,10 @@ export class HookManager {
       return;
     }
 
-    // Hook command no longer includes --port; the script reads .claude/.synapse-port at runtime.
-    // This survives extension reinstalls — cached commands still work.
+    // Hook command — the script reads SYNAPSE_PORT env var at runtime (default 27246).
     const hookCmd = `node "${hookScript.replace(/\\/g, '/')}"`;
     const claudeDir = path.join(target, '.claude');
     const settingsFile = path.join(claudeDir, 'settings.local.json');
-
-    // Write port file so the hook script always knows the current port
-    this.writePortFile(claudeDir, port);
 
     const syncToEnable = enabledEvents
       ? SYNC_EVENTS.filter((e) => enabledEvents.includes(e))
