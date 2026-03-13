@@ -45,8 +45,7 @@ export function createApp(deps: AppDeps) {
   app.use(express.json({ limit: '1mb' }));
 
   // CORS for client
-  const clientOrigin =
-    deps.corsOrigins || process.env.CORS_ORIGIN || process.env.CLIENT_ORIGIN || '*';
+  const clientOrigin = deps.corsOrigins || '*';
   const allowedOrigins = clientOrigin
     .split(',')
     .map((o) => o.trim())
