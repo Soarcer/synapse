@@ -71,6 +71,37 @@ Claude Code (PC)                    Synapse Server              Dashboard (Phone
 
 ---
 
+<!-- revised: P0 — added blocking prerequisites before any implementation -->
+
+## Prerequisites (Must Verify Before Implementation)
+
+These are blocking — do not write any code until both are confirmed:
+
+### 1. AskUserQuestion `metadata` field passthrough
+
+Test whether AskUserQuestion accepts arbitrary fields (like `metadata: { source: "remote-dev" }`) and whether they survive through the hook payload into `tool_input_raw`. If metadata is stripped by Claude Code, the fallback detection (`header === "Remote"`) becomes the primary method.
+
+**How to test:** Run AskUserQuestion manually in a Claude Code session with a `metadata` field. Inspect the hook payload that arrives at the Synapse server to see if `metadata` is present in `tool_input`.
+
+### 2. Answer key format for "Other" free-text
+
+Test how Claude Code keys the answer when a user selects "Other" and types custom text in AskUserQuestion. The deny+message relay constructs `Q: {key}\nA: {value}` — the key must match what Claude expects.
+
+**How to test:**
+
+1. Run AskUserQuestion with options + Other
+2. Select Other, type custom text
+3. Inspect the hook payload to see the answer key format
+4. Cross-reference with the existing `PermissionCard.tsx` AskUserQuestion rendering code — it already parses `tool_input` successfully, so use the same shape
+
+### 3. `tool_input_raw` structure for AskUserQuestion
+
+<!-- revised: P1 — document the actual shape instead of assuming -->
+
+Before implementing `receiveQuestion()` parsing, read the existing AskUserQuestion rendering code in `PermissionCard.tsx` to extract the verified `tool_input` shape (question text field, options array structure, header field). The spec's references to `tool_input_raw.questions[0].options` are assumed — verify against the actual code.
+
+---
+
 ## Component Details
 
 ### 1. `/remote-dev` Skill
@@ -212,6 +243,10 @@ interface RemoteDevState {
 
 **No persistence:** Chat history is ephemeral — cleared on page refresh. V2 can add persistence if needed.
 
+<!-- revised: P1 — document multi-session limitation -->
+
+**Multi-session:** Only one active remote-dev session is supported. `pendingQuestion` holds a single item — if two Claude sessions both run `/remote-dev`, the newest question overwrites the previous. Users should only run `/remote-dev` in one session at a time. Multi-session support is deferred to V2.
+
 ### 4. `RemoteDevChat.tsx`
 
 **File:** `apps/dashboard/src/components/mobile/RemoteDevChat.tsx`
@@ -245,7 +280,8 @@ interface RemoteDevState {
 - Quick action buttons call `sendAnswer(label)` directly
 - Text input sends on Enter or send button tap
 - Input disabled when `status !== 'waiting'`
-- Empty state (idle + no messages): "Run `/remote-dev` in a Claude Code session to start"
+<!-- revised: P2 — clearer empty state messaging for cold start -->
+- Empty state (idle + no messages): "Start a Claude Code session on your PC and run `/remote-dev` — then come back here."
 - Error messages: red/warning border on Claude message bubble when `isError` is true
 
 **Styling:** Dark theme consistent with existing mobile components. Message bubbles left-aligned (Claude) and right-aligned (user). Compact — no avatars, just role color differentiation.
@@ -274,6 +310,10 @@ Add the Dev tab content:
 
 Update `MobileTab` type to include `'dev'`.
 
+<!-- revised: P1 — auto-switch to Dev tab when question arrives -->
+
+**Auto-switch:** When `remoteDevStore.status` transitions to `'waiting'`, auto-switch `activeTab` to `'dev'`. This ensures the user lands on the chat after tapping a push notification, instead of having to navigate manually. Implement via a `useEffect` in `MobileView` that watches `remoteDevStore.status`.
+
 ---
 
 ## Push Notification Integration
@@ -290,15 +330,9 @@ No changes needed. Remote-dev questions are still `AskUserQuestion` permission r
 
 ## Answer Key Format
 
-**Open question:** When a user selects "Other" and types custom text in AskUserQuestion, how does Claude Code key the answer? The deny+message relay constructs `Q: {key}\nA: {value}` — the key must match what Claude expects.
+<!-- revised: promoted to blocking prerequisite — see Prerequisites section -->
 
-**Must verify empirically before building the chat skin.** Test by:
-
-1. Running AskUserQuestion manually with options + Other
-2. Selecting Other, typing custom text
-3. Inspecting the hook payload to see the answer key format
-
-The chat skin's `sendAnswer()` must use the verified key format.
+**Blocking prerequisite** — see Prerequisites section above. The answer key format must be verified empirically before implementing `sendAnswer()`. The chat skin's answer payload must use the exact key format that the deny+message relay expects.
 
 ---
 
@@ -362,7 +396,17 @@ When Phase 2 adds `claude -p --resume` backend:
 
 ## Open Questions
 
-1. **Answer key format** — must verify empirically (see section above)
-2. **Quick action customization** — hardcoded for MVP, could add settings later
-3. **Desktop UI** — MVP is mobile-only. Desktop users have the terminal. Defer desktop panel.
-4. **Session indicator** — should the Dev tab show which Claude session is in remote-dev mode? Defer to V2.
+1. **Quick action customization** — hardcoded for MVP, could add settings later
+2. **Desktop UI** — MVP is mobile-only. Desktop users have the terminal. Defer desktop panel.
+3. **Session indicator** — should the Dev tab show which Claude session is in remote-dev mode? Defer to V2.
+
+---
+
+## Open Questions / Deferred (P2)
+
+_From plan review — worth noting, can be addressed incrementally:_
+
+1. **`working` state watchdog:** If Claude crashes or the session ends, the UI stays in `working` forever. Add a watchdog: if `status === 'working'` for >5 minutes without a new `receiveQuestion`, show a "Session may have ended" message with a "Reset" button that calls `clear()`.
+2. **Keyboard handling on mobile:** "Send on Enter" may conflict with Android soft keyboards (Enter = newline). Use the send button as primary; only send on Enter if hardware keyboard detected.
+3. **Push notification body polish:** The notification body shows raw JSON for AskUserQuestion `tool_input`. A future server improvement could extract the question text for a cleaner notification.
+4. **Multi-session support:** Two simultaneous `/remote-dev` sessions will conflict (newest overwrites). V2 should support session selection.
