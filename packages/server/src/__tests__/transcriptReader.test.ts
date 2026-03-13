@@ -72,8 +72,8 @@ describe('readFullTranscript', () => {
       expect(conv.content[1].text).toBe('Let me search for that.');
     }
 
-    // Usage
-    expect(conv.usage.inputTokens).toBe(100);
+    // Usage — inputTokens is normalized (fresh-only: raw 100 − cacheRead 80 = 20)
+    expect(conv.usage.inputTokens).toBe(20);
     expect(conv.usage.cacheReadTokens).toBe(80);
   });
 
@@ -331,7 +331,10 @@ describe('readFullTranscript', () => {
     expect(result.summary.turns).toHaveLength(2);
     expect(result.summary.turns[1].thinkingLength).toBe('Let me look at the code.'.length);
     expect(result.summary.turns[1].textLength).toBe('I found the issue.'.length);
-    expect(result.summary.totalInputTokens).toBe(100);
+    // After normalization, totalInputTokens sums fresh-only values:
+    // input_tokens=100, cache_read=80 → fresh=20; totalInputTokens in summary = 20
+    expect(result.summary.totalInputTokens).toBe(20);
+    expect(result.summary.totalCacheReadTokens).toBe(80);
   });
 
   it('truncates tool result content at 50KB', async () => {
@@ -402,6 +405,120 @@ describe('readFullTranscript', () => {
     const result = await readFullTranscript(filePath, 'sess1');
     expect(result.conversations).toHaveLength(1);
     expect(result.conversations[0].uuid).toBe('u1');
+  });
+
+  // ── inputTokens normalization tests ───────────────────────────────────
+
+  it('v1 parseTurn: subtracts cacheReadTokens from inputTokens (fresh-only)', async () => {
+    const fp = writeFixture('norm-v1.jsonl', [
+      {
+        type: 'assistant',
+        uuid: 'a-norm',
+        timestamp: '2026-03-13T10:00:00.000Z',
+        sessionId: 'sess-norm',
+        message: {
+          model: 'claude-opus-4-6',
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Hello' }],
+          usage: {
+            input_tokens: 300,
+            output_tokens: 50,
+            cache_read_input_tokens: 250,
+            cache_creation_input_tokens: 0,
+          },
+        },
+      },
+    ]);
+
+    const result = await readFullTranscript(fp, 'sess-norm');
+    const turn = result.summary.turns[0];
+
+    // Fresh input only: 300 − 250 = 50
+    expect(turn.inputTokens).toBe(50);
+    expect(turn.cacheReadTokens).toBe(250);
+    // totalInputTokens = fresh + cacheRead = original raw value
+    expect(turn.totalInputTokens).toBe(300);
+  });
+
+  it('v1 parseTurn: inputTokens stays non-negative when cacheRead >= raw', async () => {
+    const fp = writeFixture('norm-v1-clamp.jsonl', [
+      {
+        type: 'assistant',
+        uuid: 'a-clamp',
+        timestamp: '2026-03-13T10:00:00.000Z',
+        sessionId: 'sess-clamp',
+        message: {
+          model: 'claude-opus-4-6',
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Hi' }],
+          usage: {
+            input_tokens: 100,
+            output_tokens: 20,
+            cache_read_input_tokens: 120, // anomalous: cache > raw
+            cache_creation_input_tokens: 0,
+          },
+        },
+      },
+    ]);
+
+    const result = await readFullTranscript(fp, 'sess-clamp');
+    const turn = result.summary.turns[0];
+    expect(turn.inputTokens).toBe(0); // clamped to 0
+    expect(turn.cacheReadTokens).toBe(120);
+  });
+
+  it('v2 parseExtendedUsage: subtracts cacheReadTokens from inputTokens (fresh-only)', async () => {
+    const fp = writeFixture('norm-v2.jsonl', [
+      {
+        type: 'assistant',
+        uuid: 'a-v2norm',
+        timestamp: '2026-03-13T10:00:00.000Z',
+        sessionId: 'sess-v2',
+        message: {
+          model: 'claude-opus-4-6',
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Done' }],
+          usage: {
+            input_tokens: 500,
+            output_tokens: 100,
+            cache_read_input_tokens: 400,
+            cache_creation_input_tokens: 50,
+          },
+        },
+      },
+    ]);
+
+    const result = await readFullTranscript(fp, 'sess-v2');
+    const usage = result.conversations[0].usage;
+
+    // Fresh input only: 500 − 400 = 100
+    expect(usage.inputTokens).toBe(100);
+    expect(usage.cacheReadTokens).toBe(400);
+    expect(usage.cacheCreationTokens).toBe(50);
+  });
+
+  it('v2 parseExtendedUsage: inputTokens stays non-negative when cacheRead >= raw', async () => {
+    const fp = writeFixture('norm-v2-clamp.jsonl', [
+      {
+        type: 'assistant',
+        uuid: 'a-v2clamp',
+        timestamp: '2026-03-13T10:00:00.000Z',
+        sessionId: 'sess-v2clamp',
+        message: {
+          model: 'claude-opus-4-6',
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Hi' }],
+          usage: {
+            input_tokens: 50,
+            output_tokens: 10,
+            cache_read_input_tokens: 60, // anomalous: cache > raw
+          },
+        },
+      },
+    ]);
+
+    const result = await readFullTranscript(fp, 'sess-v2clamp');
+    expect(result.conversations[0].usage.inputTokens).toBe(0);
   });
 
   it('readFullTranscript returns a promise', async () => {

@@ -246,10 +246,12 @@ function parseTurn(record: RawRecord): TranscriptTurn | null {
     }
   }
 
-  const inputTokens = usage?.input_tokens ?? 0;
-  const outputTokens = usage?.output_tokens ?? 0;
+  const rawInput = usage?.input_tokens ?? 0;
   const cacheReadTokens = usage?.cache_read_input_tokens ?? 0;
   const cacheCreationTokens = usage?.cache_creation_input_tokens ?? 0;
+  // Normalize: Claude API's input_tokens includes cache reads — subtract to get fresh-only
+  const inputTokens = Math.max(0, rawInput - cacheReadTokens);
+  const outputTokens = usage?.output_tokens ?? 0;
   const totalInputTokens = inputTokens + cacheReadTokens;
   const cacheHitRate = totalInputTokens > 0 ? cacheReadTokens / totalInputTokens : 0;
 
@@ -377,10 +379,14 @@ function parseExtendedUsage(usage: RawUsage | undefined): ExtendedUsage {
       serverToolUse: { webSearchRequests: 0, webFetchRequests: 0 },
     };
   }
+  const rawInput = usage.input_tokens ?? 0;
+  const cacheReadTokens = usage.cache_read_input_tokens ?? 0;
+  // Normalize: Claude API's input_tokens includes cache reads — subtract to get fresh-only
+  const inputTokens = Math.max(0, rawInput - cacheReadTokens);
   return {
-    inputTokens: usage.input_tokens ?? 0,
+    inputTokens,
     outputTokens: usage.output_tokens ?? 0,
-    cacheReadTokens: usage.cache_read_input_tokens ?? 0,
+    cacheReadTokens,
     cacheCreationTokens: usage.cache_creation_input_tokens ?? 0,
     ephemeral5mTokens: usage.cache_creation?.ephemeral_5m_input_tokens ?? 0,
     ephemeral1hTokens: usage.cache_creation?.ephemeral_1h_input_tokens ?? 0,
