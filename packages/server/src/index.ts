@@ -7,6 +7,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import type { IncomingMessage } from 'http';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import { fileURLToPath } from 'url';
 import { timingSafeEqual } from 'crypto';
 import express from 'express';
@@ -20,6 +21,7 @@ import { registerAllRules } from './services/rules/index.js';
 import { createHookApp, HOOK_PORT } from './hookServer.js';
 import { pending } from './state/permissionState.js';
 import { initPush } from './services/pushService.js';
+import { selectLanIp } from './routes/network.js';
 
 const HOST = process.env.HOST || '0.0.0.0';
 const PORT = parseInt(process.env.PORT || '27246', 10);
@@ -104,9 +106,17 @@ const tlsCert = process.env.SYNAPSE_TLS_CERT;
 const tlsKey = process.env.SYNAPSE_TLS_KEY;
 
 let server: import('http').Server;
-if (tlsCert && tlsKey && fs.existsSync(tlsCert) && fs.existsSync(tlsKey)) {
-  server = createHttpsServer({ cert: fs.readFileSync(tlsCert), key: fs.readFileSync(tlsKey) }, app);
+let httpFallbackServer: import('http').Server | null = null;
+const usingTls = !!(tlsCert && tlsKey && fs.existsSync(tlsCert) && fs.existsSync(tlsKey));
+
+if (usingTls) {
+  server = createHttpsServer(
+    { cert: fs.readFileSync(tlsCert!), key: fs.readFileSync(tlsKey!) },
+    app,
+  );
   logger.info('HTTPS enabled — push notifications available on LAN');
+  // Also start an HTTP fallback for mobile Safari (self-signed certs block ES module loads)
+  httpFallbackServer = createHttpServer(app);
 } else {
   server = createHttpServer(app);
   if (tlsCert || tlsKey) {
@@ -148,6 +158,41 @@ const actualPort = await tryListen(PORT, HOST);
 // Stdout protocol: VS Code extension parses this to learn the actual port
 process.stdout.write(`SYNAPSE_PORT=${actualPort}\n`);
 logger.info({ host: HOST, port: actualPort }, 'Synapse server started');
+
+// --- HTTP fallback for mobile Safari (self-signed certs block ES module loads in CORS mode) ---
+const HTTP_FALLBACK_PORT = actualPort + 2; // +1 is hook server, +2 is HTTP fallback
+if (httpFallbackServer) {
+  try {
+    await new Promise<void>((resolve, reject) => {
+      httpFallbackServer!.once('error', (err: NodeJS.ErrnoException) => {
+        if (err.code === 'EADDRINUSE') {
+          logger.warn(
+            { port: HTTP_FALLBACK_PORT },
+            'HTTP fallback port in use — mobile may not load',
+          );
+          resolve();
+        } else {
+          reject(err);
+        }
+      });
+      httpFallbackServer!.once('listening', resolve);
+      httpFallbackServer!.listen(HTTP_FALLBACK_PORT, HOST);
+    });
+    if (httpFallbackServer.listening) {
+      const lanIp = selectLanIp(os.networkInterfaces());
+      const mobileUrl = lanIp
+        ? `http://${lanIp}:${HTTP_FALLBACK_PORT}`
+        : `http://localhost:${HTTP_FALLBACK_PORT}`;
+      logger.info(
+        { host: HOST, port: HTTP_FALLBACK_PORT, mobileUrl },
+        'HTTP fallback started — use this URL on mobile Safari',
+      );
+    }
+  } catch (err) {
+    logger.error({ err }, 'HTTP fallback server failed to start');
+    httpFallbackServer = null;
+  }
+}
 
 // Write port file for hook scripts and Vite dev server auto-discovery.
 // process.cwd() is the monorepo root when started via start-server.ps1 or pnpm dev.
@@ -194,7 +239,12 @@ try {
 // Attach WebSocket server AFTER port is bound (avoids WSS catching EADDRINUSE errors)
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 1 * 1024 * 1024 }); // 1MB max message
 
-wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
+// Also attach WS to HTTP fallback so mobile Safari gets live updates
+const httpFallbackWss = httpFallbackServer?.listening
+  ? new WebSocketServer({ server: httpFallbackServer, path: '/ws', maxPayload: 1 * 1024 * 1024 })
+  : null;
+
+function handleWsConnection(ws: WebSocket, req: IncomingMessage) {
   // WS authentication: validate token query param when API key is set
   const apiKey = process.env.SYNAPSE_API_KEY;
   if (apiKey) {
@@ -220,7 +270,10 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
     logger.error({ err }, 'WS client error');
     broadcaster.removeClient(ws);
   });
-});
+}
+
+wss.on('connection', handleWsConnection);
+httpFallbackWss?.on('connection', handleWsConnection);
 
 // --- Graceful Shutdown ---
 
@@ -262,11 +315,18 @@ function shutdown() {
     client.close(1001, 'Server shutting down');
   }
   wss.close();
+  if (httpFallbackWss) {
+    for (const client of httpFallbackWss.clients) {
+      client.close(1001, 'Server shutting down');
+    }
+    httpFallbackWss.close();
+  }
 
-  // 5. Close HTTP server first (stop accepting new connections)
+  // 5. Close HTTP(S) servers (stop accepting new connections)
   server.close(() => {
     logger.info('HTTP server closed, draining...');
   });
+  httpFallbackServer?.close();
 
   // 6. Drain period: close DB after 5s, then exit
   const drainTimer = setTimeout(() => {

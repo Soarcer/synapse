@@ -34,8 +34,9 @@ export function createApp(deps: AppDeps) {
   const { broadcaster, agentManager } = deps;
   const app = express();
 
-  // Security headers (frameguard disabled — dashboard is loaded inside VS Code webview iframes)
-  app.use(helmet({ contentSecurityPolicy: false, frameguard: false }));
+  // Security headers — local dev server, no HSTS (breaks mobile Safari with self-signed certs),
+  // no frameguard (dashboard is loaded inside VS Code webview iframes)
+  app.use(helmet({ contentSecurityPolicy: false, frameguard: false, hsts: false }));
 
   // Request ID middleware
   app.use(requestIdMiddleware);
