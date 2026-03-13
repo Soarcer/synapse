@@ -16,6 +16,7 @@ const SHORTCUTS = [
   { key: 'W', action: 'Prompt Lab' },
   { key: 'E', action: 'Export snapshot' },
   { key: 'I', action: 'Import snapshot' },
+  { key: '$', action: 'Toggle cost display' },
   { key: '/', action: 'Focus search' },
   { key: '1-6', action: 'Switch lens tab' },
   { key: 'Esc', action: 'Close panels' },

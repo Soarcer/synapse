@@ -12,6 +12,7 @@ const AnalyticsPage = lazy(() => import('./components/analytics/AnalyticsPageLaz
 const MobileView = lazy(() => import('./components/mobile/MobileView'));
 import { ToastContainer, toast } from './components/Toast';
 import { PermissionStack } from './components/permissions/PermissionStack';
+import { syncPermissions } from './store/permissionStore';
 import { WorkshopModal } from './components/WorkshopModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useAgentStore, reloadAllEvents } from './store/agentStore';
@@ -87,8 +88,14 @@ export default function App() {
     wsClient.connect();
     reloadAllEvents({ showLoading: true });
 
+    // Safety-net sync: remove stale dashboard cards if event-stream detection misses them.
+    // The primary auto-dismiss mechanism is server-side (resolveLocallyAnswered in events.ts),
+    // so this poll only catches edge cases (e.g. server restart, no further events).
+    const syncTimer = setInterval(syncPermissions, 30_000);
+
     return () => {
       wsClient.disconnect();
+      clearInterval(syncTimer);
     };
   }, [viewMode]);
 
@@ -304,6 +311,9 @@ export default function App() {
       if (e.key === '/') {
         e.preventDefault();
         document.getElementById('graph-search-input')?.focus();
+      }
+      if (e.key === '$') {
+        useAgentStore.getState().toggleCostDisplayMode();
       }
     };
     window.addEventListener('keydown', handleKey);

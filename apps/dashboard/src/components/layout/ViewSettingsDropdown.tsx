@@ -27,6 +27,8 @@ export function ViewSettingsDropdown() {
   const setAutoClosePrompts = useAgentStore((s) => s.setAutoClosePrompts);
   const showHookEvents = useAgentStore((s) => s.showHookEvents);
   const setShowHookEvents = useAgentStore((s) => s.setShowHookEvents);
+  const costDisplayMode = useAgentStore((s) => s.costDisplayMode);
+  const toggleCostDisplayMode = useAgentStore((s) => s.toggleCostDisplayMode);
   const arcadeUnlocked = useAgentStore((s) => s.arcadeUnlocked);
   const arcadeMode = useAgentStore((s) => s.arcadeMode);
   const setArcadeMode = useAgentStore((s) => s.setArcadeMode);
@@ -82,12 +84,25 @@ export function ViewSettingsDropdown() {
         setOpen(false);
       },
     },
+    {
+      label: 'Show API Costs',
+      key: '$',
+      active: costDisplayMode === 'cost',
+      onToggle: () => {
+        toggleCostDisplayMode();
+        setOpen(false);
+      },
+    },
   ];
 
   // Count active toggles (excluding layout which is always "active" in one mode)
-  const activeCount = [lockViewport, showAllTools, autoClosePrompts, !showHookEvents].filter(
-    Boolean,
-  ).length;
+  const activeCount = [
+    lockViewport,
+    showAllTools,
+    autoClosePrompts,
+    !showHookEvents,
+    costDisplayMode === 'cost',
+  ].filter(Boolean).length;
 
   return (
     <div ref={ref} className="relative" data-tour="settings-dropdown">
