@@ -2,8 +2,9 @@
 // Copyright (c) 2026 Bernhard
 
 import { useAgentStore } from '../../store/agentStore';
+import { useRemoteDevStore } from '../../store/remoteDevStore';
 
-export type MobileTab = 'graph' | 'lenses' | 'analytics';
+export type MobileTab = 'graph' | 'lenses' | 'analytics' | 'dev';
 
 interface MobileTabBarProps {
   activeTab: MobileTab;
@@ -14,6 +15,7 @@ const TABS: Array<{ id: MobileTab; label: string; icon: string }> = [
   { id: 'graph', label: 'Graph', icon: '\u2B21' },
   { id: 'lenses', label: 'Lenses', icon: '\u25D1' },
   { id: 'analytics', label: 'Stats', icon: '\u2261' },
+  { id: 'dev', label: 'Dev', icon: '\u2318' },
 ];
 
 export function MobileTabBar({ activeTab, onTabChange }: MobileTabBarProps) {
@@ -21,6 +23,7 @@ export function MobileTabBar({ activeTab, onTabChange }: MobileTabBarProps) {
   const agents = useAgentStore((s) => s.agents);
 
   const runningCount = [...agents.values()].filter((a) => a.status === 'running').length;
+  const remoteDevStatus = useRemoteDevStore((s) => s.status);
 
   return (
     <nav className="flex-shrink-0 bg-[#161b22] border-t border-gray-800 flex z-[60]">
@@ -45,6 +48,9 @@ export function MobileTabBar({ activeTab, onTabChange }: MobileTabBarProps) {
               <span className="absolute -top-1 -right-2 bg-blue-600 text-white text-[9px] rounded-full w-3.5 h-3.5 flex items-center justify-center font-bold">
                 {runningCount > 9 ? '9+' : runningCount}
               </span>
+            )}
+            {tab.id === 'dev' && remoteDevStatus === 'waiting' && (
+              <span className="absolute -top-0.5 -right-1.5 w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
             )}
           </span>
           <span className="mt-0.5">{tab.label}</span>

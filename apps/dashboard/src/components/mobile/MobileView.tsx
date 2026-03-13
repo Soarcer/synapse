@@ -7,6 +7,8 @@ import { MobileTabBar, type MobileTab } from './MobileTabBar';
 import { MobileBottomSheet } from './MobileBottomSheet';
 import { MobileLensView } from './MobileLensView';
 import { MobileSettingsButton } from './MobileSettingsButton';
+import { RemoteDevChat } from './RemoteDevChat';
+import { useRemoteDevStore } from '../../store/remoteDevStore';
 import { wsClient } from '../../store/wsClient';
 
 const MobileGraphView = lazy(() =>
@@ -24,6 +26,12 @@ function TabFallback() {
 
 export default function MobileView() {
   const [activeTab, setActiveTab] = useState<MobileTab>('graph');
+  const remoteDevStatus = useRemoteDevStore((s) => s.status);
+
+  // Auto-switch to Dev tab when a remote-dev question arrives
+  useEffect(() => {
+    if (remoteDevStatus === 'waiting') setActiveTab('dev');
+  }, [remoteDevStatus]);
 
   // Lock body scrolling so the page feels like an app, not a website.
   // Prevents overscroll bounce, pull-to-refresh, and elastic scrolling.
@@ -87,6 +95,7 @@ export default function MobileView() {
             <MobileAnalyticsView />
           </Suspense>
         )}
+        {activeTab === 'dev' && <RemoteDevChat />}
       </div>
 
       <MobileBottomSheet />

@@ -90,6 +90,7 @@ export function createPermissionsRouter(broadcaster: Broadcaster): Router {
       id,
       tool_name: (entry.event.tool_name as string) ?? '',
       tool_input_preview: String(entry.event.tool_input ?? '').slice(0, 200),
+      tool_input_raw: entry.event.tool_input,
       createdAt: entry.createdAt,
       expiresAt: entry.createdAt + PERMISSION_TIMEOUT_MS,
     }));

@@ -16,7 +16,13 @@ import type {
 import { PALETTES, normalizeCwd } from '@synapse-ai/core';
 import { wsClient } from './wsClient';
 import { toast } from '../components/Toast';
-import { handlePermissionWsMessage, hydratePermissions } from './permissionStore';
+import {
+  handlePermissionWsMessage,
+  hydratePermissions,
+  isRemoteDev,
+  type PendingSummary,
+} from './permissionStore';
+import { useRemoteDevStore } from './remoteDevStore';
 import { t } from '../i18n';
 import { apiUrl } from '../utils/api';
 
@@ -932,10 +938,22 @@ wsClient.setOnBatchEvent((msgs) => {
 
 // Immediate handler: receives non-batched messages (permissions, agent_text, etc.)
 wsClient.setOnEvent((msg) => {
-  // Route permission messages to dedicated store; fire toast on new request
+  // Route remote-dev questions to dedicated store (before toast + permission store)
   if (msg.type === 'pendingPermission') {
-    const data = msg.data as { tool_name?: string };
+    const data = msg.data as PendingSummary;
+    if (isRemoteDev(data)) {
+      useRemoteDevStore.getState().receiveQuestion(data);
+      return;
+    }
     toast(`Permission requested: ${data.tool_name ?? 'Tool'} needs approval`, 'info');
+  }
+  if (msg.type === 'permissionResolved') {
+    const data = msg.data as { id: string; behavior: 'allow' | 'deny' };
+    const devStore = useRemoteDevStore.getState();
+    if (devStore.pendingQuestion?.id === data.id) {
+      devStore.resolveQuestion();
+      return;
+    }
   }
   if (handlePermissionWsMessage(msg)) return;
 

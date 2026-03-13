@@ -4,6 +4,7 @@
 import { create } from 'zustand';
 import type { WsServerMessage } from '@synapse-ai/core';
 import { apiUrl } from '../utils/api';
+import { useRemoteDevStore } from './remoteDevStore';
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -12,6 +13,7 @@ export interface PendingSummary {
   id: string;
   tool_name: string;
   tool_input_preview: string;
+  tool_input_raw?: unknown;
   createdAt: number;
   expiresAt: number;
 }
@@ -151,6 +153,23 @@ export function handlePermissionWsMessage(msg: WsServerMessage): boolean {
   return false;
 }
 
+// ── Remote Dev detection helper ──────────────────────────────
+
+/**
+ * Check if a pending permission is a remote-dev AskUserQuestion.
+ * Primary: metadata.source === 'remote-dev' (if Claude Code passes it through)
+ * Fallback: questions[0].header === 'Remote' (set by skill as backup)
+ */
+export function isRemoteDev(data: { tool_name?: string; tool_input_raw?: unknown }): boolean {
+  if (data.tool_name !== 'AskUserQuestion') return false;
+  const raw = data.tool_input_raw as Record<string, unknown> | undefined;
+  if (!raw) return false;
+  if (raw.metadata && (raw.metadata as Record<string, unknown>)?.source === 'remote-dev')
+    return true;
+  const questions = raw.questions as Array<{ header?: string }> | undefined;
+  return questions?.[0]?.header === 'Remote';
+}
+
 // ── Hydration helper (call on WS connect/reconnect) ──────────
 
 export async function hydratePermissions(): Promise<void> {
@@ -158,7 +177,15 @@ export async function hydratePermissions(): Promise<void> {
     const res = await fetch(apiUrl('/api/permissions/pending'));
     if (res.ok) {
       const items: PendingSummary[] = await res.json();
-      usePermissionStore.getState().hydrate(items);
+      // Route remote-dev items to remoteDevStore, rest to permissionStore
+      const remoteItems = items.filter((item) => isRemoteDev(item));
+      const permItems = items.filter((item) => !isRemoteDev(item));
+      // Only hydrate the most recent remote-dev item — older ones are stale timeout re-asks
+      if (remoteItems.length > 0) {
+        const newest = remoteItems.reduce((a, b) => (a.createdAt > b.createdAt ? a : b));
+        useRemoteDevStore.getState().receiveQuestion(newest);
+      }
+      usePermissionStore.getState().hydrate(permItems);
     }
   } catch {
     // Hydration failure is non-fatal — WS will deliver live updates
