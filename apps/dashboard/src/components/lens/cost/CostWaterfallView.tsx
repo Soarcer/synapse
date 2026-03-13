@@ -3,8 +3,9 @@
 
 import { useMemo, useCallback, useState, useRef, useEffect } from 'react';
 import { useLens } from '../LensContext';
-import { formatTokens } from '@synapse-ai/core';
+import { formatTokens, computeCostUsd, getPrice } from '@synapse-ai/core';
 import { buildCompactEvents, buildCostPerTurn } from '../lensComputations';
+import { useAgentStore } from '../../../store/agentStore';
 
 type ZeroTokenMode = 'show' | 'estimate' | 'hide';
 
@@ -19,6 +20,7 @@ function formatCost(usd: number): string {
 
 export function CostWaterfallView() {
   const { agents, events, prompts, transcripts, hasTokenData, selectedId, onSelect } = useLens();
+  const costDisplayMode = useAgentStore((s) => s.costDisplayMode);
 
   // Compute locally (only when cost tab is active)
   const compactEvents = useMemo(() => buildCompactEvents(events), [events]);
@@ -305,6 +307,23 @@ export function CostWaterfallView() {
                     >
                       {formatTokens(turn.inputTokens)}
                     </span>
+                    {costDisplayMode === 'cost' &&
+                      (() => {
+                        const price = getPrice(turn.model ?? 'claude-sonnet-4-5');
+                        const turnCost = computeCostUsd({
+                          inputTokens: turn.inputTokens,
+                          outputTokens: turn.outputTokens,
+                          cacheReadTokens: turn.cacheReadTokens ?? 0,
+                          cacheCreationTokens: turn.cacheCreationTokens ?? 0,
+                          thinkingTokens: 0,
+                          price,
+                        }).total;
+                        return (
+                          <span className="text-xs text-gray-400 ml-1 flex-shrink-0 font-mono">
+                            ≈${turnCost.toFixed(3)}
+                          </span>
+                        );
+                      })()}
                   </div>
                 </div>
               );
