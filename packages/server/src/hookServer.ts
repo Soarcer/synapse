@@ -10,13 +10,10 @@ import type { Broadcaster } from './services/broadcaster.js';
 import { pending, MAX_PENDING, PERMISSION_TIMEOUT_MS } from './state/permissionState.js';
 import { sendToAll } from './services/pushService.js';
 import { selectLanIp } from './routes/network.js';
-
-const HOOK_PORT = parseInt(process.env.SYNAPSE_HOOK_PORT ?? '27247', 10);
+import { HOOK_PORT, SYNAPSE_PORT, PROTOCOL } from '@synapse-ai/core';
 
 export interface HookAppDeps {
   broadcaster: Broadcaster;
-  /** The actual bound port of the main HTTP server (from tryListen) */
-  mainPort?: number;
   /** Disable rate limiting (useful for tests) */
   disableRateLimiting?: boolean;
 }
@@ -26,7 +23,7 @@ export interface HookAppDeps {
  * Exported for testing — listen() is called separately in index.ts.
  */
 export function createHookApp(deps: HookAppDeps): express.Express {
-  const { broadcaster, mainPort = 27246 } = deps;
+  const { broadcaster } = deps;
   const app = express();
 
   app.use(express.json({ limit: '1mb' }));
@@ -75,6 +72,11 @@ export function createHookApp(deps: HookAppDeps): express.Express {
 
     pending.set(id, { res, event: req.body, timer, createdAt });
 
+    // Note: req.on('close') was removed — it fired unreliably (long delay after
+    // local answer in VS Code). Auto-dismiss is now handled by resolveLocallyAnswered()
+    // in events.ts: when the next event arrives for this session, the pending
+    // permission is resolved because the session clearly moved past it.
+
     // Broadcast to dashboard via WS
     const toolName = (req.body.tool_name as string) ?? '';
     const rawInput = req.body.tool_input ?? '';
@@ -93,8 +95,7 @@ export function createHookApp(deps: HookAppDeps): express.Express {
 
     // Fire-and-forget push notification with absolute URLs
     const lanIp = selectLanIp(os.networkInterfaces()) ?? 'localhost';
-    const protocol = process.env.SYNAPSE_TLS_CERT ? 'https' : 'http';
-    const baseUrl = `${protocol}://${lanIp}:${mainPort}`;
+    const baseUrl = `${PROTOCOL}://${lanIp}:${SYNAPSE_PORT}`;
 
     // Format notification based on tool type
     const isQuestion = toolName === 'AskUserQuestion';
@@ -122,5 +123,3 @@ export function createHookApp(deps: HookAppDeps): express.Express {
 
   return app;
 }
-
-export { HOOK_PORT };
