@@ -2,7 +2,7 @@
   "name": "synapse-vscode",
   "displayName": "Synapse — Agent Monitor",
   "description": "Real-time Claude agent monitoring dashboard inside VS Code",
-  "version": "0.1.0",
+  "version": "0.11.0",
   "publisher": "Soarcer",
   "license": "MIT",
   "icon": "synapse-icon.png",
@@ -116,13 +116,13 @@
       "properties": {
         "synapse.host": {
           "type": "string",
-          "default": "localhost",
-          "description": "Hostname the Synapse server binds to."
+          "default": "0.0.0.0",
+          "description": "Hostname the Synapse server binds to (0.0.0.0 for LAN access)."
         },
         "synapse.port": {
           "type": "number",
           "default": 27246,
-          "description": "Preferred port for the Synapse server. If busy, the next available port is used automatically."
+          "description": "Port for the Synapse server. Hook server uses port+1, HTTP fallback uses port+2."
         },
         "synapse.autoStart": {
           "type": "boolean",
