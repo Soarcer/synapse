@@ -8,6 +8,7 @@ import { KpiCard } from '../analytics/shared/KpiCard';
 import { TokenBreakdownBar } from '../analytics/shared/TokenBreakdownBar';
 import { ModelBadge } from '../analytics/shared/ModelBadge';
 import { fmtTokens } from '../analytics/shared/constants';
+import { formatCostDisplay } from '../analytics/shared/costFormat';
 import { formatRelativeTime, formatDuration } from '@synapse-ai/core';
 
 const TIME_RANGE_MAP: Record<string, string> = {
@@ -28,6 +29,9 @@ function formatUsd(n: number): string {
 export function MobileAnalyticsView() {
   const timePresetLabel = useAgentStore((s) => s.timePresetLabel);
   const filter = useAgentStore((s) => s.filter);
+  const costDisplayMode = useAgentStore((s) => s.costDisplayMode);
+  // API plan assumed for now — extend when plan endpoint is wired to the mobile view
+  const isApiPlan = true;
 
   const timeRange = TIME_RANGE_MAP[timePresetLabel] ?? '7d';
   const { overview, sessions, models, isLoading, error } = useAnalyticsData({
@@ -70,12 +74,40 @@ export function MobileAnalyticsView() {
 
   return (
     <div className="flex-1 overflow-y-auto p-3 space-y-3" style={{ overscrollBehavior: 'contain' }}>
-      {/* KPI Grid - 2x2 */}
+      {/* KPI Grid - 2x2 — layout switches based on costDisplayMode */}
       <div className="grid grid-cols-2 gap-2">
-        <KpiCard label="Total Cost" value={formatUsd(overview.totalCost)} />
-        <KpiCard label="Tokens" value={fmtTokens(totalTokens)} />
-        <KpiCard label="Sessions" value={String(overview.totalSessions)} />
-        <KpiCard label="Tool Calls" value={String(overview.totalToolCalls)} />
+        {costDisplayMode === 'cost' ? (
+          <>
+            <KpiCard label="API Cost" value={formatCostDisplay(overview.totalCost, isApiPlan)} />
+            <KpiCard
+              label="Avg/Session"
+              value={
+                overview.totalSessions > 0
+                  ? formatCostDisplay(overview.totalCost / overview.totalSessions, isApiPlan)
+                  : formatCostDisplay(0, isApiPlan)
+              }
+            />
+            <KpiCard
+              label="Cache Savings"
+              value={formatCostDisplay((overview.totalTokens.cacheRead / 1_000_000) * 3, isApiPlan)}
+            />
+            <KpiCard label="Tokens" value={fmtTokens(totalTokens)} />
+          </>
+        ) : (
+          <>
+            <KpiCard label="Tokens" value={fmtTokens(totalTokens)} />
+            <KpiCard label="Sessions" value={String(overview.totalSessions)} />
+            <KpiCard
+              label="Cache %"
+              value={
+                totalTokens > 0
+                  ? `${Math.round((overview.totalTokens.cacheRead / totalTokens) * 100)}%`
+                  : '0%'
+              }
+            />
+            <KpiCard label="Tool Calls" value={String(overview.totalToolCalls)} />
+          </>
+        )}
       </div>
 
       {/* Token Breakdown */}

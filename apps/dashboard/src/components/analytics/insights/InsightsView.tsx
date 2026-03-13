@@ -6,6 +6,8 @@ import { DEFAULT_PRICES } from '@synapse-ai/core';
 import { useCoachingData } from '../coaching/useCoachingData';
 import { ReportCardPanel } from '../coaching/ReportCardPanel';
 import { PlaybookPanel } from '../coaching/PlaybookPanel';
+import { useAgentStore } from '../../../store/agentStore';
+import { formatCostDisplay } from '../shared/costFormat';
 import type { MockData, MockSession } from '../mockData';
 
 interface InsightsViewProps {
@@ -629,6 +631,10 @@ const EMPTY_IDS: string[] = [];
 // ─── Component ──────────────────────────────────────────────────────
 
 export function InsightsView({ data, sessions }: InsightsViewProps) {
+  const costDisplayMode = useAgentStore((s) => s.costDisplayMode);
+  // API plan assumed for now — extend when plan endpoint is wired to dashboard
+  const isApiPlan = true;
+
   const [expandedInsight, setExpandedInsight] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<Category | null>(null);
   const [aiInsights, setAiInsights] = useState<
@@ -714,14 +720,21 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
     const totalCost = data.sessions.reduce((s, sess) => s + sess.totalCost, 0);
     const totalSessions = data.sessions.length;
     const totalTurns = data.turns.length;
+    const totalTokens = data.sessions.reduce(
+      (s, sess) => s + sess.totalInputTokens + sess.totalOutputTokens,
+      0,
+    );
 
     const warningCount = severityCounts.warning + severityCounts.critical;
     const successCount = severityCounts.success;
 
+    const costStr =
+      costDisplayMode === 'cost'
+        ? formatCostDisplay(totalCost, isApiPlan)
+        : `${(totalTokens / 1_000_000).toFixed(2)}M tokens`;
+
     const lines: string[] = [];
-    lines.push(
-      `${totalSessions} sessions, ${totalTurns} turns, $${totalCost.toFixed(2)} total cost.`,
-    );
+    lines.push(`${totalSessions} sessions, ${totalTurns} turns, ${costStr} total.`);
 
     if (warningCount > 0) {
       lines.push(
@@ -736,7 +749,7 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
     }
 
     return lines.join(' ');
-  }, [data.sessions, data.turns, severityCounts, budget]);
+  }, [data.sessions, data.turns, severityCounts, budget, costDisplayMode, isApiPlan]);
 
   const handlePlaybookRefresh = useCallback(() => {
     refetchPlaybooks();

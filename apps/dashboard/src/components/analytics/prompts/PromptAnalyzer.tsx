@@ -22,7 +22,9 @@ import { InfoTooltip } from '../shared/InfoTooltip';
 import { CATEGORY_COLORS, fmtTokens } from '../shared/constants';
 import { classifyPrompt, computeComplexity } from '../shared/promptUtils';
 import { formatRewrite } from '../shared/formatMarkdown';
+import { formatCostDisplay } from '../shared/costFormat';
 import { copyToClipboard } from '../../../utils/clipboard';
+import { useAgentStore } from '../../../store/agentStore';
 import type { MockData } from '../mockData';
 
 const AI_ANALYSIS_STORAGE_KEY = 'synapse-ai-analyses';
@@ -75,6 +77,12 @@ interface PromptAnalyzerProps {
 }
 
 export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
+  const costDisplayMode = useAgentStore((s) => s.costDisplayMode);
+  // Subscription plan detection: server plan endpoint is not available in the
+  // dashboard context, so we treat API plan as the conservative default (exact $).
+  // Components that know the plan (e.g. SettingsPanel) can extend this later.
+  const isApiPlan = true;
+
   const [sortField, setSortField] = useState<'complexity' | 'cost' | 'tokens' | 'time'>('cost');
   const [sortAsc, setSortAsc] = useState(false);
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
@@ -553,9 +561,13 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
                           {/* Stat cards row */}
                           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
                             <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
-                              <div className="text-xs text-gray-500">Cost</div>
+                              <div className="text-xs text-gray-500">
+                                {costDisplayMode === 'cost' ? 'Cost' : 'Tokens'}
+                              </div>
                               <div className="text-base font-semibold text-amber-400">
-                                ${a.costUsd.toFixed(4)}
+                                {costDisplayMode === 'cost'
+                                  ? formatCostDisplay(a.costUsd, isApiPlan)
+                                  : fmtTokens(a.inputTokens + a.outputTokens)}
                               </div>
                             </div>
                             <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
@@ -885,9 +897,15 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
                             <span className="text-gray-400">{a.complexity}</span>
                           </div>
                         </td>
-                        <td className="p-3 text-gray-300">${a.costUsd.toFixed(4)}</td>
+                        <td className="p-3 text-gray-300">
+                          {costDisplayMode === 'cost'
+                            ? formatCostDisplay(a.costUsd, isApiPlan)
+                            : `$${a.costUsd.toFixed(4)}`}
+                        </td>
                         <td className="p-3 text-gray-400">
-                          {(a.inputTokens + a.outputTokens).toLocaleString()}
+                          {costDisplayMode === 'consumption'
+                            ? (a.inputTokens + a.outputTokens).toLocaleString()
+                            : fmtTokens(a.inputTokens + a.outputTokens)}
                         </td>
                         <td className="p-3 text-gray-500">{a.toolNames.join(', ') || '\u2014'}</td>
                       </>
