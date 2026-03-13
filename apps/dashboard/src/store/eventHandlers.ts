@@ -579,7 +579,7 @@ function handleToolEnd(event: AgentEvent, draft: StateDraft): void {
   const cacheRead = usage.cache_read_input_tokens ?? 0;
   const cacheCreation = usage.cache_creation_input_tokens ?? 0;
   const tokenUsage = {
-    input: (usage.input_tokens ?? 0) + cacheRead + cacheCreation,
+    input: Math.max(0, (usage.input_tokens ?? 0) - cacheRead),
     output: usage.output_tokens ?? 0,
     cacheRead,
     cacheCreation,

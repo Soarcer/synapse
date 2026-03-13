@@ -773,8 +773,8 @@ describe('agentStore', () => {
       expect(agent!.tokenUsage.cacheRead).toBe(200);
       expect(agent!.tokenUsage.cacheCreation).toBe(50);
       expect(agent!.tokenUsage.thinking).toBe(100);
-      // input = input_tokens + cache_read + cache_creation
-      expect(agent!.tokenUsage.input).toBe(1250);
+      // input = fresh input only: input_tokens − cache_read = 1000 − 200 = 800
+      expect(agent!.tokenUsage.input).toBe(800);
       expect(agent!.tokenUsage.output).toBe(500);
     });
 
