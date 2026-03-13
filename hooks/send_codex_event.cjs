@@ -12,34 +12,11 @@
 const fs = require('fs');
 const path = require('path');
 
-// Read port from .claude/.synapse-port or ~/.synapse/port
-function getPortFromFile() {
-  // Try project-local port file first
-  try {
-    const portFile = path.join(process.cwd(), '.claude', '.synapse-port');
-    const content = fs.readFileSync(portFile, 'utf-8').trim();
-    const port = parseInt(content, 10);
-    if (port > 0 && port < 65536) return port;
-  } catch { /* not found */ }
-
-  // Try global port file
-  try {
-    const home = process.env.HOME || process.env.USERPROFILE;
-    const portFile = path.join(home, '.synapse', 'port');
-    const content = fs.readFileSync(portFile, 'utf-8').trim();
-    const port = parseInt(content, 10);
-    if (port > 0 && port < 65536) return port;
-  } catch { /* not found */ }
-
-  return null;
-}
-
-const SERVER_URL = (() => {
-  if (process.env.SYNAPSE_URL) return process.env.SYNAPSE_URL;
-  const filePort = getPortFromFile();
-  if (filePort) return `http://localhost:${filePort}/api/events`;
-  return 'http://localhost:4000/api/events';
-})();
+// Note: if the server uses TLS, set SYNAPSE_TLS_CERT in your shell profile
+// or use SYNAPSE_URL=https://localhost:27246/api/events
+const port = process.env.SYNAPSE_PORT || '27246';
+const protocol = process.env.SYNAPSE_TLS_CERT ? 'https' : 'http';
+const SERVER_URL = process.env.SYNAPSE_URL || `${protocol}://localhost:${port}/api/events`;
 const DEBUG = process.env.SYNAPSE_DEBUG === '1';
 const DEBUG_LOG = path.join(__dirname, '..', 'codex_hook_debug.log');
 
