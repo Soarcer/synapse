@@ -60,6 +60,7 @@ interface PersistedViewSettings {
   arcadeMode?: boolean;
   arcadeSoundEnabled?: boolean;
   arcadeVolume?: number;
+  costDisplayMode?: 'consumption' | 'cost';
 }
 
 const savedViewSettings: PersistedViewSettings = (() => {
@@ -226,6 +227,7 @@ interface AgentStore {
   showHookEvents: boolean;
   showAllTools: boolean;
   toolGroupMode: string;
+  costDisplayMode: 'consumption' | 'cost';
   arcadeUnlocked: boolean;
   arcadeMode: boolean;
   arcadeSoundEnabled: boolean;
@@ -242,6 +244,7 @@ interface AgentStore {
   liveNudges: CoachingNudge[];
   isLoading: boolean;
   loadError: string | null;
+  pendingFitView: boolean;
 
   // Lens Panel state
   lensVisible: boolean;
@@ -264,6 +267,8 @@ interface AgentStore {
   setShowHookEvents: (show: boolean) => void;
   setShowAllTools: (show: boolean) => void;
   setToolGroupMode: (mode: string) => void;
+  setCostDisplayMode: (mode: 'consumption' | 'cost') => void;
+  toggleCostDisplayMode: () => void;
   setArcadeUnlocked: (unlocked: boolean) => void;
   setArcadeMode: (on: boolean) => void;
   setArcadeSoundEnabled: (on: boolean) => void;
@@ -394,6 +399,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   showHookEvents: savedViewSettings.showHookEvents ?? true,
   showAllTools: savedViewSettings.showAllTools ?? true,
   toolGroupMode: savedViewSettings.toolGroupMode ?? 'heatmap',
+  costDisplayMode: savedViewSettings.costDisplayMode ?? 'consumption',
   arcadeUnlocked: savedViewSettings.arcadeUnlocked ?? savedViewSettings.arcadeMode ?? false,
   arcadeMode: savedViewSettings.arcadeMode ?? false,
   arcadeSoundEnabled: savedViewSettings.arcadeSoundEnabled ?? false,
@@ -411,6 +417,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   liveNudges: EMPTY_NUDGES,
   isLoading: true,
   loadError: null,
+  pendingFitView: false,
 
   // Lens Panel state
   activeLensTab: 'treemap',
@@ -532,6 +539,15 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     persistViewSettings({ toolGroupMode });
     set({ toolGroupMode });
   },
+  setCostDisplayMode: (costDisplayMode) => {
+    persistViewSettings({ costDisplayMode });
+    set({ costDisplayMode });
+  },
+  toggleCostDisplayMode: () => {
+    const next =
+      useAgentStore.getState().costDisplayMode === 'consumption' ? 'cost' : 'consumption';
+    useAgentStore.getState().setCostDisplayMode(next);
+  },
   setArcadeUnlocked: (arcadeUnlocked) => {
     persistViewSettings({ arcadeUnlocked });
     set({ arcadeUnlocked });
@@ -560,7 +576,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     } catch {
       /* quota exceeded */
     }
-    set({ timeRange: range, timePresetLabel: label });
+    set({ timeRange: range, timePresetLabel: label, pendingFitView: true });
     reloadAllEvents();
   },
 
@@ -890,49 +906,8 @@ wsClient.setOnBatchEvent((msgs) => {
   if (eventsToAdd.length === 1) {
     // Single event — use addEvent for efficiency (avoids batch overhead)
     useAgentStore.getState().addEvent(eventsToAdd[0]);
-    // Toast for single event
-    const event = eventsToAdd[0];
-    if (event.type === 'agent_start') {
-      const agentId = event.agentId ?? event.id;
-      toast(`Agent started: ${event.agentType ?? 'unknown'}`, 'info', nid.agent(agentId));
-    } else if (event.type === 'agent_stop') {
-      const agentId = event.agentId ?? event.id;
-      toast(
-        `Agent ${event.status === 'error' ? 'failed' : 'completed'}: ${event.agentType ?? 'unknown'}`,
-        event.status === 'error' ? 'error' : 'success',
-        nid.agent(agentId),
-      );
-    } else if (event.type === 'user_prompt') {
-      const preview = (event.text ?? '').slice(0, 60);
-      toast(
-        `Prompt: ${preview}${(event.text?.length ?? 0) > 60 ? '...' : ''}`,
-        'info',
-        nid.prompt(event.id),
-      );
-    }
   } else if (eventsToAdd.length > 1) {
     useAgentStore.getState().addEvents(eventsToAdd);
-    // Fire toasts for notable events in the batch
-    for (const event of eventsToAdd) {
-      if (event.type === 'agent_start') {
-        const agentId = event.agentId ?? event.id;
-        toast(`Agent started: ${event.agentType ?? 'unknown'}`, 'info', nid.agent(agentId));
-      } else if (event.type === 'agent_stop') {
-        const agentId = event.agentId ?? event.id;
-        toast(
-          `Agent ${event.status === 'error' ? 'failed' : 'completed'}: ${event.agentType ?? 'unknown'}`,
-          event.status === 'error' ? 'error' : 'success',
-          nid.agent(agentId),
-        );
-      } else if (event.type === 'user_prompt') {
-        const preview = (event.text ?? '').slice(0, 60);
-        toast(
-          `Prompt: ${preview}${(event.text?.length ?? 0) > 60 ? '...' : ''}`,
-          'info',
-          nid.prompt(event.id),
-        );
-      }
-    }
   }
 });
 
@@ -945,7 +920,6 @@ wsClient.setOnEvent((msg) => {
       useRemoteDevStore.getState().receiveQuestion(data);
       return;
     }
-    toast(`Permission requested: ${data.tool_name ?? 'Tool'} needs approval`, 'info');
   }
   if (msg.type === 'permissionResolved') {
     const data = msg.data as { id: string; behavior: 'allow' | 'deny' };
@@ -977,26 +951,6 @@ wsClient.setOnEvent((msg) => {
     if (isWsDuplicate(event)) return;
 
     useAgentStore.getState().addEvent(event);
-
-    // Toast notifications for key events (with nodeId for click-to-focus)
-    if (event.type === 'agent_start') {
-      const agentId = event.agentId ?? event.id;
-      toast(`Agent started: ${event.agentType ?? 'unknown'}`, 'info', nid.agent(agentId));
-    } else if (event.type === 'agent_stop') {
-      const agentId = event.agentId ?? event.id;
-      toast(
-        `Agent ${event.status === 'error' ? 'failed' : 'completed'}: ${event.agentType ?? 'unknown'}`,
-        event.status === 'error' ? 'error' : 'success',
-        nid.agent(agentId),
-      );
-    } else if (event.type === 'user_prompt') {
-      const preview = (event.text ?? '').slice(0, 60);
-      toast(
-        `Prompt: ${preview}${(event.text?.length ?? 0) > 60 ? '...' : ''}`,
-        'info',
-        nid.prompt(event.id),
-      );
-    }
   } else if (msg.type === 'agent_text') {
     // Look up the agent's sessionId for proper filtering
     const agentData = useAgentStore.getState().agents.get(msg.data.agentId);
@@ -1010,18 +964,9 @@ wsClient.setOnEvent((msg) => {
       timestamp: Date.now(),
     });
   } else if (msg.type === 'coaching_nudge') {
-    // Suppress live nudges on mobile — no settings UI to control them
-    const isMobile =
-      window.matchMedia('(pointer: coarse)').matches &&
-      window.matchMedia('(max-width: 1024px)').matches &&
-      navigator.maxTouchPoints > 0;
-    if (!isMobile) {
-      useAgentStore.getState().addNudge(msg.data);
-      toast(`Coach: ${msg.data.title}`, msg.data.severity === 'warning' ? 'warning' : 'info');
-    }
+    // Coaching nudges disabled — too noisy
   } else if (msg.type === 'stale') {
     // Server signals missed events due to backpressure — do full reload
-    toast('Catching up — some events were buffered', 'info');
     reloadAllEvents();
   }
 });
