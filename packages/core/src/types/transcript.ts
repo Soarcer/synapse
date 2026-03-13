@@ -45,21 +45,6 @@ export interface ModelUsage {
   cacheCreationTokens: number;
 }
 
-// ─── Model pricing (USD per million tokens) ───────────────────────
-
-export const MODEL_PRICING: Record<string, { input: number; cachedInput: number; output: number }> =
-  {
-    'claude-opus-4-6': { input: 15, cachedInput: 1.5, output: 75 },
-    'claude-opus-4-20250514': { input: 15, cachedInput: 1.5, output: 75 },
-    'claude-sonnet-4-5-20250929': { input: 3, cachedInput: 0.3, output: 15 },
-    'claude-sonnet-4-20250514': { input: 3, cachedInput: 0.3, output: 15 },
-    'claude-haiku-4-5-20251001': { input: 0.8, cachedInput: 0.08, output: 4 },
-    'claude-haiku-3-5-20241022': { input: 0.8, cachedInput: 0.08, output: 4 },
-  };
-
-// Fallback pricing for unknown models
-export const DEFAULT_PRICING = { input: 3, cachedInput: 0.3, output: 15 };
-
 // ─── Full transcript summary ──────────────────────────────────────
 
 export interface TranscriptSummary {

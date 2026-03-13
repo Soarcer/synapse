@@ -18,7 +18,7 @@ import type {
   QueueOperationRecord,
   FullTranscript,
 } from '@synapse-ai/core';
-import { MODEL_PRICING, DEFAULT_PRICING } from '@synapse-ai/core';
+import { getPrice, computeCostUsd } from '@synapse-ai/core';
 
 /** Only allow safe session IDs (alphanumeric + dash + underscore) */
 const SESSION_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
@@ -281,15 +281,16 @@ function estimateCost(turns: TranscriptTurn[]): number {
   let cost = 0;
   for (const turn of turns) {
     if (turn.type !== 'assistant' || !turn.model) continue;
-    const pricing = MODEL_PRICING[turn.model] ?? DEFAULT_PRICING;
-    // input_tokens are non-cached fresh tokens
-    cost += (turn.inputTokens / 1_000_000) * pricing.input;
-    // cache_read tokens charged at cached rate
-    cost += (turn.cacheReadTokens / 1_000_000) * pricing.cachedInput;
-    // cache_creation tokens charged at write rate (same as input for most models, but billed at input rate)
-    cost += (turn.cacheCreationTokens / 1_000_000) * pricing.input;
-    // output tokens
-    cost += (turn.outputTokens / 1_000_000) * pricing.output;
+    const price = getPrice(turn.model);
+    const breakdown = computeCostUsd({
+      inputTokens: turn.inputTokens,
+      outputTokens: turn.outputTokens,
+      cacheReadTokens: turn.cacheReadTokens,
+      cacheCreationTokens: turn.cacheCreationTokens,
+      thinkingTokens: 0,
+      price,
+    });
+    cost += breakdown.total;
   }
   return cost;
 }

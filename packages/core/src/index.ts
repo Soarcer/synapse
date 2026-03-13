@@ -70,9 +70,6 @@ export type {
 
 export type { ClaudeHookEvent } from './types/hooks.js';
 
-// Transcript constants
-export { MODEL_PRICING, DEFAULT_PRICING } from './types/transcript.js';
-
 // Pricing module
 export {
   type PricePoint,
