@@ -26,7 +26,7 @@ interface TokenCounts {
   thinkingTokens: number;
 }
 
-function validateTokenCounts(tokens: TokenCounts, log: Logger): TokenCounts {
+export function validateTokenCounts(tokens: TokenCounts, log: Logger): TokenCounts {
   const validated = {
     inputTokens: Math.max(0, tokens.inputTokens),
     outputTokens: Math.max(0, tokens.outputTokens),
