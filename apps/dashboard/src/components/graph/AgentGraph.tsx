@@ -57,6 +57,7 @@ function AgentGraphInner() {
   const autoClosePrompts = useAgentStore((s) => s.autoClosePrompts);
   const collapsedNodes = useAgentStore((s) => s.collapsedNodes);
   const lockViewport = useAgentStore((s) => s.lockViewport);
+  const pendingFitView = useAgentStore((s) => s.pendingFitView);
   const { fitView, getViewport, setViewport } = useReactFlow();
   const prevNodeCountRef = useRef(rawNodes.length);
   const prevExpandedRef = useRef<string | null>(null);
@@ -98,28 +99,6 @@ function AgentGraphInner() {
     },
     [fitView, cancelPendingFit],
   );
-
-  // Restore viewport if we just returned from a port-change proxy restart.
-  useEffect(() => {
-    const saved = sessionStorage.getItem('synapse-viewport');
-    if (!saved) return;
-    sessionStorage.removeItem('synapse-viewport');
-    try {
-      setViewport(JSON.parse(saved) as Viewport);
-    } catch {
-      // Corrupt data — silently ignore
-    }
-  }, [setViewport]);
-
-  // Save viewport just before the Vite proxy restarts.
-  // The plugin sends synapse:port-changing ~300 ms before server.restart().
-  useEffect(() => {
-    if (!import.meta.hot) return;
-    const cleanup = import.meta.hot.on('synapse:port-changing', () => {
-      sessionStorage.setItem('synapse-viewport', JSON.stringify(getViewport()));
-    });
-    return cleanup;
-  }, [getViewport]);
 
   // ── Tool collapse: hide leaf tools, keep structural tools (Task→child agent) ──
 
@@ -349,8 +328,10 @@ function AgentGraphInner() {
         const visibleId = resolveVisibleId(target.id);
         if (visibleId) {
           scheduleFitView({ nodes: [{ id: visibleId }], duration: 300, padding: 1 });
+        } else {
+          // Toolgroup may not exist in visibleNodes yet — fit all nodes instead
+          scheduleFitView({ padding: 0.2, duration: 300 });
         }
-        // No visible representation (collapsed/hidden) — skip zoom
       } else {
         scheduleFitView({ padding: 0.2, duration: 300 });
       }
@@ -358,6 +339,15 @@ function AgentGraphInner() {
     prevNodeCountRef.current = rawNodes.length;
     prevNodeIdsRef.current = new Set(rawNodes.map((n) => n.id));
   }, [rawNodes, lockViewport, selectedNodeId, resolveVisibleId, scheduleFitView]);
+
+  // Fit-to-view after time range change so the user doesn't see empty canvas
+  useEffect(() => {
+    if (!pendingFitView) return;
+    useAgentStore.setState({ pendingFitView: false });
+    if (visibleNodes.length > 0) {
+      scheduleFitView({ padding: 0.2, duration: 300 });
+    }
+  }, [pendingFitView, visibleNodes, scheduleFitView]);
 
   // One-time fitView after initial measurement pass — snaps layout into correct positions
   const initialMeasureDoneRef = useRef(false);

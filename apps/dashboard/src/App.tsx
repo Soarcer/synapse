@@ -99,16 +99,6 @@ export default function App() {
     };
   }, [viewMode]);
 
-  // Inform the user when the Vite proxy is about to restart due to a server port change.
-  // The synapse:port-changing HMR event is sent by the synapsePortWatcher Vite plugin.
-  useEffect(() => {
-    if (!import.meta.hot) return; // No-op in production builds
-    const cleanup = import.meta.hot.on('synapse:port-changing', (data: { port: string }) => {
-      toast(`Server restarted on port ${data.port} — reconnecting…`, 'info');
-    });
-    return cleanup;
-  }, []);
-
   // Listen for messages from VS Code extension (cross-panel sync + event relay)
   useEffect(() => {
     if (viewMode === 'full' || viewMode === 'mobile') return;

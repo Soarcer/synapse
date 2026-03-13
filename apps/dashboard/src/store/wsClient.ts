@@ -209,13 +209,8 @@ class WSClient {
   }
 }
 
-// Determine WS URL: allow override via VITE_WS_URL.
-// Always use window.location.host (includes port), which routes through the
-// Vite proxy in dev and hits the real origin in production. Never hardcode
-// the backend port here — that bypassed the proxy and broke port auto-discovery.
-const envWsUrl = import.meta.env.VITE_WS_URL as string | undefined;
-const wsUrl = envWsUrl?.trim()
-  ? envWsUrl
-  : `ws${window.location.protocol === 'https:' ? 's' : ''}://${window.location.host}/ws`;
+// WS URL: always use window.location.host (goes through Vite proxy in dev,
+// hits real origin in production). Never hardcode the backend port here.
+const wsUrl = `ws${window.location.protocol === 'https:' ? 's' : ''}://${window.location.host}/ws`;
 
 export const wsClient = new WSClient(wsUrl);
