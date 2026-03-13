@@ -238,8 +238,10 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
               turn.inputTokens,
               turn.outputTokens,
               turn.cacheReadTokens,
+              turn.cacheCreationTokens,
+              turn.thinkingLength,
               turn.timestamp,
-            );
+            ).total;
             existing.cost += turnCost;
             // Model breakdown
             if (!existing.models[model]) existing.models[model] = { cost: 0, tokens: 0, calls: 0 };
@@ -593,8 +595,10 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
             turn.inputTokens,
             turn.outputTokens,
             turn.cacheReadTokens,
+            turn.cacheCreationTokens,
+            turn.thinkingLength,
             turn.timestamp,
-          );
+          ).total;
 
           if (!currentGroup) {
             // First assistant record in this prompt group

@@ -134,8 +134,10 @@ export function analyzeSessionPrompts(sessionId: string): PromptAnalysis[] {
             turnTokenInput,
             turnTokenOutput,
             cacheRead,
+            0,
+            0,
             currentPrompt.timestamp,
-          ),
+          ).total,
           toolCount: turnToolCount,
           model: currentPrompt.model,
         });
@@ -185,8 +187,10 @@ export function analyzeSessionPrompts(sessionId: string): PromptAnalysis[] {
         turnTokenInput,
         turnTokenOutput,
         cacheRead,
+        0,
+        0,
         currentPrompt.timestamp,
-      ),
+      ).total,
       toolCount: turnToolCount,
       model: currentPrompt.model,
     });

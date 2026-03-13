@@ -80,43 +80,70 @@ describe('costService', () => {
 
   describe('computeCostUsd', () => {
     it('computes cost for opus with no cache', () => {
-      // 1000 input tokens @ $15/1M + 500 output tokens @ $75/1M
+      // 1000 fresh input tokens @ $15/1M + 500 output tokens @ $75/1M
+      // = 0.015 + 0.0375 = 0.0525
       const cost = computeCostUsd('claude-opus-4-6', 1000, 500, 0);
-      expect(cost).toBeCloseTo(0.0525, 4);
-      // 1000 * 15/1M = 0.015 + 500 * 75/1M = 0.0375 = 0.0525
+      expect(cost.total).toBeCloseTo(0.0525, 4);
+      expect(cost.input).toBeCloseTo(0.015, 6);
+      expect(cost.output).toBeCloseTo(0.0375, 6);
+      expect(cost.cached).toBe(0);
     });
 
-    it('computes cost with cache reads', () => {
-      // 1000 input, 500 output, 800 cache read
-      // Fresh input = 1000 - 800 = 200
+    it('computes cost with cache reads (inputTokens is fresh-only)', () => {
+      // inputTokens=200 fresh, outputTokens=500, cacheReadTokens=800
       // Cost = 200 * 15/1M + 800 * 1.5/1M + 500 * 75/1M
-      const cost = computeCostUsd('claude-opus-4-6', 1000, 500, 800);
       // = 0.003 + 0.0012 + 0.0375 = 0.0417
-      expect(cost).toBeCloseTo(0.0417, 4);
+      const cost = computeCostUsd('claude-opus-4-6', 200, 500, 800);
+      expect(cost.total).toBeCloseTo(0.0417, 4);
+      expect(cost.input).toBeCloseTo(0.003, 6);
+      expect(cost.cached).toBeCloseTo(0.0012, 6);
     });
 
-    it('handles zero tokens', () => {
-      expect(computeCostUsd('claude-opus-4-6', 0, 0, 0)).toBe(0);
+    it('returns CostBreakdown with zero total for zero tokens', () => {
+      const cost = computeCostUsd('claude-opus-4-6', 0, 0, 0);
+      expect(cost.total).toBe(0);
+      expect(cost.input).toBe(0);
+      expect(cost.output).toBe(0);
+      expect(cost.cached).toBe(0);
     });
 
-    it('clamps fresh input to 0 when cache exceeds input', () => {
-      // If cacheRead > inputTokens, freshInput = max(0, -N) = 0
+    it('charges cache reads independently of input tokens', () => {
+      // fresh input=100 @ 15/1M, cacheRead=200 @ 1.5/1M, output=100 @ 75/1M
+      // = 0.0015 + 0.0003 + 0.0075 = 0.0093
       const cost = computeCostUsd('claude-opus-4-6', 100, 100, 200);
-      // Fresh = 0, cache = 200 * 1.5/1M = 0.0003, output = 100 * 75/1M = 0.0075
-      expect(cost).toBeCloseTo(0.0078, 4);
+      expect(cost.input).toBeCloseTo(0.0015, 6);
+      expect(cost.cached).toBeCloseTo(0.0003, 6);
+      expect(cost.output).toBeCloseTo(0.0075, 6);
+      expect(cost.total).toBeCloseTo(0.0093, 4);
     });
 
     it('uses fallback pricing for unknown models', () => {
-      const cost = computeCostUsd('unknown-model', 1000, 500, 0);
       // Fallback: $3/1M input, $15/1M output
       // 1000 * 3/1M + 500 * 15/1M = 0.003 + 0.0075 = 0.0105
-      expect(cost).toBeCloseTo(0.0105, 4);
+      const cost = computeCostUsd('unknown-model', 1000, 500, 0);
+      expect(cost.total).toBeCloseTo(0.0105, 4);
     });
 
     it('computes sonnet pricing correctly', () => {
-      const cost = computeCostUsd('claude-sonnet-4-5', 10000, 5000, 5000);
-      // Fresh = 5000 * 3/1M = 0.015, cache = 5000 * 0.3/1M = 0.0015, output = 5000 * 15/1M = 0.075
-      expect(cost).toBeCloseTo(0.0915, 4);
+      // fresh=5000 @ 3/1M = 0.015, cacheRead=5000 @ 0.3/1M = 0.0015, output=5000 @ 15/1M = 0.075
+      const cost = computeCostUsd('claude-sonnet-4-5', 5000, 5000, 5000);
+      expect(cost.total).toBeCloseTo(0.0915, 4);
+    });
+
+    it('includes cache creation tokens in breakdown', () => {
+      // fresh=1000 @ 15/1M = 0.015, cacheCreate=500 @ 18.75/1M = 0.009375, output=500 @ 75/1M = 0.0375
+      const cost = computeCostUsd('claude-opus-4-6', 1000, 500, 0, 500);
+      expect(cost.creation).toBeCloseTo(0.009375, 6);
+      expect(cost.total).toBeCloseTo(0.015 + 0.009375 + 0.0375, 4);
+    });
+
+    it('includes thinking tokens charged at output rate', () => {
+      // output=0, thinking=1000 @ $75/1M = 1000/1_000_000 * 75 = 0.000075? No:
+      // 1000 / 1_000_000 * 75 = 0.075 * 1e-3 * 1e3... = 1000 * 75 / 1_000_000 = 75000/1000000 = 0.075
+      const cost = computeCostUsd('claude-opus-4-6', 0, 0, 0, 0, 1000);
+      expect(cost.thinking).toBeCloseTo(0.075, 6);
+      expect(cost.total).toBeCloseTo(0.075, 6);
+      expect(cost.output).toBe(0);
     });
   });
 

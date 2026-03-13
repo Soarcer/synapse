@@ -141,8 +141,10 @@ export function storeNormalized(
           validatedTokens.inputTokens,
           validatedTokens.outputTokens,
           validatedTokens.cacheReadTokens,
+          validatedTokens.cacheCreationTokens,
+          validatedTokens.thinkingTokens,
           event.timestamp,
-        )
+        ).total
       : 0;
 
   updateDailyRollup({
@@ -165,9 +167,9 @@ export function storeNormalized(
   // Broadcast to all WebSocket clients
   broadcaster.broadcast(event);
 
-  // Coaching nudge engine
-  updateEventBuffer(event);
-  checkNudges(event, broadcaster);
+  // Coaching nudge engine — disabled (too noisy)
+  // updateEventBuffer(event);
+  // checkNudges(event, broadcaster);
 }
 
 // ─── Legacy Aliases (backward compatibility for existing callers) ────

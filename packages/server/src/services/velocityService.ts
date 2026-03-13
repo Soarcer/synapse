@@ -101,7 +101,7 @@ export function computeSessionVelocity(sessionId: string): VelocityMetrics {
   const totalTokens = totalInput + totalOutput;
   const tokensPerMinute = Math.round(totalTokens / durationMinutes);
   const cacheRead = Math.round(totalInput * 0.5);
-  const totalCost = computeCostUsd(model, totalInput, totalOutput, cacheRead);
+  const totalCost = computeCostUsd(model, totalInput, totalOutput, cacheRead).total;
   const costPerMinute = totalCost / durationMinutes;
   const contextWindow = getContextWindow(model);
   const contextUtilization = Math.min(1, maxContextSize / contextWindow);
@@ -154,7 +154,7 @@ export function computeTurnVelocity(sessionId: string): TurnVelocity[] {
     const tokens = input + output;
     cumulativeTokens += tokens;
 
-    const cost = computeCostUsd('claude-sonnet-4-5', input, output, Math.round(input * 0.5));
+    const cost = computeCostUsd('claude-sonnet-4-5', input, output, Math.round(input * 0.5)).total;
     cumulativeCost += cost;
 
     const deltaMinutes = Math.max(0.01, (ts - prevTimestamp) / 60_000);
@@ -219,7 +219,7 @@ export function computeAggregateVelocity(from: number, to: number, cwd?: string)
   const totalTokens = totalInput + totalOutput;
   const durationMinutes = Math.max(1, (Number(row.lastTs) - Number(row.firstTs)) / 60_000);
   const cacheRead = Math.round(totalInput * 0.5);
-  const totalCost = computeCostUsd('claude-sonnet-4-5', totalInput, totalOutput, cacheRead);
+  const totalCost = computeCostUsd('claude-sonnet-4-5', totalInput, totalOutput, cacheRead).total;
   const sessionCount = Number(row.sessionCount ?? 1);
   const promptCount = Number(row.promptCount ?? 0);
 

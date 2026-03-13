@@ -62,8 +62,10 @@ export function importCsv(csvText: string, cwd?: string): ImportResult {
             event.tokenUsage.input,
             event.tokenUsage.output,
             0,
+            0,
+            0,
             event.timestamp,
-          )
+          ).total
         : 0;
 
       insertEvent({
@@ -123,8 +125,10 @@ export function importJson(
             event.tokenUsage.input,
             event.tokenUsage.output,
             0,
+            0,
+            0,
             event.timestamp,
-          )
+          ).total
         : 0;
 
       insertEvent({
