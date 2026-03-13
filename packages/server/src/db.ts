@@ -194,6 +194,7 @@ export async function initDb(): Promise<void> {
       total_output_tokens INTEGER DEFAULT 0,
       total_cache_read_tokens INTEGER DEFAULT 0,
       total_cache_creation_tokens INTEGER DEFAULT 0,
+      total_thinking_tokens INTEGER DEFAULT 0,
       total_cost_usd REAL DEFAULT 0,
       total_tool_calls INTEGER DEFAULT 0,
       total_errors INTEGER DEFAULT 0,
@@ -207,6 +208,23 @@ export async function initDb(): Promise<void> {
   `);
   db.run('CREATE INDEX IF NOT EXISTS idx_daily_date ON analytics_daily(date)');
   db.run('CREATE INDEX IF NOT EXISTS idx_daily_cwd ON analytics_daily(cwd)');
+
+  // Migrations: add new columns to existing analytics_daily tables
+  try {
+    db.run('ALTER TABLE analytics_daily ADD COLUMN total_cache_read_tokens INTEGER DEFAULT 0');
+  } catch {
+    /* column already exists */
+  }
+  try {
+    db.run('ALTER TABLE analytics_daily ADD COLUMN total_cache_creation_tokens INTEGER DEFAULT 0');
+  } catch {
+    /* column already exists */
+  }
+  try {
+    db.run('ALTER TABLE analytics_daily ADD COLUMN total_thinking_tokens INTEGER DEFAULT 0');
+  } catch {
+    /* column already exists */
+  }
 
   db.run(`
     CREATE TABLE IF NOT EXISTS analytics_tool_daily (
@@ -749,6 +767,9 @@ export function updateDailyRollup(event: {
   event_type: string;
   token_input?: number | null;
   token_output?: number | null;
+  cache_read_tokens?: number | null;
+  cache_creation_tokens?: number | null;
+  thinking_tokens?: number | null;
   duration_ms?: number | null;
   tool_name?: string | null;
   status?: string | null;
@@ -769,6 +790,9 @@ export function updateDailyRollup(event: {
 
   const inputTokens = event.token_input ?? 0;
   const outputTokens = event.token_output ?? 0;
+  const cacheReadTokens = event.cache_read_tokens ?? 0;
+  const cacheCreationTokens = event.cache_creation_tokens ?? 0;
+  const thinkingTokens = event.thinking_tokens ?? 0;
   const latencyMs = event.duration_ms ?? 0;
   const costUsd = event.cost_usd ?? 0;
 
@@ -776,15 +800,19 @@ export function updateDailyRollup(event: {
   execute(
     `
     INSERT INTO analytics_daily (date, cwd, model, vendor, total_events, total_sessions,
-      total_input_tokens, total_output_tokens, total_cost_usd, total_tool_calls,
+      total_input_tokens, total_output_tokens, total_cache_read_tokens, total_cache_creation_tokens,
+      total_thinking_tokens, total_cost_usd, total_tool_calls,
       total_errors, total_compactions, sum_latency_ms, count_latency, min_latency_ms, max_latency_ms)
-    VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (date, cwd, model)
     DO UPDATE SET
       total_events = total_events + 1,
       total_sessions = total_sessions + excluded.total_sessions,
       total_input_tokens = total_input_tokens + excluded.total_input_tokens,
       total_output_tokens = total_output_tokens + excluded.total_output_tokens,
+      total_cache_read_tokens = total_cache_read_tokens + excluded.total_cache_read_tokens,
+      total_cache_creation_tokens = total_cache_creation_tokens + excluded.total_cache_creation_tokens,
+      total_thinking_tokens = total_thinking_tokens + excluded.total_thinking_tokens,
       total_cost_usd = total_cost_usd + excluded.total_cost_usd,
       total_tool_calls = total_tool_calls + excluded.total_tool_calls,
       total_errors = total_errors + excluded.total_errors,
@@ -802,6 +830,9 @@ export function updateDailyRollup(event: {
       isSessionStart ? 1 : 0,
       inputTokens,
       outputTokens,
+      cacheReadTokens,
+      cacheCreationTokens,
+      thinkingTokens,
       costUsd,
       isToolEvent ? 1 : 0,
       isError ? 1 : 0,
