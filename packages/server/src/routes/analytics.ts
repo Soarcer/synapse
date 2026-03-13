@@ -131,6 +131,21 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
         const transcripts = await getTranscriptSummaries(sessionIds, cwd);
         const agg = aggregateTranscripts(transcripts);
 
+        // Query analytics_daily for thinking/cache-creation tokens (not in transcripts)
+        const fromDate = new Date(from).toISOString().slice(0, 10);
+        const toDate = new Date(to).toISOString().slice(0, 10);
+        const dailyConditions: string[] = ['date >= ? AND date <= ?'];
+        const dailyParams: unknown[] = [fromDate, toDate];
+        if (cwd) {
+          dailyConditions.push('cwd = ?');
+          dailyParams.push(normalizeCwd(cwd));
+        }
+        const dailyRow = analyticsQueryGet(
+          `SELECT SUM(total_thinking_tokens) as thinking, SUM(total_cache_creation_tokens) as creation
+           FROM analytics_daily WHERE ${dailyConditions.join(' AND ')}`,
+          dailyParams,
+        );
+
         const data = {
           totalCost: agg.totalCost,
           totalTokens: {
@@ -138,6 +153,8 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
             output: agg.totalOutputTokens,
             cacheRead: agg.totalCacheReadTokens,
           },
+          totalThinkingTokens: Number(dailyRow?.thinking ?? 0),
+          totalCacheCreationTokens: agg.totalCacheCreationTokens,
           totalSessions: Number(row?.totalSessions ?? 0),
           totalToolCalls: Number(row?.totalToolCalls ?? 0),
           avgLatencyMs: Math.round(agg.avgLatencyMs),
@@ -205,6 +222,7 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
           input: number;
           output: number;
           cacheRead: number;
+          cacheCreation: number;
           cost: number;
           models: Record<string, { cost: number; tokens: number; calls: number }>;
         }
@@ -226,12 +244,14 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
               input: 0,
               output: 0,
               cacheRead: 0,
+              cacheCreation: 0,
               cost: 0,
               models: {},
             };
             existing.input += turn.inputTokens;
             existing.output += turn.outputTokens;
             existing.cacheRead += turn.cacheReadTokens;
+            existing.cacheCreation += turn.cacheCreationTokens;
             const model = turn.model ?? 'claude-sonnet-4-5';
             const turnCost = computeCostUsd(
               model,
@@ -252,6 +272,33 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
           }
         }
 
+        // Fetch thinking tokens per bucket from analytics_daily (transcript turns lack token counts)
+        let dateTruncDaily: string;
+        if (granularity === 'hour') {
+          dateTruncDaily = 'date'; // analytics_daily is daily; best effort
+        } else if (granularity === 'week') {
+          dateTruncDaily = "strftime('%Y-W%W', date)";
+        } else {
+          dateTruncDaily = 'date';
+        }
+        const dailyFromDate = new Date(from).toISOString().slice(0, 10);
+        const dailyToDate = new Date(to).toISOString().slice(0, 10);
+        const dailyConditions2: string[] = ['date >= ? AND date <= ?'];
+        const dailyParams2: unknown[] = [dailyFromDate, dailyToDate];
+        if (cwd) {
+          dailyConditions2.push('cwd = ?');
+          dailyParams2.push(normalizeCwd(cwd));
+        }
+        const dailyBucketRows = analyticsQueryAll(
+          `SELECT ${dateTruncDaily} as bucket, SUM(total_thinking_tokens) as thinking
+           FROM analytics_daily WHERE ${dailyConditions2.join(' AND ')}
+           GROUP BY bucket`,
+          dailyParams2,
+        ) as { bucket: string; thinking: number }[];
+        const thinkingByBucket = new Map<string, number>(
+          dailyBucketRows.map((r) => [r.bucket, Number(r.thinking ?? 0)]),
+        );
+
         const data = rows.map((r) => {
           const bucket = r.bucket as string;
           const tokens = bucketTokens.get(bucket);
@@ -262,6 +309,8 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
             inputTokens: tokens?.input ?? 0,
             outputTokens: tokens?.output ?? 0,
             cacheRead: tokens?.cacheRead ?? 0,
+            cacheCreationTokens: tokens?.cacheCreation ?? 0,
+            thinkingTokens: thinkingByBucket.get(bucket) ?? 0,
             sessions: Number(r.sessions ?? 0),
             toolCalls: Number(r.toolCalls ?? 0),
             models: tokens?.models ?? {},
