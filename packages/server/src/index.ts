@@ -18,13 +18,19 @@ import { createApp } from './app.js';
 import { initDb, closeDb, startPruneTimer } from './db.js';
 import { seedBuiltInTemplates } from './services/playbookService.js';
 import { registerAllRules } from './services/rules/index.js';
-import { createHookApp, HOOK_PORT } from './hookServer.js';
+import { createHookApp } from './hookServer.js';
 import { pending } from './state/permissionState.js';
 import { initPush } from './services/pushService.js';
 import { selectLanIp } from './routes/network.js';
 
+import {
+  SYNAPSE_PORT,
+  HOOK_PORT as CONFIG_HOOK_PORT,
+  HTTP_FALLBACK_PORT,
+  USE_TLS,
+} from '@synapse-ai/core';
+
 const HOST = process.env.HOST || '0.0.0.0';
-const PORT = parseInt(process.env.PORT || '27246', 10);
 
 // --- Initialize database (async — sql.js requires WASM init) ---
 await initDb();
@@ -53,7 +59,7 @@ const app = createApp({ broadcaster, agentManager });
 // --- Hook server status on main server (must be before catch-all SPA route) ---
 let hookServerRunning = false;
 app.get('/api/hook-server/status', (_req, res) => {
-  res.json({ running: hookServerRunning, port: HOOK_PORT, pending: pending.size });
+  res.json({ running: hookServerRunning, port: CONFIG_HOOK_PORT, pending: pending.size });
 });
 
 // --- Serve built frontend OR dev status page ---
@@ -124,43 +130,45 @@ if (usingTls) {
   }
 }
 
-// --- Start (auto-scan ports if preferred is busy) ---
+// --- Start (fail-loud — no port auto-increment) ---
 
-const MAX_PORT_RETRIES = 20;
-
-function tryListen(preferredPort: number, host: string): Promise<number> {
+function failLoudBind(
+  srv: import('http').Server,
+  port: number,
+  host: string,
+  label: string,
+): Promise<void> {
   return new Promise((resolve, reject) => {
-    let attempt = 0;
-    const tryPort = (port: number) => {
-      const onError = (err: NodeJS.ErrnoException) => {
-        server.removeListener('listening', onListening);
-        if (err.code === 'EADDRINUSE' && attempt < MAX_PORT_RETRIES) {
-          attempt++;
-          logger.info({ port, nextPort: port + 1 }, 'Port in use, trying next');
-          tryPort(port + 1);
-        } else {
-          reject(err);
-        }
-      };
-      const onListening = () => {
-        server.removeListener('error', onError);
-        resolve(port);
-      };
-      server.once('error', onError);
-      server.once('listening', onListening);
-      server.listen(port, host);
-    };
-    tryPort(preferredPort);
+    srv.once('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE') {
+        logger.error({ port, label }, `Port ${port} (${label}) is already in use`);
+        console.error(`
+ERROR: Port ${port} (${label}) is already in use.
+Is another Synapse instance running?
+
+To use a different port:
+  $env:SYNAPSE_PORT=${port + 100}; .\\start-server.ps1
+
+All three services will shift together:
+  Server:   ${port + 100}
+  Hooks:    ${port + 101}
+  Fallback: ${port + 102}
+`);
+        process.exit(1);
+      }
+      reject(err);
+    });
+    srv.once('listening', resolve);
+    srv.listen(port, host);
   });
 }
 
-const actualPort = await tryListen(PORT, HOST);
-// Stdout protocol: VS Code extension parses this to learn the actual port
-process.stdout.write(`SYNAPSE_PORT=${actualPort}\n`);
-logger.info({ host: HOST, port: actualPort }, 'Synapse server started');
+await failLoudBind(server, SYNAPSE_PORT, HOST, 'main server');
+// Stdout protocol: VS Code extension parses this to learn the port
+process.stdout.write(`SYNAPSE_PORT=${SYNAPSE_PORT}\n`);
+logger.info({ host: HOST, port: SYNAPSE_PORT }, 'Synapse server started');
 
 // --- HTTP fallback for mobile Safari (self-signed certs block ES module loads in CORS mode) ---
-const HTTP_FALLBACK_PORT = actualPort + 2; // +1 is hook server, +2 is HTTP fallback
 if (httpFallbackServer) {
   try {
     await new Promise<void>((resolve, reject) => {
@@ -194,19 +202,8 @@ if (httpFallbackServer) {
   }
 }
 
-// Write port file for hook scripts and Vite dev server auto-discovery.
-// process.cwd() is the monorepo root when started via start-server.ps1 or pnpm dev.
-// Best-effort: if the write fails (e.g. read-only FS), log a warning and continue.
-try {
-  const claudeDir = path.join(process.cwd(), '.claude');
-  fs.mkdirSync(claudeDir, { recursive: true });
-  fs.writeFileSync(path.join(claudeDir, '.synapse-port'), String(actualPort));
-} catch {
-  logger.warn('Could not write .synapse-port — port auto-discovery may not work');
-}
-
 // --- Hook Server (fixed port for Claude Code HTTP hooks) ---
-const hookApp = createHookApp({ broadcaster, mainPort: actualPort });
+const hookApp = createHookApp({ broadcaster });
 const hookHttpServer = createHttpServer(hookApp);
 hookHttpServer.timeout = 0; // No request timeout — permissions can be held for 30+ min
 
@@ -215,7 +212,7 @@ try {
     hookHttpServer.once('error', (err: NodeJS.ErrnoException) => {
       if (err.code === 'EADDRINUSE') {
         logger.warn(
-          { port: HOOK_PORT },
+          { port: CONFIG_HOOK_PORT },
           'Hook server port in use — permission routing unavailable',
         );
         resolve(); // Graceful degradation
@@ -227,10 +224,10 @@ try {
       hookServerRunning = true;
       resolve();
     });
-    hookHttpServer.listen(HOOK_PORT, HOST);
+    hookHttpServer.listen(CONFIG_HOOK_PORT, HOST);
   });
   if (hookServerRunning) {
-    logger.info({ host: HOST, port: HOOK_PORT }, 'Hook server started');
+    logger.info({ host: HOST, port: CONFIG_HOOK_PORT }, 'Hook server started');
   }
 } catch (err) {
   logger.error({ err }, 'Hook server failed to start');
