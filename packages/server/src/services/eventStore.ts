@@ -14,6 +14,42 @@ import type { AgentEvent, AgentEventType } from '@synapse-ai/core';
 import { computeCostUsd } from './costService.js';
 import { checkNudges, updateEventBuffer } from './nudgeEngine.js';
 import { CLAUDE_HOOK_EVENT_NAMES } from '../adapters/index.js';
+import { logger, type Logger } from '../lib/logger.js';
+
+// ─── Token Validation ────────────────────────────────────────────────
+
+interface TokenCounts {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  thinkingTokens: number;
+}
+
+function validateTokenCounts(tokens: TokenCounts, log: Logger): TokenCounts {
+  const validated = {
+    inputTokens: Math.max(0, tokens.inputTokens),
+    outputTokens: Math.max(0, tokens.outputTokens),
+    cacheReadTokens: Math.max(0, tokens.cacheReadTokens),
+    cacheCreationTokens: Math.max(0, tokens.cacheCreationTokens),
+    thinkingTokens: Math.max(0, tokens.thinkingTokens),
+  };
+
+  if (validated.cacheCreationTokens > validated.inputTokens) {
+    log.warn({ tokens: validated }, 'cacheCreationTokens > inputTokens — possible misparse');
+  }
+  if (tokens.cacheReadTokens < 0) {
+    log.warn({ raw: tokens.cacheReadTokens }, 'Negative cacheReadTokens clamped to 0');
+  }
+  const maxPerTurn = 10_000_000;
+  for (const [key, val] of Object.entries(validated)) {
+    if (val > maxPerTurn) {
+      log.warn({ key, val }, 'Token count exceeds 10M per turn — possible bug');
+    }
+  }
+
+  return validated;
+}
 
 // ─── Extract text from prompt (used by rowToAgentEvent for raw_payload recovery) ──
 
@@ -89,16 +125,22 @@ export function storeNormalized(
   });
 
   // Update daily analytics rollup
-  const inputTokens = event.tokenUsage?.input ?? 0;
-  const outputTokens = event.tokenUsage?.output ?? 0;
-  const cacheRead = Math.round(inputTokens * 0.5);
+  const rawTokens: TokenCounts = {
+    inputTokens: event.tokenUsage?.input ?? 0,
+    outputTokens: event.tokenUsage?.output ?? 0,
+    cacheReadTokens: 0,
+    cacheCreationTokens: 0,
+    thinkingTokens: 0,
+  };
+  const validatedTokens = validateTokenCounts(rawTokens, logger);
+
   const costUsd =
-    inputTokens > 0
+    validatedTokens.inputTokens > 0
       ? computeCostUsd(
           event.model ?? 'claude-sonnet-4-5',
-          inputTokens,
-          outputTokens,
-          cacheRead,
+          validatedTokens.inputTokens,
+          validatedTokens.outputTokens,
+          validatedTokens.cacheReadTokens,
           event.timestamp,
         )
       : 0;
@@ -109,8 +151,11 @@ export function storeNormalized(
     model: event.model,
     vendor: event.vendor,
     event_type: event.type,
-    token_input: event.tokenUsage?.input,
-    token_output: event.tokenUsage?.output,
+    token_input: validatedTokens.inputTokens,
+    token_output: validatedTokens.outputTokens,
+    cache_read_tokens: validatedTokens.cacheReadTokens,
+    cache_creation_tokens: validatedTokens.cacheCreationTokens,
+    thinking_tokens: validatedTokens.thinkingTokens,
     duration_ms: event.duration,
     tool_name: event.toolName,
     status: event.status,
