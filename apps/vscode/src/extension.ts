@@ -105,7 +105,7 @@ export async function activate(context: vscode.ExtensionContext) {
   // ── Commands ───────────────────────────────────────────────────
   context.subscriptions.push(
     vscode.commands.registerCommand('synapse.openDashboard', async () => {
-      const port = serverManager?.port ?? 4000;
+      const port = serverManager?.port ?? 27246;
       // Check if server is reachable (covers both extension-managed and externally started servers)
       const reachable = await checkServerHealth(port);
       if (!reachable) {
@@ -159,7 +159,7 @@ export async function activate(context: vscode.ExtensionContext) {
     }),
 
     vscode.commands.registerCommand('synapse.openInBrowser', () => {
-      const port = serverManager?.port ?? 4000;
+      const port = serverManager?.port ?? 27246;
       vscode.env.openExternal(vscode.Uri.parse(`http://localhost:${port}`));
     }),
 
@@ -435,7 +435,7 @@ async function improveSelectedText(mode: 'developer' | 'vibe'): Promise<void> {
   const showScore = config.get<boolean>('promptLab.showScore', true);
 
   const selectedText = editor.document.getText(selection).slice(0, maxChars);
-  const port = serverManager?.port ?? 4000;
+  const port = serverManager?.port ?? 27246;
 
   const reachable = await checkServerHealth(port);
   if (!reachable) {

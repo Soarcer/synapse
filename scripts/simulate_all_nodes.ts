@@ -16,7 +16,7 @@
  *   - PermissionRequest
  */
 
-const API_URL = process.env.API_URL ?? 'http://localhost:4000/api/events';
+const API_URL = process.env.API_URL ?? 'http://localhost:27246/api/events';
 
 const ts = Date.now().toString(36);
 const SESSION_ID = `allnodes-${ts}`;
@@ -173,7 +173,7 @@ async function main() {
       tool_name: 'Bash',
       tool_use_id: bashId,
       tool_input: {
-        command: 'curl -s http://localhost:4000/health',
+        command: 'curl -s http://localhost:27246/health',
         description: 'Test health endpoint',
       },
     },
@@ -188,7 +188,7 @@ async function main() {
       cwd: CWD,
       tool_name: 'Bash',
       tool_use_id: bashId,
-      tool_input: { command: 'curl -s http://localhost:4000/health' },
+      tool_input: { command: 'curl -s http://localhost:27246/health' },
       tool_response: { stdout: '{"ok":true}', stderr: '', exitCode: 0 },
     },
     'PostToolUse (Bash ✓)',

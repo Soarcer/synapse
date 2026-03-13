@@ -158,7 +158,7 @@ export class SettingsPanel {
           type: 'serverConfig',
           data: {
             host: cfg.get('host', 'localhost'),
-            configuredPort: cfg.get('port', 4000),
+            configuredPort: cfg.get('port', 27246),
             actualPort: this.serverManager.isRunning ? this.serverManager.port : null,
           },
         });
@@ -802,7 +802,7 @@ export class SettingsPanel {
         </div>
         <div class="form-group" style="margin-bottom:0;">
           <label for="cfg-port">Port</label>
-          <input type="number" id="cfg-port" value="4000" min="1024" max="65535" style="width:100px;">
+          <input type="number" id="cfg-port" value="27246" min="1024" max="65535" style="width:100px;">
         </div>
         <button onclick="applyServerConfig()">Apply &amp; Restart</button>
       </div>
@@ -1286,7 +1286,7 @@ export class SettingsPanel {
       if (!data) return;
       document.getElementById('cfg-host').value = data.host || 'localhost';
       // Show the actual running port so "Apply & Restart" uses the right value
-      document.getElementById('cfg-port').value = data.actualPort || data.configuredPort || 4000;
+      document.getElementById('cfg-port').value = data.actualPort || data.configuredPort || 27246;
       const actual = document.getElementById('cfg-actual-port');
       if (data.actualPort && data.actualPort !== data.configuredPort) {
         actual.textContent = 'Preferred port ' + data.configuredPort + ' was busy — auto-incremented to ' + data.actualPort;
@@ -1302,7 +1302,7 @@ export class SettingsPanel {
 
     function applyServerConfig() {
       const host = document.getElementById('cfg-host').value.trim() || 'localhost';
-      const port = parseInt(document.getElementById('cfg-port').value, 10) || 4000;
+      const port = parseInt(document.getElementById('cfg-port').value, 10) || 27246;
       send({ type: 'setServerConfig', host: host, port: port });
     }
 

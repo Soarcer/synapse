@@ -23,7 +23,7 @@ export default {
 
   init: async (config: SynapseConfig, deps: PluginDeps) => {
     const { logger, configDir } = deps;
-    const port = config.port || 4000;
+    const port = config.port || 27246;
 
     logger.info(`[Synapse] Initializing on port ${port}`);
 

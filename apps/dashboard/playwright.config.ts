@@ -24,7 +24,7 @@ export default defineConfig({
   webServer: [
     {
       command: 'npx tsx ../../packages/server/src/index.ts',
-      port: 4000,
+      port: 27246,
       reuseExistingServer: !process.env.CI,
       timeout: 15_000,
     },

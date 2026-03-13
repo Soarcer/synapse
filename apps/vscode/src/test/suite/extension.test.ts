@@ -37,7 +37,7 @@ suite('Synapse Extension', () => {
 
     const http = await import('http');
     const healthy = await new Promise<boolean>((resolve) => {
-      const req = http.get('http://localhost:4000/api/health', (res) => {
+      const req = http.get('http://localhost:27246/api/health', (res) => {
         resolve(res.statusCode === 200);
       });
       req.on('error', () => resolve(false));
@@ -58,7 +58,7 @@ suite('Synapse Extension', () => {
 
     const { WebSocket } = await import('ws');
     const connected = await new Promise<boolean>((resolve) => {
-      const ws = new WebSocket('ws://localhost:4000');
+      const ws = new WebSocket('ws://localhost:27246');
       ws.on('open', () => {
         ws.close();
         resolve(true);
@@ -83,7 +83,7 @@ suite('Synapse Extension', () => {
 
     const http = await import('http');
     const stillUp = await new Promise<boolean>((resolve) => {
-      const req = http.get('http://localhost:4000/api/health', (res) => {
+      const req = http.get('http://localhost:27246/api/health', (res) => {
         resolve(res.statusCode === 200);
       });
       req.on('error', () => resolve(false));

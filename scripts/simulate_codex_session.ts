@@ -5,7 +5,7 @@
 // Simulates a Codex CLI session with all supported JSONL event types.
 // Run with: npx tsx scripts/simulate_codex_session.ts
 
-const API_URL = process.env.API_URL ?? 'http://localhost:4000/api/events';
+const API_URL = process.env.API_URL ?? 'http://localhost:27246/api/events';
 const ts = Date.now().toString(36);
 const SESSION_ID = `codex-session-${ts}`;
 

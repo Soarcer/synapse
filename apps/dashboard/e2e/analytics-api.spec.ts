@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const API_BASE = 'http://localhost:4000/api/analytics';
+const API_BASE = 'http://localhost:27246/api/analytics';
 
 test.describe('Analytics API Integration', () => {
   test('GET /api/analytics/overview returns valid envelope', async ({ request }) => {
@@ -119,7 +119,7 @@ test.describe('Analytics API Integration', () => {
     const now = Date.now();
 
     // First seed an event with a specific cwd
-    await request.post('http://localhost:4000/api/events', {
+    await request.post('http://localhost:27246/api/events', {
       data: {
         hook_event_name: 'SessionStart',
         session_id: `e2e-cwd-test-${Date.now()}`,
@@ -128,7 +128,9 @@ test.describe('Analytics API Integration', () => {
       },
     });
 
-    const res = await request.get(`${API_BASE}/overview?from=0&to=${now + 5000}&cwd=/e2e/test/project`);
+    const res = await request.get(
+      `${API_BASE}/overview?from=0&to=${now + 5000}&cwd=/e2e/test/project`,
+    );
     expect(res.status()).toBe(200);
 
     const body = await res.json();

@@ -17,8 +17,9 @@
  *   6  Stress test: 2 Sessions, nested agents, 10+ tools per agent
  */
 
-const API_URL = process.env.API_URL ?? 'http://localhost:4000/api/events';
-const DELETE_URL = process.env.API_URL?.replace('/events', '/events') ?? 'http://localhost:4000/api/events';
+const API_URL = process.env.API_URL ?? 'http://localhost:27246/api/events';
+const DELETE_URL =
+  process.env.API_URL?.replace('/events', '/events') ?? 'http://localhost:27246/api/events';
 
 // ── CLI args ─────────────────────────────────────────────────
 const args = process.argv.slice(2);
@@ -76,35 +77,99 @@ async function clearAll(): Promise<void> {
 
 // ── Event builders ───────────────────────────────────────────
 function sessionStart(sid: string): [HookPayload, string] {
-  return [{ hook_event_name: 'SessionStart', session_id: sid, cwd: CWD, model: 'claude-opus-4-6', source: 'startup' }, `SessionStart (${sid})`];
+  return [
+    {
+      hook_event_name: 'SessionStart',
+      session_id: sid,
+      cwd: CWD,
+      model: 'claude-opus-4-6',
+      source: 'startup',
+    },
+    `SessionStart (${sid})`,
+  ];
 }
 
 function sessionEnd(sid: string): [HookPayload, string] {
-  return [{ hook_event_name: 'SessionEnd', session_id: sid, cwd: CWD, reason: 'prompt_input_exit' }, `SessionEnd (${sid})`];
+  return [
+    { hook_event_name: 'SessionEnd', session_id: sid, cwd: CWD, reason: 'prompt_input_exit' },
+    `SessionEnd (${sid})`,
+  ];
 }
 
 function prompt(sid: string, text: string): [HookPayload, string] {
-  return [{ hook_event_name: 'UserPromptSubmit', session_id: sid, cwd: CWD, prompt: text }, `Prompt: "${text.slice(0, 40)}..."`];
+  return [
+    { hook_event_name: 'UserPromptSubmit', session_id: sid, cwd: CWD, prompt: text },
+    `Prompt: "${text.slice(0, 40)}..."`,
+  ];
 }
 
-function agentStart(sid: string, agentId: string, agentType: string, parentAgentId?: string): [HookPayload, string] {
-  const p: HookPayload = { hook_event_name: 'SubagentStart', session_id: sid, cwd: CWD, agent_id: agentId, agent_type: agentType };
+function agentStart(
+  sid: string,
+  agentId: string,
+  agentType: string,
+  parentAgentId?: string,
+): [HookPayload, string] {
+  const p: HookPayload = {
+    hook_event_name: 'SubagentStart',
+    session_id: sid,
+    cwd: CWD,
+    agent_id: agentId,
+    agent_type: agentType,
+  };
   if (parentAgentId) p.parent_agent_id = parentAgentId;
   return [p, `AgentStart (${agentType}: ${agentId})`];
 }
 
 function agentStop(sid: string, agentId: string, agentType: string): [HookPayload, string] {
-  return [{ hook_event_name: 'SubagentStop', session_id: sid, cwd: CWD, agent_id: agentId, agent_type: agentType }, `AgentStop (${agentType}: ${agentId})`];
+  return [
+    {
+      hook_event_name: 'SubagentStop',
+      session_id: sid,
+      cwd: CWD,
+      agent_id: agentId,
+      agent_type: agentType,
+    },
+    `AgentStop (${agentType}: ${agentId})`,
+  ];
 }
 
-function toolStart(sid: string, toolName: string, toolUseId: string, input: Record<string, unknown>, agentId?: string): [HookPayload, string] {
-  const p: HookPayload = { hook_event_name: 'PreToolUse', session_id: sid, cwd: CWD, tool_name: toolName, tool_use_id: toolUseId, tool_input: input };
+function toolStart(
+  sid: string,
+  toolName: string,
+  toolUseId: string,
+  input: Record<string, unknown>,
+  agentId?: string,
+): [HookPayload, string] {
+  const p: HookPayload = {
+    hook_event_name: 'PreToolUse',
+    session_id: sid,
+    cwd: CWD,
+    tool_name: toolName,
+    tool_use_id: toolUseId,
+    tool_input: input,
+  };
   if (agentId) p.agent_id = agentId;
-  return [p, `PreToolUse (${toolName}: ${toolUseId.slice(-8)}${agentId ? ` @${agentId.slice(-8)}` : ''})`];
+  return [
+    p,
+    `PreToolUse (${toolName}: ${toolUseId.slice(-8)}${agentId ? ` @${agentId.slice(-8)}` : ''})`,
+  ];
 }
 
-function toolEnd(sid: string, toolName: string, toolUseId: string, agentId?: string): [HookPayload, string] {
-  const p: HookPayload = { hook_event_name: 'PostToolUse', session_id: sid, cwd: CWD, tool_name: toolName, tool_use_id: toolUseId, tool_input: {}, tool_response: { ok: true } };
+function toolEnd(
+  sid: string,
+  toolName: string,
+  toolUseId: string,
+  agentId?: string,
+): [HookPayload, string] {
+  const p: HookPayload = {
+    hook_event_name: 'PostToolUse',
+    session_id: sid,
+    cwd: CWD,
+    tool_name: toolName,
+    tool_use_id: toolUseId,
+    tool_input: {},
+    tool_response: { ok: true },
+  };
   if (agentId) p.agent_id = agentId;
   return [p, `PostToolUse (${toolName}: ${toolUseId.slice(-8)})`];
 }
@@ -369,7 +434,20 @@ async function step6() {
   ];
 
   // 12 tools on main agent
-  const megaTools = ['Glob', 'Read', 'Read', 'Grep', 'Read', 'Edit', 'Edit', 'Read', 'Grep', 'Edit', 'Bash', 'Write'];
+  const megaTools = [
+    'Glob',
+    'Read',
+    'Read',
+    'Grep',
+    'Read',
+    'Edit',
+    'Edit',
+    'Read',
+    'Grep',
+    'Edit',
+    'Bash',
+    'Write',
+  ];
   for (let i = 0; i < megaTools.length; i++) {
     const id = `toolu_mega_${i}_${ts}`;
     events.push(toolStart(S1, megaTools[i], id, { i }, aMega));

@@ -4,7 +4,7 @@
 import { Type, type Static } from '@sinclair/typebox';
 
 export const SynapseConfigSchema = Type.Object({
-  port: Type.Number({ default: 4000, description: 'Dashboard server port' }),
+  port: Type.Number({ default: 27246, description: 'Dashboard server port' }),
   dbPath: Type.Optional(
     Type.String({ description: 'SQLite database path (default: plugin data dir)' }),
   ),
