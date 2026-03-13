@@ -18,20 +18,22 @@ interface HookStatus {
   pending?: number;
 }
 
-const CONFIG_SNIPPET = JSON.stringify(
-  {
-    hooks: {
-      PermissionRequest: [
-        {
-          type: 'http',
-          url: 'http://localhost:27247/api/hooks/permission',
-        },
-      ],
+function buildConfigSnippet(hookPort: number): string {
+  return JSON.stringify(
+    {
+      hooks: {
+        PermissionRequest: [
+          {
+            type: 'http',
+            url: `http://localhost:${hookPort}/api/hooks/permission`,
+          },
+        ],
+      },
     },
-  },
-  null,
-  2,
-);
+    null,
+    2,
+  );
+}
 
 export function HookControlsTab({ open, onClose }: Props) {
   const [status, setStatus] = useState<HookStatus | null>(null);
@@ -55,15 +57,17 @@ export function HookControlsTab({ open, onClose }: Props) {
     };
   }, [open]);
 
+  const configSnippet = buildConfigSnippet(status?.port ?? 27247);
+
   const handleCopy = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(CONFIG_SNIPPET);
+      await navigator.clipboard.writeText(configSnippet);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
       // Fallback — clipboard API unavailable
     }
-  }, []);
+  }, [configSnippet]);
 
   if (!open) return null;
 
@@ -127,7 +131,7 @@ export function HookControlsTab({ open, onClose }: Props) {
               <code className="text-gray-300 bg-gray-800 px-1 rounded">.claude/settings.json</code>:
             </p>
             <pre className="bg-gray-950/60 border border-gray-800 rounded-lg p-3 text-[11px] text-gray-300 font-mono overflow-x-auto">
-              {CONFIG_SNIPPET}
+              {configSnippet}
             </pre>
             <button
               onClick={handleCopy}
