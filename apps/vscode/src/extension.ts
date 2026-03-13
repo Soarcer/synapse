@@ -331,9 +331,7 @@ async function fetchAndHydrateIframes(port: number): Promise<void> {
 function updateStatusBar(running: boolean) {
   if (running) {
     updateStatusBarMetrics();
-    const mode = serverManager?.mode;
-    const modeLabel = mode === 'attached' ? ' (daemon)' : mode === 'owned' ? '' : '';
-    statusBarItem.tooltip = `Synapse running on port ${serverManager?.port}${modeLabel}. Click to open dashboard.`;
+    statusBarItem.tooltip = `Synapse running on port ${serverManager?.port}. Click to open dashboard.`;
     statusBarItem.backgroundColor = undefined;
   } else {
     statusBarItem.text = '$(circle-slash) Synapse';
@@ -343,8 +341,7 @@ function updateStatusBar(running: boolean) {
 }
 
 function updateStatusBarMetrics() {
-  const isDaemon = serverManager?.mode === 'attached';
-  const icon = isDaemon ? '$(plug)' : '$(pulse)';
+  const icon = '$(pulse)';
   if (!treeProvider) {
     statusBarItem.text = `${icon} Synapse`;
     return;
