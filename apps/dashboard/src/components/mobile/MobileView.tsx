@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Bernhard
 
 import { useState, useEffect, lazy, Suspense } from 'react';
+import { createPortal } from 'react-dom';
 import { MobileStatusBar } from './MobileStatusBar';
 import { MobileTabBar, type MobileTab } from './MobileTabBar';
 import { MobileBottomSheet } from './MobileBottomSheet';
@@ -9,6 +10,7 @@ import { MobileLensView } from './MobileLensView';
 import { MobileSettingsButton } from './MobileSettingsButton';
 import { RemoteDevChat } from './RemoteDevChat';
 import { useRemoteDevStore } from '../../store/remoteDevStore';
+import { PermissionStack } from '../permissions/PermissionStack';
 import { wsClient } from '../../store/wsClient';
 
 const MobileGraphView = lazy(() =>
@@ -22,6 +24,17 @@ function TabFallback() {
   return (
     <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">Loading...</div>
   );
+}
+
+/**
+ * Portal that renders PermissionStack into document.body.
+ * iOS Safari sets position:fixed on html/body (for overscroll lock), which creates
+ * a containing block that traps fixed-position children. The outer MobileView div
+ * also has overflow-hidden which clips absolutely positioned children.
+ * Portal escapes both issues.
+ */
+function MobilePermissionPortal() {
+  return createPortal(<PermissionStack />, document.body);
 }
 
 export default function MobileView() {
@@ -64,11 +77,12 @@ export default function MobileView() {
     };
   }, []);
 
-  // Reconnect WS when phone wakes from sleep (visibility change)
+  // Reconnect WS when phone wakes from sleep (visibility change).
+  // Use resetAndReconnect() to clear retry counter — connect() returns early if failed.
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        wsClient.connect();
+        wsClient.resetAndReconnect();
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
@@ -100,6 +114,8 @@ export default function MobileView() {
 
       <MobileBottomSheet />
       <MobileTabBar activeTab={activeTab} onTabChange={setActiveTab} />
+      {/* PermissionPanel rendered via portal to escape overflow-hidden clipping */}
+      <MobilePermissionPortal />
     </div>
   );
 }

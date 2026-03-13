@@ -11,6 +11,7 @@ const SHORTCUTS = [
   { key: 'F', action: 'Show all tools' },
   { key: 'H', action: 'Hook events' },
   { key: 'C', action: 'Collapse prompts' },
+  { key: 'L', action: 'Toggle lens panel' },
   { key: 'N', action: 'Spawn agent' },
   { key: 'W', action: 'Prompt Lab' },
   { key: 'E', action: 'Export snapshot' },

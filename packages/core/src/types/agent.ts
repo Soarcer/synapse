@@ -154,6 +154,7 @@ export type WsServerMessage =
         id: string;
         tool_name: string;
         tool_input_preview: string;
+        tool_input_raw?: unknown;
         createdAt: number;
         expiresAt: number;
       };

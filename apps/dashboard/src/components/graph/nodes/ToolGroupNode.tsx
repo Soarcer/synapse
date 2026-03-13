@@ -154,9 +154,9 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
           </span>
         )}
         <span className="flex gap-0.5 ml-auto">
-          {tools.slice(0, 8).map((t) => (
+          {tools.slice(0, 8).map((t, i) => (
             <span
-              key={t.toolUseId}
+              key={t.toolUseId ?? `dot-${i}`}
               className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[t.status]}`}
             />
           ))}
@@ -285,7 +285,7 @@ function PillGridView({
         const thinking = findThinkingForTool(reasoning, tc.toolUseId);
         return (
           <Tooltip
-            key={tc.toolUseId}
+            key={tc.toolUseId ?? `pill-${i}`}
             content={
               thinking
                 ? `Reasoning: ${thinking}`
@@ -376,13 +376,13 @@ function TimelineView({
         aria-label="Tool calls timeline"
         className="flex rounded overflow-hidden h-8"
       >
-        {segments.map(({ tc, pct, color }) => {
+        {segments.map(({ tc, pct, color }, i) => {
           const nodeId = `tool-${tc.toolUseId}`;
           const isSelected = selectedNodeId === nodeId;
           const isError = tc.status === 'error';
           return (
             <button
-              key={tc.toolUseId}
+              key={tc.toolUseId ?? `seg-${i}`}
               role="option"
               aria-selected={isSelected}
               data-tool-id={nodeId}
@@ -469,7 +469,7 @@ function HeatmapView({
             {name}
           </span>
           <div className="flex flex-wrap gap-0.5" style={{ maxWidth: 20 * 22 + 19 * 2 }}>
-            {calls.map((tc) => {
+            {calls.map((tc, i) => {
               const nodeId = `tool-${tc.toolUseId}`;
               const isSelected = selectedNodeId === nodeId;
               const alpha = 0.3 + ((tc.duration ?? 0) / maxDuration) * 0.7;
@@ -479,7 +479,7 @@ function HeatmapView({
               const b = parseInt(hex.slice(5, 7), 16);
               return (
                 <button
-                  key={tc.toolUseId}
+                  key={tc.toolUseId ?? `hm-${i}`}
                   role="option"
                   aria-selected={isSelected}
                   data-tool-id={nodeId}

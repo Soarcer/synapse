@@ -23,7 +23,9 @@ The original spec used two AskUserQuestion calls per iteration (status report + 
 - **No auto-dismiss races:** Two-call required auto-sending "OK" to the status card before the prompt card arrived — fragile on slow mobile connections
 - **V2 alignment:** When Phase 2 adds `claude -p --resume`, each turn is naturally one interaction. Single-call maps 1:1, making the transport swap trivial
 
-Status reports are embedded in the question text using a `---` separator. The chat skin splits on it.
+<!-- revised: P1 — use unique separator to avoid Claude's natural markdown habits -->
+
+Status reports are embedded in the question text using `===NEXT===` as a separator. The chat skin splits on it. This avoids `---` (markdown horizontal rule) which Claude may emit naturally in status reports.
 
 ---
 
@@ -75,30 +77,42 @@ Claude Code (PC)                    Synapse Server              Dashboard (Phone
 
 ## Prerequisites (Must Verify Before Implementation)
 
-These are blocking — do not write any code until both are confirmed:
+<!-- revised: P0 — reduced from 3 blocking unknowns to 1; #2 and #3 answered by codebase evidence -->
 
-### 1. AskUserQuestion `metadata` field passthrough
+### 1. AskUserQuestion `metadata` field passthrough (BLOCKING — must test empirically)
 
-Test whether AskUserQuestion accepts arbitrary fields (like `metadata: { source: "remote-dev" }`) and whether they survive through the hook payload into `tool_input_raw`. If metadata is stripped by Claude Code, the fallback detection (`header === "Remote"`) becomes the primary method.
+Test whether AskUserQuestion accepts arbitrary fields (like `metadata: { source: "remote-dev" }`) and whether they survive through the hook payload into `tool_input_raw`. If metadata is stripped by Claude Code, the fallback detection (`questions[0].header === "Remote"`) becomes the primary method.
 
 **How to test:** Run AskUserQuestion manually in a Claude Code session with a `metadata` field. Inspect the hook payload that arrives at the Synapse server to see if `metadata` is present in `tool_input`.
 
-### 2. Answer key format for "Other" free-text
+### 2. `tool_input_raw` structure for AskUserQuestion (ANSWERED — verified from codebase)
 
-Test how Claude Code keys the answer when a user selects "Other" and types custom text in AskUserQuestion. The deny+message relay constructs `Q: {key}\nA: {value}` — the key must match what Claude expects.
+<!-- revised: P0 — answered by PermissionCard.tsx evidence, no longer blocking -->
 
-**How to test:**
+The `tool_input_raw` shape is verified from the existing `PermissionCard.tsx` `parseAskQuestions()` function (line 46-63). The shape uses a `questions` array wrapper:
 
-1. Run AskUserQuestion with options + Other
-2. Select Other, type custom text
-3. Inspect the hook payload to see the answer key format
-4. Cross-reference with the existing `PermissionCard.tsx` AskUserQuestion rendering code — it already parses `tool_input` successfully, so use the same shape
+```typescript
+tool_input_raw = {
+  questions: [
+    { question: "...", header?: "...", options: [{ label, description }], multiSelect?: boolean }
+  ],
+  metadata?: { source: "remote-dev" }  // TBD — see prerequisite #1
+}
+```
 
-### 3. `tool_input_raw` structure for AskUserQuestion
+All `extractQuestionText()`, `extractOptions()`, and `isRemoteDev()` implementations must read from `questions[0]`, not top-level fields.
 
-<!-- revised: P1 — document the actual shape instead of assuming -->
+### 3. Answer key format (ANSWERED — verified from codebase)
 
-Before implementing `receiveQuestion()` parsing, read the existing AskUserQuestion rendering code in `PermissionCard.tsx` to extract the verified `tool_input` shape (question text field, options array structure, header field). The spec's references to `tool_input_raw.questions[0].options` are assumed — verify against the actual code.
+<!-- revised: P0 — answered by PermissionCard.tsx buildAnswers() -->
+
+The answer key format is verified from `PermissionCard.tsx` `buildAnswers()` (line 195-206): the key is `questions[i].question` (the question text string), and the value is the selected option label(s). For remote-dev, `sendAnswer()` should use `{ [questions[0].question]: userText }` as the answers payload.
+
+### 4. `behavior` field in answer relay (BLOCKING — must verify)
+
+<!-- revised: P1 — new prerequisite from review -->
+
+The spec's architecture diagram (line 50) shows the answer goes back to Claude via the **deny+message** relay. But `PermissionCard.tsx` and `permissionStore.approve()` send `behavior: 'allow'` with `answers`. Verify which behavior the relay expects for AskUserQuestion specifically — if `allow` + `answers` works (as it does for standard permission cards), use that. If the text relay only works via `deny` + message body, switch accordingly.
 
 ---
 
@@ -110,10 +124,15 @@ Before implementing `receiveQuestion()` parsing, read the existing AskUserQuesti
 
 A custom slash command that puts Claude into a remote dev loop. Claude calls AskUserQuestion once per iteration with:
 
+<!-- revised: P1 — use ===NEXT=== separator, wrap in questions[] -->
+
 ```
-question: "{status summary}\n---\nWhat's next?"
+questions: [{
+  question: "{status summary}\n===NEXT===\nWhat's next?",
+  header: "Remote",
+  options: [{ label: "Run tests" }, { label: "Build" }, { label: "Commit" }, { label: "Git status" }]
+}]
 metadata: { source: "remote-dev" }
-options: [Run tests, Build, Commit, Git status] + Other (free-text)
 ```
 
 **Loop structure:**
@@ -123,7 +142,7 @@ Loop:
   1. Execute the user's instruction (skip on first iteration)
   2. Call AskUserQuestion — single call:
      - First iteration: question is just "What's next?"
-     - Subsequent: "{what Claude did}\n---\nWhat's next?"
+     - Subsequent: "{what Claude did}\n===NEXT===\nWhat's next?"
      - metadata: { source: "remote-dev" }
      - options: [Run tests, Build, Commit, Git status, Other]
   3. If answer contains "exit"/"stop"/"done" → break
@@ -131,9 +150,11 @@ Loop:
   5. Go to step 1
 ```
 
-**Separator convention:** `---` (markdown horizontal rule) splits status from prompt. Everything before `---` is Claude's report on what it did. Everything after is the question for the user. The chat skin parses on this using `indexOf('\n---\n')` to find the **first** occurrence, then splits into two parts. This avoids ambiguity if `---` appears multiple times.
+<!-- revised: P1 — switched separator from --- to ===NEXT=== -->
 
-**Skill instruction:** The skill explicitly tells Claude: "Do not use `---` (horizontal rule) inside your status report — it is reserved as the separator between your report and the prompt."
+**Separator convention:** `===NEXT===` splits status from prompt. Everything before it is Claude's report on what it did. Everything after is the question for the user. The chat skin parses on this using `indexOf('\n===NEXT===\n')` to find the **first** occurrence, then splits into two parts. `===NEXT===` was chosen over `---` because Claude naturally emits markdown horizontal rules in status reports.
+
+**Skill instruction:** The skill explicitly tells Claude: "Do not use `===NEXT===` inside your status report — it is reserved as the separator between your report and the prompt."
 
 **Context burn mitigation:** Claude Code auto-compacts when approaching context limits. The skill keeps status reports concise. For long sessions (15+ prompts), Claude summarizes prior work rather than listing every change.
 
@@ -147,13 +168,18 @@ The routing intercept must be placed **before** both the toast and `handlePermis
 
 **Detection helper** (shared by both `pendingPermission` and hydration paths):
 
+<!-- revised: P0 — added tool_name guard, fixed header fallback to use questions[0] nesting -->
+
 ```typescript
 function isRemoteDev(data: { tool_name?: string; tool_input_raw?: unknown }): boolean {
+  if (data.tool_name !== 'AskUserQuestion') return false;
   const raw = data.tool_input_raw as Record<string, unknown> | undefined;
-  if (raw?.metadata && (raw.metadata as Record<string, unknown>)?.source === 'remote-dev')
+  if (!raw) return false;
+  // Primary: metadata.source at top level (if Claude Code passes it through)
+  if (raw.metadata && (raw.metadata as Record<string, unknown>)?.source === 'remote-dev')
     return true;
-  // Fallback: check header field in case metadata is stripped
-  const questions = raw?.questions as Array<{ header?: string }> | undefined;
+  // Fallback: header field inside questions[0] (set by skill as backup)
+  const questions = raw.questions as Array<{ header?: string }> | undefined;
   return questions?.[0]?.header === 'Remote';
 }
 ```
@@ -183,7 +209,9 @@ if (msg.type === 'permissionResolved') {
 }
 ```
 
-**Hydration on reconnect:** The existing `hydratePermissions()` fetches `GET /api/permissions/pending` and passes all results to `permissionStore.hydrate()`. This must be updated to pre-filter: items where `isRemoteDev(item)` is true go to `remoteDevStore.receiveQuestion()` instead. This prevents remote-dev questions from appearing as permission cards after a page refresh or WS reconnect.
+<!-- revised: P1 — only hydrate most recent remote-dev item to avoid stale re-ask spam -->
+
+**Hydration on reconnect:** The existing `hydratePermissions()` fetches `GET /api/permissions/pending` and passes all results to `permissionStore.hydrate()`. This must be updated to pre-filter: items where `isRemoteDev(item)` is true go to `remoteDevStore.receiveQuestion()` instead. Only the **most recent** remote-dev item (by `createdAt`) should be hydrated — older ones are stale timeout re-asks that have been superseded.
 
 ### 3. `remoteDevStore.ts`
 
@@ -216,20 +244,25 @@ interface RemoteDevState {
 
 **`receiveQuestion(data)`:**
 
-1. Parse `tool_input_raw` to extract question text
-2. Find first `\n---\n` via `indexOf` and split into two parts (status + prompt). If no separator found, treat entire text as the prompt (no status message).
+<!-- revised: P0 — fixed to use questions[0] nesting, ===NEXT=== separator -->
+
+1. Parse `tool_input_raw.questions[0].question` to extract question text
+2. Find first `\n===NEXT===\n` via `indexOf` and split into two parts (status + prompt). If no separator found, treat entire text as the prompt (no status message).
 3. If status text exists, push as `{ role: 'claude' }` message
 4. Check if status text matches `/error|failed/i` → set `isError: true`
-5. Extract options from `tool_input_raw.questions[0].options` → `quickActions`
+5. Extract options from `tool_input_raw.questions[0].options` → `quickActions` (each has `{ label, description }`)
 6. Set `pendingQuestion = data`
 7. Set `status = 'waiting'`
 
 **`sendAnswer(text)`:**
 
+<!-- revised: P0 — answer key format verified from PermissionCard.buildAnswers() -->
+
 1. Push `{ role: 'user', text }` message
 2. Set `status = 'working'`
-3. `PUT /api/permissions/${pendingQuestion.id}/decision` with `{ behavior: 'allow', answers: { ... } }`
-   - **Answer key format is TBD** — must be verified empirically before implementation (see "Answer Key Format" section). The key must match what Claude Code expects when processing the deny+message relay. Use the same pattern as `permissionStore.approve()` which already works for standard AskUserQuestion cards.
+3. `PUT /api/permissions/${pendingQuestion.id}/decision` with `{ behavior: 'allow', answers: { [questions[0].question]: text } }`
+   - Answer key is the question text from `questions[0].question` — verified from `PermissionCard.tsx` `buildAnswers()` (line 195-206) which uses `answers[q.question] = labels.join(', ')`.
+   - **`behavior` field:** Uses `'allow'` to match `permissionStore.approve()`. If the deny+message relay requires `'deny'` instead, update per prerequisite #4 verification.
 4. **Error recovery:** If the PUT fails (network error, 404 already-resolved, server down):
    - Revert `status` to `'waiting'`
    - Re-enable the input box
@@ -330,9 +363,9 @@ No changes needed. Remote-dev questions are still `AskUserQuestion` permission r
 
 ## Answer Key Format
 
-<!-- revised: promoted to blocking prerequisite — see Prerequisites section -->
+<!-- revised: P0 — resolved from codebase evidence (PermissionCard.buildAnswers) -->
 
-**Blocking prerequisite** — see Prerequisites section above. The answer key format must be verified empirically before implementing `sendAnswer()`. The chat skin's answer payload must use the exact key format that the deny+message relay expects.
+**Resolved.** The answer key is `questions[0].question` (the question text string). Verified from `PermissionCard.tsx` `buildAnswers()` which uses `answers[q.question] = labels.join(', ')`. For remote-dev, `sendAnswer()` uses `{ [questions[0].question]: userText }`.
 
 ---
 
@@ -406,7 +439,12 @@ When Phase 2 adds `claude -p --resume` backend:
 
 _From plan review — worth noting, can be addressed incrementally:_
 
-1. **`working` state watchdog:** If Claude crashes or the session ends, the UI stays in `working` forever. Add a watchdog: if `status === 'working'` for >5 minutes without a new `receiveQuestion`, show a "Session may have ended" message with a "Reset" button that calls `clear()`.
+<!-- revised: P1 — watchdog promoted from P2 to P1 and added to RemoteDevChat spec -->
+
+1. ~~**`working` state watchdog:**~~ **Promoted to MVP.** If `status === 'working'` for >3 minutes without a new `receiveQuestion`, show a subtle "(no response for 3m)" indicator below the "Working..." text with a "Reset" link that calls `clear()`. Implemented as a `useEffect` timer in `RemoteDevChat.tsx`.
 2. **Keyboard handling on mobile:** "Send on Enter" may conflict with Android soft keyboards (Enter = newline). Use the send button as primary; only send on Enter if hardware keyboard detected.
 3. **Push notification body polish:** The notification body shows raw JSON for AskUserQuestion `tool_input`. A future server improvement could extract the question text for a cleaner notification.
 4. **Multi-session support:** Two simultaneous `/remote-dev` sessions will conflict (newest overwrites). V2 should support session selection.
+5. **Quick actions during `working`:** Quick actions vanish when status changes to `working`. Could keep them visible but disabled for visual stability.
+6. **Auto-switch disruption:** Auto-switching to Dev tab when a question arrives could be disruptive if the user is actively examining another tab. Consider only auto-switching if idle, or showing a toast with "Go to Dev" action instead.
+7. **No analytics or success signal:** No way to measure whether Remote Dev Loop is being used or working well.

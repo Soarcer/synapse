@@ -4,11 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Synapse</title>
-    <script type="module" crossorigin src="/assets/index-6OYHGc5s.js"></script>
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#0d1117" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <script type="module" crossorigin src="/assets/index-B43Rtzb4.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/vendor-xyflow-C7lVHYpy.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-C6N4nbxN.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-CDiAAbm8.css">
   </head>
   <body class="bg-[#0d1117] text-gray-200">
-    <div id="root"></div>
+    <div id="root"><div id="boot-msg" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:#facc15;font-size:18px;font-family:monospace">Synapse loading...</div></div>
+    <script>window.addEventListener('error',function(e){document.getElementById('boot-msg')&&(document.getElementById('boot-msg').textContent='JS Error: '+e.message)})</script>
   </body>
 </html>

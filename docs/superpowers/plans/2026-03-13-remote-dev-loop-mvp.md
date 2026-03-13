@@ -30,32 +30,31 @@
 
 ## Task 0: Prerequisite Verification (BLOCKING)
 
-Before writing any code, verify the three unknowns from the spec. This is a manual step — start the Synapse server, run a Claude Code session, and inspect payloads.
+<!-- revised: P0 — reduced to 2 blocking unknowns; tool_input_raw shape and answer key format resolved from codebase -->
+
+Before writing any code, verify the remaining unknowns. This is a manual step — start the Synapse server, run a Claude Code session, and inspect payloads.
+
+**Already resolved (no verification needed):**
+
+- **`tool_input_raw` structure:** Verified from `PermissionCard.tsx` `parseAskQuestions()` (line 46-63). Shape is `{ questions: [{ question, header?, options: [{ label, description }], multiSelect? }], metadata? }`. All plan code uses this shape.
+- **Answer key format:** Verified from `PermissionCard.tsx` `buildAnswers()` (line 195-206). Key is `questions[i].question` text. `sendAnswer()` uses `{ [questions[0].question]: text }`.
+
+**Still blocking — must test empirically:**
 
 - [ ] **Step 1: Verify `metadata` passthrough**
 
-In a Claude Code session, call AskUserQuestion with a `metadata` field. Check the hook server logs or the WS `pendingPermission` message to see if `metadata` appears in `tool_input_raw`.
+In a Claude Code session, call AskUserQuestion with a `metadata` field. Check the hook server logs or the WS `pendingPermission` message to see if `metadata` is present in `tool_input_raw`.
 
 If yes → use `metadata.source === 'remote-dev'` as primary detection.
-If no → use `header === 'Remote'` as primary detection. Update `isRemoteDev()` in Task 3 accordingly.
+If no → use `questions[0].header === 'Remote'` as primary detection. Update `isRemoteDev()` in Task 3 accordingly.
 
-- [ ] **Step 2: Verify `tool_input_raw` structure**
+- [ ] **Step 2: Verify `behavior` field for answer relay**
 
-Inspect the `tool_input_raw` shape for an AskUserQuestion payload. Document:
+<!-- revised: P1 — new prerequisite -->
 
-- Field name for question text (likely `question` or `tool_input.question`)
-- Field name for options array (likely `options` with `{ label, description }` objects)
-- Whether `header` is a top-level field or nested
+Test whether `PUT /api/permissions/:id/decision` with `{ behavior: 'allow', answers: {...} }` successfully relays the answer text back to Claude Code for AskUserQuestion. If the deny+message relay requires `behavior: 'deny'` with a message body instead, update `sendAnswer()` in Task 1.
 
-Cross-reference with the existing AskUserQuestion rendering in `PermissionCard.tsx` — it already parses this shape.
-
-Update `extractQuestionText()`, `extractOptions()`, and `isRemoteDev()` in Tasks 1 and 3 to match the verified shape.
-
-- [ ] **Step 3: Verify answer key format**
-
-Call AskUserQuestion with options + "Other" free-text. Pick Other, type something. Inspect the answer key format in the deny+message relay.
-
-Document the exact key used. Update `sendAnswer()` in Task 1 to use the verified key.
+Cross-reference: `permissionStore.approve()` already sends `behavior: 'allow'` and it works for standard permission cards. The same should work for AskUserQuestion, but verify.
 
 **Note:** The spec's file table says WS routing is in `App.tsx` — this is incorrect. The actual `wsClient.setOnEvent` handler lives in `apps/dashboard/src/store/agentStore.ts` (~line 934). The plan targets the correct file.
 
@@ -100,14 +99,18 @@ function resetStore() {
 
 beforeEach(() => resetStore());
 
+<!-- revised: P0 — all makeQuestion fixtures use questions[] wrapper; separator changed to ===NEXT=== -->
 describe('receiveQuestion', () => {
   const makeQuestion = (questionText: string, options: string[] = []) => ({
     id: 'perm-1',
     tool_name: 'AskUserQuestion',
     tool_input_preview: questionText.slice(0, 200),
     tool_input_raw: {
-      question: questionText,
-      options: options.map((label) => ({ label, description: '' })),
+      questions: [{
+        question: questionText,
+        header: 'Remote',
+        options: options.map((label) => ({ label, description: '' })),
+      }],
       metadata: { source: 'remote-dev' },
     },
     createdAt: 1000,
@@ -116,7 +119,7 @@ describe('receiveQuestion', () => {
 
   it('parses question with separator into claude message + waiting state', () => {
     const store = useRemoteDevStore.getState();
-    store.receiveQuestion(makeQuestion("Added sticky header. Tests pass.\n---\nWhat's next?"));
+    store.receiveQuestion(makeQuestion("Added sticky header. Tests pass.\n===NEXT===\nWhat's next?"));
 
     const s = useRemoteDevStore.getState();
     expect(s.status).toBe('waiting');
@@ -138,7 +141,7 @@ describe('receiveQuestion', () => {
   it('extracts quick actions from options', () => {
     const store = useRemoteDevStore.getState();
     store.receiveQuestion(
-      makeQuestion("Done.\n---\nWhat's next?", ['Run tests', 'Build', 'Commit']),
+      makeQuestion("Done.\n===NEXT===\nWhat's next?", ['Run tests', 'Build', 'Commit']),
     );
 
     expect(useRemoteDevStore.getState().quickActions).toEqual(['Run tests', 'Build', 'Commit']);
@@ -146,7 +149,7 @@ describe('receiveQuestion', () => {
 
   it('detects error in status text', () => {
     const store = useRemoteDevStore.getState();
-    store.receiveQuestion(makeQuestion("Build failed with 3 errors.\n---\nWhat's next?"));
+    store.receiveQuestion(makeQuestion("Build failed with 3 errors.\n===NEXT===\nWhat's next?"));
 
     const msg = useRemoteDevStore.getState().messages[0];
     expect(msg.isError).toBe(true);
@@ -154,9 +157,9 @@ describe('receiveQuestion', () => {
 
   it('replaces previous pending question (race guard)', () => {
     const store = useRemoteDevStore.getState();
-    store.receiveQuestion(makeQuestion("First.\n---\nWhat's next?"));
+    store.receiveQuestion(makeQuestion("First.\n===NEXT===\nWhat's next?"));
     store.receiveQuestion({
-      ...makeQuestion("Second.\n---\nWhat's next?"),
+      ...makeQuestion("Second.\n===NEXT===\nWhat's next?"),
       id: 'perm-2',
     });
 
@@ -210,36 +213,31 @@ interface RemoteDevState {
 
 // ── Helpers ───────────────────────────────────────────────────
 
-let msgCounter = 0;
+<!-- revised: P1 — use crypto.randomUUID() instead of module-level counter for test isolation -->
 function nextMsgId(): string {
-  return `rdm-${++msgCounter}`;
+  return `rdm-${crypto.randomUUID().slice(0, 8)}`;
 }
 
 /**
- * Extract the question text from tool_input_raw.
- * AskUserQuestion tool_input has a `question` string field.
+ * Extract the first question from the questions[] array wrapper.
+ * Returns null if no valid question found.
  */
-function extractQuestionText(raw: unknown): string {
-  if (raw && typeof raw === 'object' && 'question' in raw) {
-    return String((raw as Record<string, unknown>).question);
-  }
-  return '';
-}
-
-/**
- * Extract option labels from tool_input_raw.options array.
- * Each option has a `label` field.
- */
-function extractOptions(raw: unknown): string[] {
-  if (raw && typeof raw === 'object' && 'options' in raw) {
-    const opts = (raw as Record<string, unknown>).options;
-    if (Array.isArray(opts)) {
-      return opts
-        .filter((o) => o && typeof o === 'object' && 'label' in o)
-        .map((o) => String((o as Record<string, unknown>).label));
-    }
-  }
-  return [];
+<!-- revised: P0 — reads from questions[0] wrapper, not top-level fields -->
+function extractFirstQuestion(raw: unknown): { question: string; options: Array<{ label: string; description?: string }> } | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const obj = raw as Record<string, unknown>;
+  const questions = obj.questions;
+  if (!Array.isArray(questions) || questions.length === 0) return null;
+  const first = questions[0] as Record<string, unknown>;
+  if (!first || typeof first.question !== 'string') return null;
+  return {
+    question: first.question,
+    options: Array.isArray(first.options)
+      ? (first.options as Array<{ label: string; description?: string }>).filter(
+          (o) => o && typeof o === 'object' && typeof o.label === 'string',
+        )
+      : [],
+  };
 }
 
 // ── Store ─────────────────────────────────────────────────────
@@ -250,12 +248,14 @@ export const useRemoteDevStore = create<RemoteDevState>((set, get) => ({
   quickActions: [],
   status: 'idle' as RemoteDevStatus,
 
+  <!-- revised: P0 — use extractFirstQuestion() with questions[] wrapper; P1 — ===NEXT=== separator -->
   receiveQuestion: (data) => {
-    const questionText = extractQuestionText(data.tool_input_raw);
-    const sepIdx = questionText.indexOf('\n---\n');
+    const q = extractFirstQuestion(data.tool_input_raw);
+    const questionText = q?.question ?? '';
+    const sepIdx = questionText.indexOf('\n===NEXT===\n');
 
     const statusText = sepIdx >= 0 ? questionText.slice(0, sepIdx).trim() : '';
-    const quickActions = extractOptions(data.tool_input_raw);
+    const quickActions = q?.options.map((o) => o.label) ?? [];
 
     set((s) => {
       const newMessages = [...s.messages];
@@ -288,8 +288,10 @@ export const useRemoteDevStore = create<RemoteDevState>((set, get) => ({
     }));
 
     try {
-      // Answer key format: use question text as key (same as permissionStore.approve)
-      const questionText = extractQuestionText(pq.tool_input_raw);
+      // Answer key format: use question text as key (verified from PermissionCard.buildAnswers)
+      <!-- revised: P0 — use extractFirstQuestion() -->
+      const q = extractFirstQuestion(pq.tool_input_raw);
+      const questionText = q?.question ?? '';
       const res = await fetch(apiUrl(`/api/permissions/${pq.id}/decision`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -349,14 +351,14 @@ git commit -m "feat(dashboard): add remoteDevStore with receiveQuestion parsing"
 Add to `remoteDevStore.test.ts`:
 
 ```typescript
+<!-- revised: P0 — test fixtures use questions[] wrapper -->
 describe('sendAnswer', () => {
   const makeQuestion = (questionText: string) => ({
     id: 'perm-1',
     tool_name: 'AskUserQuestion',
     tool_input_preview: questionText.slice(0, 200),
     tool_input_raw: {
-      question: questionText,
-      options: [],
+      questions: [{ question: questionText, header: 'Remote', options: [] }],
       metadata: { source: 'remote-dev' },
     },
     createdAt: 1000,
@@ -400,6 +402,7 @@ describe('sendAnswer', () => {
   });
 });
 
+<!-- revised: P0 — test fixtures use questions[] wrapper -->
 describe('resolveQuestion', () => {
   it('clears pending but keeps working status', () => {
     const store = useRemoteDevStore.getState();
@@ -407,7 +410,7 @@ describe('resolveQuestion', () => {
       id: 'perm-1',
       tool_name: 'AskUserQuestion',
       tool_input_preview: '',
-      tool_input_raw: { question: "What's next?", options: [], metadata: { source: 'remote-dev' } },
+      tool_input_raw: { questions: [{ question: "What's next?", header: 'Remote', options: [] }], metadata: { source: 'remote-dev' } },
       createdAt: 1000,
       expiresAt: 1000 + 30 * 60_000,
     });
@@ -421,6 +424,7 @@ describe('resolveQuestion', () => {
   });
 });
 
+<!-- revised: P0 — test fixture uses questions[] wrapper and ===NEXT=== separator -->
 describe('clear', () => {
   it('resets all state to idle', () => {
     const store = useRemoteDevStore.getState();
@@ -429,8 +433,7 @@ describe('clear', () => {
       tool_name: 'AskUserQuestion',
       tool_input_preview: '',
       tool_input_raw: {
-        question: "Done.\n---\nWhat's next?",
-        options: [],
+        questions: [{ question: "Done.\n===NEXT===\nWhat's next?", header: 'Remote', options: [] }],
         metadata: { source: 'remote-dev' },
       },
       createdAt: 1000,
@@ -479,16 +482,17 @@ Add after the `hydratePermissions` function at the bottom of `apps/dashboard/src
  * Field names below must match the verified tool_input_raw shape from Task 0.
  * Update after prerequisite verification if needed.
  */
+<!-- revised: P0 — fixed header fallback to use questions[0] nesting -->
 export function isRemoteDev(data: { tool_name?: string; tool_input_raw?: unknown }): boolean {
   if (data.tool_name !== 'AskUserQuestion') return false;
   const raw = data.tool_input_raw as Record<string, unknown> | undefined;
   if (!raw) return false;
-  // Primary: metadata.source (if Claude Code passes it through)
+  // Primary: metadata.source at top level (if Claude Code passes it through)
   if (raw.metadata && (raw.metadata as Record<string, unknown>)?.source === 'remote-dev')
     return true;
-  // Fallback: header field (set by skill as backup)
-  if (raw.header === 'Remote') return true;
-  return false;
+  // Fallback: header field inside questions[0] (set by skill as backup)
+  const questions = raw.questions as Array<{ header?: string }> | undefined;
+  return questions?.[0]?.header === 'Remote';
 }
 ```
 
@@ -549,9 +553,13 @@ First add a static import at the top of `permissionStore.ts`:
 import { useRemoteDevStore } from './remoteDevStore';
 ```
 
-Note: `remoteDevStore` only imports a `type` from `permissionStore`, so this is NOT a runtime circular dependency. Static import is safe and simpler than dynamic import.
+<!-- revised: P1 — add protective comment about circular dependency -->
+
+Note: `remoteDevStore` only imports a `type` from `permissionStore`, so this is NOT a runtime circular dependency. Static import is safe and simpler than dynamic import. Add a comment on `remoteDevStore.ts`'s import line: `// Type-only — do NOT change to value import (circular dependency with permissionStore)`.
 
 Then update the function:
+
+<!-- revised: P1 — only hydrate most recent remote-dev item to avoid stale re-ask spam -->
 
 ```typescript
 export async function hydratePermissions(): Promise<void> {
@@ -562,8 +570,10 @@ export async function hydratePermissions(): Promise<void> {
       // Route remote-dev items to remoteDevStore, rest to permissionStore
       const remoteItems = items.filter((item) => isRemoteDev(item));
       const permItems = items.filter((item) => !isRemoteDev(item));
-      for (const item of remoteItems) {
-        useRemoteDevStore.getState().receiveQuestion(item);
+      // Only hydrate the most recent remote-dev item — older ones are stale timeout re-asks
+      if (remoteItems.length > 0) {
+        const newest = remoteItems.reduce((a, b) => (a.createdAt > b.createdAt ? a : b));
+        useRemoteDevStore.getState().receiveQuestion(newest);
       }
       usePermissionStore.getState().hydrate(permItems);
     }
@@ -751,12 +761,8 @@ export function RemoteDevChat() {
         {messages.map((msg) => (
           <MessageBubble key={msg.id} message={msg} />
         ))}
-        {status === 'working' && (
-          <div className="flex items-center gap-2 text-gray-500 text-xs py-1">
-            <span className="animate-pulse">⏳</span>
-            <span>Working...</span>
-          </div>
-        )}
+        <!-- revised: P1 — added stale watchdog indicator -->
+        {status === 'working' && <WorkingIndicator />}
       </div>
 
       {/* Quick actions */}
@@ -798,6 +804,41 @@ export function RemoteDevChat() {
           →
         </button>
       </div>
+    </div>
+  );
+}
+
+// P1: stale watchdog — shows "(no response for Xm)" after 3 minutes of working
+const STALE_THRESHOLD_MS = 3 * 60_000;
+
+function WorkingIndicator() {
+  const [staleMinutes, setStaleMinutes] = useState(0);
+  const clear = useRemoteDevStore((s) => s.clear);
+
+  useEffect(() => {
+    const start = Date.now();
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - start;
+      if (elapsed >= STALE_THRESHOLD_MS) {
+        setStaleMinutes(Math.floor(elapsed / 60_000));
+      }
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="flex items-center gap-2 text-gray-500 text-xs py-1">
+      <span className="animate-pulse">⏳</span>
+      <span>Working...</span>
+      {staleMinutes >= 3 && (
+        <span className="text-amber-500/70">
+          (no response for {staleMinutes}m —{' '}
+          <button onClick={() => clear()} className="underline hover:text-amber-400">
+            reset
+          </button>
+          )
+        </span>
+      )}
     </div>
   );
 }
@@ -970,7 +1011,8 @@ You will enter a loop where you:
 ## Rules
 
 - **Status reports must be concise** — 2-3 sentences max. The user is on a small phone screen.
-- **Do NOT use `---` (horizontal rule) in your status report** — it is reserved as the separator between your report and the prompt.
+<!-- revised: P1 — use ===NEXT=== separator instead of --- -->
+- **Do NOT use `===NEXT===` in your status report** — it is reserved as the separator between your report and the prompt. You may use `---` (horizontal rule) normally.
 - **Always include what files you changed** in your status report.
 - **If a task fails, say so clearly** — include the error message.
 - **Keep working autonomously** — don't ask clarifying questions unless truly ambiguous. The user expects you to figure it out.
@@ -989,7 +1031,7 @@ On subsequent iterations, include your status report before the separator:
 
 Call AskUserQuestion with:
 
-- question: "{concise summary of what you did, files changed, outcome}\n---\nWhat's next?"
+- question: "{concise summary of what you did, files changed, outcome}\n===NEXT===\nWhat's next?"
 - metadata: { source: "remote-dev" }
 - options: [{ label: "Run tests", description: "" }, { label: "Build", description: "" }, { label: "Commit", description: "" }, { label: "Git status", description: "" }]
 
@@ -1059,4 +1101,6 @@ git commit -m "fix(dashboard): address integration issues from smoke test"
 
 **Total: 7 new files, 4 modified files, ~15 unit tests, 7 commits**
 
-**After this plan:** Run the E2E manual test from the spec (start `/remote-dev` on PC, send instructions from phone). The answer key format prerequisite must be verified during that test — if the key format differs from what's implemented in `sendAnswer`, update the `extractQuestionText` call accordingly.
+<!-- revised: P0 — answer key format resolved; only metadata and behavior prerequisites remain -->
+
+**After this plan:** Run the E2E manual test from the spec (start `/remote-dev` on PC, send instructions from phone). The `behavior` field prerequisite (#4) should be verified during that test — if `allow` + `answers` doesn't relay the text back to Claude, switch to `deny` + message body.

@@ -7,7 +7,16 @@ import os from 'node:os';
 import type { Plugin, ViteDevServer } from 'vite';
 
 // Project-local port file — written by the server and VS Code extension.
-const PROJECT_PORT_FILE = path.resolve(process.cwd(), '.claude', '.synapse-port');
+// Use the monorepo root (two levels up from apps/dashboard), not process.cwd(),
+// so the same file is read regardless of which directory pnpm dev is run from.
+const PROJECT_PORT_FILE = path.resolve(
+  import.meta.dirname,
+  '..',
+  '..',
+  '..',
+  '.claude',
+  '.synapse-port',
+);
 // Global port file — written by the standalone CLI daemon.
 const GLOBAL_PORT_FILE = path.join(os.homedir(), '.synapse', 'port');
 

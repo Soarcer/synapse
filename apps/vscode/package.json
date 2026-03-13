@@ -121,7 +121,7 @@
         },
         "synapse.port": {
           "type": "number",
-          "default": 4000,
+          "default": 27246,
           "description": "Preferred port for the Synapse server. If busy, the next available port is used automatically."
         },
         "synapse.autoStart": {

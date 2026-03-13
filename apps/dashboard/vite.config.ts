@@ -11,13 +11,14 @@ const devPort = Number.parseInt(process.env.VITE_DEV_PORT || '5173', 10);
 // Read the initial server port at startup. The synapsePortWatcher plugin will
 // call server.restart() if this changes while the dev server is running.
 const serverPort = readServerPort();
-const proxyTarget = `http://localhost:${serverPort}`;
-const wsTarget = `ws://localhost:${serverPort}`;
+const proxyTarget = `http://127.0.0.1:${serverPort}`;
+const wsTarget = `ws://127.0.0.1:${serverPort}`;
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), synapsePortWatcher()],
   server: {
     port: Number.isNaN(devPort) ? 5173 : devPort,
+    host: true,
     proxy: {
       '/api': proxyTarget,
       '/ws': {

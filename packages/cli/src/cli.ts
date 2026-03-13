@@ -59,10 +59,15 @@ async function main() {
         configureHooks(cwd, actualPort);
       }
 
+      // Always print the project-filtered URL so the user knows where to go
+      const cwdParam = encodeURIComponent(cwd);
+      const dashboardUrl = `http://localhost:${actualPort}?cwd=${cwdParam}`;
+      console.log(`  Dashboard  →  ${dashboardUrl}`);
+      console.log(`  Run "synapse open" anytime to reopen.\n`);
+
       // Open browser (unless --no-open or --background)
       if (!noOpen && !background) {
-        const cwdParam = encodeURIComponent(cwd);
-        await openBrowser(`http://localhost:${actualPort}?cwd=${cwdParam}`);
+        await openBrowser(dashboardUrl);
       }
 
       if (background) {
@@ -102,7 +107,7 @@ async function main() {
       const cwdParam = encodeURIComponent(process.cwd());
       const url = `http://localhost:${info.port}?cwd=${cwdParam}`;
       await openBrowser(url);
-      console.log(`Opening ${url}`);
+      console.log(`Opening ${url} (${process.cwd().split(/[/\\]/).pop()})`);
       break;
     }
 

@@ -158,15 +158,50 @@ function MobileGraphInner() {
       if (target) {
         const visibleId = resolveVisibleId(target.id);
         if (visibleId) {
-          setTimeout(() => fitView({ nodes: [{ id: visibleId }], duration: 300, padding: 1 }), 100);
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              fitView({ nodes: [{ id: visibleId }], duration: 300, padding: 1 });
+            });
+          });
         }
       } else {
-        setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 100);
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            fitView({ padding: 0.2, duration: 300 });
+          });
+        });
       }
     }
     prevNodeCountRef.current = rawNodes.length;
     prevNodeIdsRef.current = new Set(rawNodes.map((n) => n.id));
   }, [rawNodes, fitView, lockViewport, selectedNodeId, resolveVisibleId]);
+
+  // Re-fit view when tool view mode changes (density shifts can lose the graph).
+  const toolGroupMode = useAgentStore((s) => s.toolGroupMode);
+  const showAllTools = useAgentStore((s) => s.showAllTools);
+  const prevToolGroupModeRef = useRef(toolGroupMode);
+  const prevShowAllToolsRef = useRef(showAllTools);
+  useEffect(() => {
+    if (
+      toolGroupMode === prevToolGroupModeRef.current &&
+      showAllTools === prevShowAllToolsRef.current
+    )
+      return;
+    prevToolGroupModeRef.current = toolGroupMode;
+    prevShowAllToolsRef.current = showAllTools;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (selectedNodeId) {
+          const visibleId = resolveVisibleId(selectedNodeId);
+          if (visibleId) {
+            fitView({ nodes: [{ id: visibleId }], duration: 300, padding: 0.8 });
+            return;
+          }
+        }
+        fitView({ padding: 0.3, duration: 300 });
+      });
+    });
+  }, [toolGroupMode, showAllTools, fitView, selectedNodeId, resolveVisibleId]);
 
   if (mobileNodes.length === 0) {
     return <MobileEmptyState />;
@@ -187,10 +222,10 @@ function MobileGraphInner() {
         zoomOnScroll={false}
         zoomOnDoubleClick
         selectNodesOnDrag={false}
-        minZoom={0.15}
-        maxZoom={2}
         fitView
         fitViewOptions={{ padding: 0.3 }}
+        minZoom={0.15}
+        maxZoom={2}
         nodesDraggable={false}
         nodesConnectable={false}
         edgesReconnectable={false}

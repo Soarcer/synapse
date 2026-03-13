@@ -24,3 +24,4 @@ openclaw-plugin/node_modules/
 extension/out/
 extension/node_modules/
 distribution/
+.worktrees/

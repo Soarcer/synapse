@@ -151,6 +151,7 @@ export function ViewSettingsDropdown() {
                 key={value}
                 onClick={() => {
                   setToolGroupMode(value);
+                  setArcadeMode(false);
                   setOpen(false);
                 }}
                 className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-800/80 transition-colors text-left text-gray-300"

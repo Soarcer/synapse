@@ -7,65 +7,142 @@
   <em>Because your AI is doing a lot of things. You should probably see what.</em>
   <br />
   <br />
-  <a href="#quick-start">Quick Start</a> &bull;
-  <a href="#how-it-works">How It Works</a> &bull;
-  <a href="#features">Features</a> &bull;
-  <a href="#tech-stack">Tech Stack</a> &bull;
-  <a href="#contributing">Contributing</a>
+  <a href="#the-graph">The Graph</a> &bull;
+  <a href="#six-lenses">Six Lenses</a> &bull;
+  <a href="#prompt-lab">Prompt Lab</a> &bull;
+  <a href="#8--mobile--remote-approval">Mobile</a> &bull;
+  <a href="#getting-started">Getting Started</a>
   <br />
   <br />
 </p>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/Soarcer.synapse-vscode)](https://marketplace.visualstudio.com/items?itemName=Soarcer.synapse-vscode)
-[![CI](https://img.shields.io/badge/CI-passing-brightgreen)](https://github.com/anthropics/synapse/actions)
+[![Tests](https://img.shields.io/badge/tests-591_passing-brightgreen)](.)
+[![Bundle](https://img.shields.io/badge/vsix-1.5_MB-blue)](.)
 
 ---
 
 ## What Is This?
 
-Synapse is a **visual, real-time dashboard** that lets you watch Claude agents think, plan, spawn subagents, call tools, and stream responses — all rendered as an interactive node graph you can zoom, pan, click, and actually _understand_.
+Claude Code spawns subagents. Those subagents call tools. Those tools spawn _more_ agents — and the whole tree of computation happens behind a blinking cursor in your terminal. I wanted to see what was actually going on in there.
 
-Think of it as a flight control tower for AI agents. Except the planes are writing code, the runway is your filesystem, and sometimes they spawn smaller planes mid-flight. It's fine. Everything is fine. You can see it all now.
+So I built Synapse. It started as a weekend hack to visualize hook events and turned into... this.
 
-It works in two modes:
+**Synapse is a real-time visual dashboard** that renders your entire Claude Code session as an interactive node graph. Every agent spawn, every tool call, every token — captured, visualized, and explorable. It runs as a **VS Code extension** with an embedded server, as a **standalone CLI** (`pnpm dev`) for console-only workflows, or as a **mobile PWA** you can pin to your phone and approve permissions from while making coffee. All three modes connect to the same backend — use whichever fits how you work.
 
-1. **Observer mode** — Hook into any running Claude Code session. Every tool call, every subagent spawn, every session lifecycle event gets captured and visualized in real-time. Zero changes to your workflow. Just plug in and watch.
+<!-- 📸 HERO SCREENSHOT: Full dashboard showing a complex agent tree with animated edges, lens panel open on the left, detail panel on the right -->
+<!-- ![Synapse dashboard](docs/assets/hero-screenshot.png) -->
 
-2. **Operator mode** — Spawn, control, and stream custom agents directly from the dashboard. Pick a model, set tools and permissions, write a prompt, and watch the agent work — live, in the graph.
-
-> **Status:** This is a prototype. It was born out of genuine curiosity about what Claude agents _actually do_ when you're not looking. It works. It has rough edges. Some of those edges are load-bearing. We're proud of it anyway.
-
----
-
-## Screenshots
-
-> **Note:** Screenshots will be added before the v0.1.0 tag. Run `pnpm dev` then `npx tsx scripts/simulate_session.ts` to see the dashboard in action.
-
-<!-- TODO: Add real screenshots before tagging v0.1.0
-![Agent graph showing Claude session in progress](docs/assets/screenshot-graph.png)
-![Lens panel showing analytics and cost breakdown](docs/assets/screenshot-lens.png)
--->
-
-_Screenshots coming soon. For now, imagine a dark-themed node graph with glowing edges, animated data flow particles, and the quiet satisfaction of finally seeing what your AI is up to._
+> **Status:** Prototype with opinions. 591 tests. 10 completed development phases. Some edges are load-bearing. I'm proud of it anyway.
 
 ---
 
-## Why Synapse Exists
+## 11 Things That Might Be Interesting
 
-Modern AI agents are remarkably capable and remarkably opaque. Claude Code can spawn subagents, those subagents can call tools, those tools can spawn _more_ agents — and the whole tree of computation happens behind a blinking cursor in your terminal.
+I'm not sure which of these are genuinely novel and which are "obvious in retrospect," but here's what I think is worth looking at:
 
-That's a lot of trust. Synapse is what happens when trust meets curiosity.
+### 1. 🔴 Live Node Graph with Animated Data Flow
 
-We wanted to answer questions like:
+The core visualization — and the first thing you see. Sessions, agents, subagents, and tool calls rendered as connected nodes with animated smooth-step edges showing data flowing through the agent tree. New nodes animate into position as agents spawn. Color-coded by status — green running, red error, purple task agent, orange context compaction. Custom tree layout algorithm (we replaced dagre — long story) that handles arbitrarily deep hierarchies without overlapping.
 
-- How deep does the agent tree actually go?
-- Which tools get called the most? Which ones fail?
-- How much does a "simple" refactor actually cost in tokens?
-- What is the Explore agent doing for 45 seconds before it responds?
-- Wait, it spawned _how many_ subagents?
+<!-- 📸 GIF: Agent tree expanding in real-time as Claude works — nodes appearing, edges animating, status colors changing -->
+<!-- ![Live graph animation](docs/assets/graph-animation.gif) -->
 
-If you've ever stared at a Claude Code session and thought "I wonder what's happening in there" — this is your window.
+### 2. 🎯 Deep Node Drill-Down
+
+Click any node in the graph. The detail panel shows everything: streaming text output, full tool call history with inputs and outputs, token counts, elapsed time, cost estimate, agent hierarchy path, and status timeline. For tool groups, expand to see individual calls with duration bars. For sessions, see the full prompt history with complexity scoring.
+
+<!-- 📸 GIF: Clicking a node, detail panel sliding open, expanding tool history, drilling into a specific tool call -->
+<!-- ![Node drill-down](docs/assets/node-drilldown.gif) -->
+
+### 3. 🔍 Six Bidirectionally-Linked Lens Views
+
+Same data. Six perspectives. Click a node in any lens, it highlights in the graph. Click a node in the graph, it highlights in every lens. All derived from the same tree structure — one source of truth.
+
+| Lens           | What It Shows                                                                                                                     |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **Tree**       | Hierarchical explorer. Sessions → Prompts → Agents → Tools. Consecutive identical calls auto-grouped (`Read x14`).                |
+| **Heatmap**    | Activity density. Tools on Y-axis, time on X-axis, color intensity = call count or token usage.                                   |
+| **Treemap**    | Proportional resource usage. Rectangle area = tokens, duration, or count. Drill into any agent.                                   |
+| **Sankey**     | Flow diagram. Four layers showing how resources flow through the agent tree. Prettiest lens. Least functional. We keep it anyway. |
+| **Compaction** | Context window forensics. Sawtooth sparkline showing when Claude forgot what you said, and why.                                   |
+| **Cost**       | Per-turn USD waterfall. Input, output, cache tokens, model used, latency, running total.                                          |
+
+<!-- 📸 SCREENSHOT GRID: 2x3 grid showing all six lens views with the same session data -->
+<!-- ![Six lens views](docs/assets/lens-grid.png) -->
+
+### 4. 🧩 Tool Call Grouping (Three Visualization Modes)
+
+An agent that calls 47 tools used to produce 47 nodes. Now they're grouped into composite nodes with three display modes:
+
+| Mode          | Shows                                                                            |
+| ------------- | -------------------------------------------------------------------------------- |
+| **Pill Grid** | Color-coded pills — tool name, count badge, status dot. Compact overview.        |
+| **Timeline**  | Chronological swimlanes — which tools ran when, how long each took.              |
+| **Heatmap**   | Density grid — color intensity = call frequency. Spot the hot tools at a glance. |
+
+Toggle between collapsed chips and expanded detail with **F**. The underlying data stays the same — individual tools in the store, composite nodes rendered at display time. (And if you happen to try a few classic input sequences while hovering over a tool group... well, we can neither confirm nor deny.)
+
+<!-- 📸 GIF: Toggling between the three tool group modes on the same node -->
+<!-- ![Tool group modes](docs/assets/tool-groups.gif) -->
+
+### 5. ✍️ Prompt Lab — Save Tokens, Save Money
+
+Press **W** to open the Prompt Lab. Write a draft prompt, pick a model (Haiku/Sonnet/Opus), choose analysis mode (Developer for technical feedback, Vibe for casual coaching), and get real-time scoring with rewrite suggestions. When you're happy with it, relay the improved prompt directly to your Claude Code terminal.
+
+The idea is simple: a better prompt means fewer wasted tokens, fewer confused agent loops, and less money burned on round-trips that could've been one shot. Draft it, refine it, send it — without context-switching out of the dashboard.
+
+> **Note:** AI-powered prompt analysis requires an Anthropic API key configured in settings. We're investigating whether the Prompt Lab can piggyback on an existing Claude Max/Pro subscription instead — stay tuned.
+
+<!-- 📸 SCREENSHOT: Prompt Lab modal with a scored prompt, rewrite suggestion, and "Send to Terminal" button -->
+<!-- ![Prompt Lab](docs/assets/prompt-lab.png) -->
+
+### 6. 🔬 Compaction Forensics
+
+Ever had Claude forget something you told it 10 minutes ago? The Compaction lens shows exactly when the context window hit its limit, with a sparkline of cumulative input tokens over time. Red dashed lines mark compaction events. The sawtooth pattern is your forensic evidence. Per-turn breakdown table shows which prompt triggered each compaction and what it cost.
+
+<!-- 📸 SCREENSHOT: Compaction lens showing sawtooth pattern with compaction markers -->
+<!-- ![Compaction forensics](docs/assets/compaction-lens.png) -->
+
+### 7. 💰 Cost Tracking Per Turn
+
+Every turn gets a cost estimate broken down by input, output, cache read, and cache creation tokens. Cumulative waterfall so you know whether that "simple refactor" cost $0.03 or $3.00. Model badges show which Claude model handled each turn. The Cost lens is your "am I spending what I think I'm spending" view.
+
+<!-- 📸 SCREENSHOT: Cost lens showing per-turn waterfall with model badges and running total -->
+<!-- ![Cost tracking](docs/assets/cost-lens.png) -->
+
+### 8. 📲 Mobile + Remote Approval
+
+The dashboard is a full Progressive Web App — pin it to your home screen and it works like a native app. Auto-detects phones and switches to a mobile-optimized layout with 13 purpose-built components: bottom tab bar, swipe-up detail sheets, pinch-zoom graph, session selector.
+
+But the real reason for mobile: **remote approval**. Start a big job on your laptop, walk away, and your phone buzzes when Claude is blocked on a permission. Swipe to approve. Job continues. You never opened your laptop. Claude Code's HTTP hooks hold the response open until you tap Approve or Deny from any device. Cards stack with countdown timers, and you can swipe-cycle through multiple pending requests.
+
+And you don't even need the dashboard open — Synapse registers a Service Worker and sends **native push notifications** when Claude is blocked. On Android you get Approve/Deny action buttons right in the notification. On iOS you tap to open. Works with the app completely closed.
+
+<!-- 📸 GIF: Phone showing permission card with countdown, user tapping Approve, then showing the graph resuming -->
+<!-- ![Mobile + remote approval](docs/assets/remote-approval.gif) -->
+
+### 9. 🔌 Multi-Vendor Support (In Progress)
+
+The adapter architecture is built and Claude Code is fully working. Gemini CLI and Codex CLI adapters are in progress — the plumbing is there (adapter interface, registry, vendor detection, session namespacing) but they haven't been battle-tested yet. The goal: monitor any AI coding agent from one dashboard, regardless of vendor.
+
+### 10. 🎓 Guided Tour
+
+First-time visitors get an interactive onboarding walkthrough — spotlight highlights, narration cards, step-by-step through the graph, lenses, panels, and settings. Six chapters, 18+ steps.
+
+### 11. 🖥️ Two Ways to Run It
+
+Synapse works as a **VS Code extension** or as a **standalone CLI** — and they complement each other.
+
+**VS Code extension:** The full stack — server, dashboard, hook scripts, SQLite — bundles into a `.vsix` with zero native dependencies. Auto-starts when you open a Claude project, auto-stops when VS Code closes. Split layout (lens sidebar + graph editor) or single panel. Works identically in Cursor.
+
+**CLI:** `synapse start` boots the server, auto-configures your hooks, and opens the dashboard in your browser. Background daemon mode (`--bg`) keeps it running across terminal sessions. `synapse stop` shuts it down. Good for Claude Code console users, multi-monitor setups, or when you want the graph on a separate screen.
+
+Both modes connect to the same backend. Use the extension for integrated development, the CLI for flexibility, or both at once.
+
+<!-- 📸 SCREENSHOT: VS Code with Synapse split layout — lens sidebar on left, graph in editor panel -->
+<!-- ![VS Code extension](docs/assets/vscode-extension.png) -->
 
 ---
 
@@ -87,166 +164,165 @@ If you've ever stared at a Claude Code session and thought "I wonder what's happ
 │                  BACKEND (Express + SQLite)               │
 │                                                          │
 │   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
-│   │ Hook Receiver │  │ Agent SDK    │  │  WebSocket   │  │
-│   │ POST /events  │  │ Manager      │  │  Broadcaster │  │
+│   │ Hook Receiver │  │ Permission   │  │  WebSocket   │  │
+│   │ POST /events  │  │ Server :27247│  │  Broadcaster │  │
 │   └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  │
 │          └──────────────────┴─────────────────┘          │
-│                     Event Store (SQLite)                  │
+│                     Event Store (sql.js)                  │
 └──────────────────────────────────────────────────────────┘
-         ▲                              │
-         │ HTTP POST                    │ Agent SDK
-         │                              ▼
-┌────────┴───────────┐      ┌─────────────────────┐
-│  Claude Code Hooks  │      │  Spawned Agents     │
-│  (your sessions)    │      │  (from dashboard)   │
-└────────────────────┘      └─────────────────────┘
+         ▲                    ▲               │
+         │ HTTP POST          │ HTTP Hook     │ Agent SDK
+         │                    │ (waits)       ▼
+┌────────┴───────────┐  ┌────┴──────────┐  ┌──────────────┐
+│  Claude Code Hooks  │  │  Permission   │  │  Spawned     │
+│  (your sessions)    │  │  Requests     │  │  Agents      │
+└────────────────────┘  └───────────────┘  └──────────────┘
 ```
 
 **The short version:**
 
-1. You run Claude Code like normal. Hook scripts silently capture events (agent spawns, tool calls, session lifecycle) and POST them to the Synapse backend.
-2. The backend normalizes events, stores them in SQLite, and broadcasts them over WebSocket.
-3. The frontend receives events in real-time and renders them as an interactive node graph — sessions at the root, agents branching off, tool calls as leaves, all connected by animated edges.
-4. Click any node to inspect it. Spawn new agents from the dashboard. Pause the stream. Filter by session. Watch the token counter go up and question your life choices.
+1. You run Claude Code like normal. Hook scripts silently capture events and POST them to Synapse.
+2. The backend normalizes, stores (SQLite), and broadcasts over WebSocket.
+3. The frontend renders everything as an interactive node graph in real-time.
+4. When Claude needs permission, a separate HTTP hook holds the request open until you approve from any device.
 
 ---
 
-## Features
+## Features At a Glance
 
 ### The Graph
 
-- **Interactive node graph** — Sessions, agents, subagents, and tool calls as connected nodes
-- **Custom tree layout** — Purpose-built layout algorithm (we replaced dagre, long story) that handles deep agent hierarchies without overlapping
-- **Animated edges** — Smooth-step edges with animated particles showing data flow direction
-- **Color-coded status** — Green = running, gray = done, red = error, purple = tool active. You get the idea.
-- **Auto-expanding** — New nodes animate into position as agents spawn and tools fire
+- **Interactive node graph** — Sessions, agents, subagents, tool calls as connected nodes with animated edges
+- **Custom tree layout** — Purpose-built algorithm that handles arbitrarily deep hierarchies without overlap
+- **Color-coded status** — Green = running, gray = done, red = error, purple = task agent, orange = compaction
+- **Auto-expanding** — New nodes animate into position as agents spawn
+- **Streaming preview** — Live agent output shown on node hover
+
+### Remote Approval + Mobile
+
+- **Permission cards** — Draggable card stack with countdown timers and swipe cycling
+- **Multi-question forms** — AskUserQuestion cards with tab bar, multi-select, and answer tracking
+- **Deny with message** — Add context when denying so Claude knows why
+- **Web Push** — Native phone notifications even with the app closed
+- **Progressive Web App** — Pin to home screen, 13 mobile-optimized components, QR code setup
 
 ### Observability
 
-- **Real-time streaming** — Events appear as they happen, not after. WebSocket, not polling.
-- **Full event history** — Every event persisted to SQLite. Filter by session, agent, event type.
-- **Token tracking** — Input/output token counts per agent, per session
-- **Tool call timeline** — Chronological log with duration, status, and input/output inspection
-- **Agent detail panel** — Streaming text output, tool history, status, elapsed time
+- **Real-time streaming** — WebSocket, not polling. Events appear as they happen.
+- **Full event history** — Everything persisted to SQLite. Filter by session, agent, type.
+- **Token tracking** — Input/output/cache tokens per agent, per session, per turn
+- **Tool call timeline** — Chronological log with duration, status, input/output inspection
+- **Session snapshots** — Export/import full graph state as JSON. Share with your team.
+
+### Analytics (Work in Progress)
+
+| Tab          | What It Does                                                                        |
+| ------------ | ----------------------------------------------------------------------------------- |
+| **Prompts**  | Complexity scoring, cost scatter plots, AI-powered scoring with rewrite suggestions |
+| **Insights** | Usage patterns, tool distribution, session trends. More tabs coming.                |
 
 ### Control
 
-- **Spawn agents from the dashboard** — Pick model, tools, permissions, write a prompt, hit go
-- **Send messages to running agents** — Interactive conversation with spawned agents
-- **Stop agents** — Kill any running agent from the graph or detail panel
-- **Pause/resume** — Freeze the live stream without losing events
-
-### Lens Panel — Six Ways to See Your Agents
-
-The left sidebar isn't just a file tree. It's a switchable analysis panel with six different _lenses_ — each one a different way to slice the same underlying data. All lenses are bidirectionally linked to the main graph: click a node in a lens, and it highlights in the graph (and vice versa).
-
-| Lens           | Tab Label | What It Shows                                                                                                                                                                                                                                                                                                                                                                 |
-| -------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Tree**       | `Tree`    | Hierarchical explorer view of every session, prompt, agent, and tool call. Collapsible, searchable, filterable. Consecutive identical tool calls are auto-grouped (`Read x14` instead of 14 separate rows). This is your "what happened, structurally" view.                                                                                                                  |
-| **Heatmap**    | `Heat`    | Activity heatmap — tools and agents on the Y-axis, time buckets on the X-axis, cell intensity = call count or token usage. Answers "when was this agent busy?" and "which tools dominate the session?" at a glance. Toggle between count and token coloring.                                                                                                                  |
-| **Treemap**    | `TMap`    | Squarified treemap showing proportional resource usage. Each rectangle's area maps to tokens, duration, or call count (switchable metric). Drill into nested agents to see where compute actually went. Great for spotting that one Explore agent quietly burning 80% of your tokens.                                                                                         |
-| **Sankey**     | `Flow`    | Flow diagram with four vertical layers: Sessions → Prompts → Agents → Tools. Band width = tokens, duration, or count flowing through each path. Reveals the actual topology of work — which prompts triggered which agents, which agents called which tools, and how resources flowed through the tree.                                                                       |
-| **Compaction** | `Comp`    | Context compaction timeline. Shows when Claude's context window hit its limit and got compacted (auto or manual), with a sparkline of cumulative input tokens over time. The sawtooth pattern tells you how aggressively the session is chewing through context. If you've ever wondered "why did Claude forget what I said 10 minutes ago" — this is your forensic evidence. |
-| **Cost**       | `Cost`    | Per-turn cost waterfall. Every user prompt gets a row showing input tokens, output tokens, cache read/creation tokens, model used, response latency, and estimated USD cost. Cumulative running total at the bottom. Supports both hook-sourced data and richer JSONL transcript data when available. This is the "am I spending $0.03 or $3.00 on this refactor" view.       |
-
-All lenses share the same derived tree structure (built directly from the React Flow graph topology, not from timestamps), so the hierarchy you see in Tree is the same hierarchy powering Treemap, Sankey, and Heatmap. One source of truth, six perspectives.
-
-### Keyboard Shortcuts
-
-| Key        | Action                                                             |
-| ---------- | ------------------------------------------------------------------ |
-| **T**      | Toggle tool log panel                                              |
-| **N**      | Open spawn agent dialog                                            |
-| **Space**  | Pause/resume live updates                                          |
-| **Escape** | Close panels and dialogs                                           |
-| **L**      | Toggle layout mode (graph/list)                                    |
-| **H**      | Toggle hook event visibility                                       |
-| **V**      | Toggle lock viewport                                               |
-| **F**      | Toggle show all tools                                              |
-| **C**      | Toggle auto-close prompts                                          |
-| **E**      | Export snapshot                                                    |
-| **I**      | Import snapshot                                                    |
-| **/**      | Focus graph search                                                 |
-| **1–6**    | Switch lens tab (tree, heatmap, treemap, sankey, compaction, cost) |
+- **Spawn agents** — Pick model, tools, permissions, write a prompt, watch it work live
+- **Send messages** — Interactive conversation with spawned agents
+- **Stop agents** — Kill any agent from the graph or detail panel
+- **Pause/resume** — Freeze the stream without losing events
 
 ---
 
-## Quick Start
+## Keyboard Shortcuts
 
-### Prerequisites
+| Key        | Action                    | Key     | Action                |
+| ---------- | ------------------------- | ------- | --------------------- |
+| **Space**  | Pause/resume live updates | **/**   | Focus graph search    |
+| **T**      | Toggle tool log panel     | **L**   | Toggle lens panel     |
+| **N**      | Open spawn agent dialog   | **1–6** | Switch lens tab       |
+| **W**      | Open Prompt Lab           | **E**   | Export snapshot       |
+| **V**      | Lock viewport             | **I**   | Import snapshot       |
+| **F**      | Toggle tool expansion     | **A**   | Toggle notifications  |
+| **H**      | Toggle hook events        | **C**   | Auto-collapse prompts |
+| **Escape** | Close panels and dialogs  |         |                       |
 
-- **Node.js** >= 20
-- **pnpm** >= 9
-- An **Anthropic API key** (for spawning agents from the dashboard)
+---
 
-### Installation
+## Getting Started
+
+Three ways to run Synapse, from simplest to most involved:
+
+### 1. CLI (Quickest)
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/synapse.git
+npm install -g @synapse-ai/cli
+synapse start          # starts server, configures hooks, opens dashboard
+```
+
+That's it. Synapse auto-detects your project, wires up the hooks, starts the server, and opens your browser. Run `synapse stop` when you're done, or `synapse status` to check on it. Background mode with `synapse start --bg` for daemon operation.
+
+> **Note:** Not yet published to npm — coming soon. For now, build from source (option 3) or use the VS Code extension.
+
+### 2. VS Code Extension
+
+```bash
+code --install-extension synapse-vscode-0.2.0.vsix
+```
+
+Or install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=Soarcer.synapse-vscode). The full stack — server, dashboard, hook scripts, SQLite — bundled into a `.vsix` with zero native dependencies. Also works in Cursor.
+
+<!-- 📸 SCREENSHOT: VS Code with Synapse — lens sidebar, graph editor, status bar -->
+<!-- ![VS Code extension](docs/assets/vscode-split.png) -->
+
+- **Auto-start** — Opens when you open a Claude project. Stops when VS Code closes.
+- **Split layout** — Lens sidebar + graph editor panel. Or single panel mode.
+- **11 commands** — Open Dashboard, Start/Stop Server, Configure Hooks, Switch Lens, Reconnect, Settings, Send to Terminal, Clear/Reload Events
+- **QR code panel** — Scan to connect your phone
+- **Explorer tree** — Session → Agent → Tool hierarchy in the sidebar
+- **Status bar** — Connection dot, agent count, tool count
+
+### 3. From Source
+
+```bash
+git clone https://github.com/anthropics/synapse.git
 cd synapse
 pnpm install
+pnpm dev  # starts backend (port 27246) + frontend (port 5173)
 ```
 
-Create a `.env` file in the project root:
-
-```env
-ANTHROPIC_API_KEY=sk-ant-...
-```
-
-### Running
-
-Open two terminals:
-
-```powershell
-# Terminal 1 — Backend (port 4000)
-.\start-server.ps1
-
-# Terminal 2 — Frontend (port 5173)
-.\start-client.ps1
-```
-
-Or, if you like to live dangerously:
-
-```bash
-pnpm dev  # runs both concurrently (works great on Linux/Mac, "works" on Windows)
-```
-
-Then open **http://localhost:5173** in your browser.
+Open **http://localhost:5173**. Requires Node.js >= 20 and pnpm >= 9.
 
 ### Connecting Claude Code
 
-If you're running Claude Code in this project directory, it's already wired up. The `.claude/settings.json` file configures hooks that automatically send events to the dashboard.
+If you're running Claude Code in this project, it's already wired up. The `.claude/settings.json` configures hooks that send events to the dashboard automatically.
 
 For other projects, copy the hook configuration:
 
 ```bash
 # Copy hooks/ directory and .claude/settings.json to your target project
-# Update the command paths to point to this project's hooks/send_event.cjs
+# Update command paths to point to this project's hooks/send_event.cjs
 ```
 
-### Simulating a Session (No Claude Required)
-
-Don't have a live Claude session? No problem:
+### Try It Without Claude
 
 ```bash
+# Basic simulation — 8 events (session, agents, tools)
 npx tsx scripts/simulate_session.ts
-```
 
-This fires 8 realistic events (session start, agent spawn, tool calls, agent stop, session end) so you can see the dashboard in action without burning any API credits. Because we respect your wallet.
+# Full demo — 31 events covering every node type
+npx tsx scripts/simulate_all_nodes.ts
+```
 
 ---
 
 ## Tech Stack
 
-| Layer         | Technology                                           |
-| ------------- | ---------------------------------------------------- |
-| **Frontend**  | React 19, React Flow v12, Zustand 5, Tailwind CSS 4  |
-| **Build**     | Vite 6, TypeScript 5.7                               |
-| **Backend**   | Express 5, WebSocket (ws 8), sql.js (pure JS SQLite) |
-| **Agent SDK** | @anthropic-ai/claude-agent-sdk                       |
-| **Linting**   | ESLint 9, Prettier 3, Husky + lint-staged            |
-| **Monorepo**  | pnpm workspaces                                      |
-| **Testing**   | Vitest 4, 591 tests                                  |
+| Layer         | Technology                                                     |
+| ------------- | -------------------------------------------------------------- |
+| **Frontend**  | React 19, React Flow v12, Zustand 5, Tailwind CSS 4, Vite 6    |
+| **Backend**   | Express 5, WebSocket (ws 8), sql.js (pure JS SQLite), Node 20+ |
+| **Agent SDK** | @anthropic-ai/claude-agent-sdk                                 |
+| **Language**  | TypeScript 5.7 throughout                                      |
+| **Testing**   | Vitest 4 — 591 tests                                           |
+| **Monorepo**  | pnpm workspaces (@synapse-ai/\*)                               |
+| **Linting**   | ESLint 9, Prettier 3, Husky + lint-staged                      |
 
 ---
 
@@ -255,125 +331,125 @@ This fires 8 realistic events (session start, agent spawn, tool calls, agent sto
 ```
 Synapse/
 ├── packages/
-│   ├── core/             # @synapse-ai/core — types, schemas, utilities
-│   ├── server/           # @synapse-ai/server — Express + SQLite + WebSocket
-│   └── openclaw/         # @synapse-ai/openclaw — multi-vendor monitoring plugin
+│   ├── core/             # @synapse-ai/core — types, Zod schemas, format utils
+│   └── server/           # @synapse-ai/server — Express + sql.js + WebSocket
 ├── apps/
 │   ├── dashboard/        # React 19 + React Flow v12 frontend
 │   └── vscode/           # VS Code extension (embedded dashboard)
-├── hooks/                # Claude Code hook scripts
+├── hooks/                # Claude Code hook scripts (zero dependencies)
 ├── scripts/              # Build, simulation, and utility scripts
-└── docs/                 # Architecture and planning docs
+└── docs/                 # Architecture, plans, and specs
 ```
 
 ---
 
-## API Reference
+## API
 
-### Hook Event Receiver
-
-```
-POST /api/events
-```
-
-Accepts raw hook JSON from Claude Code, normalizes it to an `AgentEvent`, stores it, and broadcasts via WebSocket.
-
-### Agent Management
+### Events
 
 ```
-GET    /api/agents              # List active agents
-POST   /api/agents/spawn        # Spawn new agent
-POST   /api/agents/:id/message  # Send message to running agent
-DELETE /api/agents/:id          # Stop agent
-GET    /api/agents/:id/transcript  # Get agent transcript
+POST /api/events                    # Receive hook events
+GET  /api/events?sessionId=X&limit=100  # Query history
 ```
 
-### Event History
+### Agents
 
 ```
-GET /api/events?sessionId=X&agentId=Y&type=Z&limit=100&offset=0
+GET    /api/agents                  # List active agents
+POST   /api/agents/spawn            # Spawn new agent
+POST   /api/agents/:id/message      # Send message
+DELETE /api/agents/:id              # Stop agent
+GET    /api/agents/:id/transcript   # Get transcript
+```
+
+### Permissions
+
+```
+GET  /api/permissions               # List pending permissions
+GET  /api/permissions/:id           # Get full permission detail
+POST /api/permissions/:id/respond   # Approve or deny
+```
+
+### Analytics
+
+```
+GET /api/analytics/overview         # KPI summary
+GET /api/analytics/sessions         # Session breakdown
+GET /api/analytics/tools            # Tool usage stats
+GET /api/analytics/models           # Model comparison
+GET /api/analytics/turns            # Per-turn detail
+GET /api/analytics/velocity         # Tokens/min, cost/min
+GET /api/analytics/budget           # Budget tracking
 ```
 
 ### WebSocket
 
 ```
-WS /ws
+WS /ws                              # Real-time event stream
 ```
-
-Real-time event stream. Server pushes `AgentEvent` objects as they arrive. Supports session-level subscribe/unsubscribe.
 
 ---
 
 ## Configuration
 
-| Variable            | Default | Description                                 |
-| ------------------- | ------- | ------------------------------------------- |
-| `ANTHROPIC_API_KEY` | —       | Required for spawning agents from dashboard |
-| `PORT`              | `4000`  | Backend server port                         |
-| `CORS_ORIGIN`       | `*`     | Allowed CORS origin (set in production!)    |
+| Variable             | Default   | Description                              |
+| -------------------- | --------- | ---------------------------------------- |
+| `ANTHROPIC_API_KEY`  | —         | Spawning agents + Prompt Lab AI analysis |
+| `PORT`               | `27246`   | Main server port                         |
+| `SYNAPSE_MAX_EVENTS` | unlimited | Cap stored events                        |
 
-The backend stores events in `packages/server/synapse.db` (auto-created, gitignored). Delete it to start fresh.
-
----
-
-## Integrations
-
-### VSCode Extension
-
-Synapse includes a VSCode extension that embeds the dashboard directly in your editor. See [apps/vscode/](apps/vscode/) for details.
-
-### OpenClaw Plugin
-
-An experimental integration with [OpenClaw](https://openclaw.dev) that bridges JSONL transcript files into the Synapse event stream. See [packages/openclaw/](packages/openclaw/) for the plugin source.
+The database lives at `packages/server/synapse.db` (auto-created, gitignored). Delete it to start fresh.
 
 ---
 
 ## Known Limitations
 
-Let's be honest with each other. This is a prototype, and we're putting it on the internet:
+Let's be honest with each other:
 
-- **No authentication** — The API is wide open. Don't expose this to the public internet unless you enjoy surprises.
-- **Test coverage is growing** — 591 tests and counting, but some areas still need coverage.
-- **WebSocket reconnect is... persistent** — If the server goes down, the client will try to reconnect. Forever. With exponential backoff. But also forever. It's loyal like that.
-- **Memory considerations** — Long-running sessions with thousands of events will accumulate in the Zustand store. If your agent tree starts looking like a fractal, maybe refresh.
-- **Windows-first** — Built on Windows, start scripts are PowerShell. Works on Linux/Mac with `pnpm dev`, but the convenience scripts need adaptation.
-
-For the full audit (all 104+ known issues, lovingly catalogued), see [docs/INVESTIGATION_FINDINGS.md](docs/INVESTIGATION_FINDINGS.md). We believe in radical transparency. Also, we wrote the audit ourselves, which is either admirable or a cry for help.
+- **No authentication** — Localhost only. Don't port-forward this unless you enjoy surprise visitors.
+- **WebSocket reconnect is loyal** — If the server goes down, the client will try to reconnect. Forever. With exponential backoff. But also forever.
+- **Memory at scale** — Long sessions with thousands of events accumulate in the Zustand store. If your agent tree looks like a fractal, refresh.
+- **Windows-first** — Built on Windows, start scripts are PowerShell. `pnpm dev` works everywhere.
+- **AI features need an API key** — Prompt Lab analysis and rewrite suggestions call the Anthropic API. Without a key, those degrade gracefully to rule-based analysis. We're exploring whether existing Claude subscriptions can be used instead.
 
 ---
 
 ## Roadmap
 
-Things we want to build (pull requests extremely welcome):
+What's done and what's next:
 
-- [ ] **MCP tool differentiation** `HIGH EFFORT` — Right now, all tool calls look the same in the graph. An MCP tool from your Notion server and a native `Read` call are both purple pills. This changes that. Colored left borders per MCP server (auto-generated from server name hash), badge chips showing the server name, a plug icon for MCP tools, provider info in the detail panel, and the Sankey lens gets an optional 5th layer (Sessions → Prompts → Agents → **MCP Servers** → Tools). Detection heuristic parses `mcp__<server>__<tool>` naming, cross-references against a known native tools list, and falls back gracefully. Touches ~15-20 files across types, backend, graph nodes, all 6 lenses, edges, and spawn dialog. Full design spec in [docs/MCP_TOOL_DIFFERENTIATION.md](docs/MCP_TOOL_DIFFERENTIATION.md). Implementation prompt for AI-assisted coding in [docs/PROMPT_MCP_IMPLEMENTATION.md](docs/PROMPT_MCP_IMPLEMENTATION.md).
-- [ ] **Spawned agent detail panel** — When you spawn an agent from the dashboard, we _know_ its prompt, model, allowed tools, permission mode, system prompt, and working directory — but none of that shows up in the info bar. Fix the pipeline so `SpawnAgentRequest` fields flow through to `AgentNodeData` and render in the detail panel. Also: token costs from the SDK `ResultMessage` are conditionally skipped when `cost_usd` is null, so SDK-spawned agents often show 0 tokens even when they did real work.
-- [ ] **Session recording & replay** — Record a session, replay it like a movie
-- [ ] **Token cost dashboard** — Aggregate spending per session, per model, per tool
-- [ ] **Agent diff view** — See what an agent changed in your codebase, visually
-- [ ] **Multi-project support** — Monitor agents across multiple repos from one dashboard
-- [ ] **Authentication** — Because eventually someone will ask
-- [ ] **Expand test coverage** — 591 tests in place, but more areas need coverage
-- [ ] **Performance profiling** — Flame graphs for agent execution trees
-- [ ] **Export/share** — Export session graphs as images or interactive HTML
+| Phase                | Status | Description                                         |
+| -------------------- | ------ | --------------------------------------------------- |
+| Hardening            | ✅     | Error boundaries, rate limiting, agent limits       |
+| Developer Experience | ✅     | ESLint, Prettier, Vitest, Husky, CI/CD              |
+| Monorepo             | ✅     | 5 packages, pnpm workspaces, @synapse-ai/\*         |
+| Performance + UX     | ✅     | Async I/O, react-virtuoso, URL deep linking         |
+| Mobile Responsive    | ✅     | 13 components, auto-detect, pinch zoom              |
+| Notifications        | ✅     | Toast tray, push subscriptions, Service Worker      |
+| Guided Tour          | ✅     | Auto-play demo + spotlight walkthrough              |
+| VS Code Extension    | ✅     | v0.9.0 — 11 commands, split layout, embedded server |
+| Analytics + Cost     | 🔄     | Prompts + Insights tabs. More coming                |
+| Multi-Vendor         | 🔄     | Claude working. Gemini + Codex adapters in progress |
+| Remote Approval      | ✅     | HTTP hooks, permission cards, web push              |
+| Standalone CLI       | ⬜     | `npx synapse` — zero-config, daemon mode            |
 
 ---
 
 ## Contributing
 
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code style, and how to submit pull requests.
-
-All contributions require a [Developer Certificate of Origin](https://developercertificate.org/) sign-off. See the contributing guide for details.
+Contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and code style.
 
 ---
 
-## The Philosophy
+## The Story
 
-Synapse exists at an interesting moment. AI agents are getting more capable every week. They spawn subagents, call tools, read and write files, make decisions — and most of the time, we just see the final output.
+I built this because I was curious. Claude Code does a _lot_ of things when you're not looking — spawning subagents, calling tools, reading files, making decisions — and all you see is a blinking cursor. I wanted to see the machine think.
 
-That's probably fine for most use cases. But if you're the kind of person who reads this far in a README, you're probably also the kind of person who wants to _understand the machine_. Not because you don't trust it (though healthy skepticism never hurts), but because understanding is its own reward.
+It started as a script that logged hook events to a terminal. Then I added a web UI. Then a node graph. Then I wanted to see the graph on my phone. Then I wanted to approve permissions from my phone. Then I wanted coaching on my prompts. Then I added arcade games because why not.
 
-We built Synapse because watching an agent tree expand in real-time, seeing tool calls light up and data flow along edges, tracking tokens as they accumulate — it makes the invisible _visible_. And visibility is the first step toward understanding.
+Ten development phases later, here we are. It's a prototype. It has rough edges. Some of those edges turned out to be features. I've been using it every day while building it — which means it's been tested in production — where "production" is defined as "my laptop at 2 AM."
+
+If you're the kind of person who reads this far in a README, you're probably also the kind of person who wants to understand the machine. Not because you don't trust it, but because understanding is its own reward.
 
 Also, it looks really cool. Let's not pretend that wasn't a factor.
 
@@ -386,9 +462,7 @@ MIT — see [LICENSE](./LICENSE)
 ---
 
 <p align="center">
-  <sub>Built with curiosity, caffeine, and a mass amount of Claude.</sub>
-  <br />
-  <sub>Licensed under <a href="LICENSE">MIT</a>.</sub>
+  <sub>Built with curiosity, caffeine, and an mass amount of Claude.</sub>
   <br />
   <sub>If you're reading this, an AI agent might be watching you read this. <em>Check the graph.</em></sub>
 </p>

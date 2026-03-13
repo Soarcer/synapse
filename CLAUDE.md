@@ -41,7 +41,7 @@ Synapse/
 Open two PowerShell terminals:
 
 ```powershell
-# Terminal 1 — Backend (port 4000)
+# Terminal 1 — Backend (port 27246)
 .\start-server.ps1
 
 # Terminal 2 — Frontend (port 5173)
@@ -50,7 +50,7 @@ Open two PowerShell terminals:
 
 Then open **http://localhost:5173** in your browser.
 
-Any Claude Code session running in this project will automatically send hook events to the dashboard via `.claude/settings.json` → `hooks/send_event.cjs` → `POST localhost:4000/api/events`.
+Any Claude Code session running in this project will automatically send hook events to the dashboard via `.claude/settings.json` → `hooks/send_event.cjs` → `POST localhost:27246/api/events`.
 
 To test without a live session, run a simulation script:
 
@@ -66,7 +66,7 @@ Stop either server with **Ctrl+C** in its terminal.
 
 ## Key Commands
 
-- `.\start-server.ps1` — start backend (port 4000)
+- `.\start-server.ps1` — start backend (port 27246)
 - `.\start-client.ps1` — start frontend (port 5173)
 - `pnpm dev` — start both concurrently
 - `pnpm -r build` — build all packages
@@ -103,7 +103,7 @@ See `docs/PACKAGE.md` for the per-project package checklist.
 
 - All shared types live in `@synapse-ai/core` (packages/core/) — imported by all other packages
 - Use `@synapse-ai/core` for cross-package imports, never relative paths between packages
-- Hook scripts are plain Node.js (no dependencies) — they read stdin JSON and POST to localhost:4000
+- Hook scripts are plain Node.js (no dependencies) — they read stdin JSON and POST to localhost:27246
 - WebSocket messages use the `AgentEvent` type from `@synapse-ai/core`
 - React Flow nodes use custom components in `apps/dashboard/src/components/graph/nodes/`
 - Backend API routes are prefixed with `/api/`

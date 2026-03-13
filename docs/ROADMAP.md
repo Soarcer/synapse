@@ -7,25 +7,25 @@
 
 ## Progress Tracker
 
-| Phase | Name                           | Status              | Notes                                                                                      |
-| ----- | ------------------------------ | ------------------- | ------------------------------------------------------------------------------------------ |
-| 1     | Hardening                      | ✅ **DONE**         | Error boundaries, rate limiting, agent limits, confirmation dialogs                        |
-| 2     | Developer Experience           | ✅ **DONE**         | ESLint, Prettier, EditorConfig, Vitest, CI/CD, CONTRIBUTING.md, Husky                      |
-| 3     | Monorepo Extraction            | ✅ **DONE**         | 5 workspace packages, pnpm workspaces, @synapse-ai/core cross-imports                      |
-| 4     | Performance + UX               | ✅ **DONE**         | Async I/O, materialized sessions, batch transcript fetch, react-virtuoso, URL deep linking |
-| 5     | Canvas2D Widget                | ❌ **REMOVED**      | Pixel Art Office removed from codebase                                                     |
-| 5b    | Mobile Responsive              | ✅ **DONE**         | 13 components, auto-detect, MobileView/Graph/Analytics/BottomSheet, pinch zoom             |
-| 5c    | Notification System            | ✅ **DONE**         | NotificationTray, NotificationPulse, AlertsView, store, settings                           |
-| 5d    | Guided Tour                    | ✅ **DONE**         | 6 chapters, 18+ steps, auto-play + manual spotlight, i18n, 24 tests                        |
-| 5e    | Arcade Game Modes              | 🔶 **90% DONE**     | GameOfLife, Tetris, Snake, Breakout done; PacMan not built                                 |
-| 6     | VSCode Extension               | ✅ **DONE**         | v0.9.0: 11 commands, 9 settings, 4-tab settings, Prompt Lab, notifications                 |
-| 7     | Auto-Resume + Cost             | 🔶 **95% DONE**     | Full analytics (21 endpoints, 5 UI tabs), coaching, budgets; missing `--project <dir>`     |
-| 8     | ClawBrain                      | 🔶 **65% DONE**     | 3-layer plugin + backend integration; missing adapter + /brain                             |
-| 9     | Multi-Vendor Integration       | 🔄 **IN PROGRESS**  | 9.1 + 9.2 done (adapter system + Gemini); 9.3 Codex + 9.4 UI remaining                     |
-| —     | Packaging & CLI                | ✅ **90% DONE**     | All 5 packaging options implemented                                                        |
-| —     | Open Source Prep               | 🔶 **80% DONE**     | SPDX headers (233 files), AGPL-3.0 + /ee; missing GOVERNANCE, README updates               |
-| 10    | Standalone App / Claude Plugin | ⬜ **PLANNED**      | npm package, daemon mode, zero-config CLI, Claude plugin adapter                           |
-| —     | AI Self-Modification           | ⬜ **NICE TO HAVE** | Design + plan complete; CSS themes + scoped CSS + custom lenses                            |
+| Phase | Name                           | Status             | Notes                                                                                      |
+| ----- | ------------------------------ | ------------------ | ------------------------------------------------------------------------------------------ |
+| 1     | Hardening                      | ✅ **DONE**        | Error boundaries, rate limiting, agent limits, confirmation dialogs                        |
+| 2     | Developer Experience           | ✅ **DONE**        | ESLint, Prettier, EditorConfig, Vitest, CI/CD, CONTRIBUTING.md, Husky                      |
+| 3     | Monorepo Extraction            | ✅ **DONE**        | 5 workspace packages, pnpm workspaces, @synapse-ai/core cross-imports                      |
+| 4     | Performance + UX               | ✅ **DONE**        | Async I/O, materialized sessions, batch transcript fetch, react-virtuoso, URL deep linking |
+| 5     | Canvas2D Widget                | ❌ **REMOVED**     | Pixel Art Office removed from codebase                                                     |
+| 5b    | Mobile Responsive              | ✅ **DONE**        | 13 components, auto-detect, MobileView/Graph/Analytics/BottomSheet, pinch zoom             |
+| 5c    | Notification System            | ✅ **DONE**        | NotificationTray, NotificationPulse, AlertsView, store, settings                           |
+| 5d    | Guided Tour                    | ✅ **DONE**        | 6 chapters, 18+ steps, auto-play + manual spotlight, i18n, 24 tests                        |
+| 5e    | Arcade Game Modes              | 🔶 **90% DONE**    | GameOfLife, Tetris, Snake, Breakout done; PacMan not built                                 |
+| 6     | VSCode Extension               | ✅ **DONE**        | v0.9.0: 11 commands, 9 settings, 4-tab settings, Prompt Lab, notifications                 |
+| 7     | Auto-Resume + Cost             | 🔶 **95% DONE**    | Full analytics (21 endpoints, 5 UI tabs), coaching, budgets; missing `--project <dir>`     |
+| 8     | ClawBrain                      | 🔶 **65% DONE**    | 3-layer plugin + backend integration; missing adapter + /brain                             |
+| 9     | Multi-Vendor Integration       | 🔄 **IN PROGRESS** | 9.1 + 9.2 done (adapter system + Gemini); 9.3 Codex + 9.4 UI remaining                     |
+| —     | Packaging & CLI                | ✅ **90% DONE**    | All 5 packaging options implemented                                                        |
+| —     | Open Source Prep               | 🔶 **80% DONE**    | SPDX headers (233 files), AGPL-3.0 + /ee; missing GOVERNANCE, README updates               |
+| 10    | Standalone App / Claude Plugin | ⬜ **PLANNED**     | npm package, daemon mode, zero-config CLI, Claude plugin adapter                           |
+| —     | AI Self-Modification           | ⬜ **PLANNED**     | CSS themes + scoped CSS + custom lenses; feature-flagged, no impact on public release      |
 
 ```
 Phase 1  ──── ✅ DONE
@@ -251,14 +251,56 @@ Async I/O, materialized `session_summary` table, batch transcript fetch, react-v
 
 ---
 
-## Future: AI Self-Modification — ⬜ NICE TO HAVE
+## Future: Remote Approval + Prompt Interceptor — ⬜ PLANNED
 
-> Users type a natural-language prompt and AI modifies the dashboard's appearance.
+> Three integrated features: (1) approve/deny Claude permission prompts from the Synapse dashboard on any device; (2) auto-inject live project context into prompts before Claude processes them; (3) Web Push notifications so your phone alerts you when Claude is blocked mid-job.
+>
+> **Full spec:** `docs/superpowers/specs/2026-03-11-remote-approval-and-prompt-interceptor-design.md`
 
-**Design:** `docs/plans/2026-02-20-self-modification-design.md`
-**Implementation plan:** `docs/plans/2026-02-20-self-modification-plan.md`
+**The use case:** Start a big job, walk away, receive a phone notification when Claude gets stuck on a permission, tap Approve from the couch, job continues. No wasted sessions.
 
-Three channels: CSS variable overrides, scoped CSS injection, custom lens configs. Six-layer sandboxing. Feature flag `experimentalSelfModify` (defaults false).
+**Key architecture decisions (from research):**
+
+- Claude Code supports **HTTP hooks** (`"type": "http"`) — Claude POSTs directly to Synapse and waits. No custom hook script needed. Response body is the decision.
+- HTTP hook URLs are static strings (no runtime file reading) → dedicated **fixed-port hook server** (port 27247) runs alongside the main dynamic-port server.
+- GitHub issue #4362 (approve/deny not working) was user error (wrong format). No workaround needed — the system works.
+- No existing solution: three hobby Telegram/WhatsApp bots exist but none have a dashboard, session context, or history. Synapse fills a genuine gap.
+
+**Three phases:**
+
+| Phase | Name                | Description                                                                                  |
+| ----- | ------------------- | -------------------------------------------------------------------------------------------- |
+| A     | Permission Approval | HTTP hook → deferred Express response → dashboard card → Approve/Deny → Claude resumes       |
+| B     | Web Push            | Push to phone (Android: action buttons, iOS: tap to open), `push_subscriptions` SQLite table |
+| C     | Prompt Interceptor  | `UserPromptSubmit` HTTP hook → inject git/file context + coaching note into Claude's context |
+
+**Gate (Phase A):** User away from PC, Claude blocked, phone (Synapse open) shows card, user taps Approve, Claude continues — no terminal interaction.
+**Gate (Phase B):** Native phone push notification received (app closed), tap Approve, Claude continues.
+**Gate (Phase C):** Vague prompt submitted → Claude receives enriched context automatically.
+
+---
+
+## Future: AI Self-Modification — ⬜ PLANNED
+
+> Users type a natural-language prompt (e.g., "change the color scheme to dark blue") and AI modifies the dashboard's appearance and adds custom visualizations — without touching or breaking core functionality.
+
+**Three modification channels:**
+
+1. **CSS variable overrides** — theme colors, spacing, radii via Tailwind 4 `@theme` custom properties (`bg-syn-bg-primary`, etc.)
+2. **Scoped CSS injection** — freeform styles sandboxed under `.synapse-user-mods`, sanitized property allowlist
+3. **Custom lens configs** — user-defined Recharts views (bar, line, area, scatter, pie, radar, table) from `LensTreeNode` data
+
+**Key components to build:**
+
+- `anthropicFetch()` — new server-side Anthropic API client (written from scratch; no AI code currently exists)
+- `POST /api/customize` — prompt → AI → validated JSON → frontend applies live
+- CSS variable migration across ~37 component files (from hardcoded hex to semantic utilities)
+- Six-layer sandboxing: JSON contract → variable allowlist → value sanitization → CSS property allowlist → rate limiting → undo stack
+- Feature flag `experimentalSelfModify` (defaults false) — zero impact on public VS Code extension release
+
+**Persistence:** localStorage only (`synapse-custom-theme`, `synapse-theme-history` with 5-entry undo stack).
+
+**Prerequisites:** Migrate hardcoded Tailwind hex values (`bg-[#0d1117]`) to `@theme`-backed semantic utilities across the codebase — this is the bulk of the migration work.
 
 ---
 

@@ -6,7 +6,12 @@
       "Bash(pnpm dev:*)",
       "Bash(lsof:*)",
       "Bash(pnpm audit:*)",
-      "Bash(git branch:*)"
+      "Bash(git branch:*)",
+      "WebSearch",
+      "WebFetch(domain:claudefa.st)"
+    ],
+    "additionalDirectories": [
+      "c:\\Workspace\\Coding\\Prototypes\\Synapse\\docs\\plans"
     ]
   },
   "hooks": {
@@ -15,7 +20,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"c:/Users/Bernhard/.vscode/extensions/bernhard.synapse-vscode-0.1.0/resources/synapse-server/hooks/send_event.cjs\" --port 4000"
+            "command": "node \"c:/Users/Bernhard/.vscode/extensions/soarcer.synapse-vscode-0.10.0/resources/synapse-server/hooks/send_event.cjs\""
           }
         ]
       }
@@ -25,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"c:/Users/Bernhard/.vscode/extensions/bernhard.synapse-vscode-0.1.0/resources/synapse-server/hooks/send_event.cjs\" --port 4000"
+            "command": "node \"c:/Users/Bernhard/.vscode/extensions/soarcer.synapse-vscode-0.10.0/resources/synapse-server/hooks/send_event.cjs\""
           }
         ]
       }
@@ -35,7 +40,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"c:/Users/Bernhard/.vscode/extensions/bernhard.synapse-vscode-0.1.0/resources/synapse-server/hooks/send_event.cjs\" --port 4000"
+            "command": "node \"c:/Users/Bernhard/.vscode/extensions/soarcer.synapse-vscode-0.10.0/resources/synapse-server/hooks/send_event.cjs\""
           }
         ]
       }
@@ -45,7 +50,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"c:/Users/Bernhard/.vscode/extensions/bernhard.synapse-vscode-0.1.0/resources/synapse-server/hooks/send_event.cjs\" --port 4000"
+            "command": "node \"c:/Users/Bernhard/.vscode/extensions/soarcer.synapse-vscode-0.10.0/resources/synapse-server/hooks/send_event.cjs\""
           }
         ]
       }
@@ -55,7 +60,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"c:/Users/Bernhard/.vscode/extensions/bernhard.synapse-vscode-0.1.0/resources/synapse-server/hooks/send_event.cjs\" --port 4000"
+            "command": "node \"c:/Users/Bernhard/.vscode/extensions/soarcer.synapse-vscode-0.10.0/resources/synapse-server/hooks/send_event.cjs\""
           }
         ]
       }
@@ -65,7 +70,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"c:/Users/Bernhard/.vscode/extensions/bernhard.synapse-vscode-0.1.0/resources/synapse-server/hooks/send_event.cjs\" --port 4000"
+            "command": "node \"c:/Users/Bernhard/.vscode/extensions/soarcer.synapse-vscode-0.10.0/resources/synapse-server/hooks/send_event.cjs\""
           }
         ]
       }
@@ -75,7 +80,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"c:/Users/Bernhard/.vscode/extensions/bernhard.synapse-vscode-0.1.0/resources/synapse-server/hooks/send_event.cjs\" --port 4000",
+            "command": "node \"c:/Users/Bernhard/.vscode/extensions/soarcer.synapse-vscode-0.10.0/resources/synapse-server/hooks/send_event.cjs\"",
             "async": true
           }
         ]
@@ -86,7 +91,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"c:/Users/Bernhard/.vscode/extensions/bernhard.synapse-vscode-0.1.0/resources/synapse-server/hooks/send_event.cjs\" --port 4000",
+            "command": "node \"c:/Users/Bernhard/.vscode/extensions/soarcer.synapse-vscode-0.10.0/resources/synapse-server/hooks/send_event.cjs\"",
             "async": true
           }
         ]
@@ -97,7 +102,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"c:/Users/Bernhard/.vscode/extensions/bernhard.synapse-vscode-0.1.0/resources/synapse-server/hooks/send_event.cjs\" --port 4000",
+            "command": "node \"c:/Users/Bernhard/.vscode/extensions/soarcer.synapse-vscode-0.10.0/resources/synapse-server/hooks/send_event.cjs\"",
             "async": true
           }
         ]
@@ -108,8 +113,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"c:/Users/Bernhard/.vscode/extensions/bernhard.synapse-vscode-0.1.0/resources/synapse-server/hooks/send_event.cjs\" --port 4000",
+            "command": "node \"c:/Users/Bernhard/.vscode/extensions/soarcer.synapse-vscode-0.10.0/resources/synapse-server/hooks/send_event.cjs\"",
             "async": true
+          },
+          {
+            "type": "http",
+            "url": "http://localhost:27247/api/hooks/permission",
+            "timeout": 1800
           }
         ]
       }
@@ -119,7 +129,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"c:/Users/Bernhard/.vscode/extensions/bernhard.synapse-vscode-0.1.0/resources/synapse-server/hooks/send_event.cjs\" --port 4000",
+            "command": "node \"c:/Users/Bernhard/.vscode/extensions/soarcer.synapse-vscode-0.10.0/resources/synapse-server/hooks/send_event.cjs\"",
             "async": true
           }
         ]
@@ -130,7 +140,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"c:/Users/Bernhard/.vscode/extensions/bernhard.synapse-vscode-0.1.0/resources/synapse-server/hooks/send_event.cjs\" --port 4000",
+            "command": "node \"c:/Users/Bernhard/.vscode/extensions/soarcer.synapse-vscode-0.10.0/resources/synapse-server/hooks/send_event.cjs\"",
             "async": true
           }
         ]

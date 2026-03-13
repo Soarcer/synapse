@@ -84,23 +84,26 @@ export function PermissionStack() {
             {displayItems.slice(0, visibleCount).map((p, index) => {
               const depth = DEPTH_STYLES[index] ?? DEPTH_STYLES[MAX_VISIBLE_BEHIND];
               const isTop = index === 0;
-              const offsetX = depth.x ?? 0;
-              const offsetY = depth.y ?? 0;
               return (
                 <motion.div
                   key={p.id}
+                  layout
                   style={{
                     position: index === 0 ? 'relative' : 'absolute',
-                    bottom: index === 0 ? undefined : -offsetY,
-                    left: offsetX,
+                    bottom: 0,
+                    left: 0,
                     width: '100%',
                     zIndex: visibleCount - index,
                     pointerEvents: isTop ? 'auto' : 'none',
                   }}
+                  initial={false}
                   animate={{
                     scale: depth.scale ?? 1,
                     opacity: depth.opacity ?? 1,
+                    x: depth.x ?? 0,
+                    y: depth.y ?? 0,
                   }}
+                  exit={{ opacity: 0, scale: 0.95 }}
                   transition={SPRING}
                 >
                   <PermissionCard

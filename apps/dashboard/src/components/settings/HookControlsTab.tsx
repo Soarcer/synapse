@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { apiUrl } from '../../utils/api';
 import { QRCodePanel } from './QRCodePanel';
+import { PushSetup } from './PushSetup';
 import { usePermissionStore } from '../../store/permissionStore';
 
 interface Props {
@@ -147,6 +148,9 @@ export function HookControlsTab({ open, onClose }: Props) {
               </div>
             </section>
           )}
+
+          {/* Push Notifications */}
+          <PushSetup />
 
           {/* Bypass note */}
           <div className="bg-blue-950/20 border border-blue-800/30 rounded-lg p-3">
