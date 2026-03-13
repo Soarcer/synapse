@@ -73,6 +73,17 @@ export type { ClaudeHookEvent } from './types/hooks.js';
 // Transcript constants
 export { MODEL_PRICING, DEFAULT_PRICING } from './types/transcript.js';
 
+// Pricing module
+export {
+  type PricePoint,
+  type CostBreakdown,
+  DEFAULT_PRICES,
+  FALLBACK_PRICE,
+  PRICING_VERSION,
+  computeCostUsd,
+  getPrice,
+} from './pricing.js';
+
 // Validation schemas
 export {
   AgentEventSchema,
