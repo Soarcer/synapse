@@ -7,9 +7,9 @@ import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import http from 'http';
+import { SYNAPSE_PORT } from '@synapse-ai/core';
 import {
   SYNAPSE_HOME,
-  GLOBAL_PORT_FILE,
   GLOBAL_PID_FILE,
   GLOBAL_DB_PATH,
   SERVER_ENTRY,
@@ -27,33 +27,14 @@ export function readPid(): number | null {
   }
 }
 
-export function readPort(): number | null {
-  try {
-    const port = parseInt(fs.readFileSync(GLOBAL_PORT_FILE, 'utf-8').trim(), 10);
-    return port > 0 && port < 65536 ? port : null;
-  } catch {
-    return null;
-  }
-}
-
 function writePid(pid: number): void {
   fs.mkdirSync(SYNAPSE_HOME, { recursive: true });
   fs.writeFileSync(GLOBAL_PID_FILE, String(pid));
 }
 
-function writePort(port: number): void {
-  fs.mkdirSync(SYNAPSE_HOME, { recursive: true });
-  fs.writeFileSync(GLOBAL_PORT_FILE, String(port));
-}
-
 function cleanupFiles(): void {
   try {
     fs.unlinkSync(GLOBAL_PID_FILE);
-  } catch {
-    /* ok */
-  }
-  try {
-    fs.unlinkSync(GLOBAL_PORT_FILE);
   } catch {
     /* ok */
   }
@@ -88,27 +69,21 @@ function healthCheck(port: number): Promise<boolean> {
 export async function status(): Promise<{
   running: boolean;
   pid: number | null;
-  port: number | null;
+  port: number;
 }> {
   const pid = readPid();
-  const port = readPort();
 
   if (pid && !isProcessAlive(pid)) {
-    // Stale PID file — clean up
     cleanupFiles();
-    return { running: false, pid: null, port: null };
+    return { running: false, pid: null, port: SYNAPSE_PORT };
   }
 
-  // Health-check the port — works whether server was started by CLI or VS Code extension
-  if (port) {
-    const healthy = await healthCheck(port);
-    if (healthy) return { running: true, pid, port };
-  }
+  const healthy = await healthCheck(SYNAPSE_PORT);
+  if (healthy) return { running: true, pid, port: SYNAPSE_PORT };
 
-  // PID alive but no healthy port (server still starting or crashed)
-  if (pid) return { running: true, pid, port: null };
+  if (pid) return { running: true, pid, port: SYNAPSE_PORT };
 
-  return { running: false, pid: null, port: null };
+  return { running: false, pid: null, port: SYNAPSE_PORT };
 }
 
 // ── Start ────────────────────────────────────────────────────
@@ -142,8 +117,7 @@ export async function start(opts: StartOptions = {}): Promise<number> {
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
     HOST: 'localhost',
-    PORT: String(preferredPort),
-    CLIENT_ORIGIN: '*',
+    SYNAPSE_PORT: String(preferredPort),
     NODE_ENV: 'production',
     SYNAPSE_DB_PATH: GLOBAL_DB_PATH,
   };
@@ -171,9 +145,8 @@ export async function start(opts: StartOptions = {}): Promise<number> {
 
     writePid(child.pid);
 
-    // Wait for server to come up and discover actual port
+    // Wait for server to come up
     const actualPort = await waitForServer(preferredPort, 10_000);
-    writePort(actualPort);
 
     console.log(`\nSynapse started (PID ${child.pid})`);
     console.log(`Logs: ${path.join(SYNAPSE_HOME, 'server.log')}\n`);
@@ -192,16 +165,9 @@ export async function start(opts: StartOptions = {}): Promise<number> {
 
     writePid(child.pid);
 
-    // Parse port from server stdout (SYNAPSE_PORT=NNNN)
-    let actualPort = preferredPort;
+    // Pipe stdout
     child.stdout?.on('data', (data: Buffer) => {
-      const text = data.toString();
-      process.stdout.write(text);
-      const match = text.match(/SYNAPSE_PORT=(\d+)/);
-      if (match) {
-        actualPort = parseInt(match[1], 10);
-        writePort(actualPort);
-      }
+      process.stdout.write(data.toString());
     });
 
     // Clean up on exit
@@ -216,9 +182,7 @@ export async function start(opts: StartOptions = {}): Promise<number> {
     process.on('SIGTERM', () => child.kill('SIGTERM'));
 
     // Wait for ready
-    const readyPort = await waitForServer(preferredPort, 10_000);
-    actualPort = readyPort;
-    writePort(actualPort);
+    const actualPort = await waitForServer(preferredPort, 10_000);
 
     console.log(`Synapse running on http://localhost:${actualPort}`);
     return actualPort;
@@ -272,19 +236,13 @@ export async function stop(): Promise<void> {
 
 // ── Helpers ──────────────────────────────────────────────────
 
-async function waitForServer(startPort: number, timeoutMs: number): Promise<number> {
+async function waitForServer(port: number, timeoutMs: number): Promise<number> {
   const deadline = Date.now() + timeoutMs;
-
   while (Date.now() < deadline) {
-    // Try ports startPort through startPort+19 (matching server's MAX_PORT_RETRIES)
-    for (let p = startPort; p < startPort + 20; p++) {
-      const ok = await healthCheck(p);
-      if (ok) return p;
-    }
+    const ok = await healthCheck(port);
+    if (ok) return port;
     await new Promise((r) => setTimeout(r, 500));
   }
-
-  // Fallback — assume preferred port
-  console.warn('Server did not respond to health check in time; assuming port', startPort);
-  return startPort;
+  console.warn('Server did not respond to health check in time; assuming port', port);
+  return port;
 }

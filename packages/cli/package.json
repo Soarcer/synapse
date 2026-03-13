@@ -15,7 +15,9 @@
     "build": "node scripts/build.mjs",
     "dev": "npx tsx src/cli.ts"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@synapse-ai/core": "workspace:*"
+  },
   "devDependencies": {
     "esbuild": "^0.25.0"
   },

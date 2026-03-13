@@ -7,7 +7,6 @@ import { fileURLToPath } from 'url';
 
 // ── Global Synapse directory (~/.synapse/) ───────────────────
 export const SYNAPSE_HOME = path.join(os.homedir(), '.synapse');
-export const GLOBAL_PORT_FILE = path.join(SYNAPSE_HOME, 'port');
 export const GLOBAL_PID_FILE = path.join(SYNAPSE_HOME, 'pid');
 export const GLOBAL_DB_PATH = path.join(SYNAPSE_HOME, 'synapse.db');
 
@@ -21,10 +20,6 @@ export const HOOKS_DIR = path.join(DIST_DIR, 'hooks');
 // ── Project-local paths ─────────────────────────────────────
 export function projectClaudeDir(cwd: string): string {
   return path.join(cwd, '.claude');
-}
-
-export function projectPortFile(cwd: string): string {
-  return path.join(projectClaudeDir(cwd), '.synapse-port');
 }
 
 export function projectSettingsFile(cwd: string): string {

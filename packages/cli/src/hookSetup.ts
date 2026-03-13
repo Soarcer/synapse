@@ -6,7 +6,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { projectClaudeDir, projectPortFile, projectSettingsFile, HOOKS_DIR } from './paths.js';
+import { projectClaudeDir, projectSettingsFile, HOOKS_DIR } from './paths.js';
 
 const SYNC_EVENTS = [
   'SessionStart',
@@ -40,9 +40,7 @@ export function configureHooks(cwd: string, port: number): void {
   // Hook command — no --port; the script reads .synapse-port at runtime
   const hookCmd = `node "${hookScript.replace(/\\/g, '/')}"`;
 
-  // Write port file so hook scripts find the daemon
   fs.mkdirSync(claudeDir, { recursive: true });
-  fs.writeFileSync(projectPortFile(cwd), String(port));
 
   // Build hooks config
   const hooks: Record<string, unknown[]> = {};

@@ -61,10 +61,10 @@ function startServer() {
   // Parse --port flag
   const portIdx = process.argv.indexOf('--port');
   if (portIdx !== -1 && process.argv[portIdx + 1]) {
-    process.env.PORT = process.argv[portIdx + 1];
+    process.env.SYNAPSE_PORT = process.argv[portIdx + 1];
   }
 
-  const port = process.env.PORT || '4000';
+  const port = process.env.SYNAPSE_PORT || '27246';
   console.log(`\n  Synapse starting on http://localhost:${port}\n`);
 
   const child = spawn('npx', ['tsx', path.join(PKG_ROOT, 'server', 'index.ts')], {
@@ -158,20 +158,20 @@ function showHelp() {
   Usage: synapse <command> [options]
 
   Commands:
-    start [--port <port>]  Start the dashboard server (default: 4000)
+    start [--port <port>]  Start the dashboard server (default: 27246)
     hook [path]            Configure hooks for a project (default: cwd)
     unhook [path]          Remove hooks from a project (default: cwd)
     help                   Show this help
 
   Examples:
     synapse start                        Start on default port
-    synapse start --port 4010            Start on custom port
+    synapse start --port 27247            Start on custom port
     synapse hook                         Configure hooks in current project
     synapse hook /path/to/project        Configure hooks in specific project
 
   Environment:
-    SYNAPSE_URL      Hook target URL (default: http://localhost:4000/api/events)
+    SYNAPSE_URL      Hook target URL (default: http://localhost:27246/api/events)
     SYNAPSE_DB_PATH  SQLite database path (default: server/synapse.db)
-    PORT             Server port (default: 4000)
+    SYNAPSE_PORT     Server port (default: 27246)
 `);
 }
