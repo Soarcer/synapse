@@ -320,6 +320,8 @@ export interface ReasoningTurn {
     inputTokens: number;
     outputTokens: number;
     cacheReadTokens: number;
+    cacheCreationTokens: number;
+    thinkingTokens: number;
   };
 }
 
