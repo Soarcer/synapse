@@ -8,8 +8,7 @@ import { wsClient } from '../../store/wsClient';
 import { MobileSessionSelector } from './MobileSessionSelector';
 import { GAME_MODE_REGISTRY } from '../graph/nodes/game-modes';
 import { toast } from '../Toast';
-import { formatDuration } from '@synapse-ai/core';
-import { computeCostUsd } from '../analytics/shared/promptUtils';
+import { formatDuration, computeCostUsd, getPrice } from '@synapse-ai/core';
 
 export function MobileStatusBar() {
   const connectionStatus = useAgentStore((s) => s.connectionStatus);
@@ -60,12 +59,15 @@ export function MobileStatusBar() {
       if (a.status === 'running') running++;
       const t = a.tokenUsage;
       tokens += t.input + t.output;
-      totalCost += computeCostUsd(
-        t.input,
-        t.output,
-        t.cacheRead ?? 0,
-        a.model ?? 'claude-sonnet-4-5-20250929',
-      );
+      const price = getPrice(a.model ?? 'claude-sonnet-4-5', []);
+      totalCost += computeCostUsd({
+        inputTokens: t.input,
+        outputTokens: t.output,
+        cacheReadTokens: t.cacheRead ?? 0,
+        cacheCreationTokens: t.cacheCreation ?? 0,
+        thinkingTokens: t.thinking ?? 0,
+        price,
+      }).total;
       if (a.startTime < earliest) earliest = a.startTime;
       const end = a.endTime ?? Date.now();
       if (end > latest) latest = end;

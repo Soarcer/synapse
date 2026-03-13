@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Bernhard
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { DEFAULT_PRICES } from '@synapse-ai/core';
 import { useCoachingData } from '../coaching/useCoachingData';
 import { ReportCardPanel } from '../coaching/ReportCardPanel';
 import { PlaybookPanel } from '../coaching/PlaybookPanel';
@@ -84,13 +85,23 @@ const MODEL_LABELS: Record<string, string> = {
   'claude-haiku-4-5': 'Haiku 4.5',
 };
 
-// ─── Model Pricing (from WhatIfCalculator) ──────────────────────────
+// ─── Model Pricing (from @synapse-ai/core DEFAULT_PRICES) ───────────
 
-const MODEL_PRICING = [
-  { id: 'claude-opus-4-6', name: 'Opus 4.6', inputPer1M: 15, cachedPer1M: 1.5, outputPer1M: 75 },
-  { id: 'claude-sonnet-4-5', name: 'Sonnet 4.5', inputPer1M: 3, cachedPer1M: 0.3, outputPer1M: 15 },
-  { id: 'claude-haiku-4-5', name: 'Haiku 4.5', inputPer1M: 0.8, cachedPer1M: 0.08, outputPer1M: 4 },
-];
+const MODEL_DISPLAY_NAMES: Record<string, string> = {
+  'claude-opus-4-6': 'Opus 4.6',
+  'claude-sonnet-4-5': 'Sonnet 4.5',
+  'claude-haiku-4-5': 'Haiku 4.5',
+};
+
+const MODEL_PRICING = DEFAULT_PRICES.filter(
+  (p) => p.vendor === 'anthropic' && p.effectiveFrom === 0 && MODEL_DISPLAY_NAMES[p.model],
+).map((p) => ({
+  id: p.model,
+  name: MODEL_DISPLAY_NAMES[p.model],
+  inputPer1M: p.inputPer1M,
+  cachedPer1M: p.cachedInputPer1M,
+  outputPer1M: p.outputPer1M,
+}));
 
 // ─── Insight Generator ──────────────────────────────────────────────
 

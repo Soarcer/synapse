@@ -18,8 +18,8 @@ import { ToolBadges } from '../analytics/shared/ToolBadges';
 import { ModelBadge } from '../analytics/shared/ModelBadge';
 import { ReasoningSection } from './ReasoningSection';
 import { CATEGORY_COLORS, fmtTokens } from '../analytics/shared/constants';
+import { computeCostUsd as coreComputeCostUsd, getPrice } from '@synapse-ai/core';
 import {
-  computeCostUsd,
   classifyPrompt,
   computeComplexity,
   computeCacheRate,
@@ -300,7 +300,14 @@ export function AgentDetailPanel() {
     const totalTokens = totalInput + totalOutput + totalCacheRead;
 
     const model = agent.model ?? 'unknown';
-    const costUsd = computeCostUsd(totalInput, totalOutput, totalCacheRead, model);
+    const costUsd = coreComputeCostUsd({
+      inputTokens: totalInput,
+      outputTokens: totalOutput,
+      cacheReadTokens: totalCacheRead,
+      cacheCreationTokens: totalCacheCreation,
+      thinkingTokens: totalThinking,
+      price: getPrice(model, []),
+    }).total;
     const cacheRate = computeCacheRate(totalInput, totalCacheRead);
 
     // Tool summary
@@ -1239,7 +1246,14 @@ function PromptDetailView({
     if (latestToolEnd > 0) endTimes.push(latestToolEnd);
     const latencyMs = endTimes.length > 0 ? Math.max(...endTimes) - promptTs : 0;
 
-    const costUsd = computeCostUsd(inputTokens, outputTokens, cacheReadTokens, model);
+    const costUsd = coreComputeCostUsd({
+      inputTokens,
+      outputTokens,
+      cacheReadTokens,
+      cacheCreationTokens,
+      thinkingTokens,
+      price: getPrice(model, []),
+    }).total;
     const cacheRate = computeCacheRate(inputTokens, cacheReadTokens);
     const complexity = computeComplexity(promptText, outputTokens, toolCount);
     const category = classifyPrompt(promptText);

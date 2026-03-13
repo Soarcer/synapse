@@ -3,8 +3,7 @@
 
 import { useMemo } from 'react';
 import { useAgentStore } from '../../store/agentStore';
-import { formatTokens, formatDuration } from '@synapse-ai/core';
-import { computeCostUsd } from '../analytics/shared/promptUtils';
+import { formatTokens, formatDuration, computeCostUsd, getPrice } from '@synapse-ai/core';
 import { Tooltip } from '../ui/Tooltip';
 
 export function GraphStats() {
@@ -43,12 +42,16 @@ export function GraphStats() {
     for (const agent of agents.values()) {
       const t = agent.tokenUsage;
       totalTokens += t.input + t.output;
-      totalCost += computeCostUsd(
-        t.input,
-        t.output,
-        t.cacheRead ?? 0,
-        agent.model ?? 'claude-sonnet-4-5-20250929',
-      );
+      const price = getPrice(agent.model ?? 'claude-sonnet-4-5');
+      const breakdown = computeCostUsd({
+        inputTokens: t.input,
+        outputTokens: t.output,
+        cacheReadTokens: t.cacheRead ?? 0,
+        cacheCreationTokens: t.cacheCreation ?? 0,
+        thinkingTokens: t.thinking ?? 0,
+        price,
+      });
+      totalCost += breakdown.total;
       if (agent.startTime < earliest) earliest = agent.startTime;
       const end = agent.endTime ?? Date.now();
       if (end > latest) latest = end;

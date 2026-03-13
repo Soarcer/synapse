@@ -2,48 +2,125 @@
 // Copyright (c) 2026 Bernhard
 
 import { describe, it, expect } from 'vitest';
-import {
-  computeCostUsd,
-  classifyPrompt,
-  computeComplexity,
-  computeCacheRate,
-  resolveModelPricing,
-  MODEL_PRICING,
-} from '../promptUtils';
+import { classifyPrompt, computeComplexity, computeCacheRate } from '../promptUtils';
+import { computeCostUsd, getPrice, DEFAULT_PRICES } from '@synapse-ai/core';
 
-describe('computeCostUsd', () => {
+// ── computeCostUsd (core) ────────────────────────────────────────────
+
+describe('computeCostUsd (core)', () => {
   it('computes cost for Opus model', () => {
-    const cost = computeCostUsd(1_000_000, 100_000, 0, 'claude-opus-4-6');
+    const price = getPrice('claude-opus-4-6');
+    const { total } = computeCostUsd({
+      inputTokens: 1_000_000,
+      outputTokens: 100_000,
+      cacheReadTokens: 0,
+      cacheCreationTokens: 0,
+      thinkingTokens: 0,
+      price,
+    });
     // input: 1M * 15/1M = 15, output: 100k * 75/1M = 7.5
-    expect(cost).toBeCloseTo(22.5, 2);
+    expect(total).toBeCloseTo(22.5, 2);
   });
 
   it('includes cached token cost at discounted rate', () => {
-    const cost = computeCostUsd(500_000, 100_000, 200_000, 'claude-opus-4-6');
+    const price = getPrice('claude-opus-4-6');
+    const { total } = computeCostUsd({
+      inputTokens: 500_000,
+      outputTokens: 100_000,
+      cacheReadTokens: 200_000,
+      cacheCreationTokens: 0,
+      thinkingTokens: 0,
+      price,
+    });
     // input: 500k * 15/1M = 7.5, output: 100k * 75/1M = 7.5, cache: 200k * 1.5/1M = 0.3
-    expect(cost).toBeCloseTo(15.3, 2);
-  });
-
-  it('returns 0 for unknown model', () => {
-    expect(computeCostUsd(1000, 1000, 0, 'gpt-4')).toBe(0);
+    expect(total).toBeCloseTo(15.3, 2);
   });
 
   it('returns 0 for zero tokens', () => {
-    expect(computeCostUsd(0, 0, 0, 'claude-opus-4-6')).toBe(0);
+    const price = getPrice('claude-opus-4-6');
+    const { total } = computeCostUsd({
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheCreationTokens: 0,
+      thinkingTokens: 0,
+      price,
+    });
+    expect(total).toBe(0);
   });
 
   it('handles Sonnet pricing', () => {
-    const cost = computeCostUsd(1_000_000, 1_000_000, 0, 'claude-sonnet-4-5');
+    const price = getPrice('claude-sonnet-4-5');
+    const { total } = computeCostUsd({
+      inputTokens: 1_000_000,
+      outputTokens: 1_000_000,
+      cacheReadTokens: 0,
+      cacheCreationTokens: 0,
+      thinkingTokens: 0,
+      price,
+    });
     // input: 3, output: 15
-    expect(cost).toBeCloseTo(18, 2);
+    expect(total).toBeCloseTo(18, 2);
   });
 
   it('handles Haiku pricing', () => {
-    const cost = computeCostUsd(1_000_000, 1_000_000, 0, 'claude-haiku-4-5');
+    const price = getPrice('claude-haiku-4-5');
+    const { total } = computeCostUsd({
+      inputTokens: 1_000_000,
+      outputTokens: 1_000_000,
+      cacheReadTokens: 0,
+      cacheCreationTokens: 0,
+      thinkingTokens: 0,
+      price,
+    });
     // input: 0.8, output: 4
-    expect(cost).toBeCloseTo(4.8, 2);
+    expect(total).toBeCloseTo(4.8, 2);
+  });
+
+  it('computes cost for suffixed model strings', () => {
+    const price = getPrice('claude-opus-4-6-20260201');
+    const { total } = computeCostUsd({
+      inputTokens: 1_000_000,
+      outputTokens: 100_000,
+      cacheReadTokens: 0,
+      cacheCreationTokens: 0,
+      thinkingTokens: 0,
+      price,
+    });
+    expect(total).toBeCloseTo(22.5, 2);
   });
 });
+
+// ── getPrice (core) ──────────────────────────────────────────────────
+
+describe('getPrice (core)', () => {
+  it('has pricing for all Claude models', () => {
+    expect(getPrice('claude-opus-4-6')).toBeDefined();
+    expect(getPrice('claude-sonnet-4-5')).toBeDefined();
+    expect(getPrice('claude-haiku-4-5')).toBeDefined();
+  });
+
+  it('cached rate is cheaper than input rate', () => {
+    for (const p of DEFAULT_PRICES.filter((p) => p.vendor === 'anthropic')) {
+      expect(p.cachedInputPer1M).toBeLessThan(p.inputPer1M);
+    }
+  });
+
+  it('resolves dated model variants via prefix match', () => {
+    const price = getPrice('claude-opus-4-6-20260201');
+    const base = getPrice('claude-opus-4-6');
+    expect(price.inputPer1M).toBe(base.inputPer1M);
+  });
+
+  it('returns fallback price for unknown models (not undefined)', () => {
+    const price = getPrice('gpt-4');
+    // Core returns a FALLBACK_PRICE for unknown models
+    expect(price).toBeDefined();
+    expect(price.inputPer1M).toBeGreaterThanOrEqual(0);
+  });
+});
+
+// ── classifyPrompt ───────────────────────────────────────────────────
 
 describe('classifyPrompt', () => {
   it('classifies feature prompts', () => {
@@ -92,6 +169,8 @@ describe('classifyPrompt', () => {
     expect(classifyPrompt('hello world')).toBe('other');
   });
 });
+
+// ── computeComplexity ────────────────────────────────────────────────
 
 describe('computeComplexity', () => {
   it('returns 0 for empty prompt with no tokens or tools', () => {
@@ -144,6 +223,8 @@ describe('computeComplexity', () => {
   });
 });
 
+// ── computeCacheRate ─────────────────────────────────────────────────
+
 describe('computeCacheRate', () => {
   it('returns 0 when both are 0', () => {
     expect(computeCacheRate(0, 0)).toBe(0);
@@ -164,47 +245,5 @@ describe('computeCacheRate', () => {
   it('computes fractional rates', () => {
     // 200 cache out of 800+200=1000 total = 20%
     expect(computeCacheRate(800, 200)).toBeCloseTo(20, 1);
-  });
-});
-
-describe('MODEL_PRICING', () => {
-  it('has pricing for all Claude models', () => {
-    expect(MODEL_PRICING['claude-opus-4-6']).toBeDefined();
-    expect(MODEL_PRICING['claude-sonnet-4-5']).toBeDefined();
-    expect(MODEL_PRICING['claude-haiku-4-5']).toBeDefined();
-  });
-
-  it('cached rate is cheaper than input rate', () => {
-    for (const [, pricing] of Object.entries(MODEL_PRICING)) {
-      expect(pricing.cachedPer1M).toBeLessThan(pricing.inputPer1M);
-    }
-  });
-});
-
-describe('resolveModelPricing', () => {
-  it('resolves exact model names', () => {
-    expect(resolveModelPricing('claude-opus-4-6')).toBe(MODEL_PRICING['claude-opus-4-6']);
-    expect(resolveModelPricing('claude-sonnet-4-5')).toBe(MODEL_PRICING['claude-sonnet-4-5']);
-  });
-
-  it('resolves dated model variants via prefix match', () => {
-    expect(resolveModelPricing('claude-opus-4-6-20260201')).toBe(MODEL_PRICING['claude-opus-4-6']);
-  });
-
-  it('prefers the longest matching prefix', () => {
-    // "claude-sonnet-4-5-20250929" should match the dated key exactly, not the short one
-    expect(resolveModelPricing('claude-sonnet-4-5-20250929')).toBe(
-      MODEL_PRICING['claude-sonnet-4-5-20250929'],
-    );
-  });
-
-  it('returns undefined for unknown models', () => {
-    expect(resolveModelPricing('gpt-4')).toBeUndefined();
-    expect(resolveModelPricing('unknown')).toBeUndefined();
-  });
-
-  it('enables computeCostUsd for suffixed model strings', () => {
-    const cost = computeCostUsd(1_000_000, 100_000, 0, 'claude-opus-4-6-20260201');
-    expect(cost).toBeCloseTo(22.5, 2);
   });
 });

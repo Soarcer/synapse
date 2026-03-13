@@ -4,6 +4,8 @@
 // Mock data generators for analytics prototypes
 // Produces realistic AI coding assistant usage data
 
+import { computeCostUsd, getPrice } from '@synapse-ai/core';
+
 export interface MockSession {
   id: string;
   name: string;
@@ -68,15 +70,12 @@ export interface MockData {
   timeRange: { start: number; end: number };
 }
 
-// ── Pricing ──────────────────────────────────────────────────
+// ── Model vendor lookup ────────────────────────────────────────
 
-const MODEL_INFO: Record<
-  string,
-  { inputPer1M: number; outputPer1M: number; cachedPer1M: number; vendor: string }
-> = {
-  'claude-opus-4-6': { inputPer1M: 15, outputPer1M: 75, cachedPer1M: 1.5, vendor: 'anthropic' },
-  'claude-sonnet-4-5': { inputPer1M: 3, outputPer1M: 15, cachedPer1M: 0.3, vendor: 'anthropic' },
-  'claude-haiku-4-5': { inputPer1M: 0.8, outputPer1M: 4, cachedPer1M: 0.08, vendor: 'anthropic' },
+const MODEL_VENDOR: Record<string, string> = {
+  'claude-opus-4-6': 'anthropic',
+  'claude-sonnet-4-5': 'anthropic',
+  'claude-haiku-4-5': 'anthropic',
 };
 
 // Tool probability weights (Read is most common)
@@ -157,14 +156,23 @@ function logNormal(rand: () => number, median: number, sigma: number): number {
   return Math.exp(Math.log(median) + sigma * z);
 }
 
-function computeCost(model: string, input: number, output: number, cacheRead: number): number {
-  const info = MODEL_INFO[model] ?? MODEL_INFO['claude-sonnet-4-5'];
-  const freshInput = input - cacheRead;
-  return (
-    (freshInput / 1_000_000) * info.inputPer1M +
-    (cacheRead / 1_000_000) * info.cachedPer1M +
-    (output / 1_000_000) * info.outputPer1M
-  );
+function computeCost(
+  model: string,
+  input: number,
+  output: number,
+  cacheRead: number,
+  cacheCreation = 0,
+  thinking = 0,
+): number {
+  const price = getPrice(model, []);
+  return computeCostUsd({
+    inputTokens: input,
+    outputTokens: output,
+    cacheReadTokens: cacheRead,
+    cacheCreationTokens: cacheCreation,
+    thinkingTokens: thinking,
+    price,
+  }).total;
 }
 
 // ── Generator ────────────────────────────────────────────────
@@ -216,7 +224,7 @@ export function generateMockData(seed = 42): MockData {
           : modelRoll < 0.75
             ? 'claude-opus-4-6'
             : 'claude-haiku-4-5';
-      const vendor = MODEL_INFO[model].vendor;
+      const vendor = MODEL_VENDOR[model] ?? 'anthropic';
 
       const sessionId = `session-${dateKey}-${s}`;
       const promptCount = 5 + Math.floor(rand() * 15); // 5-19 prompts
@@ -271,7 +279,14 @@ export function generateMockData(seed = 42): MockData {
         }
 
         const latencyMs = logNormal(rand, 1500, 0.4);
-        const turnCost = computeCost(model, inputTokens, outputTokens, cacheReadTokens);
+        const turnCost = computeCost(
+          model,
+          inputTokens,
+          outputTokens,
+          cacheReadTokens,
+          cacheCreationTokens,
+          thinkingTokens,
+        );
 
         totalInput += inputTokens;
         totalOutput += outputTokens;
