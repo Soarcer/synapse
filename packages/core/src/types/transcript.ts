@@ -131,6 +131,7 @@ export interface ExtendedUsage {
   outputTokens: number;
   cacheReadTokens: number;
   cacheCreationTokens: number;
+  thinkingTokens: number;
   ephemeral5mTokens: number;
   ephemeral1hTokens: number;
   serverToolUse: {

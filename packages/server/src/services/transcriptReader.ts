@@ -194,6 +194,7 @@ interface RawRecord {
       output_tokens?: number;
       cache_read_input_tokens?: number;
       cache_creation_input_tokens?: number;
+      thinking_tokens?: number;
       cache_creation?: {
         ephemeral_5m_input_tokens?: number;
         ephemeral_1h_input_tokens?: number;
@@ -374,6 +375,7 @@ function parseExtendedUsage(usage: RawUsage | undefined): ExtendedUsage {
       outputTokens: 0,
       cacheReadTokens: 0,
       cacheCreationTokens: 0,
+      thinkingTokens: 0,
       ephemeral5mTokens: 0,
       ephemeral1hTokens: 0,
       serverToolUse: { webSearchRequests: 0, webFetchRequests: 0 },
@@ -388,6 +390,7 @@ function parseExtendedUsage(usage: RawUsage | undefined): ExtendedUsage {
     outputTokens: usage.output_tokens ?? 0,
     cacheReadTokens,
     cacheCreationTokens: usage.cache_creation_input_tokens ?? 0,
+    thinkingTokens: usage.thinking_tokens ?? 0,
     ephemeral5mTokens: usage.cache_creation?.ephemeral_5m_input_tokens ?? 0,
     ephemeral1hTokens: usage.cache_creation?.ephemeral_1h_input_tokens ?? 0,
     serverToolUse: {

@@ -240,6 +240,8 @@ export function createTranscriptRouter(): Router {
             inputTokens: conv.usage.inputTokens,
             outputTokens: conv.usage.outputTokens,
             cacheReadTokens: conv.usage.cacheReadTokens,
+            cacheCreationTokens: conv.usage.cacheCreationTokens ?? 0,
+            thinkingTokens: conv.usage.thinkingTokens ?? 0,
           },
         });
       }
