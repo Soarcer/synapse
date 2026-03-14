@@ -79,10 +79,23 @@ export function createHookApp(deps: HookAppDeps): express.Express {
     pending.set(id, { res, event: req.body, timer, createdAt });
     startConnectionMonitor(broadcaster);
 
-    // Note: req.on('close') was removed — it fired unreliably (long delay after
-    // local answer in VS Code). Auto-dismiss is handled by resolveIfSessionAdvanced()
-    // in events.ts: ANY event from the same session resolves the pending permission.
-    // Layer 2 (connection monitor) catches cases where no further events arrive.
+    // Supplementary: detect when Claude Code closes the HTTP connection.
+    // res.on('close') fires when the underlying TCP connection is severed —
+    // either by the client dropping or after a response is sent. This is
+    // sometimes delayed 10-30s on Windows but serves as a backup signal.
+    // Primary auto-dismiss is via resolveIfSessionAdvanced() (Layer 1) and
+    // connection monitor DB check (Layer 2b).
+    res.on('close', () => {
+      const entry = pending.get(id);
+      if (!entry) return; // Already resolved by another layer
+      clearTimeout(entry.timer);
+      pending.delete(id);
+      broadcaster.broadcastRaw({
+        type: 'permissionResolved',
+        data: { id, behavior: 'allow' },
+      });
+      logger.info({ id }, 'Permission auto-resolved: res.on(close)');
+    });
 
     // Broadcast to dashboard via WS
     const toolName = (req.body.tool_name as string) ?? '';

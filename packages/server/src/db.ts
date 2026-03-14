@@ -563,6 +563,19 @@ export function upsertSessionSummary(params: {
   scheduleSave();
 }
 
+/**
+ * Check if any events exist for a session after a given timestamp.
+ * Used by Layer 2 connection monitor to detect session advancement
+ * when the HTTP socket stays alive after local answer.
+ */
+export function hasEventsForSessionSince(sessionId: string, sinceMs: number): boolean {
+  const row = queryGet('SELECT 1 FROM events WHERE session_id = ? AND created_at > ? LIMIT 1', [
+    sessionId,
+    sinceMs,
+  ]);
+  return row !== undefined;
+}
+
 export function getEventsBySession(sessionId: string, limit = 10_000): EventRow[] {
   return queryAll('SELECT * FROM events WHERE session_id = ? ORDER BY created_at ASC LIMIT ?', [
     sessionId,

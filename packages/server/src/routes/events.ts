@@ -45,6 +45,13 @@ function resolveIfSessionAdvanced(raw: Record<string, unknown>, broadcaster: Bro
   const hookName = raw.hook_event_name as string | undefined;
   if (hookName === 'PermissionRequest') return;
 
+  // Debug: log every event that reaches here when permissions are pending
+  const pendingSessionIds = [...pending.values()].map((e) => e.event.session_id);
+  logger.debug(
+    { hookName, sessionId, pendingCount: pending.size, pendingSessionIds },
+    'resolveIfSessionAdvanced: checking event against pending permissions',
+  );
+
   // Resolve ALL matching permissions for this session — multiple can exist
   // (e.g. rapid-fire tool calls from a subagent).
   for (const [id, entry] of pending) {

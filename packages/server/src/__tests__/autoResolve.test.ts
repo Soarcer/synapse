@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import type { Express, Response } from 'express';
 import request from 'supertest';
-import { initDb } from '../db.js';
+import { initDb, insertEvent } from '../db.js';
 import {
   pending,
   startConnectionMonitor,
@@ -290,5 +290,52 @@ describe('connection monitor (Layer 2)', () => {
     await vi.advanceTimersByTimeAsync(2100);
     // Monitor should have auto-stopped — no errors, no broadcasts
     expect(broadcastSpy).not.toHaveBeenCalled();
+  });
+
+  it('resolves when socket alive but session has newer events in DB (Layer 2b)', async () => {
+    const id = 'perm-conn-db';
+    const createdAt = Date.now() - 5000; // Permission created 5s ago
+    const mockRes = {
+      json: vi.fn(),
+      socket: { destroyed: false },
+      writableEnded: false,
+    };
+    pending.set(id, {
+      res: mockRes as unknown as Response,
+      event: {
+        session_id: 'sess-conn-db',
+        tool_name: 'AskUserQuestion',
+        hook_event_name: 'PermissionRequest',
+      },
+      timer: setTimeout(() => {}, 999999),
+      createdAt,
+    });
+
+    // Insert an event for the same session AFTER the permission was created
+    insertEvent({
+      event_id: 'evt-after-perm',
+      session_id: 'sess-conn-db',
+      hook_event_name: 'PostToolUse',
+      event_type: 'tool_end',
+      tool_name: 'AskUserQuestion',
+      tool_use_id: 'toolu_db',
+      raw_payload: '{}',
+      cwd: '/tmp',
+      created_at: createdAt + 2000, // 2s after permission
+    });
+
+    startConnectionMonitor(broadcaster);
+    await vi.advanceTimersByTimeAsync(2100);
+
+    // Socket is alive, but DB shows session advanced → should resolve
+    expect(pending.has(id)).toBe(false);
+    expect(broadcastSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'permissionResolved',
+        data: expect.objectContaining({ id, behavior: 'allow' }),
+      }),
+    );
+    // Should have sent the HTTP response (socket was alive)
+    expect(mockRes.json).toHaveBeenCalled();
   });
 });

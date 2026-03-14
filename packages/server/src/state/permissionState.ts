@@ -5,6 +5,7 @@ import type { Response } from 'express';
 import type { ClaudeHookEvent } from '@synapse-ai/core';
 import { logger } from '../lib/logger.js';
 import type { Broadcaster } from '../services/broadcaster.js';
+import { hasEventsForSessionSince } from '../db.js';
 
 export interface PendingEntry {
   res: Response;
@@ -62,18 +63,38 @@ export function startConnectionMonitor(broadcaster: Broadcaster): void {
       const socketDead = res.socket?.destroyed ?? false;
       const writableEnded = res.writableEnded ?? false;
 
-      if (socketDead || writableEnded) {
+      // Layer 2a: socket closed (Claude Code dropped the connection)
+      // Layer 2b: session advanced in DB (events arrived after permission was created,
+      //           but socket stayed alive — e.g. Claude Code answered locally and proceeded
+      //           without aborting the HTTP hook request)
+      const sessionId = entry.event.session_id as string | undefined;
+      const sessionAdvanced =
+        sessionId != null && hasEventsForSessionSince(sessionId, entry.createdAt);
+
+      if (socketDead || writableEnded || sessionAdvanced) {
+        const reason = socketDead || writableEnded ? 'connection closed' : 'session advanced (DB)';
         clearTimeout(entry.timer);
         pending.delete(id);
 
-        // No need to send a response — the socket is already closed.
-        // Layer 2 only needs to clean up state and notify the dashboard.
+        // Only send HTTP response if socket is still alive
+        if (sessionAdvanced && !socketDead && !writableEnded) {
+          try {
+            entry.res.json({
+              hookSpecificOutput: {
+                hookEventName: 'PermissionRequest',
+                decision: { behavior: 'allow' },
+              },
+            });
+          } catch {
+            // Response may already be closed
+          }
+        }
 
         monitorBroadcaster?.broadcastRaw({
           type: 'permissionResolved',
           data: { id, behavior: 'allow' },
         });
-        logger.info({ id }, 'Permission auto-resolved: connection closed (Layer 2)');
+        logger.info({ id, reason }, 'Permission auto-resolved (Layer 2)');
       }
     }
   }, CONNECTION_CHECK_INTERVAL_MS);
