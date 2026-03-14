@@ -7,10 +7,16 @@ import os from 'os';
 import rateLimit from 'express-rate-limit';
 import { logger } from './lib/logger.js';
 import type { Broadcaster } from './services/broadcaster.js';
-import { pending, MAX_PENDING, PERMISSION_TIMEOUT_MS } from './state/permissionState.js';
+import {
+  pending,
+  MAX_PENDING,
+  PERMISSION_TIMEOUT_MS,
+  startConnectionMonitor,
+} from './state/permissionState.js';
 import { sendToAll } from './services/pushService.js';
 import { selectLanIp } from './routes/network.js';
-import { HOOK_PORT, SYNAPSE_PORT, PROTOCOL } from '@synapse-ai/core';
+import { createEventsRouter } from './routes/events.js';
+import { HOOK_PORT, SYNAPSE_PORT, PROTOCOL } from '@synapse-ai/core/config';
 
 export interface HookAppDeps {
   broadcaster: Broadcaster;
@@ -71,11 +77,12 @@ export function createHookApp(deps: HookAppDeps): express.Express {
     }, PERMISSION_TIMEOUT_MS);
 
     pending.set(id, { res, event: req.body, timer, createdAt });
+    startConnectionMonitor(broadcaster);
 
     // Note: req.on('close') was removed — it fired unreliably (long delay after
-    // local answer in VS Code). Auto-dismiss is now handled by resolveLocallyAnswered()
-    // in events.ts: when the next event arrives for this session, the pending
-    // permission is resolved because the session clearly moved past it.
+    // local answer in VS Code). Auto-dismiss is handled by resolveIfSessionAdvanced()
+    // in events.ts: ANY event from the same session resolves the pending permission.
+    // Layer 2 (connection monitor) catches cases where no further events arrive.
 
     // Broadcast to dashboard via WS
     const toolName = (req.body.tool_name as string) ?? '';
@@ -115,6 +122,10 @@ export function createHookApp(deps: HookAppDeps): express.Express {
 
     // res intentionally NOT called — held until decision or timeout
   });
+
+  // ─── POST /api/events — event ingestion (same as main server) ───
+  // Hook scripts POST here over HTTP, avoiding TLS issues with the main HTTPS server.
+  app.use('/api/events', createEventsRouter(broadcaster));
 
   // ─── GET /api/hook-server/status ────────────────────────────────
   app.get('/api/hook-server/status', (_req, res) => {

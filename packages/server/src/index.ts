@@ -19,7 +19,7 @@ import { initDb, closeDb, startPruneTimer } from './db.js';
 import { seedBuiltInTemplates } from './services/playbookService.js';
 import { registerAllRules } from './services/rules/index.js';
 import { createHookApp } from './hookServer.js';
-import { pending } from './state/permissionState.js';
+import { pending, stopConnectionMonitor } from './state/permissionState.js';
 import { initPush } from './services/pushService.js';
 import { selectLanIp } from './routes/network.js';
 
@@ -28,7 +28,7 @@ import {
   HOOK_PORT as CONFIG_HOOK_PORT,
   HTTP_FALLBACK_PORT,
   USE_TLS,
-} from '@synapse-ai/core';
+} from '@synapse-ai/core/config';
 
 const HOST = process.env.HOST || '0.0.0.0';
 
@@ -277,8 +277,9 @@ httpFallbackWss?.on('connection', handleWsConnection);
 function shutdown() {
   logger.info('Shutting down...');
 
-  // 0. Stop prune timer
+  // 0. Stop prune timer and connection monitor
   if (pruneTimer) clearInterval(pruneTimer);
+  stopConnectionMonitor();
 
   // 1. Drain pending permissions — deny all before shutdown
   for (const [, entry] of pending.entries()) {

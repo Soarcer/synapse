@@ -12,6 +12,7 @@ import { AdapterRegistry } from '../adapters/index.js';
 import { ClaudeAdapter } from '../adapters/claude.js';
 import { GeminiAdapter } from '../adapters/gemini.js';
 import { CodexAdapter } from '../adapters/codex.js';
+import { pending } from '../state/permissionState.js';
 
 // ─── Module-level adapter registry ──────────────────────────────────
 // Register specific adapters first, catch-all Claude adapter last.
@@ -20,6 +21,56 @@ const registry = new AdapterRegistry()
   .register(new CodexAdapter()) // Codex JSONL / notify events
   .register(new GeminiAdapter()) // Gemini-specific hooks match first
   .register(new ClaudeAdapter()); // Catch-all for remaining hook events
+
+/**
+ * When ANY hook event arrives for a session that has a pending permission,
+ * the user answered locally — the session moved past the blocked permission.
+ *
+ * Behavior mapping:
+ *   PostToolUse          → allow (tool executed successfully)
+ *   PostToolUseFailure   → deny  (tool was rejected or failed)
+ *   Everything else      → allow (session advanced, tool was implicitly allowed)
+ *
+ * We match by session_id only (not tool_use_id) because the PermissionRequest
+ * body may not include tool_use_id.
+ */
+function resolveIfSessionAdvanced(raw: Record<string, unknown>, broadcaster: Broadcaster): void {
+  if (pending.size === 0) return;
+
+  const sessionId = raw.session_id as string | undefined;
+  if (!sessionId) return;
+
+  // Skip the PermissionRequest event itself — it fires alongside the HTTP hook
+  // and should NOT auto-resolve its own pending entry.
+  const hookName = raw.hook_event_name as string | undefined;
+  if (hookName === 'PermissionRequest') return;
+
+  // Resolve ALL matching permissions for this session — multiple can exist
+  // (e.g. rapid-fire tool calls from a subagent).
+  for (const [id, entry] of pending) {
+    if (entry.event.session_id === sessionId) {
+      const behavior = hookName === 'PostToolUseFailure' ? 'deny' : 'allow';
+      clearTimeout(entry.timer);
+      pending.delete(id);
+      // Close the held HTTP response (Claude Code already moved on)
+      try {
+        entry.res.json({
+          hookSpecificOutput: {
+            hookEventName: 'PermissionRequest',
+            decision: { behavior },
+          },
+        });
+      } catch {
+        // Response already closed
+      }
+      broadcaster.broadcastRaw({
+        type: 'permissionResolved',
+        data: { id, behavior },
+      });
+      logger.info({ id, sessionId, hookName }, 'Permission auto-resolved: session advanced');
+    }
+  }
+}
 
 export function createEventsRouter(broadcaster: Broadcaster): Router {
   const router = Router();
@@ -70,6 +121,11 @@ export function createEventsRouter(broadcaster: Broadcaster): Router {
         },
         'Event received',
       );
+
+      // Auto-resolve pending permissions when the session advances locally.
+      // Any event from the same session (except PermissionRequest itself) triggers this.
+      resolveIfSessionAdvanced(raw, broadcaster);
+
       res.status(200).json({ ok: true, eventId: event.id });
     } catch (err: unknown) {
       logger.error({ err }, 'Error processing event');

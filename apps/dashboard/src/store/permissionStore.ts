@@ -249,6 +249,26 @@ export function isRemoteDev(data: { tool_name?: string; tool_input_raw?: unknown
 
 // ── Hydration helper (call on WS connect/reconnect) ──────────
 
+/**
+ * Periodic sync: fetch server's pending list and remove any dashboard cards
+ * that are no longer pending (e.g. resolved locally in VS Code / CLI).
+ */
+export async function syncPermissions(): Promise<void> {
+  try {
+    const res = await fetch(apiUrl('/api/permissions/pending'));
+    if (!res.ok) return;
+    const items: PendingSummary[] = await res.json();
+    const serverIds = new Set(items.map((item) => item.id));
+    const store = usePermissionStore.getState();
+    const staleIds = store.pending.filter((p) => !serverIds.has(p.id));
+    for (const stale of staleIds) {
+      store.resolvePending(stale.id, 'allow');
+    }
+  } catch {
+    // Sync failure is non-fatal
+  }
+}
+
 export async function hydratePermissions(): Promise<void> {
   try {
     const res = await fetch(apiUrl('/api/permissions/pending'));
@@ -267,4 +287,44 @@ export async function hydratePermissions(): Promise<void> {
   } catch {
     // Hydration failure is non-fatal — WS will deliver live updates
   }
+}
+
+// ── Layer 3: Adaptive sync interval ─────────────────────────
+// When permission cards are visible, poll every 5s for fast auto-dismiss.
+// When no cards are pending, back off to 30s as a safety net.
+
+const FAST_SYNC_MS = 5_000;
+const SLOW_SYNC_MS = 30_000;
+
+export function createAdaptiveSync() {
+  let timer: ReturnType<typeof setInterval> | null = null;
+  let currentInterval = SLOW_SYNC_MS;
+
+  function restart(intervalMs: number) {
+    if (timer) clearInterval(timer);
+    currentInterval = intervalMs;
+    timer = setInterval(syncPermissions, currentInterval);
+  }
+
+  return {
+    start() {
+      if (timer) return;
+      timer = setInterval(syncPermissions, currentInterval);
+    },
+
+    stop() {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    },
+
+    /** Call when the number of pending permission cards changes */
+    notifyPendingChange(count: number) {
+      const targetInterval = count > 0 ? FAST_SYNC_MS : SLOW_SYNC_MS;
+      if (targetInterval !== currentInterval) {
+        restart(targetInterval);
+      }
+    },
+  };
 }
