@@ -55,7 +55,7 @@ function seedPending(sessionId: string): string {
     res: mockRes as unknown as Response,
     event: { session_id: sessionId, tool_name: 'Bash', hook_event_name: 'PermissionRequest' },
     timer: setTimeout(() => {}, 999999),
-    createdAt: Date.now(),
+    createdAt: Date.now() - 5000, // Backdate past the 2s grace period
   });
   return id;
 }

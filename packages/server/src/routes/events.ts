@@ -54,28 +54,40 @@ function resolveIfSessionAdvanced(raw: Record<string, unknown>, broadcaster: Bro
 
   // Resolve ALL matching permissions for this session — multiple can exist
   // (e.g. rapid-fire tool calls from a subagent).
+  const now = Date.now();
   for (const [id, entry] of pending) {
-    if (entry.event.session_id === sessionId) {
-      const behavior = hookName === 'PostToolUseFailure' ? 'deny' : 'allow';
-      clearTimeout(entry.timer);
-      pending.delete(id);
-      // Close the held HTTP response (Claude Code already moved on)
-      try {
-        entry.res.json({
-          hookSpecificOutput: {
-            hookEventName: 'PermissionRequest',
-            decision: { behavior },
-          },
-        });
-      } catch {
-        // Response already closed
-      }
-      broadcaster.broadcastRaw({
-        type: 'permissionResolved',
-        data: { id, behavior },
-      });
-      logger.info({ id, sessionId, hookName }, 'Permission auto-resolved: session advanced');
+    if (entry.event.session_id !== sessionId) continue;
+
+    // Grace period: ignore events that arrive within 2s of the permission being
+    // created. PreToolUse fires BEFORE PermissionRequest in Claude Code's hook
+    // sequence, so the async send_event.cjs POST can arrive at the main server
+    // AFTER the pending entry exists on the hook server — creating a false
+    // "session advanced" signal. The 2s window lets in-flight events drain.
+    const ageMs = now - entry.createdAt;
+    if (ageMs < 2000) {
+      logger.debug({ id, ageMs, hookName }, 'Skipping auto-resolve: permission too young');
+      continue;
     }
+
+    const behavior = hookName === 'PostToolUseFailure' ? 'deny' : 'allow';
+    clearTimeout(entry.timer);
+    pending.delete(id);
+    // Close the held HTTP response (Claude Code already moved on)
+    try {
+      entry.res.json({
+        hookSpecificOutput: {
+          hookEventName: 'PermissionRequest',
+          decision: { behavior },
+        },
+      });
+    } catch {
+      // Response already closed
+    }
+    broadcaster.broadcastRaw({
+      type: 'permissionResolved',
+      data: { id, behavior },
+    });
+    logger.info({ id, sessionId, hookName }, 'Permission auto-resolved: session advanced');
   }
 }
 
