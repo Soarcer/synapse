@@ -564,15 +564,23 @@ export function upsertSessionSummary(params: {
 }
 
 /**
- * Check if any events exist for a session after a given timestamp.
- * Used by Layer 2 connection monitor to detect session advancement
- * when the HTTP socket stays alive after local answer.
+ * Check if a tool_end, tool_error, or stop event exists for a session after
+ * a given timestamp. Used by Layer 2 connection monitor to detect that the
+ * user answered a permission locally — the tool completed or session ended.
+ *
+ * Only these event types count as evidence of action taken:
+ *   tool_end   (PostToolUse)
+ *   tool_error (PostToolUseFailure)
+ *   stop       (Stop / session ended)
  */
-export function hasEventsForSessionSince(sessionId: string, sinceMs: number): boolean {
-  const row = queryGet('SELECT 1 FROM events WHERE session_id = ? AND created_at > ? LIMIT 1', [
-    sessionId,
-    sinceMs,
-  ]);
+export function hasCompletionForSessionSince(sessionId: string, sinceMs: number): boolean {
+  const row = queryGet(
+    `SELECT 1 FROM events
+     WHERE session_id = ? AND created_at > ?
+       AND event_type IN ('tool_end', 'tool_error', 'stop')
+     LIMIT 1`,
+    [sessionId, sinceMs],
+  );
   return row !== undefined;
 }
 

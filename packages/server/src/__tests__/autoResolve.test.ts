@@ -86,7 +86,7 @@ describe('resolveIfSessionAdvanced', () => {
     expect(pending.has(permId)).toBe(false);
   });
 
-  it('resolves on UserPromptSubmit event (NEW behavior)', async () => {
+  it('does NOT resolve on UserPromptSubmit (not a completion signal)', async () => {
     const permId = seedPending('sess-3');
     await request(app).post('/api/events').send({
       hook_event_name: 'UserPromptSubmit',
@@ -94,10 +94,10 @@ describe('resolveIfSessionAdvanced', () => {
       cwd: '/tmp',
       prompt: 'next prompt',
     });
-    expect(pending.has(permId)).toBe(false);
+    expect(pending.has(permId)).toBe(true);
   });
 
-  it('resolves on PreToolUse for a DIFFERENT tool (NEW behavior)', async () => {
+  it('does NOT resolve on PreToolUse (not a completion signal)', async () => {
     const permId = seedPending('sess-4');
     await request(app).post('/api/events').send({
       hook_event_name: 'PreToolUse',
@@ -106,7 +106,7 @@ describe('resolveIfSessionAdvanced', () => {
       tool_use_id: 'toolu_different',
       cwd: '/tmp',
     });
-    expect(pending.has(permId)).toBe(false);
+    expect(pending.has(permId)).toBe(true);
   });
 
   it('does NOT resolve for a different session', async () => {

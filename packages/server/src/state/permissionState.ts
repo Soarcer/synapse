@@ -5,7 +5,7 @@ import type { Response } from 'express';
 import type { ClaudeHookEvent } from '@synapse-ai/core';
 import { logger } from '../lib/logger.js';
 import type { Broadcaster } from '../services/broadcaster.js';
-import { hasEventsForSessionSince } from '../db.js';
+import { hasCompletionForSessionSince } from '../db.js';
 
 export interface PendingEntry {
   res: Response;
@@ -69,7 +69,7 @@ export function startConnectionMonitor(broadcaster: Broadcaster): void {
       //           without aborting the HTTP hook request)
       const sessionId = entry.event.session_id as string | undefined;
       const sessionAdvanced =
-        sessionId != null && hasEventsForSessionSince(sessionId, entry.createdAt);
+        sessionId != null && hasCompletionForSessionSince(sessionId, entry.createdAt);
 
       if (socketDead || writableEnded || sessionAdvanced) {
         const reason = socketDead || writableEnded ? 'connection closed' : 'session advanced (DB)';

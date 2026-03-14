@@ -23,51 +23,32 @@ const registry = new AdapterRegistry()
   .register(new ClaudeAdapter()); // Catch-all for remaining hook events
 
 /**
- * When ANY hook event arrives for a session that has a pending permission,
- * the user answered locally — the session moved past the blocked permission.
+ * Auto-resolve pending permissions when there is clear evidence the tool
+ * completed or the session ended — meaning the user answered locally.
  *
- * Behavior mapping:
+ * Only these event types trigger resolution:
  *   PostToolUse          → allow (tool executed successfully)
  *   PostToolUseFailure   → deny  (tool was rejected or failed)
- *   Everything else      → allow (session advanced, tool was implicitly allowed)
+ *   Stop                 → allow (session ended, permission is moot)
  *
- * We match by session_id only (not tool_use_id) because the PermissionRequest
- * body may not include tool_use_id.
+ * Other events (PreToolUse, UserPromptSubmit, Notification, etc.) do NOT
+ * trigger resolution — they can flow while a permission is still pending.
  */
+const RESOLVE_EVENTS = new Set(['PostToolUse', 'PostToolUseFailure', 'Stop']);
+
 function resolveIfSessionAdvanced(raw: Record<string, unknown>, broadcaster: Broadcaster): void {
   if (pending.size === 0) return;
+
+  const hookName = raw.hook_event_name as string | undefined;
+  if (!hookName || !RESOLVE_EVENTS.has(hookName)) return;
 
   const sessionId = raw.session_id as string | undefined;
   if (!sessionId) return;
 
-  // Skip the PermissionRequest event itself — it fires alongside the HTTP hook
-  // and should NOT auto-resolve its own pending entry.
-  const hookName = raw.hook_event_name as string | undefined;
-  if (hookName === 'PermissionRequest') return;
-
-  // Debug: log every event that reaches here when permissions are pending
-  const pendingSessionIds = [...pending.values()].map((e) => e.event.session_id);
-  logger.debug(
-    { hookName, sessionId, pendingCount: pending.size, pendingSessionIds },
-    'resolveIfSessionAdvanced: checking event against pending permissions',
-  );
-
   // Resolve ALL matching permissions for this session — multiple can exist
   // (e.g. rapid-fire tool calls from a subagent).
-  const now = Date.now();
   for (const [id, entry] of pending) {
     if (entry.event.session_id !== sessionId) continue;
-
-    // Grace period: ignore events that arrive within 2s of the permission being
-    // created. PreToolUse fires BEFORE PermissionRequest in Claude Code's hook
-    // sequence, so the async send_event.cjs POST can arrive at the main server
-    // AFTER the pending entry exists on the hook server — creating a false
-    // "session advanced" signal. The 2s window lets in-flight events drain.
-    const ageMs = now - entry.createdAt;
-    if (ageMs < 2000) {
-      logger.debug({ id, ageMs, hookName }, 'Skipping auto-resolve: permission too young');
-      continue;
-    }
 
     const behavior = hookName === 'PostToolUseFailure' ? 'deny' : 'allow';
     clearTimeout(entry.timer);
