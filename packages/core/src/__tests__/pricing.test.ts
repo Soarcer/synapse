@@ -62,6 +62,46 @@ describe('getPrice', () => {
     expect(p.inputPer1M).toBe(3);
     expect(p.vendor).toBe('unknown');
   });
+  it('prefix match requires separator — o1 does not match o1-preview', () => {
+    // 'o1' is in DEFAULT_PRICES; 'o1-preview' is not.
+    // Without separator check, o1-preview would wrongly inherit o1 pricing.
+    const o1 = getPrice('o1');
+    const o1preview = getPrice('o1-preview');
+    // o1-preview should fall back (not match o1)
+    expect(o1.model).toBe('o1');
+    expect(o1preview.model).toBe('o1-preview'); // fallback uses the requested model name
+    expect(o1preview.inputPer1M).toBe(3); // FALLBACK_PRICE
+  });
+  it('prefix match works with separator — dated variant matches base', () => {
+    // claude-haiku-4-5-20260601 should match claude-haiku-4-5 (separator is '-')
+    const p = getPrice('claude-haiku-4-5-20260601');
+    expect(p.inputPer1M).toBe(0.8);
+  });
+  it('o3-mini does not match o3', () => {
+    // If o3 were added to DEFAULT_PRICES, o3-mini should not inherit its pricing
+    // because '-mini' does not start with a digit.
+    const p = getPrice('o3-mini');
+    expect(p.inputPer1M).toBe(1.1); // exact match — o3-mini IS in DEFAULT_PRICES
+  });
+  it('gpt-4o-2024-05-13 matches gpt-4o via dated prefix', () => {
+    const p = getPrice('gpt-4o-2024-05-13');
+    expect(p.inputPer1M).toBe(2.5); // gpt-4o pricing
+  });
+  it('gpt-4o-mini does not match gpt-4o', () => {
+    // gpt-4o-mini has its own entry; but even if it didn't,
+    // '-mini' suffix would prevent prefix match to gpt-4o.
+    const p = getPrice('gpt-4o-mini');
+    expect(p.inputPer1M).toBe(0.15); // exact match for gpt-4o-mini
+  });
+  it('gemini-2.5-pro-preview falls back (non-digit suffix)', () => {
+    // Hypothetical model — '-preview' should not prefix-match gemini-2.5-pro
+    const p = getPrice('gemini-2.5-pro-preview');
+    expect(p.inputPer1M).toBe(3); // FALLBACK_PRICE
+  });
+  it('case-insensitive matching', () => {
+    const p = getPrice('Claude-Opus-4-6');
+    expect(p.inputPer1M).toBe(15);
+  });
 });
 
 describe('computeCostUsd', () => {
