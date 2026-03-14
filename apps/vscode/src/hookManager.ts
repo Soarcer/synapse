@@ -74,7 +74,9 @@ export class HookManager {
 
       const allEvents = [...SYNC_EVENTS, ...ASYNC_EVENTS];
       const enabledEvents: string[] = [];
-      let detectedPort: number | null = null;
+      // Port is now statically known — hook scripts read SYNAPSE_PORT env var (default 27246).
+      // No need for port detection from command args or port files.
+      const detectedPort = port; // Assume match — port is configured via config.ts
 
       for (const eventName of allEvents) {
         const eventHooks = hooks[eventName];
@@ -84,11 +86,6 @@ export class HookManager {
           const cmd = innerHooks?.[0]?.command as string | undefined;
           if (cmd && cmd.includes('send_event.cjs')) {
             enabledEvents.push(eventName);
-            if (detectedPort === null) {
-              // Try --port in command (legacy), then fall back to port file
-              const match = cmd.match(/--port\s+(\d+)/);
-              if (match) detectedPort = parseInt(match[1], 10);
-            }
           }
         }
       }
