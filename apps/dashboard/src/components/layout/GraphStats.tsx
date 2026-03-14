@@ -5,21 +5,16 @@ import { useMemo, useEffect, useState } from 'react';
 import { useAgentStore } from '../../store/agentStore';
 import { formatTokens, formatDuration, computeCostUsd, getPrice } from '@synapse-ai/core';
 import { Tooltip } from '../ui/Tooltip';
+import { PlanBadge } from './PlanBadge';
 import { apiUrl } from '../../utils/api';
 
 interface PlanInfo {
   plan: string;
   source: 'auto' | 'manual';
   monthlyLimit: number | null;
+  /** Whether the plan was confidently detected (false = fallback assumption). */
+  detected: boolean;
 }
-
-const PLAN_LABELS: Record<string, string> = {
-  free: 'Free',
-  pro: 'Pro $20/mo',
-  max_5x: 'Max 5× $100/mo',
-  max_20x: 'Max 20× $200/mo',
-  api: 'API (pay-per-use)',
-};
 
 export function GraphStats() {
   const nodes = useAgentStore((s) => s.nodes);
@@ -39,15 +34,16 @@ export function GraphStats() {
             plan: planData.plan,
             source: planData.source ?? 'auto',
             monthlyLimit: planData.monthlyLimit ?? null,
+            detected: planData.detected !== false,
           });
         } else {
           // Fallback if endpoint returns no plan info
-          setPlan({ plan: 'pro', source: 'auto', monthlyLimit: 20 });
+          setPlan({ plan: 'pro', source: 'auto', monthlyLimit: 20, detected: false });
         }
       })
       .catch(() => {
         // Fallback on error
-        setPlan({ plan: 'pro', source: 'auto', monthlyLimit: 20 });
+        setPlan({ plan: 'pro', source: 'auto', monthlyLimit: 20, detected: false });
       });
   }, []);
 
@@ -176,28 +172,7 @@ export function GraphStats() {
       {plan && (
         <>
           <span className="hidden lg:inline text-gray-600">&middot;</span>
-          <span
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium
-            ${
-              plan.plan === 'api'
-                ? 'bg-blue-500/20 text-blue-300'
-                : plan.source === 'auto'
-                  ? 'bg-green-500/20 text-green-300'
-                  : 'bg-amber-500/20 text-amber-300'
-            }`}
-            title={plan.source === 'auto' ? 'Auto-detected' : 'Manually set'}
-          >
-            <span
-              className={`w-1.5 h-1.5 rounded-full ${
-                plan.plan === 'api'
-                  ? 'bg-blue-400'
-                  : plan.source === 'auto'
-                    ? 'bg-green-400'
-                    : 'bg-amber-400'
-              }`}
-            />
-            {PLAN_LABELS[plan.plan] ?? plan.plan}
-          </span>
+          <PlanBadge plan={plan} onPlanChange={setPlan} />
         </>
       )}
       {isFiltered && (
