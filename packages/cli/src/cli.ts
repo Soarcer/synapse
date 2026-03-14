@@ -12,7 +12,7 @@
 //   synapse hook           — configure hooks for current project
 //   synapse unhook         — remove hooks from current project
 
-import { start, stop, status, readPort } from './daemon.js';
+import { start, stop, status } from './daemon.js';
 import { configureHooks, removeHooks, isHooked } from './hookSetup.js';
 
 const args = process.argv.slice(2);
@@ -112,12 +112,12 @@ async function main() {
     }
 
     case 'hook': {
-      const port = readPort();
-      if (!port) {
+      const info = await status();
+      if (!info.running || !info.port) {
         console.error('Synapse is not running. Start it first: synapse start');
         process.exit(1);
       }
-      configureHooks(process.cwd(), port);
+      configureHooks(process.cwd(), info.port);
       break;
     }
 

@@ -25,14 +25,19 @@ function AgentNodeComponent({ data }: NodeProps) {
   const preview = agent.streamingText ? agent.streamingText.slice(-50).replace(/\n/g, ' ') : null;
   const { source, target, sourceStyle } = useHandlePositions();
   const children = useAgentStore((s) => s.childAgents.get(agent.agentId)) ?? EMPTY_AGENTS;
-  const selectedNodeId = useAgentStore((s) => s.selectedNodeId);
-  const highlightedNodeIds = useAgentStore((s) => s.highlightedNodeIds);
   const nodeId = `agent-${agent.agentId}`;
-  const isSelected = selectedNodeId === nodeId;
-  const isHighlighted = !isSelected && highlightedNodeIds?.has(nodeId);
-  // Tools are expanded when this agent (or one of its tools) is selected
-  const toolsExpanded =
-    isSelected || agent.toolCalls.some((tc) => selectedNodeId === `tool-${tc.toolUseId}`);
+  const isSelected = useAgentStore((s) => s.selectedNodeId === nodeId);
+  const isHighlighted = useAgentStore(
+    (s) => s.selectedNodeId !== nodeId && (s.highlightedNodeIds?.has(nodeId) ?? false),
+  );
+  // Tools are expanded when this agent (or one of its tools) is selected.
+  // Returns boolean so only re-renders when the expanded state actually changes.
+  const toolsExpanded = useAgentStore((s) => {
+    if (s.selectedNodeId === nodeId) return true;
+    if (!s.selectedNodeId?.startsWith('tool-')) return false;
+    const toolUseId = s.selectedNodeId.slice(5);
+    return agent.toolCalls.some((tc) => tc.toolUseId === toolUseId);
+  });
 
   const { inputTokens, outputTokens } = useMemo(() => {
     let input = agent.tokenUsage.input;

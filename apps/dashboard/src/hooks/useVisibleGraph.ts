@@ -43,7 +43,10 @@ export function useVisibleGraph(options: UseVisibleGraphOptions): UseVisibleGrap
   const rawNodes = useAgentStore((s) => s.nodes);
   const rawEdges = useAgentStore((s) => s.edges);
   const graphSearchQuery = useAgentStore((s) => s.graphSearchQuery);
-  const selectedNodeId = useAgentStore((s) => s.selectedNodeId);
+  const rawSelectedNodeId = useAgentStore((s) => s.selectedNodeId);
+  // Only track selection changes when autoClosePrompts needs it —
+  // otherwise node clicks skip the entire visibility recomputation.
+  const selectedNodeId = autoClosePrompts ? rawSelectedNodeId : null;
   // showAllTools/toolGroupMode affect rendering but are already reflected in rawNodes
   // via the AgentGraph visibility memo, so no need to include them here.
 

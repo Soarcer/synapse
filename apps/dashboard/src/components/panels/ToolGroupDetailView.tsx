@@ -378,9 +378,9 @@ function InsightsSection({
             Errors ({stats.errorTools.length})
           </span>
           <div className="space-y-1 max-h-32 overflow-auto">
-            {stats.errorTools.map((tc) => (
+            {stats.errorTools.map((tc, i) => (
               <button
-                key={tc.toolUseId}
+                key={`${tc.toolUseId}-${i}`}
                 onClick={() => selectNode(`tool-${tc.toolUseId}`, 'graph')}
                 className="w-full text-left flex items-center justify-between bg-red-900/20 hover:bg-red-900/30 border border-red-800/30 rounded px-2 py-1 text-xs text-red-300 transition-colors"
               >
@@ -426,9 +426,9 @@ function TimelineMinimap({
     <div>
       <span className="text-gray-500 text-xs block mb-1.5">Timeline</span>
       <div className="relative h-6 bg-gray-900 rounded overflow-hidden border border-gray-800">
-        {segments.map(({ tc, left, width }) => (
+        {segments.map(({ tc, left, width }, i) => (
           <button
-            key={tc.toolUseId}
+            key={`${tc.toolUseId}-${i}`}
             onClick={() => selectNode(`tool-${tc.toolUseId}`, 'graph')}
             title={`${tc.toolName} — ${tc.duration != null ? formatDuration(tc.duration) : '?'}`}
             className="absolute top-0.5 bottom-0.5 rounded-sm cursor-pointer hover:brightness-125 transition-all"

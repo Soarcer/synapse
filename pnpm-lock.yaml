@@ -152,6 +152,10 @@ importers:
         version: 8.19.0
 
   packages/cli:
+    dependencies:
+      '@synapse-ai/core':
+        specifier: workspace:*
+        version: link:../core
     devDependencies:
       esbuild:
         specifier: ^0.25.0

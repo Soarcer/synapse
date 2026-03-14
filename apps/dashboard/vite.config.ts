@@ -4,7 +4,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-import { SYNAPSE_PORT, DEV_PORT, PROTOCOL, WS_PROTOCOL } from '@synapse-ai/core';
+import { SYNAPSE_PORT, DEV_PORT, PROTOCOL, WS_PROTOCOL } from '@synapse-ai/core/config';
 
 const proxyTarget = `${PROTOCOL}://127.0.0.1:${SYNAPSE_PORT}`;
 const wsTarget = `${WS_PROTOCOL}://127.0.0.1:${SYNAPSE_PORT}`;

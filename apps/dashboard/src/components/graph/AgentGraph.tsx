@@ -76,26 +76,21 @@ function AgentGraphInner() {
 
   // Shared cancellation — prevents competing fitView calls from racing.
   // Any new scheduleFitView call cancels any pending one, ensuring only the
-  // latest fitView executes.
-  const pendingFitRef = useRef<{ raf1: number; raf2?: number } | null>(null);
+  // latest fitView executes.  Single rAF keeps zoom responsive to rapid events.
+  const pendingFitRef = useRef<number | null>(null);
   const cancelPendingFit = useCallback(() => {
-    if (pendingFitRef.current) {
-      cancelAnimationFrame(pendingFitRef.current.raf1);
-      if (pendingFitRef.current.raf2 != null) cancelAnimationFrame(pendingFitRef.current.raf2);
+    if (pendingFitRef.current != null) {
+      cancelAnimationFrame(pendingFitRef.current);
       pendingFitRef.current = null;
     }
   }, []);
   const scheduleFitView = useCallback(
     (opts: Parameters<typeof fitView>[0]) => {
       cancelPendingFit();
-      const pending: { raf1: number; raf2?: number } = { raf1: 0 };
-      pending.raf1 = requestAnimationFrame(() => {
-        pending.raf2 = requestAnimationFrame(() => {
-          pendingFitRef.current = null;
-          fitView(opts);
-        });
+      pendingFitRef.current = requestAnimationFrame(() => {
+        pendingFitRef.current = null;
+        fitView(opts);
       });
-      pendingFitRef.current = pending;
     },
     [fitView, cancelPendingFit],
   );
@@ -212,17 +207,16 @@ function AgentGraphInner() {
     useAgentStore.getState().setHighlightedNodeIds(mergedHighlightIds);
   }, [mergedHighlightIds]);
 
-  // Apply dim styling to non-highlighted nodes
+  // Apply dim styling to non-highlighted nodes via className (avoids creating new node objects)
   const nodes = useMemo(() => {
     if (!mergedHighlightIds) return layoutNodes;
-    return layoutNodes.map((n) => ({
-      ...n,
-      style: {
-        ...n.style,
-        opacity: mergedHighlightIds.has(n.id) ? 1 : 0.25,
-        transition: 'opacity 0.2s ease',
-      },
-    }));
+    return layoutNodes.map((n) => {
+      const highlighted = mergedHighlightIds.has(n.id);
+      const cls = highlighted ? 'synapse-highlighted' : 'synapse-dimmed';
+      const existing = n.className ?? '';
+      if (existing.includes(cls)) return n;
+      return { ...n, className: `${existing} ${cls}`.trim() };
+    });
   }, [layoutNodes, mergedHighlightIds]);
 
   // Cost gradient: compute cumulative tokens per node for edge coloring
@@ -328,12 +322,9 @@ function AgentGraphInner() {
         const visibleId = resolveVisibleId(target.id);
         if (visibleId) {
           scheduleFitView({ nodes: [{ id: visibleId }], duration: 300, padding: 1 });
-        } else {
-          // Toolgroup may not exist in visibleNodes yet — fit all nodes instead
-          scheduleFitView({ padding: 0.2, duration: 300 });
         }
-      } else {
-        scheduleFitView({ padding: 0.2, duration: 300 });
+        // If visibleId is null, toolgroup hasn't rendered yet — skip this fit.
+        // The next node addition will re-trigger and resolve correctly.
       }
     }
     prevNodeCountRef.current = rawNodes.length;
@@ -475,11 +466,12 @@ function AgentGraphInner() {
 
     if (!selectedNodeId || selectSource !== 'graph') return;
 
-    const timer = setTimeout(() => {
+    // Use rAF instead of setTimeout for immediate visual response after layout settles
+    const raf = requestAnimationFrame(() => {
       const clickedToolGroup = selectedNodeId.startsWith('toolgroup-');
       if (clickedToolGroup) {
         // Zoom directly to the toolgroup container the user clicked
-        fitView({ nodes: [{ id: selectedNodeId }], duration: 400, padding: 0.3 });
+        fitView({ nodes: [{ id: selectedNodeId }], duration: 300, padding: 0.3 });
       } else if (expansionHappened && expandedParentId) {
         // Frame parent + its toolGroup child (or structural tool children)
         const nodeIds = [expandedParentId];
@@ -491,7 +483,7 @@ function AgentGraphInner() {
             nodeIds.push(edge.target);
           }
         }
-        fitView({ nodes: nodeIds.map((id) => ({ id })), duration: 400, padding: 0.3 });
+        fitView({ nodes: nodeIds.map((id) => ({ id })), duration: 300, padding: 0.3 });
       } else {
         // Check if selected node is hidden behind the detail panel
         const vp = getViewport();
@@ -507,12 +499,12 @@ function AgentGraphInner() {
 
         if (nodeRightScreen > containerWidth - 40) {
           const shift = nodeRightScreen - containerWidth + 100;
-          setViewport({ x: vp.x - shift, y: vp.y, zoom: vp.zoom }, { duration: 300 });
+          setViewport({ x: vp.x - shift, y: vp.y, zoom: vp.zoom }, { duration: 200 });
         }
       }
-    }, 200);
+    });
 
-    return () => clearTimeout(timer);
+    return () => cancelAnimationFrame(raf);
   }, [
     selectedNodeId,
     selectSource,
@@ -649,8 +641,10 @@ function AgentGraphInner() {
         defaultEdgeOptions={{ zIndex: 0 }}
         nodesDraggable={false}
         edgesFocusable={false}
-        fitView
-        fitViewOptions={{ padding: 0.2 }}
+        panOnDrag
+        zoomOnScroll
+        zoomOnPinch
+        zoomOnDoubleClick
         minZoom={0.1}
         maxZoom={2}
         proOptions={{ hideAttribution: true }}

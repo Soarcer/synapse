@@ -121,13 +121,5 @@ export {
 
 export type { ColorPalette } from './utils/format.js';
 
-// Network configuration (server-side only — do NOT import in browser code)
-export {
-  SYNAPSE_PORT,
-  HOOK_PORT,
-  HTTP_FALLBACK_PORT,
-  DEV_PORT,
-  USE_TLS,
-  PROTOCOL,
-  WS_PROTOCOL,
-} from './config.js';
+// Network configuration lives in '@synapse-ai/core/config' (server-side only).
+// NOT re-exported here to avoid pulling process.env into browser bundles.

@@ -255,11 +255,23 @@ function findBestMatch(
   return best;
 }
 
+/**
+ * Match dated model variants like `claude-sonnet-4-5-20260101` to the base
+ * model `claude-sonnet-4-5`. Only matches when the suffix after the known
+ * model ID is `-` followed by digits (a date stamp), preventing false
+ * positives like `o1` matching `o1-preview`.
+ */
 function findPrefixMatch(prices: PricePoint[], normalizedModel: string): PricePoint | undefined {
   let best: PricePoint | undefined;
   for (const p of prices) {
     const key = p.model.toLowerCase();
-    if (normalizedModel.startsWith(key) && (!best || key.length > best.model.length)) {
+    if (
+      normalizedModel.startsWith(key) &&
+      (normalizedModel.length === key.length ||
+        // Only match if suffix is a date-like stamp: -YYYYMMDD…
+        /^-\d+/.test(normalizedModel.slice(key.length))) &&
+      (!best || key.length > best.model.length)
+    ) {
       best = p;
     }
   }

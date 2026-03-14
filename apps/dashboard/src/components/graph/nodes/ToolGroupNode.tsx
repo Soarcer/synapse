@@ -81,9 +81,11 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
   const { tools, parentAgentId } = data as unknown as ToolGroupData;
   const showAllTools = useAgentStore((s) => s.showAllTools);
   const toolGroupMode = useAgentStore((s) => s.toolGroupMode);
-  const selectedNodeId = useAgentStore((s) => s.selectedNodeId);
+  // Only subscribe to selectedNodeId when expanded — collapsed mode doesn't use it
+  const selectedNodeId = useAgentStore((s) => (s.showAllTools ? s.selectedNodeId : null));
   const selectNode = useAgentStore((s) => s.selectNode);
-  const agents = useAgentStore((s) => s.agents);
+  // Narrow selector: only re-render when THIS agent's data changes
+  const agentData = useAgentStore((s) => s.agents.get(parentAgentId));
   const { target } = useHandlePositions();
   const arcadeMode = useAgentStore((s) => s.arcadeMode);
   const arcadeSoundEnabled = useAgentStore((s) => s.arcadeSoundEnabled);
@@ -96,7 +98,6 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
   }, [toolGroupMode]);
 
   // Reasoning tooltip support
-  const agentData = agents.get(parentAgentId);
   const { reasoning, ensureLoaded } = useTranscriptDetail(agentData?.sessionId);
 
   // Stats
@@ -156,7 +157,7 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
         <span className="flex gap-0.5 ml-auto">
           {tools.slice(0, 8).map((t, i) => (
             <span
-              key={t.toolUseId ?? `dot-${i}`}
+              key={`${t.toolUseId}-${i}`}
               className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[t.status]}`}
             />
           ))}
@@ -285,7 +286,7 @@ function PillGridView({
         const thinking = findThinkingForTool(reasoning, tc.toolUseId);
         return (
           <Tooltip
-            key={tc.toolUseId ?? `pill-${i}`}
+            key={`${tc.toolUseId}-${i}`}
             content={
               thinking
                 ? `Reasoning: ${thinking}`
@@ -382,7 +383,7 @@ function TimelineView({
           const isError = tc.status === 'error';
           return (
             <button
-              key={tc.toolUseId ?? `seg-${i}`}
+              key={`${tc.toolUseId}-${i}`}
               role="option"
               aria-selected={isSelected}
               data-tool-id={nodeId}
@@ -479,7 +480,7 @@ function HeatmapView({
               const b = parseInt(hex.slice(5, 7), 16);
               return (
                 <button
-                  key={tc.toolUseId ?? `hm-${i}`}
+                  key={`${tc.toolUseId}-${i}`}
                   role="option"
                   aria-selected={isSelected}
                   data-tool-id={nodeId}

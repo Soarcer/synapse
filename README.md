@@ -31,7 +31,7 @@ So I built Synapse. It started as a weekend hack to visualize hook events and tu
 
 **Synapse is a real-time visual dashboard** that renders your entire Claude Code session as an interactive node graph. Every agent spawn, every tool call, every token — captured, visualized, and explorable. It runs as a **VS Code extension** with an embedded server, as a **standalone CLI** (`pnpm dev`) for console-only workflows, or as a **mobile PWA** you can pin to your phone and approve permissions from while making coffee. All three modes connect to the same backend — use whichever fits how you work.
 
-<!-- 📸 HERO SCREENSHOT: Full dashboard showing a complex agent tree with animated edges, lens panel open on the left, detail panel on the right -->
+<!-- HERO SCREENSHOT: Full dashboard showing a complex agent tree with animated edges, lens panel open on the left, detail panel on the right -->
 <!-- ![Synapse dashboard](docs/assets/hero-screenshot.png) -->
 
 > **Status:** Prototype with opinions. 591 tests. 10 completed development phases. Some edges are load-bearing. I'm proud of it anyway.
@@ -42,21 +42,21 @@ So I built Synapse. It started as a weekend hack to visualize hook events and tu
 
 I'm not sure which of these are genuinely novel and which are "obvious in retrospect," but here's what I think is worth looking at:
 
-### 1. 🔴 Live Node Graph with Animated Data Flow
+### 1. Live Node Graph with Animated Data Flow
 
 The core visualization — and the first thing you see. Sessions, agents, subagents, and tool calls rendered as connected nodes with animated smooth-step edges showing data flowing through the agent tree. New nodes animate into position as agents spawn. Color-coded by status — green running, red error, purple task agent, orange context compaction. Custom tree layout algorithm (we replaced dagre — long story) that handles arbitrarily deep hierarchies without overlapping.
 
-<!-- 📸 GIF: Agent tree expanding in real-time as Claude works — nodes appearing, edges animating, status colors changing -->
+<!-- GIF: Agent tree expanding in real-time as Claude works — nodes appearing, edges animating, status colors changing -->
 <!-- ![Live graph animation](docs/assets/graph-animation.gif) -->
 
-### 2. 🎯 Deep Node Drill-Down
+### 2. Deep Node Drill-Down
 
 Click any node in the graph. The detail panel shows everything: streaming text output, full tool call history with inputs and outputs, token counts, elapsed time, cost estimate, agent hierarchy path, and status timeline. For tool groups, expand to see individual calls with duration bars. For sessions, see the full prompt history with complexity scoring.
 
-<!-- 📸 GIF: Clicking a node, detail panel sliding open, expanding tool history, drilling into a specific tool call -->
+<!-- GIF: Clicking a node, detail panel sliding open, expanding tool history, drilling into a specific tool call -->
 <!-- ![Node drill-down](docs/assets/node-drilldown.gif) -->
 
-### 3. 🔍 Six Bidirectionally-Linked Lens Views
+### 3. Six Bidirectionally-Linked Lens Views
 
 Same data. Six perspectives. Click a node in any lens, it highlights in the graph. Click a node in the graph, it highlights in every lens. All derived from the same tree structure — one source of truth.
 
@@ -69,10 +69,10 @@ Same data. Six perspectives. Click a node in any lens, it highlights in the grap
 | **Compaction** | Context window forensics. Sawtooth sparkline showing when Claude forgot what you said, and why.                                   |
 | **Cost**       | Per-turn USD waterfall. Input, output, cache tokens, model used, latency, running total.                                          |
 
-<!-- 📸 SCREENSHOT GRID: 2x3 grid showing all six lens views with the same session data -->
+<!-- SCREENSHOT GRID: 2x3 grid showing all six lens views with the same session data -->
 <!-- ![Six lens views](docs/assets/lens-grid.png) -->
 
-### 4. 🧩 Tool Call Grouping (Three Visualization Modes)
+### 4. Tool Call Grouping (Three Visualization Modes)
 
 An agent that calls 47 tools used to produce 47 nodes. Now they're grouped into composite nodes with three display modes:
 
@@ -84,10 +84,10 @@ An agent that calls 47 tools used to produce 47 nodes. Now they're grouped into 
 
 Toggle between collapsed chips and expanded detail with **F**. The underlying data stays the same — individual tools in the store, composite nodes rendered at display time. (And if you happen to try a few classic input sequences while hovering over a tool group... well, we can neither confirm nor deny.)
 
-<!-- 📸 GIF: Toggling between the three tool group modes on the same node -->
+<!-- GIF: Toggling between the three tool group modes on the same node -->
 <!-- ![Tool group modes](docs/assets/tool-groups.gif) -->
 
-### 5. ✍️ Prompt Lab — Save Tokens, Save Money
+### 5. Prompt Lab — Save Tokens, Save Money
 
 Press **W** to open the Prompt Lab. Write a draft prompt, pick a model (Haiku/Sonnet/Opus), choose analysis mode (Developer for technical feedback, Vibe for casual coaching), and get real-time scoring with rewrite suggestions. When you're happy with it, relay the improved prompt directly to your Claude Code terminal.
 
@@ -95,24 +95,24 @@ The idea is simple: a better prompt means fewer wasted tokens, fewer confused ag
 
 > **Note:** AI-powered prompt analysis requires an Anthropic API key configured in settings. We're investigating whether the Prompt Lab can piggyback on an existing Claude Max/Pro subscription instead — stay tuned.
 
-<!-- 📸 SCREENSHOT: Prompt Lab modal with a scored prompt, rewrite suggestion, and "Send to Terminal" button -->
+<!-- SCREENSHOT: Prompt Lab modal with a scored prompt, rewrite suggestion, and "Send to Terminal" button -->
 <!-- ![Prompt Lab](docs/assets/prompt-lab.png) -->
 
-### 6. 🔬 Compaction Forensics
+### 6. Compaction Forensics
 
 Ever had Claude forget something you told it 10 minutes ago? The Compaction lens shows exactly when the context window hit its limit, with a sparkline of cumulative input tokens over time. Red dashed lines mark compaction events. The sawtooth pattern is your forensic evidence. Per-turn breakdown table shows which prompt triggered each compaction and what it cost.
 
-<!-- 📸 SCREENSHOT: Compaction lens showing sawtooth pattern with compaction markers -->
+<!-- SCREENSHOT: Compaction lens showing sawtooth pattern with compaction markers -->
 <!-- ![Compaction forensics](docs/assets/compaction-lens.png) -->
 
-### 7. 💰 Cost Tracking Per Turn
+### 7. Cost Tracking Per Turn
 
 Every turn gets a cost estimate broken down by input, output, cache read, and cache creation tokens. Cumulative waterfall so you know whether that "simple refactor" cost $0.03 or $3.00. Model badges show which Claude model handled each turn. The Cost lens is your "am I spending what I think I'm spending" view.
 
-<!-- 📸 SCREENSHOT: Cost lens showing per-turn waterfall with model badges and running total -->
+<!-- SCREENSHOT: Cost lens showing per-turn waterfall with model badges and running total -->
 <!-- ![Cost tracking](docs/assets/cost-lens.png) -->
 
-### 8. 📲 Mobile + Remote Approval
+### 8. Mobile + Remote Approval
 
 The dashboard is a full Progressive Web App — pin it to your home screen and it works like a native app. Auto-detects phones and switches to a mobile-optimized layout with 13 purpose-built components: bottom tab bar, swipe-up detail sheets, pinch-zoom graph, session selector.
 
@@ -120,18 +120,18 @@ But the real reason for mobile: **remote approval**. Start a big job on your lap
 
 And you don't even need the dashboard open — Synapse registers a Service Worker and sends **native push notifications** when Claude is blocked. On Android you get Approve/Deny action buttons right in the notification. On iOS you tap to open. Works with the app completely closed.
 
-<!-- 📸 GIF: Phone showing permission card with countdown, user tapping Approve, then showing the graph resuming -->
+<!-- GIF: Phone showing permission card with countdown, user tapping Approve, then showing the graph resuming -->
 <!-- ![Mobile + remote approval](docs/assets/remote-approval.gif) -->
 
-### 9. 🔌 Multi-Vendor Support (In Progress)
+### 9. Multi-Vendor Support (In Progress)
 
 The adapter architecture is built and Claude Code is fully working. Gemini CLI and Codex CLI adapters are in progress — the plumbing is there (adapter interface, registry, vendor detection, session namespacing) but they haven't been battle-tested yet. The goal: monitor any AI coding agent from one dashboard, regardless of vendor.
 
-### 10. 🎓 Guided Tour
+### 10. Guided Tour
 
 First-time visitors get an interactive onboarding walkthrough — spotlight highlights, narration cards, step-by-step through the graph, lenses, panels, and settings. Six chapters, 18+ steps.
 
-### 11. 🖥️ Two Ways to Run It
+### 11. Two Ways to Run It
 
 Synapse works as a **VS Code extension** or as a **standalone CLI** — and they complement each other.
 
@@ -141,7 +141,7 @@ Synapse works as a **VS Code extension** or as a **standalone CLI** — and they
 
 Both modes connect to the same backend. Use the extension for integrated development, the CLI for flexibility, or both at once.
 
-<!-- 📸 SCREENSHOT: VS Code with Synapse split layout — lens sidebar on left, graph in editor panel -->
+<!-- SCREENSHOT: VS Code with Synapse split layout — lens sidebar on left, graph in editor panel -->
 <!-- ![VS Code extension](docs/assets/vscode-extension.png) -->
 
 ---
@@ -268,7 +268,7 @@ code --install-extension synapse-vscode-0.2.0.vsix
 
 Or install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=Soarcer.synapse-vscode). The full stack — server, dashboard, hook scripts, SQLite — bundled into a `.vsix` with zero native dependencies. Also works in Cursor.
 
-<!-- 📸 SCREENSHOT: VS Code with Synapse — lens sidebar, graph editor, status bar -->
+<!-- SCREENSHOT: VS Code with Synapse — lens sidebar, graph editor, status bar -->
 <!-- ![VS Code extension](docs/assets/vscode-split.png) -->
 
 - **Auto-start** — Opens when you open a Claude project. Stops when VS Code closes.
@@ -420,18 +420,18 @@ What's done and what's next:
 
 | Phase                | Status | Description                                         |
 | -------------------- | ------ | --------------------------------------------------- |
-| Hardening            | ✅     | Error boundaries, rate limiting, agent limits       |
-| Developer Experience | ✅     | ESLint, Prettier, Vitest, Husky, CI/CD              |
-| Monorepo             | ✅     | 5 packages, pnpm workspaces, @synapse-ai/\*         |
-| Performance + UX     | ✅     | Async I/O, react-virtuoso, URL deep linking         |
-| Mobile Responsive    | ✅     | 13 components, auto-detect, pinch zoom              |
-| Notifications        | ✅     | Toast tray, push subscriptions, Service Worker      |
-| Guided Tour          | ✅     | Auto-play demo + spotlight walkthrough              |
-| VS Code Extension    | ✅     | v0.9.0 — 11 commands, split layout, embedded server |
-| Analytics + Cost     | 🔄     | Prompts + Insights tabs. More coming                |
-| Multi-Vendor         | 🔄     | Claude working. Gemini + Codex adapters in progress |
-| Remote Approval      | ✅     | HTTP hooks, permission cards, web push              |
-| Standalone CLI       | ⬜     | `npx synapse` — zero-config, daemon mode            |
+| Hardening            | Done   | Error boundaries, rate limiting, agent limits       |
+| Developer Experience | Done   | ESLint, Prettier, Vitest, Husky, CI/CD              |
+| Monorepo             | Done   | 5 packages, pnpm workspaces, @synapse-ai/\*         |
+| Performance + UX     | Done   | Async I/O, react-virtuoso, URL deep linking         |
+| Mobile Responsive    | Done   | 13 components, auto-detect, pinch zoom              |
+| Notifications        | Done   | Toast tray, push subscriptions, Service Worker      |
+| Guided Tour          | Done   | Auto-play demo + spotlight walkthrough              |
+| VS Code Extension    | Done   | v0.9.0 — 11 commands, split layout, embedded server |
+| Analytics + Cost     | WIP    | Prompts + Insights tabs. More coming                |
+| Multi-Vendor         | WIP    | Claude working. Gemini + Codex adapters in progress |
+| Remote Approval      | Done   | HTTP hooks, permission cards, web push              |
+| Standalone CLI       | Next   | `npx synapse` — zero-config, daemon mode            |
 
 ---
 

@@ -910,9 +910,9 @@ export function AgentDetailPanel() {
                   Tool calls ({agent.toolCalls.length})
                 </span>
                 <div className="space-y-1 max-h-60 overflow-auto">
-                  {agent.toolCalls.map((tc) => (
+                  {agent.toolCalls.map((tc, i) => (
                     <button
-                      key={tc.toolUseId}
+                      key={`${tc.toolUseId}-${i}`}
                       onClick={() => selectNode(`tool-${tc.toolUseId}`)}
                       className="w-full text-left flex items-center justify-between bg-gray-900/50 hover:bg-gray-800/50 rounded px-2 py-1.5 text-xs transition-colors"
                     >

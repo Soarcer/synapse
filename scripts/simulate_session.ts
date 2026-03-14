@@ -7,7 +7,32 @@
  *   Session → UserPrompt → tool (main agent)
  */
 
-const API_URL = process.env.API_URL ?? 'http://localhost:4000/api/events';
+import { readFileSync, existsSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+// Load .env from project root
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const envPath = resolve(__dirname, '..', '.env');
+if (existsSync(envPath)) {
+  for (const line of readFileSync(envPath, 'utf8').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq > 0) {
+      const key = trimmed.slice(0, eq).trim();
+      const val = trimmed.slice(eq + 1).trim();
+      if (!process.env[key]) process.env[key] = val;
+    }
+  }
+}
+
+// Allow self-signed TLS certs
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
+const port = process.env.SYNAPSE_PORT || '27246';
+const protocol = (process.env.SYNAPSE_TLS_CERT && process.env.SYNAPSE_TLS_KEY) ? 'https' : 'http';
+const API_URL = process.env.API_URL ?? `${protocol}://localhost:${port}/api/events`;
 
 const ts = Date.now().toString(36);
 const SESSION_ID = `sim-${ts}`;
@@ -256,7 +281,7 @@ async function main() {
     permission_mode: 'default',
     tool_name: 'Bash',
     tool_use_id: bashId,
-    tool_input: { command: 'curl -s http://localhost:4000/health', description: 'Test health endpoint' },
+    tool_input: { command: 'curl -s http://localhost:27246/health', description: 'Test health endpoint' },
   }, 'PreToolUse (Bash curl — main agent)');
   await sleep(800);
 
@@ -267,7 +292,7 @@ async function main() {
     permission_mode: 'default',
     tool_name: 'Bash',
     tool_use_id: bashId,
-    tool_input: { command: 'curl -s http://localhost:4000/health' },
+    tool_input: { command: 'curl -s http://localhost:27246/health' },
     tool_response: { stdout: '{"ok":true,"clients":1}', stderr: '', exitCode: 0 },
   }, 'PostToolUse (Bash curl — main agent)');
   await sleep(300);

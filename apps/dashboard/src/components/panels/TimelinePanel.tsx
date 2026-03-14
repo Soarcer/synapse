@@ -93,14 +93,14 @@ export function TimelinePanel() {
                   >
                     {agent.agentType}
                     {/* Tool markers */}
-                    {agent.toolCalls.map((tc) => {
+                    {agent.toolCalls.map((tc, i) => {
                       const tcOffset =
                         ((tc.startTime - agent.startTime) /
                           Math.max(endTime - agent.startTime, 1)) *
                         100;
                       return (
                         <span
-                          key={tc.toolUseId}
+                          key={`${tc.toolUseId}-${i}`}
                           className="absolute top-0 w-px h-full bg-white/30"
                           style={{ left: `${tcOffset}%` }}
                         />

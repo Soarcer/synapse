@@ -167,7 +167,7 @@ export function TetrisMode({ tools, selectedNodeId, selectNode }: Props) {
       />
 
       {/* Blocks */}
-      {blocks.map(({ tc, col, row, height }) => {
+      {blocks.map(({ tc, col, row, height }, i) => {
         const nodeId = `tool-${tc.toolUseId}`;
         const isSelected = selectedNodeId === nodeId;
         const isRunning = tc.status === 'running';
@@ -179,7 +179,7 @@ export function TetrisMode({ tools, selectedNodeId, selectNode }: Props) {
 
         return (
           <Tooltip
-            key={tc.toolUseId}
+            key={`${tc.toolUseId}-${i}`}
             content={`${tc.toolName}${dur ? ` \u00b7 ${dur}` : ''} \u00b7 ${tc.status}`}
           >
             <button

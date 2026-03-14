@@ -22,9 +22,7 @@ export function QRCodePanel() {
   // P1: pass dashboardPort so QR points to dashboard, not API server in dev
   useEffect(() => {
     let cancelled = false;
-    const dashboardPort = window.location.port;
-    const qs = dashboardPort ? `?dashboardPort=${dashboardPort}` : '';
-    fetch(apiUrl(`/api/network/local-url${qs}`))
+    fetch(apiUrl('/api/network/local-url'))
       .then((r) => r.json())
       .then(async (result: LocalUrlResponse) => {
         if (cancelled) return;

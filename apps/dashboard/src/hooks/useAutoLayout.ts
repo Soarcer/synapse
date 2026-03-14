@@ -412,8 +412,11 @@ export function useAutoLayout(
         dimHash = ((dimHash << 5) - dimHash + ((n.measured.height ?? 0) | 0)) | 0;
       }
     }
-    return `${nodes.length}:${edges.length}:${idHash}:${dimHash}:${expandedParentId}`;
-  }, [nodes, edges, expandedParentId]);
+    // Note: expandedParentId intentionally excluded from layout key.
+    // Tool expansion is handled by toolGroup component sizing, not full re-layout.
+    // Including it caused O(n) dagre recomputation on every node click.
+    return `${nodes.length}:${edges.length}:${idHash}:${dimHash}`;
+  }, [nodes, edges]);
 
   const { positions, zIndexMap } = useMemo(() => {
     const graphNodes = nodes.filter((n) => n.id !== '__spawn__');

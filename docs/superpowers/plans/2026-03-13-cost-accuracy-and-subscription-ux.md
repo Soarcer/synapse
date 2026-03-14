@@ -21,7 +21,7 @@
 - Create: `packages/core/src/pricing.ts`
 - Test: `packages/core/src/__tests__/pricing.test.ts`
 
-- [ ] **Step 1: Write failing tests for PricePoint interface and DEFAULT_PRICES**
+- [x] **Step 1: Write failing tests for PricePoint interface and DEFAULT_PRICES**
 
 ```typescript
 // packages/core/src/__tests__/pricing.test.ts
@@ -72,12 +72,12 @@ describe('DEFAULT_PRICES', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd packages/core && npx vitest run src/__tests__/pricing.test.ts`
 Expected: FAIL — module `../pricing.js` not found
 
-- [ ] **Step 3: Implement `pricing.ts` with PricePoint, DEFAULT_PRICES, FALLBACK_PRICE, PRICING_VERSION**
+- [x] **Step 3: Implement `pricing.ts` with PricePoint, DEFAULT_PRICES, FALLBACK_PRICE, PRICING_VERSION**
 
 ```typescript
 // packages/core/src/pricing.ts
@@ -258,12 +258,12 @@ export const FALLBACK_PRICE: PricePoint = {
 };
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `cd packages/core && npx vitest run src/__tests__/pricing.test.ts`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/core/src/pricing.ts packages/core/src/__tests__/pricing.test.ts
@@ -279,7 +279,7 @@ git commit -m "feat(core): add pricing module with PricePoint, DEFAULT_PRICES, P
 - Modify: `packages/core/src/pricing.ts`
 - Test: `packages/core/src/__tests__/pricing.test.ts`
 
-- [ ] **Step 1: Write failing tests for computeCostUsd**
+- [x] **Step 1: Write failing tests for computeCostUsd**
 
 Add to `packages/core/src/__tests__/pricing.test.ts`:
 
@@ -396,12 +396,12 @@ describe('computeCostUsd', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd packages/core && npx vitest run src/__tests__/pricing.test.ts`
 Expected: FAIL — `computeCostUsd`, `getPrice`, `inferVendor` not exported
 
-- [ ] **Step 3: Implement computeCostUsd and getPrice in pricing.ts**
+- [x] **Step 3: Implement computeCostUsd and getPrice in pricing.ts**
 
 Add to bottom of `packages/core/src/pricing.ts`:
 
@@ -482,12 +482,12 @@ export function computeCostUsd(params: {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `cd packages/core && npx vitest run src/__tests__/pricing.test.ts`
 Expected: ALL PASS
 
-- [ ] **Step 5: Re-export from core index.ts**
+- [x] **Step 5: Re-export from core index.ts**
 
 Modify `packages/core/src/index.ts` — add near the existing exports (around line 74 where `MODEL_PRICING` is exported):
 
@@ -504,12 +504,12 @@ export {
 // Note: inferVendor is already exported from './utils/format.js' — do NOT re-export from pricing
 ```
 
-- [ ] **Step 6: Run all core tests**
+- [x] **Step 6: Run all core tests**
 
 Run: `cd packages/core && npx vitest run`
 Expected: ALL PASS
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/core/src/pricing.ts packages/core/src/__tests__/pricing.test.ts packages/core/src/index.ts
@@ -527,7 +527,7 @@ git commit -m "feat(core): add computeCostUsd, getPrice, inferVendor to pricing 
 - Modify: `packages/core/src/types/agent.ts:86-92` — tokenUsage field
 - Modify: `packages/core/src/types/transcript.ts:319-323` — ReasoningTurn.usage
 
-- [ ] **Step 1: Add `thinking` to tokenUsage in AgentNodeData**
+- [x] **Step 1: Add `thinking` to tokenUsage in AgentNodeData**
 
 In `packages/core/src/types/agent.ts`, find the `tokenUsage` field in `AgentNodeData` (around line 86-92). Ensure it has:
 
@@ -541,7 +541,7 @@ tokenUsage: {
 };
 ```
 
-- [ ] **Step 2: Add `cacheCreationTokens` and `thinkingTokens` to ReasoningTurn.usage**
+- [x] **Step 2: Add `cacheCreationTokens` and `thinkingTokens` to ReasoningTurn.usage**
 
 In `packages/core/src/types/transcript.ts`, find `ReasoningTurn.usage` (line 319-323). Change from:
 
@@ -565,12 +565,12 @@ usage: {
 }
 ```
 
-- [ ] **Step 3: Run all core tests to check no regressions**
+- [x] **Step 3: Run all core tests to check no regressions**
 
 Run: `cd packages/core && npx vitest run`
 Expected: PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/core/src/types/agent.ts packages/core/src/types/transcript.ts
@@ -586,15 +586,15 @@ git commit -m "feat(core): add thinkingTokens to AgentNodeData and ReasoningTurn
 - Modify: `packages/core/src/types/transcript.ts:50-61` — remove `MODEL_PRICING`, `DEFAULT_PRICING`
 - Modify: `packages/core/src/index.ts:74` — remove old re-export, keep new pricing export
 
-- [ ] **Step 1: Remove `MODEL_PRICING` and `DEFAULT_PRICING` from transcript.ts**
+- [x] **Step 1: Remove `MODEL_PRICING` and `DEFAULT_PRICING` from transcript.ts**
 
 In `packages/core/src/types/transcript.ts`, delete lines 48-61 (the `MODEL_PRICING` constant and `DEFAULT_PRICING` constant). Keep all the interfaces.
 
-- [ ] **Step 2: Update core index.ts to remove old export**
+- [x] **Step 2: Update core index.ts to remove old export**
 
 In `packages/core/src/index.ts`, find line 74: `export { MODEL_PRICING, DEFAULT_PRICING } from './types/transcript.js'` and remove it. The new exports from `./pricing.js` (added in Task 2 Step 5) replace these.
 
-- [ ] **Step 3: Find all imports of MODEL_PRICING/DEFAULT_PRICING from core and update them**
+- [x] **Step 3: Find all imports of MODEL_PRICING/DEFAULT_PRICING from core and update them**
 
 Run: `grep -r "MODEL_PRICING\|DEFAULT_PRICING" --include="*.ts" --include="*.tsx" packages/ apps/`
 
@@ -607,12 +607,12 @@ Key files to update:
 
 - `packages/server/src/services/transcriptReader.ts:21` — imports `MODEL_PRICING, DEFAULT_PRICING`
 
-- [ ] **Step 4: Build core package to verify no type errors**
+- [x] **Step 4: Build core package to verify no type errors**
 
 Run: `cd packages/core && npx tsc --noEmit`
 Expected: No errors
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/core/src/types/transcript.ts packages/core/src/index.ts packages/server/src/services/transcriptReader.ts
@@ -629,7 +629,7 @@ git commit -m "refactor(core): remove MODEL_PRICING/DEFAULT_PRICING from transcr
 - Modify: `packages/server/src/services/transcriptReader.ts:367+` (parseExtendedUsage, v2 path)
 - Test: `packages/server/src/__tests__/transcriptReader.test.ts`
 
-- [ ] **Step 1: Write failing test for inputTokens normalization**
+- [x] **Step 1: Write failing test for inputTokens normalization**
 
 Add to `packages/server/src/__tests__/transcriptReader.test.ts` (or create if needed):
 
@@ -650,12 +650,12 @@ describe('inputTokens normalization', () => {
 
 Note: The exact test shape depends on how `parseTurn` is called — check if it's exported or if testing goes through `parseTranscript`. Adapt the test to use the available public API.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd packages/server && npx vitest run src/__tests__/transcriptReader.test.ts`
 Expected: FAIL — inputTokens still includes cache reads
 
-- [ ] **Step 3: Fix parseTurn (v1 path) — normalize inputTokens**
+- [x] **Step 3: Fix parseTurn (v1 path) — normalize inputTokens**
 
 In `packages/server/src/services/transcriptReader.ts`, in the `parseTurn()` function (around line 219-276), after reading `usage.input_tokens` and `cache_read_input_tokens`, ensure:
 
@@ -667,7 +667,7 @@ const inputTokens = Math.max(0, rawInput - cacheRead); // Fresh input only
 
 And keep `totalInputTokens = inputTokens + cacheRead` (which now correctly = rawInput).
 
-- [ ] **Step 4: Fix parseExtendedUsage (v2 path) — normalize inputTokens**
+- [x] **Step 4: Fix parseExtendedUsage (v2 path) — normalize inputTokens**
 
 In the v2 parsing path (around line 367+), when building `ExtendedUsage` or `TranscriptTurn` from `ConversationRecord`:
 
@@ -677,17 +677,17 @@ const cacheRead = record.usage.cacheReadTokens ?? 0;
 const freshInput = Math.max(0, rawInput - cacheRead);
 ```
 
-- [ ] **Step 5: Run test to verify it passes**
+- [x] **Step 5: Run test to verify it passes**
 
 Run: `cd packages/server && npx vitest run src/__tests__/transcriptReader.test.ts`
 Expected: PASS
 
-- [ ] **Step 6: Run all server tests**
+- [x] **Step 6: Run all server tests**
 
 Run: `cd packages/server && npx vitest run`
 Expected: ALL PASS
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/server/src/services/transcriptReader.ts packages/server/src/__tests__/transcriptReader.test.ts
@@ -702,7 +702,7 @@ git commit -m "fix(server): normalize inputTokens to fresh-only at parse time"
 
 - Modify: `apps/dashboard/src/store/eventHandlers.ts:575-591`
 
-- [ ] **Step 1: Find and fix the token computation in eventHandlers.ts**
+- [x] **Step 1: Find and fix the token computation in eventHandlers.ts**
 
 Around line 575-591, find where `input` is computed from `usage.input_tokens`. Currently:
 
@@ -718,7 +718,7 @@ input: Math.max(0, (usage.input_tokens ?? 0) - cacheRead),
 
 This ensures the frontend event handler produces fresh-input-only values, matching the server normalization.
 
-- [ ] **Step 2: Also pass thinking tokens through**
+- [x] **Step 2: Also pass thinking tokens through**
 
 In the same block, ensure thinking tokens are extracted and passed to the agent's tokenUsage:
 
@@ -726,12 +726,12 @@ In the same block, ensure thinking tokens are extracted and passed to the agent'
 thinking: usage.thinking_tokens ?? 0,
 ```
 
-- [ ] **Step 3: Run dashboard tests**
+- [x] **Step 3: Run dashboard tests**
 
 Run: `cd apps/dashboard && npx vitest run`
 Expected: PASS (may need to update snapshot/assertions if any test relied on old input values)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/dashboard/src/store/eventHandlers.ts
@@ -740,34 +740,82 @@ git commit -m "fix(dashboard): normalize inputTokens in event handler, pass thin
 
 ---
 
-### Task 7: Database schema update — add thinking column, fix INSERT
+### Task 7: Database schema update — add thinking column, fix INSERT + ON CONFLICT
+
+<!-- revised: P0 — total_cache_read_tokens was also missing from INSERT. P1 — ON CONFLICT UPDATE clause also lacked all three columns. -->
 
 **Files:**
 
-- Modify: `packages/server/src/db.ts:186-207` (CREATE TABLE) and `packages/server/src/db.ts:778-790` (INSERT)
+- Modify: `packages/server/src/db.ts:186-207` (CREATE TABLE) and `packages/server/src/db.ts:778-796` (INSERT + ON CONFLICT)
 
-- [ ] **Step 1: Add `total_thinking_tokens` to CREATE TABLE**
+- [x] **Step 1: Add `total_thinking_tokens` to CREATE TABLE**
 
-In `packages/server/src/db.ts`, find the `analytics_daily` CREATE TABLE (line 186-207). Add:
+In `packages/server/src/db.ts`, find the `analytics_daily` CREATE TABLE (line 186-207). Add after `total_cache_creation_tokens`:
 
 ```sql
 total_thinking_tokens INTEGER DEFAULT 0,
 ```
 
-- [ ] **Step 2: Fix INSERT INTO analytics_daily to include cache_creation and thinking**
+- [x] **Step 2: Fix INSERT INTO analytics_daily — add all three missing columns**
 
-In `packages/server/src/db.ts`, find the INSERT statement (line 778-790). Add `total_cache_creation_tokens` and `total_thinking_tokens` to both the column list and VALUES clause.
+In `packages/server/src/db.ts`, find the INSERT statement (line 778-790). Add `total_cache_read_tokens`, `total_cache_creation_tokens`, and `total_thinking_tokens` to the column list and VALUES clause:
 
-- [ ] **Step 3: Run server tests**
+```sql
+INSERT INTO analytics_daily (date, cwd, model, vendor, total_events, total_sessions,
+  total_input_tokens, total_output_tokens, total_cache_read_tokens, total_cache_creation_tokens,
+  total_thinking_tokens, total_cost_usd, total_tool_calls,
+  total_errors, total_compactions, sum_latency_ms, count_latency, min_latency_ms, max_latency_ms)
+VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+```
+
+And pass the corresponding values in the params array (after `outputTokens`):
+
+```typescript
+cacheReadTokens,   // total_cache_read_tokens
+cacheCreationTokens, // total_cache_creation_tokens
+thinkingTokens,    // total_thinking_tokens
+```
+
+**Note:** `total_cache_read_tokens` was already in the CREATE TABLE schema but was **never** included in the INSERT — existing analytics rollups show 0 for cache reads. This is a pre-existing bug fixed here.
+
+- [x] **Step 3: Fix ON CONFLICT UPDATE clause to include all three columns**
+
+The ON CONFLICT UPDATE clause (line 783-795) must also accumulate the new columns:
+
+```sql
+ON CONFLICT (date, cwd, model)
+DO UPDATE SET
+  total_events = total_events + 1,
+  total_sessions = total_sessions + excluded.total_sessions,
+  total_input_tokens = total_input_tokens + excluded.total_input_tokens,
+  total_output_tokens = total_output_tokens + excluded.total_output_tokens,
+  total_cache_read_tokens = total_cache_read_tokens + excluded.total_cache_read_tokens,
+  total_cache_creation_tokens = total_cache_creation_tokens + excluded.total_cache_creation_tokens,
+  total_thinking_tokens = total_thinking_tokens + excluded.total_thinking_tokens,
+  total_cost_usd = total_cost_usd + excluded.total_cost_usd,
+  ...
+```
+
+- [x] **Step 4: Ensure cacheReadTokens / cacheCreationTokens / thinkingTokens are available at the rollup call site**
+
+In `packages/server/src/db.ts`, around line 770-773, the rollup currently only extracts `inputTokens`, `outputTokens`, `latencyMs`, `costUsd` from the event. Add extraction of the three new token types:
+
+```typescript
+const cacheReadTokens = event.cache_read_tokens ?? 0;
+const cacheCreationTokens = event.cache_creation_tokens ?? 0;
+const thinkingTokens = event.thinking_tokens ?? 0;
+```
+
+- [x] **Step 5: Run server tests**
 
 Run: `cd packages/server && npx vitest run`
 Expected: PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/server/src/db.ts
-git commit -m "fix(server): add thinking_tokens column, fix INSERT to include cache_creation"
+git commit -m "fix(server): populate cache_read/cache_creation/thinking columns in analytics_daily"
 ```
 
 ---
@@ -778,7 +826,7 @@ git commit -m "fix(server): add thinking_tokens column, fix INSERT to include ca
 
 - Modify: `packages/server/src/services/eventStore.ts`
 
-- [ ] **Step 1: Add validateTokenCounts function**
+- [x] **Step 1: Add validateTokenCounts function**
 
 In `packages/server/src/services/eventStore.ts`, add before the analytics rollup code:
 
@@ -817,16 +865,16 @@ function validateTokenCounts(tokens: TokenCounts, logger: Logger): TokenCounts {
 }
 ```
 
-- [ ] **Step 2: Call validateTokenCounts before writing to analytics_daily**
+- [x] **Step 2: Call validateTokenCounts before writing to analytics_daily**
 
 Find the code that writes to `analytics_daily` and wrap the token values through `validateTokenCounts()`.
 
-- [ ] **Step 3: Run server tests**
+- [x] **Step 3: Run server tests**
 
 Run: `cd packages/server && npx vitest run`
 Expected: PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/server/src/services/eventStore.ts
@@ -839,21 +887,41 @@ git commit -m "feat(server): add token validation at analytics_daily storage bou
 
 ### Task 9: Migrate costService.ts to use core pricing
 
+<!-- revised: P1 — added caller audit steps for inputTokens contract change and return type change (number → CostBreakdown) -->
+
 **Files:**
 
 - Modify: `packages/server/src/services/costService.ts` (entire file)
 - Modify: `packages/server/src/__tests__/costService.test.ts`
 
-- [ ] **Step 1: Update costService.test.ts for new interface**
+- [x] **Step 1: Audit all callers of `costService.computeCostUsd` for inputTokens semantics**
 
-Update existing tests in `packages/server/src/__tests__/costService.test.ts` to expect the new `CostBreakdown` return type and the `cacheCreationPer1M` field.
+The old `costService.computeCostUsd` subtracted `cacheReadTokens` from `inputTokens` internally. The new core function does NOT — it expects pre-normalized fresh-only input. Verify every caller passes correct values.
 
-- [ ] **Step 2: Run tests to verify they fail**
+Run: `grep -rn "computeCostUsd" packages/server/src/ --include="*.ts"`
+
+Known callers and their status:
+
+| File | Status | Notes |
+|---|---|---|
+| `services/eventStore.ts:97` | **Needs check** — does `inputTokens` include cache reads here? |
+| `services/velocityService.ts:104,157,222` | **Needs fix** — passes `totalInput` and `Math.round(totalInput * 0.5)` as cacheRead. After normalization, `totalInput` should already be fresh-only, making the synthetic cacheRead wrong. |
+| `services/promptAnalyzer.ts:132,183` | **Needs check** — does `turnTokenInput` include cache reads? |
+| `services/importService.ts:60,121` | **Needs check** — imports pass `event.tokenUsage.input` |
+| `routes/analytics.ts:236,591` | **Needs check** — passes `turn.inputTokens` from transcript |
+
+For each caller: if it passes raw API `input_tokens` (which includes cache reads), add the normalization `Math.max(0, rawInput - cacheRead)` before calling `computeCostUsd`. If it already passes normalized values, no change needed.
+
+- [x] **Step 2: Update costService.test.ts for new interface**
+
+Update existing tests to expect the new `CostBreakdown` return type (`.total` instead of raw number) and add test for `cacheCreationPer1M` field.
+
+- [x] **Step 3: Run tests to verify they fail**
 
 Run: `cd packages/server && npx vitest run src/__tests__/costService.test.ts`
 Expected: FAIL
 
-- [ ] **Step 3: Refactor costService.ts**
+- [x] **Step 4: Refactor costService.ts**
 
 Replace the file contents:
 
@@ -910,16 +978,47 @@ export function computeCostUsd(
 // ... keep addUserPrice, loadUserPrices, clearUserPrices, getAllPrices unchanged
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 5: Fix all callers for return type change (number → CostBreakdown)**
+
+Every caller that previously did `const cost = computeCostUsd(...)` and used `cost` as a number must now use `.total`:
+
+```
+grep -rn "computeCostUsd" packages/server/src/ --include="*.ts" | grep -v "test\|costService.ts"
+```
+
+Known callers that need `.total`:
+
+| File | Line | Change |
+|---|---|---|
+| `eventStore.ts:97` | `costUsd = computeCostUsd(...)` | → `computeCostUsd(...).total` |
+| `velocityService.ts:104` | `totalCost = computeCostUsd(...)` | → `computeCostUsd(...).total` |
+| `velocityService.ts:157` | `cost = computeCostUsd(...)` | → `computeCostUsd(...).total` |
+| `velocityService.ts:222` | `totalCost = computeCostUsd(...)` | → `computeCostUsd(...).total` |
+| `promptAnalyzer.ts:132` | `costUsd: computeCostUsd(...)` | → `computeCostUsd(...).total` |
+| `promptAnalyzer.ts:183` | `costUsd: computeCostUsd(...)` | → `computeCostUsd(...).total` |
+| `importService.ts:60` | `costUsd = computeCostUsd(...)` | → `computeCostUsd(...).total` |
+| `importService.ts:121` | `costUsd = computeCostUsd(...)` | → `computeCostUsd(...).total` |
+| `routes/analytics.ts:236` | `turnCost = computeCostUsd(...)` | → `computeCostUsd(...).total` |
+| `routes/analytics.ts:591` | `costUsd = computeCostUsd(...)` | → `computeCostUsd(...).total` |
+
+- [x] **Step 6: Run tests to verify they pass**
 
 Run: `cd packages/server && npx vitest run src/__tests__/costService.test.ts`
-Expected: PASS (update tests for new return type if needed)
+Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 7: Run full server test suite**
+
+Run: `cd packages/server && npx vitest run`
+Expected: ALL PASS (verifies no caller is broken by return type change)
+
+- [x] **Step 8: Commit**
 
 ```bash
-git add packages/server/src/services/costService.ts packages/server/src/__tests__/costService.test.ts
-git commit -m "refactor(server): migrate costService to use @synapse-ai/core pricing"
+git add packages/server/src/services/costService.ts packages/server/src/__tests__/costService.test.ts \
+       packages/server/src/services/eventStore.ts packages/server/src/services/velocityService.ts \
+       packages/server/src/services/promptAnalyzer.ts packages/server/src/services/importService.ts \
+       packages/server/src/routes/analytics.ts
+git commit -m "refactor(server): migrate costService to @synapse-ai/core pricing, fix all callers"
 ```
 
 ---
@@ -930,24 +1029,24 @@ git commit -m "refactor(server): migrate costService to use @synapse-ai/core pri
 
 - Modify: `packages/server/src/routes/analytics.ts:100-200`
 
-- [ ] **Step 1: Update overview endpoint to include thinking tokens in response**
+- [x] **Step 1: Update overview endpoint to include thinking tokens in response**
 
 In `GET /api/analytics/overview`, add `totalThinkingTokens` and `totalCacheCreationTokens` to the returned object.
 
-- [ ] **Step 2: Update timeseries endpoint to include new token types**
+- [x] **Step 2: Update timeseries endpoint to include new token types**
 
 In `GET /api/analytics/timeseries`, include `thinkingTokens` and `cacheCreationTokens` per bucket.
 
-- [ ] **Step 3: Update costService import to use new CostBreakdown-aware wrapper**
+- [x] **Step 3: Update costService import to use new CostBreakdown-aware wrapper**
 
 The routes already import `computeCostUsd` from costService. Since costService now returns `CostBreakdown`, update any code that uses the old numeric return to use `.total` instead.
 
-- [ ] **Step 4: Run server tests**
+- [x] **Step 4: Run server tests**
 
 Run: `cd packages/server && npx vitest run`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/server/src/routes/analytics.ts
@@ -966,13 +1065,29 @@ git commit -m "feat(server): include thinking/creation tokens in analytics endpo
 - Modify: `apps/dashboard/src/components/analytics/insights/InsightsView.tsx:89-93`
 - Modify: `apps/dashboard/src/components/analytics/mockData.ts:73-80, 160-168`
 
-- [ ] **Step 1: Remove pricing code from promptUtils.ts**
+- [x] **Step 1: Remove pricing code from promptUtils.ts**
 
 Delete `MODEL_PRICING` (lines 8-17), `resolveModelPricing()` (lines 23-35), and `computeCostUsd()` (lines 37-49). Keep `classifyPrompt`, `computeComplexity`, `computeCacheRate`.
 
-- [ ] **Step 2: Update promptUtils.ts imports in consumers**
+- [x] **Step 2: Update ALL frontend imports of `computeCostUsd` from `promptUtils`**
 
-Search for any file importing `computeCostUsd` or `MODEL_PRICING` from `promptUtils`. Update to import from `@synapse-ai/core`:
+<!-- revised: P1 — AgentDetailPanel.tsx and MobileStatusBar.tsx also import from promptUtils, not just the analytics views -->
+
+Search for all files importing `computeCostUsd` or `MODEL_PRICING` from `promptUtils`:
+
+```
+grep -rn "from.*promptUtils" apps/dashboard/src/ --include="*.ts" --include="*.tsx"
+```
+
+Known frontend callers that import `computeCostUsd` from `promptUtils`:
+
+| File | Import | Action |
+|---|---|---|
+| `components/layout/GraphStats.tsx` | `computeCostUsd` | → Task 12 handles this |
+| `components/panels/AgentDetailPanel.tsx:22` | `computeCostUsd` | → import from `@synapse-ai/core`, use `getPrice(model)` + `computeCostUsd({...}).total` |
+| `components/mobile/MobileStatusBar.tsx:12` | `computeCostUsd` | → import from `@synapse-ai/core`, use `getPrice(model)` + `computeCostUsd({...}).total` |
+
+Update each to import from `@synapse-ai/core`:
 
 ```typescript
 import { computeCostUsd, getPrice } from '@synapse-ai/core';
@@ -980,25 +1095,25 @@ import { computeCostUsd, getPrice } from '@synapse-ai/core';
 
 Note: The core `computeCostUsd` takes a `price` param, so callers need to also call `getPrice(model)` first.
 
-- [ ] **Step 3: Remove inline pricing from InsightsView.tsx**
+- [x] **Step 3: Remove inline pricing from InsightsView.tsx**
 
 Find `MODEL_PRICING` around line 89-93 in `InsightsView.tsx`. Replace with import from `@synapse-ai/core`.
 
-- [ ] **Step 4: Remove inline pricing from mockData.ts**
+- [x] **Step 4: Remove inline pricing from mockData.ts**
 
 Find `MODEL_INFO` (lines 73-80) and `computeCost()` (lines 160-168) in `mockData.ts`. Replace with imports from `@synapse-ai/core`.
 
-- [ ] **Step 5: Build dashboard to verify no type errors**
+- [x] **Step 5: Build dashboard to verify no type errors**
 
 Run: `cd apps/dashboard && npx tsc --noEmit`
 Expected: No errors
 
-- [ ] **Step 6: Run dashboard tests**
+- [x] **Step 6: Run dashboard tests**
 
 Run: `cd apps/dashboard && npx vitest run`
 Expected: PASS
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/dashboard/src/components/analytics/shared/promptUtils.ts \
@@ -1015,7 +1130,7 @@ git commit -m "refactor(dashboard): remove duplicate pricing tables, import from
 
 - Modify: `apps/dashboard/src/components/layout/GraphStats.tsx:46-51`
 
-- [ ] **Step 1: Update import and cost computation**
+- [x] **Step 1: Update import and cost computation**
 
 Replace the local `computeCostUsd` import with:
 
@@ -1042,12 +1157,12 @@ for (const agent of agents.values()) {
 }
 ```
 
-- [ ] **Step 2: Run dashboard tests**
+- [x] **Step 2: Run dashboard tests**
 
 Run: `cd apps/dashboard && npx vitest run`
 Expected: PASS
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/dashboard/src/components/layout/GraphStats.tsx
@@ -1064,7 +1179,7 @@ git commit -m "refactor(dashboard): update GraphStats to use core computeCostUsd
 
 - Modify: `apps/dashboard/src/store/viewSettingsStore.ts` (or `agentStore.ts` if view settings are there)
 
-- [ ] **Step 1: Add costDisplayMode state**
+- [x] **Step 1: Add costDisplayMode state**
 
 Add to the store:
 
@@ -1078,7 +1193,7 @@ Default: read from `localStorage.getItem('synapse:costDisplayMode')` or determin
 
 - For now, default to `'consumption'` (plan-based detection added in next step)
 
-- [ ] **Step 2: Persist to localStorage on change**
+- [x] **Step 2: Persist to localStorage on change**
 
 In the setter:
 
@@ -1093,7 +1208,7 @@ toggleCostDisplayMode: () => {
 },
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/dashboard/src/store/viewSettingsStore.ts
@@ -1110,7 +1225,7 @@ git commit -m "feat(dashboard): add costDisplayMode to view settings store"
 - Modify: `apps/dashboard/src/components/layout/ViewSettingsDropdown.tsx:48-85`
 - Modify: `apps/dashboard/src/App.tsx` (keyboard handler)
 
-- [ ] **Step 1: Add `$` to SHORTCUTS array**
+- [x] **Step 1: Add `$` to SHORTCUTS array**
 
 In `KeyboardShortcutsTooltip.tsx`, add to the SHORTCUTS array:
 
@@ -1118,7 +1233,7 @@ In `KeyboardShortcutsTooltip.tsx`, add to the SHORTCUTS array:
 { key: '$', label: 'Toggle cost display' },
 ```
 
-- [ ] **Step 2: Add keyboard handler for `$`**
+- [x] **Step 2: Add keyboard handler for `$`**
 
 Find where keyboard shortcuts are handled in `App.tsx` (or the keyboard handler hook). Add:
 
@@ -1128,7 +1243,7 @@ case '$':
   break;
 ```
 
-- [ ] **Step 3: Add toggle button to ViewSettingsDropdown**
+- [x] **Step 3: Add toggle button to ViewSettingsDropdown**
 
 In `ViewSettingsDropdown.tsx`, add a new toggle in the toggles array (around line 48-85):
 
@@ -1142,12 +1257,12 @@ In `ViewSettingsDropdown.tsx`, add a new toggle in the toggles array (around lin
 },
 ```
 
-- [ ] **Step 4: Run dashboard tests**
+- [x] **Step 4: Run dashboard tests**
 
 Run: `cd apps/dashboard && npx vitest run`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/dashboard/src/components/layout/KeyboardShortcutsTooltip.tsx \
@@ -1164,11 +1279,11 @@ git commit -m "feat(dashboard): add $ keyboard shortcut and cost display toggle"
 
 - Modify: `apps/dashboard/src/components/layout/GraphStats.tsx:98-107`
 
-- [ ] **Step 1: Fetch plan data**
+- [x] **Step 1: Fetch plan data**
 
 Add a `useEffect` or hook that fetches from `GET /api/analytics/budget` on mount to get the detected plan. Store in local state or a small store.
 
-- [ ] **Step 2: Render plan badge**
+- [x] **Step 2: Render plan badge**
 
 After the existing stats display (around line 98-107), add the plan badge chip:
 
@@ -1204,7 +1319,7 @@ After the existing stats display (around line 98-107), add the plan badge chip:
 
 Where `PLAN_LABELS` maps plan keys to display strings (import from a shared constant or inline).
 
-- [ ] **Step 3: Conditional cost display based on mode**
+- [x] **Step 3: Conditional cost display based on mode**
 
 In the same component, use `costDisplayMode` to switch between token display and dollar display:
 
@@ -1220,12 +1335,12 @@ In the same component, use `costDisplayMode` to switch between token display and
 }
 ```
 
-- [ ] **Step 4: Run dashboard tests**
+- [x] **Step 4: Run dashboard tests**
 
 Run: `cd apps/dashboard && npx vitest run`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/dashboard/src/components/layout/GraphStats.tsx
@@ -1240,20 +1355,20 @@ git commit -m "feat(dashboard): add plan badge and consumption/cost display togg
 
 - Modify: `apps/dashboard/src/components/lens/cost/CostWaterfallView.tsx`
 
-- [ ] **Step 1: Read costDisplayMode from store**
+- [x] **Step 1: Read costDisplayMode from store**
 
 Import and read `costDisplayMode` from the view settings store.
 
-- [ ] **Step 2: Add dollar annotations when in cost mode**
+- [x] **Step 2: Add dollar annotations when in cost mode**
 
 When `costDisplayMode === 'cost'`, add a small dollar label next to each bar showing the computed cost for that turn. Use the same `≈` prefix logic for subscription users.
 
-- [ ] **Step 3: Run dashboard tests**
+- [x] **Step 3: Run dashboard tests**
 
 Run: `cd apps/dashboard && npx vitest run`
 Expected: PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/dashboard/src/components/lens/cost/CostWaterfallView.tsx
@@ -1268,7 +1383,7 @@ git commit -m "feat(dashboard): add dollar annotations to cost waterfall in cost
 
 - Create: `apps/dashboard/src/__tests__/costToggle.test.ts`
 
-- [ ] **Step 1: Write tests for display mode logic**
+- [x] **Step 1: Write tests for display mode logic**
 
 ```typescript
 import { describe, it, expect } from 'vitest';
@@ -1301,12 +1416,12 @@ describe('costDisplayMode', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests**
+- [x] **Step 2: Run tests**
 
 Run: `cd apps/dashboard && npx vitest run src/__tests__/costToggle.test.ts`
 Expected: PASS
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/dashboard/src/__tests__/costToggle.test.ts
@@ -1315,46 +1430,109 @@ git commit -m "test(dashboard): add cost display mode toggle tests"
 
 ---
 
-### Task 18: Update useAnalyticsData.ts and analytics views for display mode
+### Task 18: Update analytics views for display mode
+
+<!-- revised: P1 — decomposed vague steps into specific file-level changes with code sketches -->
 
 **Files:**
 
-- Modify: `apps/dashboard/src/components/analytics/useAnalyticsData.ts`
-- Modify: KPI cards, session list, model breakdown components (find via `useAnalyticsData` consumers)
+- `apps/dashboard/src/components/analytics/useAnalyticsData.ts` — no changes (returns raw data, consumers format)
+- Modify: `apps/dashboard/src/components/analytics/prompts/PromptAnalyzer.tsx`
+- Modify: `apps/dashboard/src/components/analytics/insights/InsightsView.tsx`
+- Modify: `apps/dashboard/src/components/mobile/MobileAnalyticsView.tsx`
 
-- [ ] **Step 1: Pass costDisplayMode through useAnalyticsData or expose it to consumers**
+**Approach:** Each consumer reads `costDisplayMode` from the view settings store directly. `useAnalyticsData` continues returning raw data (tokens + costs). No new hook or context needed.
 
-The analytics page components (KPI cards, session list, model breakdown) need to switch between token and dollar display. Either:
+- [x] **Step 1: Create shared cost formatting helper**
 
-- Pass `costDisplayMode` as context to `useAnalyticsData` so it returns pre-formatted data, OR
-- Have each consumer read `costDisplayMode` from the store directly and format accordingly
+Add to `apps/dashboard/src/components/analytics/shared/costFormat.ts`:
 
-The simpler approach: each consumer reads the store directly. `useAnalyticsData` continues returning raw data (tokens + costs), and consumers pick which to display.
+```typescript
+import { useViewSettings } from '../../../store/viewSettingsStore';
 
-- [ ] **Step 2: Update KPI cards for dual mode**
+/** Format a dollar amount with plan-appropriate prefix */
+export function formatCostDisplay(costUsd: number, isApiPlan: boolean): string {
+  const formatted = `$${costUsd.toFixed(2)}`;
+  return isApiPlan ? formatted : `≈${formatted}`;
+}
 
-In the analytics page, the KPI cards should show:
+/** Returns a summary string based on display mode */
+export function formatStatLine(
+  mode: 'consumption' | 'cost',
+  tokens: number,
+  costUsd: number,
+  isApiPlan: boolean,
+): string {
+  if (mode === 'cost') return formatCostDisplay(costUsd, isApiPlan);
+  return `${(tokens / 1000).toFixed(1)}k tokens`;
+}
+```
 
-- Consumption mode: Tokens, Sessions, Cache %, Tool Calls
-- Cost mode: API Cost (≈ for subscription), Avg/Session, Cache Savings $, Tokens
+- [x] **Step 2: Update PromptAnalyzer to show cost column in cost mode**
 
-- [ ] **Step 3: Update session list for dual mode**
+In `apps/dashboard/src/components/analytics/prompts/PromptAnalyzer.tsx`, the prompt table already has a cost column. Read `costDisplayMode` from the store and:
 
-Session list should show token counts in consumption mode, dollar amounts in cost mode.
+- `consumption` mode: show token counts as primary, cost as secondary
+- `cost` mode: show cost as primary column, tokens as secondary
 
-- [ ] **Step 4: Update model breakdown for dual mode**
+```tsx
+const costDisplayMode = useViewSettings((s) => s.costDisplayMode);
+// In the table row:
+{costDisplayMode === 'cost' ? formatCostDisplay(prompt.costUsd, isApiPlan) : `${fmtTokens(prompt.totalTokens)} tokens`}
+```
 
-Model breakdown should show token % in consumption mode, dollar % in cost mode.
+- [x] **Step 3: Update InsightsView KPI cards for dual mode**
 
-- [ ] **Step 5: Run dashboard tests**
+In `apps/dashboard/src/components/analytics/insights/InsightsView.tsx`, the KPI cards (around line 150-200) currently show tokens. Add mode switching:
+
+```tsx
+const costDisplayMode = useViewSettings((s) => s.costDisplayMode);
+
+// KPI cards:
+// consumption: Tokens | Sessions | Cache % | Tool Calls
+// cost:        API Cost (≈$) | Avg/Session | Cache Savings $ | Tokens
+const kpiCards = costDisplayMode === 'cost'
+  ? [
+      { label: isApiPlan ? 'API Cost' : '≈API Cost', value: formatCostDisplay(overview.totalCost, isApiPlan) },
+      { label: 'Avg/Session', value: formatCostDisplay(overview.totalCost / Math.max(1, overview.totalSessions), isApiPlan) },
+      { label: 'Cache Savings', value: formatCostDisplay(cacheSavings, isApiPlan) },
+      { label: 'Tokens', value: fmtTokens(overview.totalTokens.input + overview.totalTokens.output) },
+    ]
+  : [
+      { label: 'Tokens', value: fmtTokens(overview.totalTokens.input + overview.totalTokens.output) },
+      { label: 'Sessions', value: String(overview.totalSessions) },
+      { label: 'Cache %', value: `${cacheRate.toFixed(0)}%` },
+      { label: 'Tool Calls', value: String(overview.totalToolCalls) },
+    ];
+```
+
+Where `cacheSavings` = cost of cache reads at full input rate minus cost at cached rate.
+
+- [x] **Step 4: Update model breakdown for dual mode**
+
+In InsightsView's model breakdown section, switch between token % and dollar % per model:
+
+```tsx
+// consumption: "Sonnet 4.5: 65% of tokens"
+// cost: "Sonnet 4.5: 72% of cost"
+const modelMetric = costDisplayMode === 'cost'
+  ? { value: model.cost, total: totalCost, suffix: 'of cost' }
+  : { value: model.tokens, total: totalTokens, suffix: 'of tokens' };
+```
+
+- [x] **Step 5: Update MobileAnalyticsView for dual mode**
+
+In `apps/dashboard/src/components/mobile/MobileAnalyticsView.tsx`, the mobile view consumes `useAnalyticsData`. Apply the same `costDisplayMode` read and formatting as InsightsView.
+
+- [x] **Step 6: Run dashboard tests**
 
 Run: `cd apps/dashboard && npx vitest run`
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
-git add apps/dashboard/src/components/analytics/
+git add apps/dashboard/src/components/analytics/ apps/dashboard/src/components/mobile/MobileAnalyticsView.tsx
 git commit -m "feat(dashboard): add dual display mode to analytics views"
 ```
 
@@ -1366,7 +1544,7 @@ git commit -m "feat(dashboard): add dual display mode to analytics views"
 
 - Create: `packages/server/src/__tests__/planDetector.test.ts`
 
-- [ ] **Step 1: Write tests for plan detection**
+- [x] **Step 1: Write tests for plan detection**
 
 ```typescript
 import { describe, it, expect } from 'vitest';
@@ -1412,12 +1590,12 @@ describe('planDetector', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests**
+- [x] **Step 2: Run tests**
 
 Run: `cd packages/server && npx vitest run src/__tests__/planDetector.test.ts`
 Expected: PASS
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/server/src/__tests__/planDetector.test.ts
@@ -1433,7 +1611,7 @@ git commit -m "test(server): add planDetector unit tests"
 - Modify: `packages/server/src/__tests__/eventStore.test.ts` (or create)
 - Modify: `apps/dashboard/src/store/__tests__/eventHandlers.test.ts` (or create)
 
-- [ ] **Step 1: Write tests for validateTokenCounts**
+- [x] **Step 1: Write tests for validateTokenCounts**
 
 ```typescript
 describe('validateTokenCounts', () => {
@@ -1465,7 +1643,7 @@ describe('validateTokenCounts', () => {
 });
 ```
 
-- [ ] **Step 2: Write test for eventHandler inputTokens normalization**
+- [x] **Step 2: Write test for eventHandler inputTokens normalization**
 
 ```typescript
 describe('eventHandler token normalization', () => {
@@ -1476,12 +1654,12 @@ describe('eventHandler token normalization', () => {
 });
 ```
 
-- [ ] **Step 3: Run tests**
+- [x] **Step 3: Run tests**
 
 Run: `pnpm test`
 Expected: PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/server/src/__tests__/eventStore.test.ts apps/dashboard/src/store/__tests__/
@@ -1494,17 +1672,17 @@ git commit -m "test: add token validation and eventHandler normalization tests"
 
 ### Task 21: Run full test suite and build
 
-- [ ] **Step 1: Run all tests across monorepo**
+- [x] **Step 1: Run all tests across monorepo**
 
 Run: `pnpm test`
 Expected: ALL PASS
 
-- [ ] **Step 2: Build all packages**
+- [x] **Step 2: Build all packages**
 
 Run: `pnpm -r build`
 Expected: Build succeeds with no errors
 
-- [ ] **Step 3: Manual smoke test**
+- [x] **Step 3: Manual smoke test**
 
 1. Start server: `.\start-server.ps1`
 2. Start client: `.\start-client.ps1`
@@ -1517,7 +1695,7 @@ Expected: Build succeeds with no errors
    - Subscription users see `≈` prefix on costs
    - API users see plain `$` prefix
 
-- [ ] **Step 4: Commit any remaining fixes**
+- [x] **Step 4: Commit any remaining fixes**
 
 ```bash
 git add -A && git commit -m "chore: fix integration issues from cost accuracy implementation"
@@ -1539,7 +1717,30 @@ git add -A && git commit -m "chore: fix integration issues from cost accuracy im
 **Total tasks:** 21
 **Estimated commits:** ~19 atomic commits
 
+## Known Side Effects
+
+<!-- revised: P1 — budget alert discontinuity after formula change -->
+
+**Budget alert discontinuity:** After deploying, `total_cost_usd` values written to `analytics_daily` will change because (a) the double-counting bug is fixed (costs decrease) and (b) cache creation + thinking tokens are now costed (costs increase). The net effect depends on cache ratio. `budgetService.computeForecast()` uses a 14-day weighted moving average — the first two weeks after deployment will blend old and new formula data, potentially causing unexpected budget alerts or missed alerts. No action needed, but be aware of this if users report budget anomalies in the first two weeks post-deploy.
+
+---
+
+## Open Questions / Deferred (P2)
+
+<!-- P2 items from plan review — address incrementally, not blocking implementation -->
+
+- **`$` keyboard shortcut on international keyboards:** Shift+4 produces `$` on US layout but differs on French AZERTY, German, etc. The toggle button is the primary affordance; the shortcut is best-effort. Consider adding an alternative shortcut (e.g., `Ctrl+Shift+D`) in a follow-up if users report issues.
+- **Plan selector for unknown plan:** The spec describes "Plan?" badge as clickable → plan selector, but no plan selector UI is implemented in this plan. For MVP, clicking "Plan?" can open a toast with instructions to set the plan via API (`PUT /api/settings/plan`). Full selector UI deferred.
+- **Empty/loading state for plan badge:** During fetch or API failure, the badge is absent. Consider a skeleton state or fallback "Plan?" badge if the API is unreachable.
+- **`findBestMatch` not future-safe for time-bucketed defaults:** If default prices gain different `effectiveFrom` values, the `find()` approach returns the first match, not the most recent valid one. Would need a sort or filter-then-max. Fine for now since all defaults use `effectiveFrom: 0`.
+- **Cost accuracy validation:** No formal validation step compares Synapse cost output against Anthropic billing dashboard. Consider adding a manual test step with known token counts and expected dollar amounts.
+- **Two-phase shipping:** Chunks 1-4 (accuracy fixes) could ship independently from Chunk 5 (subscription UX) to reduce blast radius.
+
+---
+
 ## Review Findings Addressed
+
+**Round 1 (plan review loop):**
 
 - **CRITICAL:** `inferVendor` naming collision resolved — reuse existing from `format.ts`, don't create duplicate
 - **CRITICAL:** `planDetector.test.ts` added as Task 19
@@ -1547,3 +1748,23 @@ git add -A && git commit -m "chore: fix integration issues from cost accuracy im
 - **CONCERN:** User price override NaN prevention added to costService wrapper
 - **CONCERN:** Prefix matching changed to unidirectional (input starts with known model only)
 - **CONCERN:** Token validation and eventHandler normalization tests added as Task 20
+
+**Round 2 (four-perspective review):**
+
+- **P0:** `total_cache_read_tokens` was also missing from INSERT in `analytics_daily` — Task 7 now fixes all three columns (cache_read, cache_creation, thinking) in both INSERT and ON CONFLICT UPDATE
+- **P1:** costService `inputTokens` contract change — Task 9 now includes caller audit table for all 10 server-side call sites
+- **P1:** costService return type change (`number` → `CostBreakdown`) — Task 9 now includes `.total` migration table for all callers
+- **P1:** Task 18 decomposed from 6 vague steps into 7 specific steps with file paths, code sketches, and shared formatting helper
+- **P1:** Frontend callers of `promptUtils.computeCostUsd` (AgentDetailPanel, MobileStatusBar) added to Task 11
+- **P1:** Budget alert discontinuity documented in Known Side Effects section
+- **P2:** Six items added to Open Questions / Deferred section
+
+**Round 3 (post-implementation four-perspective review):**
+
+- **P1:** All 98 checkboxes updated from `[ ]` to `[x]` — implementation is 100% complete
+- **P1:** Prefix match false positives for short model IDs (e.g., `o1` → `o1-preview`) — noted in spec, suggest separator check
+- **P1:** Spec `computeCostUsd` signature had dead `model: string` param — removed from spec to match implementation
+- **P1:** Budget forecast transition warning — added mitigation note to spec Section 4.5
+- **P1:** Pricing version toast described but never implemented — moved to deferred in spec
+- **P1:** `$` keyboard shortcut locale safety — added `event.key` requirement to spec
+- **P1:** Plan selector UI for unknown plan — documented gap in spec Section 3.2

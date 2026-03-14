@@ -1,7 +1,7 @@
 # Cost Accuracy & Subscription-Aware UX Design
 
 **Date:** 2026-03-13
-**Status:** Reviewed
+**Status:** Reviewed (revised 2026-03-13)
 **Scope:** Pricing consolidation, cost formula fixes, subscription UX, data integrity
 
 ---
@@ -79,6 +79,9 @@ export interface PricePoint {
 
 **Lookup priority** (unchanged): user DB overrides → exact match → prefix match → vendor inference → fallback.
 
+<!-- revised: P1 — prefix match can produce false positives (e.g. o1 matching o1-preview). Implementation uses longest-prefix-wins, but should also require a separator (`-` or end-of-string) after the prefix to prevent ambiguous matches. -->
+**Prefix match safety:** Only match if the known model ID is followed by `-` or end-of-string in the input. This prevents `o1` from matching `o1-preview` if they have different pricing. Add explicit entries for dated variants rather than relying on prefix alone for short model IDs.
+
 **Pricing version hash:** Export `PRICING_VERSION: string` — a hash of the default table. Frontend can detect stale pricing.
 
 #### Files deleted after migration
@@ -104,9 +107,10 @@ export interface CostBreakdown {
 
 #### computeCostUsd function
 
+<!-- revised: P1 — removed `model: string` from params; PricePoint already carries the model. Implementation correctly omits it. -->
+
 ```typescript
 export function computeCostUsd(params: {
-  model: string;
   inputTokens: number; // MUST be fresh input only (excludes cache reads)
   outputTokens: number;
   cacheReadTokens: number;
@@ -158,13 +162,17 @@ Small chip in GraphStats header bar, right-aligned:
 | Max 20x | `Max 20× $200/mo`  | green or amber                          |
 | Team    | `Team $30/user/mo` | green or amber                          |
 | API     | `API`              | blue                                    |
+<!-- revised: P1 — no plan selector UI exists; clicking Plan? has no target. Added note. -->
 | Unknown | `Plan?`            | grey (clickable → plan selector)        |
+
+**Note:** The "plan selector" is not yet implemented as a frontend UI. Until it is, clicking `Plan?` should show a tooltip: "Plan not detected — set manually via server settings" or link to the `/api/plan` endpoint documentation. Backend `setPlan()` exists but has no frontend counterpart.
 
 #### 3.3 Toggle Control
 
 - **Location:** GraphStats header bar, next to existing view setting buttons
 - **Icon:** `$` symbol (or DollarSign from lucide-react)
-- **Keyboard shortcut:** `$` (Shift+4 on US layout; may vary on international keyboards — fallback to button only)
+<!-- revised: P1 — keyboard shortcut must use event.key (not event.code) for locale safety -->
+- **Keyboard shortcut:** `$` (Shift+4 on US layout; may vary on international keyboards — fallback to button only). **Implementation must use `event.key === '$'`**, not `event.code`, to handle international layouts correctly.
 - **Behavior:** Toggles `costDisplayMode` between `'consumption'` and `'cost'`
 - **Visual state:** Highlight ring when active (consistent with existing toggle buttons)
 - **Tooltip:** "Show API-equivalent costs" / "Show consumption"
@@ -276,11 +284,19 @@ Since `@synapse-ai/core` runs in the browser (no Node `crypto`), compute the has
 export const PRICING_VERSION = '2026-03-13';
 ```
 
-Frontend stores `lastSeenPricingVersion` in localStorage. On mismatch, shows a subtle "Pricing updated" toast.
+<!-- revised: P1 — pricing version toast logic described but never implemented. Moved to deferred. -->
+~~Frontend stores `lastSeenPricingVersion` in localStorage. On mismatch, shows a subtle "Pricing updated" toast.~~ **Deferred** — not implemented. Add when pricing updates become frequent enough to warrant user notification.
 
-#### 4.5 Existing Bug: `total_cache_creation_tokens` Column Never Populated
+#### 4.5 Existing Bug: `total_cache_read_tokens` and `total_cache_creation_tokens` Never Populated
 
-The `analytics_daily` table has a `total_cache_creation_tokens` column in the schema, but the `INSERT INTO analytics_daily` statement in `db.ts` does not include it in the column list. Fix the INSERT to include this column alongside the new `total_thinking_tokens` column.
+<!-- revised: P0 — total_cache_read_tokens was also missing from INSERT, not just cache_creation. ON CONFLICT UPDATE clause also lacked both columns. -->
+
+The `analytics_daily` table has `total_cache_read_tokens` and `total_cache_creation_tokens` columns in the CREATE TABLE schema, but **neither** is included in the `INSERT INTO analytics_daily` statement or the `ON CONFLICT UPDATE` clause in `db.ts`. Both columns have always been 0 in all historical data. Fix the INSERT and ON CONFLICT to populate all three token columns (`total_cache_read_tokens`, `total_cache_creation_tokens`, `total_thinking_tokens`).
+
+**Side effect:** `budgetService.computeForecast()` uses a 14-day weighted moving average of `total_cost_usd`. After deploying the corrected cost formula, the first 14 days will blend old-formula and new-formula cost data, potentially causing temporary budget alert anomalies.
+
+<!-- revised: P1 — budget forecast transition needs visibility. Add a log warning when data spans the pricing version change. -->
+**Mitigation:** Log a warning in `computeForecast()` during the transition window (first 14 days after deployment). The warning should note that forecast accuracy is reduced due to mixed pricing formula data. No user-facing action needed — the anomaly is self-correcting.
 
 ### 5. Test Coverage
 
@@ -349,3 +365,14 @@ The `analytics_daily` table has a `total_cache_creation_tokens` column in the sc
 - Server tool use pricing (web_search, web_fetch — tracked but not costed)
 - Anthropic usage quota tracking (rate limit proximity for subscription users)
 - Historical data re-computation (old sessions keep old costs; new formula applies going forward)
+
+---
+
+## Open Questions / Deferred (P2)
+
+- **`effectiveFrom` field is unused** — all entries use `effectiveFrom: 0`. The field exists for future time-versioned pricing but has no mechanism to populate or query by date. Acceptable as future-proofing; document intent in code comments.
+- **No test for prefix match ambiguity** — tests cover basic prefix matching but don't test edge cases like `o1` vs `o1-preview`. Add a test case when short model IDs are added.
+- **"API-equivalent cost" label clarity** — the `≈` prefix and tooltip text ("API-equivalent cost — what this would cost on pay-as-you-go pricing") may not resonate with non-technical users. Consider A/B testing "Estimated API cost" as an alternative.
+- **No success metrics** — no validation comparing old vs new cost calculations on real session data. Consider running a known session through both formulas and documenting the delta to confirm accuracy improvement.
+- **Pricing version toast** — deferred from Section 4.4. Implement `lastSeenPricingVersion` localStorage check when pricing updates become frequent.
+- **Plan selector frontend UI** — `detectPlan()` has `Unknown` → `Plan?` badge, but no UI to set the plan from the dashboard. Backend `setPlan()` exists but is API-only.

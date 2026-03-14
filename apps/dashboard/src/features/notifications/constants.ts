@@ -50,8 +50,8 @@ export interface NotificationSettings {
 
 export const DEFAULT_SETTINGS: NotificationSettings = {
   enabled: true,
-  showToasts: true,
-  showPulse: true,
+  showToasts: false,
+  showPulse: false,
 };
 
 export function loadSettings(): NotificationSettings {

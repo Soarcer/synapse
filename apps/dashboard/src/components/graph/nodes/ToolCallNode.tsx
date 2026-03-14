@@ -28,12 +28,12 @@ function ToolCallNodeComponent({ data }: NodeProps) {
   const durationMs = tc.duration ?? (tc.endTime != null ? tc.endTime - tc.startTime : null);
   const duration = durationMs != null ? `${(durationMs / 1000).toFixed(1)}s` : null;
   const { target, source, sourceStyle } = useHandlePositions();
-  const selectedNodeId = useAgentStore((s) => s.selectedNodeId);
-  const highlightedNodeIds = useAgentStore((s) => s.highlightedNodeIds);
   const edges = useAgentStore((s) => s.edges);
   const nodeId = `tool-${tc.toolUseId}`;
-  const isSelected = selectedNodeId === nodeId;
-  const isHighlighted = !isSelected && highlightedNodeIds?.has(nodeId);
+  const isSelected = useAgentStore((s) => s.selectedNodeId === nodeId);
+  const isHighlighted = useAgentStore(
+    (s) => s.selectedNodeId !== nodeId && (s.highlightedNodeIds?.has(nodeId) ?? false),
+  );
   const hasChildren = useMemo(() => edges.some((e) => e.source === nodeId), [edges, nodeId]);
 
   // Resolve session for this tool via toolAgentMap → agent → sessionId

@@ -19,14 +19,15 @@ function SessionNodeComponent({ data }: NodeProps) {
   const { source, sourceStyle } = useHandlePositions();
   const sessionAgents =
     useAgentStore((s) => s.agentsBySession.get(session.sessionId)) ?? EMPTY_AGENTS;
-  const allPrompts = useAgentStore((s) => s.prompts);
-  const selectedNodeId = useAgentStore((s) => s.selectedNodeId);
-  const highlightedNodeIds = useAgentStore((s) => s.highlightedNodeIds);
+  // Narrow selectors: only re-render when THIS session's data changes
+  const sessionPrompts = useAgentStore((s) => s.prompts.get(session.sessionId));
   const nodeId = `session-${session.sessionId}`;
-  const isSelected = selectedNodeId === nodeId;
-  const isHighlighted = !isSelected && highlightedNodeIds?.has(nodeId);
+  const isSelected = useAgentStore((s) => s.selectedNodeId === nodeId);
+  const isHighlighted = useAgentStore(
+    (s) => s.selectedNodeId !== nodeId && (s.highlightedNodeIds?.has(nodeId) ?? false),
+  );
 
-  const transcripts = useAgentStore((s) => s.transcripts);
+  const transcript = useAgentStore((s) => s.transcripts.get(session.sessionId));
 
   const { inputTokens, outputTokens, toolCount } = useMemo(() => {
     let input = 0;
@@ -38,20 +39,16 @@ function SessionNodeComponent({ data }: NodeProps) {
       tc += a.toolCalls.length;
     }
     // Fallback to transcript data when agent tokens are 0
-    if (input === 0 && output === 0) {
-      const t = transcripts.get(session.sessionId);
-      if (t) {
-        input = t.totalInputTokens;
-        output = t.totalOutputTokens;
-        if (tc === 0) tc = t.totalToolCalls;
-      }
+    if (input === 0 && output === 0 && transcript) {
+      input = transcript.totalInputTokens;
+      output = transcript.totalOutputTokens;
+      if (tc === 0) tc = transcript.totalToolCalls;
     }
     return { inputTokens: input, outputTokens: output, toolCount: tc };
-  }, [sessionAgents, session.sessionId, transcripts]);
+  }, [sessionAgents, transcript]);
 
   // Sparkline: cumulative input tokens per turn
   const sparkData = useMemo(() => {
-    const sessionPrompts = allPrompts.get(session.sessionId);
     if (!sessionPrompts || sessionPrompts.length < 2) return null;
 
     const sorted = [...sessionPrompts].sort((a, b) => a.timestamp - b.timestamp);
@@ -75,7 +72,6 @@ function SessionNodeComponent({ data }: NodeProps) {
     if (cum > 0) return points;
 
     // Fallback: use transcript assistant turns matched to prompt windows
-    const transcript = transcripts.get(session.sessionId);
     if (!transcript || transcript.turns.length === 0) return null;
 
     const assistantTurns = transcript.turns.filter((t) => t.type === 'assistant');
@@ -100,7 +96,7 @@ function SessionNodeComponent({ data }: NodeProps) {
 
     if (txCum === 0) return null;
     return txPoints;
-  }, [allPrompts, sessionAgents, session.sessionId, transcripts]);
+  }, [sessionPrompts, sessionAgents, transcript]);
 
   return (
     <div

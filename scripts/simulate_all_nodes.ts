@@ -16,7 +16,32 @@
  *   - PermissionRequest
  */
 
-const API_URL = process.env.API_URL ?? 'http://localhost:27246/api/events';
+import { readFileSync, existsSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+// Load .env from project root
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const envPath = resolve(__dirname, '..', '.env');
+if (existsSync(envPath)) {
+  for (const line of readFileSync(envPath, 'utf8').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq > 0) {
+      const key = trimmed.slice(0, eq).trim();
+      const val = trimmed.slice(eq + 1).trim();
+      if (!process.env[key]) process.env[key] = val;
+    }
+  }
+}
+
+// Allow self-signed TLS certs
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
+const port = process.env.SYNAPSE_PORT || '27246';
+const protocol = (process.env.SYNAPSE_TLS_CERT && process.env.SYNAPSE_TLS_KEY) ? 'https' : 'http';
+const API_URL = process.env.API_URL ?? `${protocol}://localhost:${port}/api/events`;
 
 const ts = Date.now().toString(36);
 const SESSION_ID = `allnodes-${ts}`;

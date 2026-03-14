@@ -21,11 +21,11 @@ function UserPromptNodeComponent({ data }: NodeProps) {
   const sessionAgents =
     useAgentStore((s) => s.agentsBySession.get(prompt.sessionId)) ?? EMPTY_AGENTS;
   const prompts = useAgentStore((s) => s.prompts);
-  const selectedNodeId = useAgentStore((s) => s.selectedNodeId);
-  const highlightedNodeIds = useAgentStore((s) => s.highlightedNodeIds);
   const nodeId = `prompt-${prompt.id}`;
-  const isSelected = selectedNodeId === nodeId;
-  const isHighlighted = !isSelected && highlightedNodeIds?.has(nodeId);
+  const isSelected = useAgentStore((s) => s.selectedNodeId === nodeId);
+  const isHighlighted = useAgentStore(
+    (s) => s.selectedNodeId !== nodeId && (s.highlightedNodeIds?.has(nodeId) ?? false),
+  );
 
   const transcripts = useAgentStore((s) => s.transcripts);
 

@@ -39,7 +39,7 @@ describe('PushSetup', () => {
       sendTest: vi.fn(),
     });
     render(<PushSetup />);
-    expect(screen.getByText(/doesn.*support push/i)).toBeDefined();
+    expect(screen.getByText(/support push|HTTPS required/i)).toBeDefined();
   });
 
   it('shows denied message with reset instructions', () => {

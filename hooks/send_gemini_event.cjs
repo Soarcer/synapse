@@ -25,11 +25,11 @@
 const fs = require('fs');
 const path = require('path');
 
-// Note: if the server uses TLS, set SYNAPSE_TLS_CERT in your shell profile
-// or use SYNAPSE_URL=https://localhost:27246/api/events
-const port = process.env.SYNAPSE_PORT || '27246';
-const protocol = process.env.SYNAPSE_TLS_CERT ? 'https' : 'http';
-const SERVER_URL = process.env.SYNAPSE_URL || `${protocol}://localhost:${port}/api/events`;
+// Hook events POST to the hook server (SYNAPSE_PORT + 1), which is always HTTP —
+// no TLS issues regardless of whether the main server uses HTTPS.
+const basePort = parseInt(process.env.SYNAPSE_PORT || '27246', 10);
+const hookPort = basePort + 1;
+const SERVER_URL = process.env.SYNAPSE_URL || `http://localhost:${hookPort}/api/events`;
 const DEBUG = process.env.SYNAPSE_DEBUG === '1';
 const DEBUG_LOG = path.join(__dirname, '..', 'gemini_hook_debug.log');
 

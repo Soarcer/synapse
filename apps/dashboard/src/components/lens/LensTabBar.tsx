@@ -18,10 +18,12 @@ const TABS: { key: LensTab; label: string; fullName: string; shortcut: string }[
   { key: 'alerts', label: 'Alerts', fullName: 'Notification alerts', shortcut: '7' }, // [notifications]
 ];
 
-// VS Code injects data-vscode-theme-kind on <html>. Absent in standalone browser.
+// Detect VS Code: either the webview sets data-vscode-theme-kind on <html>,
+// or the dashboard is loaded inside an iframe (sidebar/panel) whose parent differs.
 const isVSCode =
   typeof document !== 'undefined' &&
-  document.documentElement.hasAttribute('data-vscode-theme-kind');
+  (document.documentElement.hasAttribute('data-vscode-theme-kind') ||
+    window.parent !== window);
 
 function GraphOpenButton() {
   const [open, setOpen] = useState(false);

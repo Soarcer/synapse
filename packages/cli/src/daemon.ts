@@ -7,7 +7,7 @@ import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import http from 'http';
-import { SYNAPSE_PORT } from '@synapse-ai/core';
+import { SYNAPSE_PORT } from '@synapse-ai/core/config';
 import {
   SYNAPSE_HOME,
   GLOBAL_PID_FILE,

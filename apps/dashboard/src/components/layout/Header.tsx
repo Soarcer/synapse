@@ -279,6 +279,9 @@ export function Header() {
           </button>
         </Tooltip>
 
+        {/* Lens toggle */}
+        <LensToggle />
+
         {/* View settings */}
         <ViewSettingsDropdown />
 
@@ -368,5 +371,26 @@ export function Header() {
         </div>
       )}
     </>
+  );
+}
+
+function LensToggle() {
+  const lensVisible = useAgentStore((s) => s.lensVisible);
+  return (
+    <Tooltip content={lensVisible ? 'Hide lens panel' : 'Show lens panel'} shortcut="L">
+      <button
+        onClick={() => useAgentStore.getState().setLensVisible(!lensVisible)}
+        className={`flex items-center justify-center w-7 h-7 rounded transition-colors ${
+          lensVisible
+            ? 'text-blue-400 bg-blue-900/30 hover:bg-blue-800/40'
+            : 'text-gray-500 bg-gray-800 hover:bg-gray-700'
+        }`}
+        aria-label="Toggle lens panel"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h7" />
+        </svg>
+      </button>
+    </Tooltip>
   );
 }

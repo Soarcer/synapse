@@ -123,6 +123,16 @@
   animation: nodeHighlightGlow 2s ease-in-out infinite;
 }
 
+/* Selection highlight/dim — applied via className on React Flow nodes (no object recreation) */
+.react-flow__node.synapse-dimmed {
+  opacity: 0.25;
+  transition: opacity 0.15s ease;
+}
+.react-flow__node.synapse-highlighted {
+  opacity: 1;
+  transition: opacity 0.15s ease;
+}
+
 /* Sankey link hover */
 .sankey-link:hover {
   opacity: 0.5 !important;

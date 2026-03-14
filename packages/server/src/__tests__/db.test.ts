@@ -20,6 +20,7 @@ import {
   getEventsBySessionIds,
   updateDailyRollup,
   analyticsQueryAll,
+  analyticsExecute,
   insertPriceHistory,
   getAllPriceHistory,
   deletePriceHistory,
@@ -289,6 +290,11 @@ describe('getEventsBySessionIds', () => {
 // ─── Analytics ───────────────────────────────────────────────────────
 
 describe('updateDailyRollup', () => {
+  beforeEach(() => {
+    // Clean up leftover rollup data from previous test runs
+    analyticsExecute("DELETE FROM analytics_daily WHERE cwd LIKE '__test_%'");
+  });
+
   it('inserts a new rollup row and increments counters on repeated calls', () => {
     // Use a unique date far in the past to avoid collisions with other tests
     const testDate = new Date('2020-01-15T12:00:00Z').getTime();
