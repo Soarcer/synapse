@@ -193,3 +193,100 @@ describe('computeCostUsd', () => {
     expect(result.total).toBe(3);
   });
 });
+
+describe('cost validation snapshots', () => {
+  // Hand-computed from public pricing pages (2026-03-13).
+  // If any of these fail, verify the new prices against the provider's pricing page
+  // before updating the expected values.
+
+  it('claude-opus-4-6: 100K input + 50K cache-read + 10K cache-write + 20K output + 5K thinking', () => {
+    const price = getPrice('claude-opus-4-6');
+    const result = computeCostUsd({
+      inputTokens: 100_000,
+      outputTokens: 20_000,
+      cacheReadTokens: 50_000,
+      cacheCreationTokens: 10_000,
+      thinkingTokens: 5_000,
+      price,
+    });
+    // input:    100K / 1M * $15.00    = $1.5000
+    // cached:    50K / 1M * $1.50     = $0.0750
+    // creation:  10K / 1M * $18.75    = $0.1875
+    // output:    20K / 1M * $75.00    = $1.5000
+    // thinking:   5K / 1M * $75.00    = $0.3750
+    // total:                          = $3.6375
+    expect(result.input).toBeCloseTo(1.5, 4);
+    expect(result.cached).toBeCloseTo(0.075, 4);
+    expect(result.creation).toBeCloseTo(0.1875, 4);
+    expect(result.output).toBeCloseTo(1.5, 4);
+    expect(result.thinking).toBeCloseTo(0.375, 4);
+    expect(result.total).toBeCloseTo(3.6375, 4);
+  });
+
+  it('claude-sonnet-4-5: 500K input + 200K cache-read + 0 cache-write + 100K output + 50K thinking', () => {
+    const price = getPrice('claude-sonnet-4-5');
+    const result = computeCostUsd({
+      inputTokens: 500_000,
+      outputTokens: 100_000,
+      cacheReadTokens: 200_000,
+      cacheCreationTokens: 0,
+      thinkingTokens: 50_000,
+      price,
+    });
+    // input:    500K / 1M * $3.00    = $1.5000
+    // cached:   200K / 1M * $0.30    = $0.0600
+    // creation:   0K / 1M * $3.75    = $0.0000
+    // output:   100K / 1M * $15.00   = $1.5000
+    // thinking:  50K / 1M * $15.00   = $0.7500
+    // total:                         = $3.8100
+    expect(result.input).toBeCloseTo(1.5, 4);
+    expect(result.cached).toBeCloseTo(0.06, 4);
+    expect(result.creation).toBeCloseTo(0, 4);
+    expect(result.output).toBeCloseTo(1.5, 4);
+    expect(result.thinking).toBeCloseTo(0.75, 4);
+    expect(result.total).toBeCloseTo(3.81, 4);
+  });
+
+  it('gpt-4o: 1M input + 500K cache-read + 200K output + 0 thinking (no cache creation fee)', () => {
+    const price = getPrice('gpt-4o');
+    const result = computeCostUsd({
+      inputTokens: 1_000_000,
+      outputTokens: 200_000,
+      cacheReadTokens: 500_000,
+      cacheCreationTokens: 100_000, // should be $0 — OpenAI has no creation fee
+      thinkingTokens: 0,
+      price,
+    });
+    // input:     1M / 1M * $2.50    = $2.5000
+    // cached:  500K / 1M * $1.25    = $0.6250
+    // creation: 100K / 1M * $0      = $0.0000
+    // output:  200K / 1M * $10.00   = $2.0000
+    // thinking:   0                 = $0.0000
+    // total:                        = $5.1250
+    expect(result.input).toBeCloseTo(2.5, 4);
+    expect(result.cached).toBeCloseTo(0.625, 4);
+    expect(result.creation).toBeCloseTo(0, 4);
+    expect(result.output).toBeCloseTo(2.0, 4);
+    expect(result.total).toBeCloseTo(5.125, 4);
+  });
+
+  it('gemini-2.5-flash: 2M input + 1M cache-read + 500K output (cheapest tier)', () => {
+    const price = getPrice('gemini-2.5-flash');
+    const result = computeCostUsd({
+      inputTokens: 2_000_000,
+      outputTokens: 500_000,
+      cacheReadTokens: 1_000_000,
+      cacheCreationTokens: 0,
+      thinkingTokens: 0,
+      price,
+    });
+    // input:     2M / 1M * $0.15     = $0.3000
+    // cached:    1M / 1M * $0.0375   = $0.0375
+    // output:  500K / 1M * $0.60     = $0.3000
+    // total:                         = $0.6375
+    expect(result.input).toBeCloseTo(0.3, 4);
+    expect(result.cached).toBeCloseTo(0.0375, 4);
+    expect(result.output).toBeCloseTo(0.3, 4);
+    expect(result.total).toBeCloseTo(0.6375, 4);
+  });
+});
