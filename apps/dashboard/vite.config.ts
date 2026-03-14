@@ -12,6 +12,15 @@ const wsTarget = `${WS_PROTOCOL}://127.0.0.1:${SYNAPSE_PORT}`;
 export default defineConfig({
   root: import.meta.dirname,
   plugins: [react(), tailwindcss()],
+  define: {
+    // @synapse-ai/core/config.ts uses process.env at module scope.
+    // Only the vite.config.ts import runs in Node; the browser bundle
+    // needs these shimmed to avoid "process is not defined".
+    'process.env.SYNAPSE_PORT': JSON.stringify(process.env.SYNAPSE_PORT || '27246'),
+    'process.env.VITE_DEV_PORT': JSON.stringify(process.env.VITE_DEV_PORT || '5173'),
+    'process.env.SYNAPSE_TLS_CERT': JSON.stringify(process.env.SYNAPSE_TLS_CERT || ''),
+    'process.env.SYNAPSE_TLS_KEY': JSON.stringify(process.env.SYNAPSE_TLS_KEY || ''),
+  },
   server: {
     port: DEV_PORT,
     host: true,
