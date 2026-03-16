@@ -8,8 +8,30 @@
     <meta name="theme-color" content="#0d1117" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- flash-prevention: injects saved custom theme vars before React mounts.
+         CASCADE NOTE: document.head.appendChild() places this style AFTER the
+         compiled <link rel="stylesheet"> in production (correct — user vars win).
+         In Vite dev mode, CSS is injected by HMR JS so ordering is non-deterministic;
+         flash prevention is a production-only guarantee. -->
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('synapse-custom-theme');
+          if (saved) {
+            var theme = JSON.parse(saved);
+            if (theme.vars && Object.keys(theme.vars).length) {
+              var css = ':root{' + Object.entries(theme.vars).map(function(e) { return e[0]+':'+e[1]; }).join(';') + '}';
+              var el = document.createElement('style');
+              el.id = 'synapse-user-vars';
+              el.textContent = css;
+              document.head.appendChild(el);
+            }
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
-  <body class="bg-[#0d1117] text-gray-200">
+  <body class="bg-syn-bg-primary text-syn-text-primary">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
