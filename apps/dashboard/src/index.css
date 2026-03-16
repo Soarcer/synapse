@@ -1,5 +1,19 @@
 @import "tailwindcss";
 
+@theme {
+  --color-syn-bg-primary: #0d1117;
+  --color-syn-bg-surface: #161b22;
+  --color-syn-bg-elevated: #1c2128;
+  --color-syn-bg-overlay: #1c2333;
+  --color-syn-bg-tool-group: #1a1d27;
+  --color-syn-border-primary: #30363d;
+  --color-syn-border-subtle: #21262d;
+  --color-syn-border-muted: #484f58;
+  --color-syn-text-primary: #e6edf3;
+  --color-syn-text-secondary: #8b949e;
+  --color-syn-text-bright: #f0f6fc;
+}
+
 /* React Flow overrides for dark theme */
 .react-flow__controls button {
   background: #161b22 !important;
