@@ -128,6 +128,11 @@
           {
             "type": "command",
             "command": "node hooks/send_event.cjs"
+          },
+          {
+            "type": "command",
+            "command": "node hooks/send_response.cjs",
+            "async": true
           }
         ]
       }
