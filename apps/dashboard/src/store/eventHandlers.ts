@@ -5,6 +5,7 @@ import type { Node, Edge } from '@xyflow/react';
 import type {
   AgentEvent,
   AgentNodeData,
+  AssistantResponseData,
   SessionData,
   ToolCallSummary,
   UserPromptData,
@@ -25,12 +26,7 @@ export const SPAWN_NODE: Node = {
 };
 
 /** Event types that are stored in the timeline but don't produce graph nodes */
-export const NO_GRAPH_EVENTS = new Set<string>([
-  'stop',
-  'permission_request',
-  'notification',
-  'assistant_response',
-]);
+export const NO_GRAPH_EVENTS = new Set<string>(['stop', 'permission_request', 'notification']);
 
 // ── Node / Edge ID helpers ───────────────────────────────────
 
@@ -67,6 +63,8 @@ export interface StateDraft {
   agents: Map<string, AgentNodeData>;
   toolCalls: Map<string, ToolCallSummary[]>;
   prompts: Map<string, UserPromptData[]>;
+  /** sessionId → assistant responses for that session */
+  responses: Map<string, AssistantResponseData[]>;
   activeAgents: Map<string, string[]>;
   toolAgentMap: Map<string, string>;
   /** sessionId → FIFO queue of running Task tool_use_ids (for Task→Agent correlation) */
@@ -83,6 +81,7 @@ export function createFreshDraft(): StateDraft {
     agents: new Map(),
     toolCalls: new Map(),
     prompts: new Map(),
+    responses: new Map(),
     activeAgents: new Map(),
     toolAgentMap: new Map(),
     pendingTaskTools: new Map(),
@@ -98,6 +97,7 @@ export function draftFromState(state: StateDraft): StateDraft {
     agents: new Map(state.agents),
     toolCalls: new Map(state.toolCalls),
     prompts: new Map(state.prompts),
+    responses: new Map(state.responses),
     activeAgents: new Map(state.activeAgents),
     toolAgentMap: new Map(state.toolAgentMap),
     pendingTaskTools: new Map(Array.from(state.pendingTaskTools, ([k, v]) => [k, [...v]])),
@@ -652,10 +652,37 @@ function handleCompact(event: AgentEvent, draft: StateDraft): void {
   updateNode(draft.nodes, nid.prompt(latestPrompt.id), { prompt: updatedPrompt });
 }
 
+function handleAssistantResponse(event: AgentEvent, draft: StateDraft): void {
+  if (!event.text) return;
+
+  // Find the last prompt with timestamp <= response timestamp
+  const sessionPrompts = draft.prompts.get(event.sessionId) ?? [];
+  let promptId = '';
+  for (let i = sessionPrompts.length - 1; i >= 0; i--) {
+    if (sessionPrompts[i].timestamp <= event.timestamp) {
+      promptId = sessionPrompts[i].id;
+      break;
+    }
+  }
+
+  const response: AssistantResponseData = {
+    id: event.id,
+    sessionId: event.sessionId,
+    text: event.text,
+    timestamp: event.timestamp,
+    promptId,
+  };
+
+  const existing = draft.responses.get(event.sessionId) ?? [];
+  draft.responses.set(event.sessionId, [...existing, response]);
+}
+
 // ── Event dispatcher ─────────────────────────────────────────
 
 export function processEvent(event: AgentEvent, draft: StateDraft, showHookEvents: boolean): void {
-  if (event.eventSource === 'hook' && !showHookEvents) return;
+  // assistant_response bypasses hook visibility — it's conversation data via hook transport
+  if (event.eventSource === 'hook' && !showHookEvents && event.type !== 'assistant_response')
+    return;
 
   switch (event.type) {
     case 'session_start':
@@ -687,6 +714,9 @@ export function processEvent(event: AgentEvent, draft: StateDraft, showHookEvent
       break;
     case 'compact':
       handleCompact(event, draft);
+      break;
+    case 'assistant_response':
+      handleAssistantResponse(event, draft);
       break;
     // text_delta: handled as fast path in addEvent (skips draft creation)
     // stop, permission_request, notification: event stored, no graph changes

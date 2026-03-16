@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Bernhard
 
-import { memo, useMemo } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { Handle, type NodeProps } from '@xyflow/react';
-import type { UserPromptData, AgentNodeData } from '@synapse-ai/core';
+import type { UserPromptData, AgentNodeData, AssistantResponseData } from '@synapse-ai/core';
 import { formatTokens, formatTime } from '@synapse-ai/core';
 import { useHandlePositions } from '../../../hooks/useHandlePositions';
 import { useAgentStore } from '../../../store/agentStore';
@@ -12,6 +12,7 @@ import { extractUserMessage } from '../../../utils/promptText';
 import { Tooltip } from '../../ui/Tooltip';
 
 const EMPTY_AGENTS: AgentNodeData[] = [];
+const EMPTY_RESPONSES: AssistantResponseData[] = [];
 
 function UserPromptNodeComponent({ data }: NodeProps) {
   const prompt = (data as { prompt: UserPromptData }).prompt;
@@ -28,6 +29,23 @@ function UserPromptNodeComponent({ data }: NodeProps) {
   const isHighlighted = !isSelected && highlightedNodeIds?.has(nodeId);
 
   const transcripts = useAgentStore((s) => s.transcripts);
+
+  // Response data for conversation threading
+  const allResponses = useAgentStore((s) => s.responses.get(prompt.sessionId)) ?? EMPTY_RESPONSES;
+  const responses = useMemo(
+    () => allResponses.filter((r) => r.promptId === prompt.id),
+    [allResponses, prompt.id],
+  );
+  const lastResponse = responses.length > 0 ? responses[responses.length - 1] : null;
+  const isExpanded = useAgentStore((s) => s.expandedTurns.has(nodeId));
+  const toggleTurnExpanded = useAgentStore((s) => s.toggleTurnExpanded);
+  const handleToggleExpand = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      toggleTurnExpanded(nodeId);
+    },
+    [toggleTurnExpanded, nodeId],
+  );
 
   const { inputTokens, outputTokens, agentCount, toolCount } = useMemo(() => {
     const sessionPrompts = prompts.get(prompt.sessionId) ?? [];
@@ -125,6 +143,53 @@ function UserPromptNodeComponent({ data }: NodeProps) {
                 </span>
               </Tooltip>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Assistant response section (conversation threading) */}
+      {responses.length > 0 && !isExpanded && (
+        <Tooltip content="Click to expand response chain">
+          <div
+            className="relative mt-1.5 pt-1.5 border-t border-blue-500/30 bg-blue-900/20 -mx-3 -mb-2 px-3 pb-2 rounded-b-lg cursor-pointer hover:brightness-125 transition-[filter]"
+            onClick={handleToggleExpand}
+          >
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-blue-300/50 text-[11px] font-bold pointer-events-none">
+              {'>'}
+            </span>
+            <div className="flex items-center gap-1 mb-0.5">
+              <span className="text-blue-400 text-[10px] font-semibold">Claude</span>
+              <span className="text-gray-500 text-[10px]">{'\u25B8'}</span>
+              {responses.length > 1 && (
+                <span className="text-gray-500 text-[10px] ml-auto">
+                  {responses.length} responses
+                </span>
+              )}
+            </div>
+            {responses.map((resp, i) => (
+              <p
+                key={resp.id}
+                className={`text-[11px] text-blue-200/70 leading-snug line-clamp-2 ${i > 0 ? 'mt-1 pt-1 border-t border-blue-400/30' : ''}`}
+              >
+                {resp.text.length > 160 ? resp.text.slice(0, 160) + '...' : resp.text}
+              </p>
+            ))}
+          </div>
+        </Tooltip>
+      )}
+
+      {/* Expanded indicator — response nodes are synthesized in the graph */}
+      {lastResponse && isExpanded && (
+        <div
+          className="mt-1.5 pt-1 border-t border-blue-500/30 -mx-3 -mb-2 px-3 pb-1.5 rounded-b-lg cursor-pointer hover:brightness-125 transition-[filter] bg-blue-900/10"
+          onClick={handleToggleExpand}
+        >
+          <div className="flex items-center gap-1">
+            <span className="text-blue-400 text-[10px] font-semibold">Claude</span>
+            <span className="text-gray-500 text-[10px]">{'\u25BE'}</span>
+            <span className="text-gray-500 text-[10px] ml-auto">
+              {responses.length} response{responses.length !== 1 ? 's' : ''}
+            </span>
           </div>
         </div>
       )}

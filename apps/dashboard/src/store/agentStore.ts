@@ -6,6 +6,7 @@ import type { Node, Edge } from '@xyflow/react';
 import type {
   AgentEvent,
   AgentNodeData,
+  AssistantResponseData,
   SessionData,
   ToolCallSummary,
   UserPromptData,
@@ -206,6 +207,8 @@ interface AgentStore {
   childAgents: Map<string, AgentNodeData[]>;
   toolCalls: Map<string, ToolCallSummary[]>;
   prompts: Map<string, UserPromptData[]>;
+  responses: Map<string, AssistantResponseData[]>;
+  expandedTurns: Set<string>;
   activeAgents: Map<string, string[]>;
   toolAgentMap: Map<string, string>;
   pendingTaskTools: Map<string, string[]>;
@@ -279,6 +282,7 @@ interface AgentStore {
   setGraphSearchQuery: (query: string) => void;
   toggleCollapsed: (nodeId: string) => void;
   expandNode: (nodeId: string) => void;
+  toggleTurnExpanded: (promptId: string) => void;
   setHighlightedNodeIds: (ids: Set<string> | null) => void;
   setMultiHighlight: (ids: Set<string> | null) => void;
   setLensVisible: (visible: boolean) => void;
@@ -355,7 +359,12 @@ function applyEvent(state: AgentState, event: AgentEvent): AgentState {
   const events = insertEventSorted(state.events, event, MAX_EVENTS);
 
   // Hidden hook events: store event, skip graph processing
-  if (event.eventSource === 'hook' && !state.showHookEvents) {
+  // assistant_response bypasses this filter — it's conversation data that arrives via hooks
+  if (
+    event.eventSource === 'hook' &&
+    !state.showHookEvents &&
+    event.type !== 'assistant_response'
+  ) {
     return { ...state, events, eventIds };
   }
 
@@ -378,6 +387,8 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   childAgents: new Map(),
   toolCalls: new Map(),
   prompts: new Map(),
+  responses: new Map(),
+  expandedTurns: new Set<string>(),
   activeAgents: new Map(),
   toolAgentMap: new Map(),
   pendingTaskTools: new Map(),
@@ -500,6 +511,13 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     const next = new Set(s);
     next.delete(nodeId);
     set({ collapsedNodes: next });
+  },
+
+  toggleTurnExpanded: (promptId) => {
+    const s = new Set(get().expandedTurns);
+    if (s.has(promptId)) s.delete(promptId);
+    else s.add(promptId);
+    set({ expandedTurns: s });
   },
   setHighlightedNodeIds: (highlightedNodeIds) => {
     if (highlightedNodeIds === get().highlightedNodeIds) return;
@@ -736,6 +754,8 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       childAgents: new Map(),
       toolCalls: new Map(),
       prompts: new Map(),
+      responses: new Map(),
+      expandedTurns: new Set<string>(),
       activeAgents: new Map(),
       toolAgentMap: new Map(),
       pendingTaskTools: new Map(),
@@ -808,6 +828,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       highlightedNodeIds: null,
       multiHighlightIds: null,
       collapsedNodes: new Set(),
+      expandedTurns: new Set<string>(),
       transcripts: new Map(),
       transcriptReasoning: new Map(),
       liveNudges: EMPTY_NUDGES,
@@ -822,9 +843,9 @@ function eventFingerprint(event: AgentEvent): string {
   // toolUseId and agentId are stable across hook sources (same stdin from Claude Code).
   if (event.toolUseId) return `${event.sessionId}:${event.type}:${event.toolUseId}`;
   if (event.agentId) return `${event.sessionId}:${event.type}:${event.agentId}`;
-  // For prompts, include text so two different rapid prompts aren't falsely deduped
-  if (event.type === 'user_prompt')
-    return `${event.sessionId}:user_prompt:${(event.text ?? '').slice(0, 200)}`;
+  // For prompts and responses, include text so different rapid events aren't falsely deduped
+  if (event.type === 'user_prompt' || event.type === 'assistant_response')
+    return `${event.sessionId}:${event.type}:${(event.text ?? '').slice(0, 200)}`;
   // Fallback: session-level events (session_start, session_end, compact, etc.)
   return `${event.sessionId}:${event.type}`;
 }
@@ -851,9 +872,9 @@ const recentWsEvents = new Map<string, number>(); // fingerprint → timestamp
 
 function wsDedupeKey(event: AgentEvent): string {
   const base = `${event.sessionId}:${event.type}:${event.toolUseId ?? ''}:${event.agentId ?? ''}`;
-  // For user_prompt, include text so two different rapid prompts aren't falsely deduped
-  // (toolUseId and agentId are both empty for prompts)
-  if (event.type === 'user_prompt') return `${base}:${(event.text ?? '').slice(0, 200)}`;
+  // For prompts and responses, include text so different rapid events aren't falsely deduped
+  if (event.type === 'user_prompt' || event.type === 'assistant_response')
+    return `${base}:${(event.text ?? '').slice(0, 200)}`;
   return base;
 }
 

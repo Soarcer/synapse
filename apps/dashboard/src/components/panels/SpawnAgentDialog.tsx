@@ -145,7 +145,7 @@ export function SpawnAgentDialog() {
     >
       <div
         ref={dialogRef}
-        className="bg-[#161b22] border border-gray-700 rounded-xl shadow-2xl w-full max-w-lg mx-4"
+        className="bg-syn-bg-surface border border-gray-700 rounded-xl shadow-2xl w-full max-w-lg mx-4"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

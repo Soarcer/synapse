@@ -206,7 +206,7 @@ function StructuredTurnCard({ turn, index }: { turn: ReasoningTurn; index: numbe
   const isError = turn.isApiErrorMessage || !!turn.error;
   return (
     <div
-      className={`bg-[#0d1117] border rounded-lg p-3 space-y-2 ${
+      className={`bg-syn-bg-primary border rounded-lg p-3 space-y-2 ${
         isError ? 'border-red-800/60' : 'border-gray-800'
       }`}
     >
@@ -311,7 +311,7 @@ function RawTurnCard({ turn, index }: { turn: ReasoningTurn; index: number }) {
   const [expanded, setExpanded] = useState(index === 0);
 
   return (
-    <div className="bg-[#0d1117] border border-gray-800 rounded-lg overflow-hidden">
+    <div className="bg-syn-bg-primary border border-gray-800 rounded-lg overflow-hidden">
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-gray-800/30"

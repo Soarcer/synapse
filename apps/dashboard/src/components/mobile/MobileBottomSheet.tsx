@@ -152,7 +152,7 @@ export function MobileBottomSheet() {
       {/* Sheet */}
       <div
         ref={sheetRef}
-        className="absolute inset-x-0 z-50 bg-[#161b22] rounded-t-2xl flex flex-col transition-transform duration-300 ease-out [&>div]:w-full"
+        className="absolute inset-x-0 z-50 bg-syn-bg-surface rounded-t-2xl flex flex-col transition-transform duration-300 ease-out [&>div]:w-full"
         style={{
           bottom: `${TAB_BAR_HEIGHT}px`,
           height: `${getSheetHeight()}px`,

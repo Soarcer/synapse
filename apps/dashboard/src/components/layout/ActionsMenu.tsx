@@ -41,7 +41,7 @@ export function ActionsMenu({ onExport, onImportClick, onClear }: ActionsMenuPro
       </Tooltip>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-48 bg-[#1c2128] border border-gray-700 rounded-lg shadow-xl z-30 py-1">
+        <div className="absolute right-0 top-full mt-1 w-48 bg-syn-bg-elevated border border-gray-700 rounded-lg shadow-xl z-30 py-1">
           <button
             id="snapshot-export-btn"
             onClick={() => {

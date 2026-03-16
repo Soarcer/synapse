@@ -326,7 +326,7 @@ export function LiveNudgesView() {
                 {quickWins.map((qw) => (
                   <div
                     key={qw.detector_id}
-                    className="bg-[#161b22] border border-gray-800 rounded-xl p-3"
+                    className="bg-syn-bg-surface border border-gray-800 rounded-xl p-3"
                   >
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-2">
@@ -353,7 +353,7 @@ export function LiveNudgesView() {
               Active Nudges ({activeNudges.length})
             </h3>
             {activeNudges.length === 0 ? (
-              <div className="bg-[#161b22] border border-gray-800 rounded-xl p-6 text-center">
+              <div className="bg-syn-bg-surface border border-gray-800 rounded-xl p-6 text-center">
                 <div className="text-gray-600 text-2xl mb-2">{'\u2705'}</div>
                 <p className="text-sm text-gray-400">No active nudges</p>
                 <p className="text-xs text-gray-600 mt-1">
@@ -394,7 +394,7 @@ export function LiveNudgesView() {
               <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
                 Rule Breakdown
               </h3>
-              <div className="bg-[#161b22] border border-gray-800 rounded-xl overflow-hidden">
+              <div className="bg-syn-bg-surface border border-gray-800 rounded-xl overflow-hidden">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-gray-800">
@@ -438,7 +438,7 @@ export function LiveNudgesView() {
         {/* Right: Configuration */}
         <div className="space-y-4">
           {/* AI Coaching Sensitivity */}
-          <div className="bg-[#161b22] border border-gray-800 rounded-xl p-4">
+          <div className="bg-syn-bg-surface border border-gray-800 rounded-xl p-4">
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
               AI Coaching Sensitivity
             </h3>
@@ -476,7 +476,7 @@ export function LiveNudgesView() {
           </div>
 
           {/* Dynamic Rule Configuration */}
-          <div className="bg-[#161b22] border border-gray-800 rounded-xl p-4">
+          <div className="bg-syn-bg-surface border border-gray-800 rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
                 Nudge Rules ({enabledCount}/{totalRules})
@@ -496,7 +496,7 @@ export function LiveNudgesView() {
               value={ruleSearch}
               onChange={(e) => setRuleSearch(e.target.value)}
               placeholder="Search rules..."
-              className="w-full px-2.5 py-1.5 bg-[#0d1117] border border-gray-800 rounded-lg text-xs text-gray-300 placeholder-gray-600 mb-3 outline-none focus:border-gray-700"
+              className="w-full px-2.5 py-1.5 bg-syn-bg-primary border border-gray-800 rounded-lg text-xs text-gray-300 placeholder-gray-600 mb-3 outline-none focus:border-gray-700"
             />
 
             {rulesLoading ? (
@@ -551,7 +551,7 @@ export function LiveNudgesView() {
           </div>
 
           {/* How nudges work */}
-          <div className="bg-[#161b22] border border-gray-800 rounded-xl p-4">
+          <div className="bg-syn-bg-surface border border-gray-800 rounded-xl p-4">
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
               How It Works
             </h3>
@@ -596,7 +596,7 @@ function StatCard({
   subtitle?: string;
 }) {
   return (
-    <div className="bg-[#161b22] border border-gray-800 rounded-xl p-3">
+    <div className="bg-syn-bg-surface border border-gray-800 rounded-xl p-3">
       <div className="text-[10px] text-gray-500 uppercase tracking-wider">{label}</div>
       <div className="flex items-baseline gap-1">
         <div className={`text-lg font-bold mt-1 ${highlight ? 'text-amber-400' : 'text-gray-100'}`}>
@@ -653,7 +653,7 @@ function NudgeTimeline({ nudges }: { nudges: CoachingNudge[] }) {
   if (buckets.length === 0) return null;
 
   return (
-    <div className="bg-[#161b22] border border-gray-800 rounded-xl p-3">
+    <div className="bg-syn-bg-surface border border-gray-800 rounded-xl p-3">
       <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
         Nudge Timeline
       </h3>
@@ -886,7 +886,7 @@ function RecommendationBlock({ text }: { text: string }) {
         ) : (
           <div
             key={i}
-            className="px-2 py-1.5 bg-[#0d1117] border-l-2 border-blue-500/50 rounded-r text-[11px] text-blue-300 whitespace-pre-line"
+            className="px-2 py-1.5 bg-syn-bg-primary border-l-2 border-blue-500/50 rounded-r text-[11px] text-blue-300 whitespace-pre-line"
           >
             {seg.content}
           </div>
@@ -913,7 +913,7 @@ function CopyableCodeBlock({ code }: { code: string }) {
 
   return (
     <div className="relative group">
-      <pre className="px-3 py-2 bg-[#0d1117] border border-gray-800 rounded-lg text-[11px] text-emerald-300 font-mono whitespace-pre-wrap overflow-x-auto">
+      <pre className="px-3 py-2 bg-syn-bg-primary border border-gray-800 rounded-lg text-[11px] text-emerald-300 font-mono whitespace-pre-wrap overflow-x-auto">
         {code}
       </pre>
       <button

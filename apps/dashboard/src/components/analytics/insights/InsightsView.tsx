@@ -576,7 +576,7 @@ function CollapsibleSection({
     <div className="border border-gray-800 rounded-xl overflow-hidden">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2 px-4 py-3 bg-[#161b22] hover:bg-gray-800/40 transition-colors text-left"
+        className="w-full flex items-center gap-2 px-4 py-3 bg-syn-bg-surface hover:bg-gray-800/40 transition-colors text-left"
       >
         <span
           className={`text-[10px] text-gray-500 transition-transform ${open ? 'rotate-90' : ''}`}
@@ -587,7 +587,7 @@ function CollapsibleSection({
           {title}
         </span>
       </button>
-      {open && <div className="p-4 bg-[#0d1117]">{children}</div>}
+      {open && <div className="p-4 bg-syn-bg-primary">{children}</div>}
     </div>
   );
 }
@@ -783,7 +783,7 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
       </div>
 
       {/* ── AI-Generated Insights ────────────────────────────────── */}
-      <div className="bg-[#161b22] border border-gray-800 rounded-xl p-4">
+      <div className="bg-syn-bg-surface border border-gray-800 rounded-xl p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
@@ -814,7 +814,7 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
         ) : aiInsights.length > 0 ? (
           <div className="space-y-2">
             {aiInsights.map((insight, idx) => (
-              <div key={idx} className="bg-[#0d1117] border border-blue-500/10 rounded-lg p-3">
+              <div key={idx} className="bg-syn-bg-primary border border-blue-500/10 rounded-lg p-3">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs font-medium text-gray-200">{insight.title}</span>
                   {insight.impact && (
@@ -1026,7 +1026,7 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
                 {modelOpt.alternatives.map((alt) => (
                   <div
                     key={alt.id}
-                    className="flex items-center justify-between px-3 py-2 bg-[#161b22] border border-gray-800 rounded-lg"
+                    className="flex items-center justify-between px-3 py-2 bg-syn-bg-surface border border-gray-800 rounded-lg"
                   >
                     <span className="text-xs text-gray-300">{alt.name}</span>
                     <div className="flex items-center gap-3">
@@ -1116,7 +1116,7 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
                 )}
               </div>
               <select
-                className="bg-[#0d1117] border border-gray-700 rounded px-2 py-0.5 text-[10px] text-gray-400 focus:border-blue-500 focus:outline-none"
+                className="bg-syn-bg-primary border border-gray-700 rounded px-2 py-0.5 text-[10px] text-gray-400 focus:border-blue-500 focus:outline-none"
                 value={budget.plan?.plan ?? 'pro'}
                 onChange={(e) => setPlanOverride(e.target.value)}
               >
@@ -1204,7 +1204,7 @@ export function InsightsView({ data, sessions }: InsightsViewProps) {
       </div>
 
       {/* Quick tips */}
-      <div className="bg-[#161b22] border border-gray-800 rounded-xl p-4">
+      <div className="bg-syn-bg-surface border border-gray-800 rounded-xl p-4">
         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
           Quick Tips
         </h3>

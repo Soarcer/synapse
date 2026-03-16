@@ -21,7 +21,9 @@ export function ChartCard({
   action,
 }: ChartCardProps) {
   return (
-    <div className={`rounded-xl border border-gray-800 bg-[#161b22] overflow-hidden ${className}`}>
+    <div
+      className={`rounded-xl border border-gray-800 bg-syn-bg-surface overflow-hidden ${className}`}
+    >
       <div className="flex items-center justify-between px-4 pt-3 pb-1">
         <div>
           <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider">{title}</h3>

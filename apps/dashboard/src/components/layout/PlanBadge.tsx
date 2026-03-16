@@ -154,7 +154,7 @@ export function PlanBadge({ plan, onPlanChange }: PlanBadgeProps) {
       )}
 
       {open && (
-        <div className="absolute left-0 top-full mt-1 w-52 bg-[#1c2128] border border-gray-700 rounded-lg shadow-xl z-30 py-1 text-xs">
+        <div className="absolute left-0 top-full mt-1 w-52 bg-syn-bg-elevated border border-gray-700 rounded-lg shadow-xl z-30 py-1 text-xs">
           <div className="px-3 py-1.5 text-gray-500 font-medium border-b border-gray-800">
             Select plan
           </div>

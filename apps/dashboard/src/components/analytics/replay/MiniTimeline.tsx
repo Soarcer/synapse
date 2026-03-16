@@ -38,7 +38,7 @@ export function MiniTimeline({ turns, onClickTurn, selectedTurn }: MiniTimelineP
   const barWidth = 100 / BAR_COUNT;
 
   return (
-    <div className="px-3 py-2 border-b border-gray-800 bg-[#0d1117]">
+    <div className="px-3 py-2 border-b border-gray-800 bg-syn-bg-primary">
       <div className="text-[10px] text-gray-600 mb-1">Activity Timeline</div>
       <svg viewBox="0 0 100 20" className="w-full h-5" preserveAspectRatio="none">
         {buckets.map((b, i) => {

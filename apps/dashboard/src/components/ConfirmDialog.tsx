@@ -71,7 +71,7 @@ export function ConfirmDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
-        className="bg-[#1c2333] rounded-lg p-6 max-w-sm shadow-xl border border-gray-700"
+        className="bg-syn-bg-overlay rounded-lg p-6 max-w-sm shadow-xl border border-gray-700"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 id="confirm-dialog-title" className="text-gray-200 text-sm font-medium mb-2">

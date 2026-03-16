@@ -88,7 +88,7 @@ export function VendorBreakdown({ sessions, dailyRollups }: VendorBreakdownProps
         {[...vendorData.entries()].map(([vendor, data]) => (
           <div
             key={vendor}
-            className="flex items-center gap-2 px-3 py-1.5 bg-[#161b22] border border-gray-800 rounded-full"
+            className="flex items-center gap-2 px-3 py-1.5 bg-syn-bg-surface border border-gray-800 rounded-full"
           >
             <div
               className="w-2 h-2 rounded-full"
@@ -103,7 +103,7 @@ export function VendorBreakdown({ sessions, dailyRollups }: VendorBreakdownProps
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Treemap: Cost by Model */}
-        <div className="bg-[#161b22] border border-gray-800 rounded-xl p-4">
+        <div className="bg-syn-bg-surface border border-gray-800 rounded-xl p-4">
           <h4 className="text-xs font-medium text-gray-400 mb-3">Cost by Model (Treemap)</h4>
           <ResponsiveContainer width="100%" height={250}>
             <Treemap
@@ -148,7 +148,7 @@ export function VendorBreakdown({ sessions, dailyRollups }: VendorBreakdownProps
         </div>
 
         {/* Stacked Area: Daily Cost by Vendor */}
-        <div className="bg-[#161b22] border border-gray-800 rounded-xl p-4">
+        <div className="bg-syn-bg-surface border border-gray-800 rounded-xl p-4">
           <h4 className="text-xs font-medium text-gray-400 mb-3">Daily Cost by Vendor</h4>
           <ResponsiveContainer width="100%" height={250}>
             <AreaChart data={dailyByVendor}>

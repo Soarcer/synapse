@@ -139,7 +139,7 @@ export function ViewSettingsDropdown() {
       </Tooltip>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-52 bg-[#1c2128] border border-gray-700 rounded-lg shadow-xl z-30 py-1">
+        <div className="absolute right-0 top-full mt-1 w-52 bg-syn-bg-elevated border border-gray-700 rounded-lg shadow-xl z-30 py-1">
           <div className="px-2 py-1 text-[10px] text-gray-500 uppercase tracking-wider">View</div>
           {toggles.map(({ label, key, active, onToggle }) => (
             <button

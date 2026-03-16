@@ -109,9 +109,9 @@ export function AnalyticsPage() {
   );
 
   return (
-    <div className="h-full flex flex-col overflow-hidden bg-[#0d1117]">
+    <div className="h-full flex flex-col overflow-hidden bg-syn-bg-primary">
       {/* Page header */}
-      <div className="flex-shrink-0 border-b border-gray-800 bg-[#0d1117]/95 backdrop-blur-sm">
+      <div className="flex-shrink-0 border-b border-gray-800 bg-syn-bg-primary/95 backdrop-blur-sm">
         <div className="max-w-[1400px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
@@ -147,7 +147,7 @@ export function AnalyticsPage() {
               <Tooltip content="AI Coach Settings">
                 <button
                   onClick={() => setShowSettings(true)}
-                  className="px-3 py-1.5 bg-[#161b22] border border-gray-700 rounded-lg text-xs text-gray-300 hover:text-gray-100 hover:border-gray-600 transition-colors"
+                  className="px-3 py-1.5 bg-syn-bg-surface border border-gray-700 rounded-lg text-xs text-gray-300 hover:text-gray-100 hover:border-gray-600 transition-colors"
                 >
                   &#x2699;
                 </button>
@@ -155,7 +155,7 @@ export function AnalyticsPage() {
               <Tooltip content="Export analytics data">
                 <button
                   onClick={() => setShowExport(true)}
-                  className="px-3 py-1.5 bg-[#161b22] border border-gray-700 rounded-lg text-xs text-gray-300 hover:text-gray-100 hover:border-gray-600 transition-colors"
+                  className="px-3 py-1.5 bg-syn-bg-surface border border-gray-700 rounded-lg text-xs text-gray-300 hover:text-gray-100 hover:border-gray-600 transition-colors"
                 >
                   Export
                 </button>
@@ -192,7 +192,7 @@ export function AnalyticsPage() {
                   px-3 py-2 text-xs font-medium rounded-t-lg transition-all whitespace-nowrap flex-shrink-0
                   ${
                     activeTab === tab.id
-                      ? 'bg-[#161b22] text-gray-100 border-t border-x border-gray-800'
+                      ? 'bg-syn-bg-surface text-gray-100 border-t border-x border-gray-800'
                       : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/30'
                   }
                 `}
@@ -203,7 +203,7 @@ export function AnalyticsPage() {
 
             {/* Analysis mode toggle — after tabs, on Prompts and Workshop tabs */}
             {(activeTab === 'prompts' || activeTab === 'workshop') && (
-              <div className="ml-auto flex items-center gap-1 bg-[#161b22] border border-gray-700 rounded-lg p-0.5 flex-shrink-0">
+              <div className="ml-auto flex items-center gap-1 bg-syn-bg-surface border border-gray-700 rounded-lg p-0.5 flex-shrink-0">
                 <button
                   onClick={() => handleModeChange('developer')}
                   className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
@@ -229,7 +229,7 @@ export function AnalyticsPage() {
 
             {/* Model selection — right-aligned, Workshop tab only */}
             {activeTab === 'workshop' && (
-              <div className="ml-auto flex items-center gap-1 bg-[#161b22] border border-gray-700 rounded-lg p-0.5 flex-shrink-0">
+              <div className="ml-auto flex items-center gap-1 bg-syn-bg-surface border border-gray-700 rounded-lg p-0.5 flex-shrink-0">
                 {MODEL_OPTIONS.map((m) => (
                   <button
                     key={m.id}

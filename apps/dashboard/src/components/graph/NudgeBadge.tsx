@@ -61,7 +61,7 @@ export function NudgeBadge() {
 
       {/* Expanded panel */}
       {expanded && (
-        <div className="mt-1 w-[320px] max-h-[300px] overflow-y-auto bg-[#0d1117] border border-gray-700 rounded-lg shadow-xl">
+        <div className="mt-1 w-[320px] max-h-[300px] overflow-y-auto bg-syn-bg-primary border border-gray-700 rounded-lg shadow-xl">
           {activeNudges.slice(0, 5).map((nudge) => {
             const styles = SEVERITY_STYLES[nudge.severity];
             return (

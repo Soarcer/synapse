@@ -326,7 +326,7 @@ export default function App() {
   // ── Analytics view ──────────────────────────────────────────
   if (viewMode === 'analytics') {
     return (
-      <div className="h-screen w-screen flex flex-col bg-[#0d1117] text-gray-200 overflow-hidden">
+      <div className="h-screen w-screen flex flex-col bg-syn-bg-primary text-gray-200 overflow-hidden">
         <ErrorBoundary name="AnalyticsPage">
           <Suspense
             fallback={
@@ -346,7 +346,7 @@ export default function App() {
   // ── Lens-only view (VS Code sidebar) ────────────────────────
   if (viewMode === 'lens') {
     return (
-      <div className="h-screen w-screen flex flex-col bg-[#0d1117] text-gray-200 overflow-hidden">
+      <div className="h-screen w-screen flex flex-col bg-syn-bg-primary text-gray-200 overflow-hidden">
         <ErrorBoundary name="LensAdapter">
           <div className="flex-1 overflow-hidden flex">
             <LensAdapter fillWidth />
@@ -360,7 +360,7 @@ export default function App() {
   // ── Graph-only view (VS Code editor panel) ──────────────────
   if (viewMode === 'graph') {
     return (
-      <div className="h-screen w-screen flex flex-col bg-[#0d1117] text-gray-200 overflow-hidden">
+      <div className="h-screen w-screen flex flex-col bg-syn-bg-primary text-gray-200 overflow-hidden">
         <ErrorBoundary name="Header">
           <Header />
         </ErrorBoundary>
@@ -376,7 +376,7 @@ export default function App() {
   if (viewMode === 'mobile') {
     return (
       <div
-        className="h-screen w-screen flex flex-col bg-[#0d1117] text-gray-200 overflow-hidden"
+        className="h-screen w-screen flex flex-col bg-syn-bg-primary text-gray-200 overflow-hidden"
         style={{ height: '100dvh', overscrollBehavior: 'none', touchAction: 'manipulation' }}
       >
         <ErrorBoundary name="MobileView">
@@ -405,7 +405,7 @@ function FullView() {
   const showLens = bp !== 'sm' && lensVisible;
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-[#0d1117] text-gray-200 overflow-hidden">
+    <div className="h-screen w-screen flex flex-col bg-syn-bg-primary text-gray-200 overflow-hidden">
       <a
         href="#main-graph"
         className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-1 focus:left-1 focus:px-3 focus:py-1.5 focus:bg-blue-600 focus:text-white focus:rounded focus:text-sm"

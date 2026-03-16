@@ -96,7 +96,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
       onClick={onClose}
     >
       <div
-        className="bg-[#161b22] border border-gray-700 rounded-xl w-full max-w-md mx-4 shadow-2xl"
+        className="bg-syn-bg-surface border border-gray-700 rounded-xl w-full max-w-md mx-4 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -143,7 +143,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                       value={apiKeyInput}
                       onChange={(e) => setApiKeyInput(e.target.value)}
                       placeholder="sk-ant-..."
-                      className="flex-1 bg-[#0d1117] border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-300 focus:border-blue-500 focus:outline-none"
+                      className="flex-1 bg-syn-bg-primary border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-300 focus:border-blue-500 focus:outline-none"
                     />
                     <button
                       onClick={handleSetApiKey}

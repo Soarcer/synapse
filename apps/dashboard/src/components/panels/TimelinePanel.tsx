@@ -43,7 +43,7 @@ export function TimelinePanel() {
   if (agentList.length === 0) return null;
 
   return (
-    <div className="border-t border-gray-800 bg-[#161b22]" aria-label="Timeline panel">
+    <div className="border-t border-gray-800 bg-syn-bg-surface" aria-label="Timeline panel">
       <Tooltip content={collapsed ? 'Expand agent timeline' : 'Collapse agent timeline'}>
         <button
           onClick={() => setCollapsed(!collapsed)}

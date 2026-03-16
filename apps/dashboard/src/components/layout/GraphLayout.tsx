@@ -16,7 +16,7 @@ const AgentGraph = lazy(() => import('../graph/AgentGraph'));
 
 function GraphLoadingPlaceholder() {
   return (
-    <div className="flex-1 flex items-center justify-center bg-[#0d1117] text-gray-500 text-sm">
+    <div className="flex-1 flex items-center justify-center bg-syn-bg-primary text-gray-500 text-sm">
       Loading graph...
     </div>
   );
@@ -101,7 +101,7 @@ export function GraphLayout() {
 
         {showToolLog && (
           <div
-            className={`border-t border-gray-800 bg-[#161b22] flex-shrink-0 ${isSmall ? 'h-48' : 'h-64'}`}
+            className={`border-t border-gray-800 bg-syn-bg-surface flex-shrink-0 ${isSmall ? 'h-48' : 'h-64'}`}
           >
             <ErrorBoundary name="ToolLogPanel">
               <ToolLogPanel />

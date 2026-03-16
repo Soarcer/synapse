@@ -40,7 +40,7 @@ export function KpiCard({
         ${
           selected
             ? 'border-blue-500/60 bg-blue-500/10'
-            : 'border-gray-800 bg-[#161b22] hover:border-gray-700 hover:bg-[#1c2128]'
+            : 'border-gray-800 bg-syn-bg-surface hover:border-gray-700 hover:bg-syn-bg-elevated'
         }
       `}
     >

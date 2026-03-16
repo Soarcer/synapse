@@ -103,7 +103,7 @@ export function SessionSelector() {
         <div
           role="listbox"
           aria-label="Available sessions"
-          className="absolute right-0 top-full mt-1 w-64 bg-[#1c2128] border border-gray-700 rounded-lg shadow-xl z-30 py-1 max-h-64 overflow-auto"
+          className="absolute right-0 top-full mt-1 w-64 bg-syn-bg-elevated border border-gray-700 rounded-lg shadow-xl z-30 py-1 max-h-64 overflow-auto"
         >
           {vendors.length > 1 && (
             <>

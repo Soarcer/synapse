@@ -839,7 +839,7 @@ export function AgentDetailPanel() {
 
             {/* Token Breakdown Bar */}
             {hasAgentTokens && (
-              <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
+              <div className="bg-syn-bg-primary border border-gray-800 rounded-lg px-3 py-2">
                 <TokenBreakdownBar
                   cacheReadTokens={agentMetrics.totalCacheRead}
                   inputTokens={agentMetrics.totalInput}
@@ -853,7 +853,7 @@ export function AgentDetailPanel() {
             {(agentMetrics.toolNames.length > 0 || agentMetrics.model !== 'unknown') && (
               <div className="space-y-2">
                 {agentMetrics.toolNames.length > 0 && (
-                  <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
+                  <div className="bg-syn-bg-primary border border-gray-800 rounded-lg px-3 py-2">
                     <ToolBadges
                       toolNames={agentMetrics.toolNames}
                       toolCounts={agentMetrics.toolCounts}
@@ -862,7 +862,7 @@ export function AgentDetailPanel() {
                   </div>
                 )}
                 {agentMetrics.model !== 'unknown' && (
-                  <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
+                  <div className="bg-syn-bg-primary border border-gray-800 rounded-lg px-3 py-2">
                     <span className="text-xs text-gray-500 block mb-1">Model</span>
                     <div className="flex items-center gap-2">
                       <ModelBadge model={agentMetrics.model} />
@@ -1026,7 +1026,7 @@ export function PanelShell({
 }) {
   return (
     <div
-      className="w-80 h-full bg-[#161b22] border-l border-gray-800 flex flex-col overflow-hidden"
+      className="w-80 h-full bg-syn-bg-surface border-l border-gray-800 flex flex-col overflow-hidden"
       aria-label="Agent detail panel"
     >
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
@@ -1385,7 +1385,7 @@ function PromptDetailView({
 
             {/* Token Breakdown Bar */}
             {hasTokens && (
-              <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
+              <div className="bg-syn-bg-primary border border-gray-800 rounded-lg px-3 py-2">
                 <TokenBreakdownBar
                   cacheReadTokens={metrics.cacheReadTokens}
                   inputTokens={metrics.inputTokens}
@@ -1399,7 +1399,7 @@ function PromptDetailView({
             {(metrics.toolNames.length > 0 || metrics.model !== 'unknown') && (
               <div className="space-y-2">
                 {metrics.toolNames.length > 0 && (
-                  <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
+                  <div className="bg-syn-bg-primary border border-gray-800 rounded-lg px-3 py-2">
                     <ToolBadges
                       toolNames={metrics.toolNames}
                       toolCounts={metrics.toolCounts}
@@ -1408,7 +1408,7 @@ function PromptDetailView({
                   </div>
                 )}
                 {metrics.model !== 'unknown' && (
-                  <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
+                  <div className="bg-syn-bg-primary border border-gray-800 rounded-lg px-3 py-2">
                     <span className="text-xs text-gray-500 block mb-1">Model</span>
                     <ModelBadge model={metrics.model} />
                   </div>
@@ -1550,7 +1550,7 @@ function TranscriptToolDetail({ sessionId, toolUseId }: { sessionId: string; too
 
 function MetricCard({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div className="bg-[#0d1117] border border-gray-800 rounded-lg px-3 py-2">
+    <div className="bg-syn-bg-primary border border-gray-800 rounded-lg px-3 py-2">
       <div className="text-xs text-gray-500">{label}</div>
       <div className={`text-sm font-semibold ${color}`}>{value}</div>
     </div>
@@ -1725,7 +1725,7 @@ function PromptAiSection({
           <div className="text-[10px] text-gray-500 mb-1 font-medium">
             {isVibe ? 'Try saying it like this' : 'Suggested Rewrite'}
           </div>
-          <div className="relative bg-[#0d1117] border border-gray-800 rounded p-2 pr-8 text-xs text-gray-300 leading-relaxed">
+          <div className="relative bg-syn-bg-primary border border-gray-800 rounded p-2 pr-8 text-xs text-gray-300 leading-relaxed">
             {formatPanelText(analysis.rewrite)}
             <button
               onClick={async () => {

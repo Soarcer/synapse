@@ -24,7 +24,7 @@ export function MobileLensPanel() {
   const { activeTab, onTabChange, searchQuery, onSearchChange } = useLens();
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-[#161b22]">
+    <div className="flex-1 flex flex-col overflow-hidden bg-syn-bg-surface">
       {/* Dropdown selector + optional search */}
       <div className="px-3 py-2 border-b border-gray-800 flex-shrink-0 flex gap-2">
         <select

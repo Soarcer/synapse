@@ -118,7 +118,7 @@ export function MobileStatusBar() {
 
   return (
     <div
-      className="flex-shrink-0 bg-[#161b22] border-b border-gray-800"
+      className="flex-shrink-0 bg-syn-bg-surface border-b border-gray-800"
       style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
     >
       <button

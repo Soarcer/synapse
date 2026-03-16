@@ -173,7 +173,7 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
   return (
     <div
       onMouseEnter={ensureLoaded}
-      className="relative bg-[#1a1d27] border border-gray-700/50 rounded-lg shadow-md"
+      className="relative bg-syn-bg-tool-group border border-gray-700/50 rounded-lg shadow-md"
       style={{ minWidth: 200 }}
     >
       <Handle

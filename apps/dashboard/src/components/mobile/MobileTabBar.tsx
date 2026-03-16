@@ -26,7 +26,7 @@ export function MobileTabBar({ activeTab, onTabChange }: MobileTabBarProps) {
   const remoteDevStatus = useRemoteDevStore((s) => s.status);
 
   return (
-    <nav className="flex-shrink-0 bg-[#161b22] border-t border-gray-800 flex z-[60]">
+    <nav className="flex-shrink-0 bg-syn-bg-surface border-t border-gray-800 flex z-[60]">
       {TABS.map((tab) => (
         <button
           key={tab.id}

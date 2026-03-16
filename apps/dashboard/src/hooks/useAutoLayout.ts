@@ -13,6 +13,7 @@ const NODE_DEFAULTS: Record<string, { width: number; height: number }> = {
   agent: { width: 200, height: 100 }, // accounts for tokens + tool count badge
   toolCall: { width: 150, height: 28 },
   toolGroup: { width: 280, height: 120 }, // composite tool group (pill grid default)
+  assistantResponse: { width: 200, height: 80 }, // response node between prompt and tools
   spawnAgent: { width: 50, height: 50 },
 };
 
@@ -53,6 +54,8 @@ function nodeTimestampFromNode(n: Node): number {
   if (agent?.startTime) return agent.startTime;
   const toolCall = d.toolCall as { startTime?: number } | undefined;
   if (toolCall?.startTime) return toolCall.startTime;
+  const response = d.response as { timestamp?: number } | undefined;
+  if (response?.timestamp) return response.timestamp;
   return 0;
 }
 

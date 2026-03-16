@@ -52,14 +52,14 @@ export function SessionFilter({ sessions, value, onChange }: SessionFilterProps)
         className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
           !isAllSelected
             ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
-            : 'bg-[#161b22] border-gray-700 text-gray-400 hover:text-gray-300 hover:border-gray-600'
+            : 'bg-syn-bg-surface border-gray-700 text-gray-400 hover:text-gray-300 hover:border-gray-600'
         }`}
       >
         {label}
         <span className="ml-1.5 text-[10px]">{open ? '\u25B2' : '\u25BC'}</span>
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 z-30 w-72 bg-[#161b22] border border-gray-700 rounded-lg shadow-xl overflow-hidden">
+        <div className="absolute top-full left-0 mt-1 z-30 w-72 bg-syn-bg-surface border border-gray-700 rounded-lg shadow-xl overflow-hidden">
           {/* Search */}
           <div className="p-2 border-b border-gray-800">
             <input
@@ -67,7 +67,7 @@ export function SessionFilter({ sessions, value, onChange }: SessionFilterProps)
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Filter sessions..."
-              className="w-full bg-[#0d1117] border border-gray-700 rounded px-2 py-1 text-xs text-gray-300 focus:border-blue-500 focus:outline-none"
+              className="w-full bg-syn-bg-primary border border-gray-700 rounded px-2 py-1 text-xs text-gray-300 focus:border-blue-500 focus:outline-none"
             />
           </div>
 

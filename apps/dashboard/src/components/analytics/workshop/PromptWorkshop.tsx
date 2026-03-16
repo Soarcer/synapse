@@ -576,7 +576,7 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
           className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
             showHistory
               ? 'bg-blue-500/10 border border-blue-500/20 text-blue-400'
-              : 'bg-[#161b22] border border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-600'
+              : 'bg-syn-bg-surface border border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-600'
           }`}
         >
           <ClockIcon />
@@ -588,7 +588,7 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
         {/* Main column */}
         <div className="flex-1 min-w-0 space-y-4">
           {/* Textarea input */}
-          <div className="bg-[#161b22] border border-gray-800 rounded-xl p-4">
+          <div className="bg-syn-bg-surface border border-gray-800 rounded-xl p-4">
             <textarea
               ref={textareaRef}
               value={promptText}
@@ -598,7 +598,7 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
                   ? 'Type what you want Claude to do... e.g. "make the sidebar wider and add a dark theme toggle"'
                   : 'Enter your prompt for improvement... e.g. "Add authentication to the Express API with JWT tokens and refresh flow"'
               }
-              className="w-full h-32 bg-[#0d1117] border border-gray-800 rounded-lg p-3 text-sm text-gray-200 placeholder-gray-600 resize-y focus:border-blue-500/50 focus:outline-none transition-colors"
+              className="w-full h-32 bg-syn-bg-primary border border-gray-800 rounded-lg p-3 text-sm text-gray-200 placeholder-gray-600 resize-y focus:border-blue-500/50 focus:outline-none transition-colors"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                   e.preventDefault();
@@ -661,7 +661,7 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
 
               {/* Expanded panel */}
               {workshopCtx.panelOpen && (
-                <div className="mt-2 space-y-3 bg-[#0d1117]/50 border border-gray-800/50 rounded-lg p-3">
+                <div className="mt-2 space-y-3 bg-syn-bg-primary/50 border border-gray-800/50 rounded-lg p-3">
                   {/* Session picker */}
                   <div>
                     <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1 block">
@@ -676,7 +676,7 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
                           sessionId: val === 'auto' ? null : val === 'none' ? '' : val,
                         }));
                       }}
-                      className="w-full bg-[#161b22] border border-gray-700 rounded-md px-2.5 py-1.5 text-xs text-gray-300 focus:border-blue-500/50 focus:outline-none"
+                      className="w-full bg-syn-bg-surface border border-gray-700 rounded-md px-2.5 py-1.5 text-xs text-gray-300 focus:border-blue-500/50 focus:outline-none"
                     >
                       <option value="auto">Auto (most recent)</option>
                       <option value="none">None</option>
@@ -720,7 +720,7 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
                         setWorkshopCtx((prev) => ({ ...prev, notes: e.target.value }))
                       }
                       placeholder="e.g. Working on the dashboard header, fixing a CSS z-index issue..."
-                      className="w-full h-16 max-h-32 bg-[#161b22] border border-gray-700 rounded-md px-2.5 py-1.5 text-xs text-gray-300 placeholder-gray-600 resize-y focus:border-blue-500/50 focus:outline-none"
+                      className="w-full h-16 max-h-32 bg-syn-bg-surface border border-gray-700 rounded-md px-2.5 py-1.5 text-xs text-gray-300 placeholder-gray-600 resize-y focus:border-blue-500/50 focus:outline-none"
                     />
                   </div>
                 </div>
@@ -781,7 +781,7 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
                   <div className="text-xs text-gray-500 mb-1.5 font-medium">
                     {analysisMode === 'vibe' ? 'Try saying it like this' : 'Improved Prompt'}
                   </div>
-                  <div className="relative bg-[#0d1117] border border-gray-800 rounded-lg p-3 pr-12 text-sm text-gray-300 leading-relaxed">
+                  <div className="relative bg-syn-bg-primary border border-gray-800 rounded-lg p-3 pr-12 text-sm text-gray-300 leading-relaxed">
                     {formatRewrite(currentResult.rewrite)}
 
                     {/* Action buttons */}
@@ -865,7 +865,7 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
 
         {/* History sidebar */}
         {showHistory && (
-          <div className="w-72 flex-shrink-0 bg-[#161b22] border border-gray-800 rounded-xl p-3 space-y-2 max-h-[600px] overflow-y-auto">
+          <div className="w-72 flex-shrink-0 bg-syn-bg-surface border border-gray-800 rounded-xl p-3 space-y-2 max-h-[600px] overflow-y-auto">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-gray-400">Recent Workshops</span>
               {history.length > 0 && (
@@ -894,7 +894,7 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
                       className={`w-full text-left p-2 rounded-lg transition-colors ${
                         currentResult?.id === item.id
                           ? 'bg-blue-500/10 border border-blue-500/20'
-                          : 'hover:bg-[#0d1117]/50 border border-transparent'
+                          : 'hover:bg-syn-bg-primary/50 border border-transparent'
                       }`}
                     >
                       <div className="text-xs text-gray-300 truncate pr-5">{item.promptText}</div>
@@ -938,7 +938,7 @@ export function PromptWorkshop({ analysisMode, modelId, sessions, turns }: Promp
                     className={`w-full text-left p-2 rounded-lg transition-colors ${
                       currentResult?.id === item.id
                         ? 'bg-blue-500/10 border border-blue-500/20'
-                        : 'hover:bg-[#0d1117]/50 border border-transparent'
+                        : 'hover:bg-syn-bg-primary/50 border border-transparent'
                     }`}
                   >
                     <div className="text-xs text-gray-300 truncate pr-5">{item.promptText}</div>

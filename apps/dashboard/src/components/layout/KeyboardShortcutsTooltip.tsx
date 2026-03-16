@@ -36,7 +36,7 @@ export function KeyboardShortcutsTooltip() {
         ?
       </span>
       {visible && (
-        <div className="absolute right-0 top-full mt-2 z-30 w-64 bg-[#1c2128] border border-gray-700 rounded-lg shadow-xl p-3 pointer-events-none">
+        <div className="absolute right-0 top-full mt-2 z-30 w-64 bg-syn-bg-elevated border border-gray-700 rounded-lg shadow-xl p-3 pointer-events-none">
           <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">
             Keyboard Shortcuts
           </div>

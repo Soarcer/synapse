@@ -155,7 +155,7 @@ export function Header() {
     <>
       <header
         role="banner"
-        className="relative z-40 flex items-center h-12 bg-[#161b22] border-b border-gray-800 flex-shrink-0 gap-3 px-4"
+        className="relative z-40 flex items-center h-12 bg-syn-bg-surface border-b border-gray-800 flex-shrink-0 gap-3 px-4"
       >
         {/* Brand + connection dot */}
         <div

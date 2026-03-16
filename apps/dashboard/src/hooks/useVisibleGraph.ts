@@ -10,7 +10,7 @@ import {
   collectAncestors,
   buildChildrenMap,
 } from '../utils/graphSearch';
-import type { ToolCallSummary } from '@synapse-ai/core';
+import type { ToolCallSummary, AssistantResponseData } from '@synapse-ai/core';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -44,6 +44,8 @@ export function useVisibleGraph(options: UseVisibleGraphOptions): UseVisibleGrap
   const rawEdges = useAgentStore((s) => s.edges);
   const graphSearchQuery = useAgentStore((s) => s.graphSearchQuery);
   const selectedNodeId = useAgentStore((s) => s.selectedNodeId);
+  const expandedTurns = useAgentStore((s) => s.expandedTurns);
+  const responses = useAgentStore((s) => s.responses);
   // showAllTools/toolGroupMode affect rendering but are already reflected in rawNodes
   // via the AgentGraph visibility memo, so no need to include them here.
 
@@ -105,16 +107,123 @@ export function useVisibleGraph(options: UseVisibleGraphOptions): UseVisibleGrap
     };
   }, [rawNodes, rawEdges, toolGroupDims]);
 
+  // Phase 1.5: Response node synthesis for expanded turns.
+  // Responses fan out as siblings of the prompt (vertical stacking in LR layout).
+  // Each response owns children attributed by timestamp window.
+  const { phase15Nodes, phase15Edges } = useMemo(() => {
+    if (expandedTurns.size === 0) {
+      return { phase15Nodes: baseNodes, phase15Edges: baseEdges };
+    }
+
+    // Group responses by promptId (using prompt node ID format "prompt-xxx")
+    const promptResponses = new Map<string, AssistantResponseData[]>();
+    for (const sessionResponses of responses.values()) {
+      for (const resp of sessionResponses) {
+        const promptNodeId = `prompt-${resp.promptId}`;
+        if (!expandedTurns.has(promptNodeId)) continue;
+        const list = promptResponses.get(promptNodeId) ?? [];
+        list.push(resp);
+        promptResponses.set(promptNodeId, list);
+      }
+    }
+
+    if (promptResponses.size === 0) {
+      return { phase15Nodes: baseNodes, phase15Edges: baseEdges };
+    }
+
+    // Build node lookup for timestamp extraction
+    const nodeById = new Map(baseNodes.map((n) => [n.id, n]));
+    function childTimestamp(nodeId: string): number {
+      const n = nodeById.get(nodeId);
+      if (!n?.data) return 0;
+      const d = n.data as Record<string, unknown>;
+      const agent = d.agent as { startTime?: number } | undefined;
+      if (agent?.startTime) return agent.startTime;
+      const tc = d.toolCall as { startTime?: number } | undefined;
+      if (tc?.startTime) return tc.startTime;
+      // Toolgroups: use earliest tool startTime
+      const tools = d.tools as Array<{ startTime?: number }> | undefined;
+      if (tools?.[0]?.startTime) return tools[0].startTime;
+      return 0;
+    }
+
+    const syntheticNodes: Node[] = [];
+    const syntheticEdges: Edge[] = [];
+    const reparentedEdgeIds = new Set<string>();
+
+    for (const [promptNodeId, respList] of promptResponses) {
+      if (respList.length === 0) continue;
+
+      // Sort responses by timestamp (oldest first)
+      respList.sort((a, b) => a.timestamp - b.timestamp);
+
+      // Create synthetic response nodes
+      for (let i = 0; i < respList.length; i++) {
+        const resp = respList[i];
+        syntheticNodes.push({
+          id: `response-${resp.id}`,
+          type: 'assistantResponse',
+          data: { response: resp, index: i, total: respList.length },
+          position: { x: -9999, y: -9999 },
+          style: { visibility: 'hidden' as const },
+        });
+      }
+
+      // Fan-out edges: prompt → each response (siblings, not chain)
+      for (const resp of respList) {
+        syntheticEdges.push({
+          id: `edge-${promptNodeId}-response-${resp.id}`,
+          source: promptNodeId,
+          target: `response-${resp.id}`,
+          type: 'straight',
+        });
+      }
+
+      // Collect children of the prompt (toolgroups, agents, structural tools)
+      const childEdges = baseEdges.filter(
+        (e) =>
+          e.source === promptNodeId &&
+          !e.target.startsWith('prompt-') &&
+          !e.target.startsWith('session-'),
+      );
+
+      // Attribute each child to the response whose timestamp window contains it.
+      // Window for response[i]: [response[i].timestamp, response[i+1].timestamp)
+      // Last response gets everything remaining.
+      for (const edge of childEdges) {
+        reparentedEdgeIds.add(edge.id);
+        const ts = childTimestamp(edge.target);
+        let ownerResp = respList[respList.length - 1]; // default: last response
+        for (let i = 0; i < respList.length - 1; i++) {
+          if (ts <= respList[i].timestamp) {
+            ownerResp = respList[i];
+            break;
+          }
+        }
+        syntheticEdges.push({
+          ...edge,
+          id: `reparented-${edge.id}`,
+          source: `response-${ownerResp.id}`,
+        });
+      }
+    }
+
+    return {
+      phase15Nodes: [...baseNodes, ...syntheticNodes],
+      phase15Edges: [...baseEdges.filter((e) => !reparentedEdgeIds.has(e.id)), ...syntheticEdges],
+    };
+  }, [baseNodes, baseEdges, expandedTurns, responses]);
+
   // Phase 2+: Search, auto-close, collapse (depends on selection, search, etc.)
   return useMemo(() => {
     const query = graphSearchQuery.toLowerCase().trim();
 
     if (query) {
       const matchIds = new Set<string>();
-      for (const node of baseNodes) {
+      for (const node of phase15Nodes) {
         if (nodeMatchesSearch(node, query)) matchIds.add(node.id);
       }
-      const parentOf = buildParentMap(baseEdges);
+      const parentOf = buildParentMap(phase15Edges);
       const keepIds = new Set<string>(matchIds);
       for (const id of matchIds) {
         collectAncestors(id, parentOf, keepIds);
@@ -122,8 +231,8 @@ export function useVisibleGraph(options: UseVisibleGraphOptions): UseVisibleGrap
       keepIds.add('__spawn__');
 
       return {
-        visibleNodes: baseNodes.filter((n) => keepIds.has(n.id)),
-        visibleEdges: baseEdges.filter((e) => keepIds.has(e.source) && keepIds.has(e.target)),
+        visibleNodes: phase15Nodes.filter((n) => keepIds.has(n.id)),
+        visibleEdges: phase15Edges.filter((e) => keepIds.has(e.source) && keepIds.has(e.target)),
         searchMatchCount: matchIds.size,
       };
     }
@@ -132,7 +241,7 @@ export function useVisibleGraph(options: UseVisibleGraphOptions): UseVisibleGrap
     const hiddenIds = new Set<string>();
 
     if (autoClosePrompts) {
-      const parentOf = buildParentMap(baseEdges);
+      const parentOf = buildParentMap(phase15Edges);
       let expandedPrompt: string | null = null;
       if (selectedNodeId) {
         let walkStart: string | undefined = selectedNodeId;
@@ -154,10 +263,10 @@ export function useVisibleGraph(options: UseVisibleGraphOptions): UseVisibleGrap
         }
       }
       if (!expandedPrompt) {
-        const promptNodes = baseNodes.filter((n) => n.type === 'userPrompt');
+        const promptNodes = phase15Nodes.filter((n) => n.type === 'userPrompt');
         if (promptNodes.length > 0) expandedPrompt = promptNodes[promptNodes.length - 1].id;
       }
-      for (const node of baseNodes) {
+      for (const node of phase15Nodes) {
         if (node.type === 'session' || node.type === 'userPrompt' || node.id === '__spawn__')
           continue;
         if (hiddenIds.has(node.id)) continue;
@@ -177,7 +286,7 @@ export function useVisibleGraph(options: UseVisibleGraphOptions): UseVisibleGrap
     }
 
     if (collapsedNodes.size > 0) {
-      const edgesForCollapse = baseEdges.filter((e) => !hiddenIds.has(e.target));
+      const edgesForCollapse = phase15Edges.filter((e) => !hiddenIds.has(e.target));
       const allChildrenOf = buildChildrenMap(edgesForCollapse);
       for (const cid of collapsedNodes) {
         const queue = [...(allChildrenOf.get(cid) ?? [])];
@@ -191,13 +300,15 @@ export function useVisibleGraph(options: UseVisibleGraphOptions): UseVisibleGrap
     }
 
     return {
-      visibleNodes: baseNodes.filter((n) => !hiddenIds.has(n.id)),
-      visibleEdges: baseEdges.filter((e) => !hiddenIds.has(e.source) && !hiddenIds.has(e.target)),
+      visibleNodes: phase15Nodes.filter((n) => !hiddenIds.has(n.id)),
+      visibleEdges: phase15Edges.filter(
+        (e) => !hiddenIds.has(e.source) && !hiddenIds.has(e.target),
+      ),
       searchMatchCount: null as number | null,
     };
   }, [
-    baseNodes,
-    baseEdges,
+    phase15Nodes,
+    phase15Edges,
     rawEdges,
     graphSearchQuery,
     autoClosePrompts,

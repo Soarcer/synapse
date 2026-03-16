@@ -111,7 +111,7 @@ export function MobileAnalyticsView() {
       </div>
 
       {/* Token Breakdown */}
-      <div className="bg-[#161b22] border border-gray-800 rounded-xl p-3">
+      <div className="bg-syn-bg-surface border border-gray-800 rounded-xl p-3">
         <TokenBreakdownBar
           inputTokens={overview.totalTokens.input}
           outputTokens={overview.totalTokens.output}
@@ -121,7 +121,7 @@ export function MobileAnalyticsView() {
 
       {/* Model Breakdown */}
       {models.length > 0 && (
-        <div className="bg-[#161b22] border border-gray-800 rounded-xl p-3">
+        <div className="bg-syn-bg-surface border border-gray-800 rounded-xl p-3">
           <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Models</div>
           <div className="flex flex-wrap gap-2">
             {models.map((m) => (
@@ -136,7 +136,7 @@ export function MobileAnalyticsView() {
 
       {/* Session List */}
       {sessions.length > 0 && (
-        <div className="bg-[#161b22] border border-gray-800 rounded-xl p-3">
+        <div className="bg-syn-bg-surface border border-gray-800 rounded-xl p-3">
           <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">
             Recent sessions ({sessions.length})
           </div>

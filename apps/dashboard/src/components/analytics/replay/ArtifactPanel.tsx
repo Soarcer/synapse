@@ -41,7 +41,7 @@ export function ArtifactPanel({ turns }: ArtifactPanelProps) {
   if (turns.length === 0) return null;
 
   return (
-    <div className="bg-[#161b22] border border-gray-800 rounded-xl overflow-hidden">
+    <div className="bg-syn-bg-surface border border-gray-800 rounded-xl overflow-hidden">
       <button
         onClick={() => setCollapsed(!collapsed)}
         className="w-full px-4 py-2.5 flex items-center justify-between text-xs font-medium text-gray-400 hover:text-gray-300 transition-colors"
@@ -61,7 +61,7 @@ export function ArtifactPanel({ turns }: ArtifactPanelProps) {
               {artifacts.topTools.map(([name, count]) => (
                 <span
                   key={name}
-                  className="px-2 py-0.5 bg-[#0d1117] border border-gray-800 rounded text-[10px] text-gray-400"
+                  className="px-2 py-0.5 bg-syn-bg-primary border border-gray-800 rounded text-[10px] text-gray-400"
                 >
                   {name} <span className="text-gray-600">{count}x</span>
                 </span>

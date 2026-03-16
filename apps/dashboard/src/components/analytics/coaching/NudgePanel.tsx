@@ -154,7 +154,7 @@ function NudgeCard({
             </div>
             <p className="text-xs text-gray-400 mt-1">{nudge.message}</p>
             {nudge.recommendation && (
-              <div className="mt-2 px-2 py-1.5 bg-[#0d1117] border-l-2 border-blue-500/50 rounded-r text-[11px] text-blue-300">
+              <div className="mt-2 px-2 py-1.5 bg-syn-bg-primary border-l-2 border-blue-500/50 rounded-r text-[11px] text-blue-300">
                 {nudge.recommendation}
               </div>
             )}

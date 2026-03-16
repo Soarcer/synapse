@@ -45,7 +45,7 @@ export function WorkshopModal() {
       aria-label="Prompt Lab"
     >
       <div
-        className="w-full max-w-4xl max-h-[calc(100vh-6rem)] bg-[#161b22] border border-gray-700 rounded-xl shadow-2xl flex flex-col overflow-hidden"
+        className="w-full max-w-4xl max-h-[calc(100vh-6rem)] bg-syn-bg-surface border border-gray-700 rounded-xl shadow-2xl flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

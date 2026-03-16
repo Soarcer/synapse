@@ -119,7 +119,7 @@ export function ReportCardPanel({ reportCard, isLoading }: ReportCardPanelProps)
         {[...Array(3)].map((_, i) => (
           <div
             key={i}
-            className="h-24 bg-[#161b22] rounded-lg animate-pulse border border-gray-800"
+            className="h-24 bg-syn-bg-surface rounded-lg animate-pulse border border-gray-800"
           />
         ))}
       </div>
@@ -176,7 +176,7 @@ export function ReportCardPanel({ reportCard, isLoading }: ReportCardPanelProps)
         </div>
 
         {/* Radar chart */}
-        <div className="lg:col-span-2 bg-[#161b22] rounded-lg border border-gray-800 p-3">
+        <div className="lg:col-span-2 bg-syn-bg-surface rounded-lg border border-gray-800 p-3">
           <ResponsiveContainer width="100%" height={240}>
             <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="70%">
               <PolarGrid stroke="#374151" />
@@ -203,7 +203,7 @@ export function ReportCardPanel({ reportCard, isLoading }: ReportCardPanelProps)
       {(reportCard.topStrengths.length > 0 || reportCard.topImprovements.length > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {reportCard.topStrengths.length > 0 && (
-            <div className="bg-[#161b22] rounded-lg border border-gray-800 p-3">
+            <div className="bg-syn-bg-surface rounded-lg border border-gray-800 p-3">
               <h4 className="text-xs font-medium text-emerald-400 mb-2">Top Strengths</h4>
               <ul className="space-y-1">
                 {reportCard.topStrengths.map((s, i) => (
@@ -216,7 +216,7 @@ export function ReportCardPanel({ reportCard, isLoading }: ReportCardPanelProps)
             </div>
           )}
           {reportCard.topImprovements.length > 0 && (
-            <div className="bg-[#161b22] rounded-lg border border-gray-800 p-3">
+            <div className="bg-syn-bg-surface rounded-lg border border-gray-800 p-3">
               <h4 className="text-xs font-medium text-amber-400 mb-2">Focus Areas</h4>
               <ul className="space-y-1">
                 {reportCard.topImprovements.map((s, i) => (
@@ -259,7 +259,7 @@ export function ReportCardPanel({ reportCard, isLoading }: ReportCardPanelProps)
               </span>
             </div>
             {aiRecs.map((rec, idx) => (
-              <div key={idx} className="bg-[#0d1117] border border-blue-500/10 rounded-lg p-3">
+              <div key={idx} className="bg-syn-bg-primary border border-blue-500/10 rounded-lg p-3">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs font-medium text-gray-200">{rec.title}</span>
                   {rec.impact && <span className="text-[10px] text-emerald-400">{rec.impact}</span>}
@@ -318,7 +318,7 @@ function DimensionCard({
   const totalCount = dimension.detectors.length;
 
   return (
-    <div className="bg-[#161b22] rounded-lg border border-gray-800 overflow-hidden">
+    <div className="bg-syn-bg-surface rounded-lg border border-gray-800 overflow-hidden">
       {/* Tier 1: clickable header */}
       <button
         onClick={onToggle}
@@ -402,7 +402,7 @@ function DetectorRow({
         <div className="px-3 pb-2 space-y-1">
           {detector.evidence && <p className="text-[11px] text-gray-400">{detector.evidence}</p>}
           {detector.recommendation && (
-            <div className="px-2 py-1.5 bg-[#0d1117] border-l-2 border-blue-500/50 rounded-r text-[11px] text-blue-300">
+            <div className="px-2 py-1.5 bg-syn-bg-primary border-l-2 border-blue-500/50 rounded-r text-[11px] text-blue-300">
               {detector.recommendation}
             </div>
           )}

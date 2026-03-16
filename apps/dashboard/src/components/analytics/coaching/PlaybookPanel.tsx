@@ -100,7 +100,7 @@ export function PlaybookPanel({ playbooks, sessionId, onRefresh }: PlaybookPanel
           placeholder="Search templates..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="bg-[#161b22] border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-300 focus:border-blue-500 focus:outline-none flex-1 min-w-[200px]"
+          className="bg-syn-bg-surface border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-300 focus:border-blue-500 focus:outline-none flex-1 min-w-[200px]"
         />
 
         <div className="flex items-center gap-1 flex-wrap">
@@ -224,7 +224,7 @@ function PlaybookCard({
   onDelete: () => void;
 }) {
   return (
-    <div className="bg-[#161b22] rounded-lg border border-gray-800 overflow-hidden">
+    <div className="bg-syn-bg-surface rounded-lg border border-gray-800 overflow-hidden">
       <button
         onClick={onToggle}
         className="w-full text-left px-4 py-3 hover:bg-gray-800/30 transition-colors"
@@ -333,7 +333,7 @@ function PlaybookCard({
 
 function MetricItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-[#0d1117] rounded px-2 py-1.5">
+    <div className="bg-syn-bg-primary rounded px-2 py-1.5">
       <div className="text-[10px] text-gray-600">{label}</div>
       <div className="text-xs font-mono text-gray-300">{value}</div>
     </div>

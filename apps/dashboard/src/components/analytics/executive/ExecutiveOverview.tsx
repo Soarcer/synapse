@@ -259,7 +259,7 @@ export function ExecutiveOverview({ data }: Props) {
             <>
               <p className="text-xs text-gray-300 leading-relaxed mb-3">{aiSummary.summary}</p>
               <div className="grid grid-cols-3 gap-3">
-                <div className="bg-[#0d1117]/50 rounded-lg p-2.5 text-center">
+                <div className="bg-syn-bg-primary/50 rounded-lg p-2.5 text-center">
                   <div className="text-[10px] text-gray-500 uppercase tracking-wider">
                     Time Saved
                   </div>
@@ -267,7 +267,7 @@ export function ExecutiveOverview({ data }: Props) {
                     {aiSummary.roiMetrics.timeSaved}
                   </div>
                 </div>
-                <div className="bg-[#0d1117]/50 rounded-lg p-2.5 text-center">
+                <div className="bg-syn-bg-primary/50 rounded-lg p-2.5 text-center">
                   <div className="text-[10px] text-gray-500 uppercase tracking-wider">
                     Cost/Task
                   </div>
@@ -275,7 +275,7 @@ export function ExecutiveOverview({ data }: Props) {
                     {aiSummary.roiMetrics.costPerTask}
                   </div>
                 </div>
-                <div className="bg-[#0d1117]/50 rounded-lg p-2.5 text-center">
+                <div className="bg-syn-bg-primary/50 rounded-lg p-2.5 text-center">
                   <div className="text-[10px] text-gray-500 uppercase tracking-wider">
                     Success Rate
                   </div>

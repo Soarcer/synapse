@@ -46,14 +46,14 @@ export function ProjectFilter({ value, onChange }: ProjectFilterProps) {
         className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
           value
             ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
-            : 'bg-[#161b22] border-gray-700 text-gray-400 hover:text-gray-300 hover:border-gray-600'
+            : 'bg-syn-bg-surface border-gray-700 text-gray-400 hover:text-gray-300 hover:border-gray-600'
         }`}
       >
         {displayValue}
         <span className="ml-1.5 text-[10px]">{open ? '\u25B2' : '\u25BC'}</span>
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 z-30 w-64 bg-[#161b22] border border-gray-700 rounded-lg shadow-xl overflow-hidden">
+        <div className="absolute top-full left-0 mt-1 z-30 w-64 bg-syn-bg-surface border border-gray-700 rounded-lg shadow-xl overflow-hidden">
           <button
             onClick={() => {
               onChange(undefined);

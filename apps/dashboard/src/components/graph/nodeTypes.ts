@@ -8,6 +8,7 @@ import { ToolCallNode } from './nodes/ToolCallNode';
 import { ToolGroupNode } from './nodes/ToolGroupNode';
 import { SpawnAgentNode } from './nodes/SpawnAgentNode';
 import { UserPromptNode } from './nodes/UserPromptNode';
+import { AssistantResponseNode } from './nodes/AssistantResponseNode';
 import { AnimatedEdge } from './edges/AnimatedEdge';
 
 export const nodeTypes: NodeTypes = {
@@ -17,6 +18,7 @@ export const nodeTypes: NodeTypes = {
   toolGroup: ToolGroupNode,
   spawnAgent: SpawnAgentNode,
   userPrompt: UserPromptNode,
+  assistantResponse: AssistantResponseNode,
 };
 
 export const edgeTypes: EdgeTypes = {

@@ -91,17 +91,17 @@ function TurnCard({
         {/* Card body */}
         <button
           onClick={onToggle}
-          className="flex-1 text-left bg-[#161b22] border border-gray-800 rounded-lg p-3 hover:border-gray-700 transition-colors"
+          className="flex-1 text-left bg-syn-bg-surface border border-gray-800 rounded-lg p-3 hover:border-gray-700 transition-colors"
         >
           {/* Prompt text card */}
           {turn.promptText ? (
-            <div className="mb-2 px-2.5 py-2 bg-[#0d1117] border border-gray-800/70 rounded-md">
+            <div className="mb-2 px-2.5 py-2 bg-syn-bg-primary border border-gray-800/70 rounded-md">
               <p className="text-[11px] text-gray-300 leading-relaxed line-clamp-3">
                 {turn.promptText}
               </p>
             </div>
           ) : (
-            <div className="mb-2 px-2.5 py-1.5 bg-[#0d1117]/50 border border-gray-800/40 rounded-md">
+            <div className="mb-2 px-2.5 py-1.5 bg-syn-bg-primary/50 border border-gray-800/40 rounded-md">
               <p className="text-[10px] text-gray-600 italic">no prompt text</p>
             </div>
           )}
@@ -304,7 +304,7 @@ export function SessionReplay({ data }: Props) {
       {/* Left: Session picker + timeline */}
       <div className="w-[420px] flex-shrink-0 border-r border-gray-800 flex flex-col overflow-hidden">
         {/* Sort controls */}
-        <div className="p-3 border-b border-gray-800 bg-[#0d1117]">
+        <div className="p-3 border-b border-gray-800 bg-syn-bg-primary">
           <label className="text-[10px] text-gray-500 uppercase tracking-wider font-medium block mb-1.5">
             Sort by
           </label>
@@ -336,14 +336,14 @@ export function SessionReplay({ data }: Props) {
         </div>
 
         {/* Session picker — grouped by day */}
-        <div className="p-3 border-b border-gray-800 bg-[#0d1117] max-h-[260px] overflow-y-auto">
+        <div className="p-3 border-b border-gray-800 bg-syn-bg-primary max-h-[260px] overflow-y-auto">
           <label className="text-[10px] text-gray-500 uppercase tracking-wider font-medium block mb-1.5">
             Sessions ({data.sessions.length})
           </label>
           <div className="space-y-2">
             {groupedSessions.map((group) => (
               <div key={group.date}>
-                <div className="text-[10px] text-gray-600 font-medium mb-1 sticky top-0 bg-[#0d1117] py-0.5">
+                <div className="text-[10px] text-gray-600 font-medium mb-1 sticky top-0 bg-syn-bg-primary py-0.5">
                   {group.date}
                 </div>
                 <div className="space-y-0.5">
@@ -388,7 +388,7 @@ export function SessionReplay({ data }: Props) {
         </div>
 
         {/* Session summary */}
-        <div className="px-3 py-2 border-b border-gray-800 bg-[#0d1117]">
+        <div className="px-3 py-2 border-b border-gray-800 bg-syn-bg-primary">
           <div className="flex items-center gap-3 text-[10px] text-gray-500">
             <span>{sessionTurns.length} turns</span>
             <span>{fmtTokens(session.totalInputTokens + session.totalOutputTokens)} tokens</span>

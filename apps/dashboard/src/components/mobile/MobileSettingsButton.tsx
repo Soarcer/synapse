@@ -85,7 +85,7 @@ export function MobileSettingsButton() {
       </button>
 
       {open && (
-        <div className="absolute top-10 right-0 w-56 max-h-[70vh] overflow-y-auto bg-[#1c2333] border border-gray-700 rounded-lg shadow-xl p-3 space-y-3">
+        <div className="absolute top-10 right-0 w-56 max-h-[70vh] overflow-y-auto bg-syn-bg-overlay border border-gray-700 rounded-lg shadow-xl p-3 space-y-3">
           {/* Time range filter */}
           <div>
             <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5">

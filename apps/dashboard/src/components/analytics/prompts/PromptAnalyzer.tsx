@@ -339,7 +339,7 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
             setSelectedSession(e.target.value || undefined);
             setExpandedRow(null);
           }}
-          className="bg-[#161b22] border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-300 focus:border-blue-500 focus:outline-none min-w-[240px]"
+          className="bg-syn-bg-surface border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-300 focus:border-blue-500 focus:outline-none min-w-[240px]"
         >
           <option value="">All Sessions ({data.sessions.length})</option>
           {data.sessions.map((s) => (
@@ -385,7 +385,7 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Scatter: Complexity vs Cost */}
-        <div className="bg-[#161b22] border border-gray-800 rounded-xl p-4">
+        <div className="bg-syn-bg-surface border border-gray-800 rounded-xl p-4">
           <h4 className="text-xs font-medium text-gray-400 mb-3">Prompt Complexity vs Cost</h4>
           <ResponsiveContainer width="100%" height={280}>
             <ScatterChart>
@@ -428,7 +428,7 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
         </div>
 
         {/* Category Pie */}
-        <div className="bg-[#161b22] border border-gray-800 rounded-xl p-4">
+        <div className="bg-syn-bg-surface border border-gray-800 rounded-xl p-4">
           <h4 className="text-xs font-medium text-gray-400 mb-3">Prompt Categories</h4>
           <ResponsiveContainer width="100%" height={280}>
             <PieChart>
@@ -464,10 +464,10 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
       </div>
 
       {/* Sortable prompt table */}
-      <div className="bg-[#161b22] border border-gray-800 rounded-xl overflow-hidden">
+      <div className="bg-syn-bg-surface border border-gray-800 rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="sticky top-0 z-10 bg-[#161b22]">
+            <thead className="sticky top-0 z-10 bg-syn-bg-surface">
               <tr className="border-b border-gray-800">
                 <th className="text-left p-3 text-gray-500 font-medium text-xs">#</th>
                 <th
@@ -517,7 +517,7 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
                 return (
                   <tr
                     key={i}
-                    className={`border-b border-gray-800/50 cursor-pointer transition-colors ${isExpanded ? 'bg-[#0d1117]/70' : 'hover:bg-[#0d1117]/50'}`}
+                    className={`border-b border-gray-800/50 cursor-pointer transition-colors ${isExpanded ? 'bg-syn-bg-primary/70' : 'hover:bg-syn-bg-primary/50'}`}
                     onClick={() => {
                       if (!isExpanded) setExpandedRow(i);
                     }}
@@ -560,7 +560,7 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
                         <div className="mt-3 space-y-3">
                           {/* Stat cards row */}
                           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
-                            <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
+                            <div className="bg-syn-bg-surface border border-gray-800 rounded-lg px-3 py-2">
                               <div className="text-xs text-gray-500">
                                 {costDisplayMode === 'cost' ? 'Cost' : 'Tokens'}
                               </div>
@@ -570,13 +570,13 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
                                   : fmtTokens(a.inputTokens + a.outputTokens)}
                               </div>
                             </div>
-                            <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
+                            <div className="bg-syn-bg-surface border border-gray-800 rounded-lg px-3 py-2">
                               <div className="text-xs text-gray-500">Total Tokens</div>
                               <div className="text-base font-semibold text-gray-200">
                                 {fmtTokens(totalTokens)}
                               </div>
                             </div>
-                            <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
+                            <div className="bg-syn-bg-surface border border-gray-800 rounded-lg px-3 py-2">
                               <div className="text-xs text-gray-500">Cache Hit</div>
                               <div
                                 className={`text-base font-semibold ${cacheRate > 50 ? 'text-emerald-400' : cacheRate > 20 ? 'text-yellow-400' : 'text-red-400'}`}
@@ -584,7 +584,7 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
                                 {cacheRate.toFixed(1)}%
                               </div>
                             </div>
-                            <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
+                            <div className="bg-syn-bg-surface border border-gray-800 rounded-lg px-3 py-2">
                               <div className="text-xs text-gray-500">Latency</div>
                               <div className="text-base font-semibold text-gray-200">
                                 {a.latencyMs < 1000
@@ -592,7 +592,7 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
                                   : `${(a.latencyMs / 1000).toFixed(1)}s`}
                               </div>
                             </div>
-                            <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
+                            <div className="bg-syn-bg-surface border border-gray-800 rounded-lg px-3 py-2">
                               <div className="text-xs text-gray-500">Complexity</div>
                               <div
                                 className="text-base font-semibold"
@@ -608,7 +608,7 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
                                 {a.complexity}/100
                               </div>
                             </div>
-                            <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
+                            <div className="bg-syn-bg-surface border border-gray-800 rounded-lg px-3 py-2">
                               <div className="text-xs text-gray-500">Turns</div>
                               <div className="text-base font-semibold text-gray-200">
                                 {a.turnCount}
@@ -617,7 +617,7 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
                           </div>
 
                           {/* Token breakdown bar */}
-                          <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
+                          <div className="bg-syn-bg-surface border border-gray-800 rounded-lg px-3 py-2">
                             <TokenBreakdownBar
                               cacheReadTokens={a.cacheReadTokens}
                               inputTokens={a.inputTokens}
@@ -629,7 +629,7 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
                           {/* Tools + Model row */}
                           <div className="flex items-start gap-3 flex-wrap">
                             {a.toolNames.length > 0 && (
-                              <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2 flex-1 min-w-[200px]">
+                              <div className="bg-syn-bg-surface border border-gray-800 rounded-lg px-3 py-2 flex-1 min-w-[200px]">
                                 <ToolBadges
                                   toolNames={a.toolNames}
                                   label={`Tools Used (${a.toolCount})`}
@@ -637,12 +637,12 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
                               </div>
                             )}
 
-                            <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
+                            <div className="bg-syn-bg-surface border border-gray-800 rounded-lg px-3 py-2">
                               <div className="text-xs text-gray-500 mb-1.5">Model</div>
                               <ModelBadge model={a.model} />
                             </div>
 
-                            <div className="bg-[#161b22] border border-gray-800 rounded-lg px-3 py-2">
+                            <div className="bg-syn-bg-surface border border-gray-800 rounded-lg px-3 py-2">
                               <div className="text-xs text-gray-500 mb-1.5">Category</div>
                               <span
                                 className="px-2 py-0.5 rounded-full text-xs font-medium"
@@ -763,7 +763,7 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
                                       ? 'Try saying it like this'
                                       : 'Suggested Rewrite'}
                                   </div>
-                                  <div className="relative bg-[#0d1117] border border-gray-800 rounded-lg p-3 pr-10 text-sm text-gray-300 leading-relaxed">
+                                  <div className="relative bg-syn-bg-primary border border-gray-800 rounded-lg p-3 pr-10 text-sm text-gray-300 leading-relaxed">
                                     {formatRewrite(aiAnalysis[pk].rewrite)}
                                     <button
                                       onClick={async (e) => {
