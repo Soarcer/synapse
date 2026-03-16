@@ -24,6 +24,7 @@ export const CLAUDE_HOOK_EVENT_MAP: Record<string, AgentEventType> = {
   Notification: 'notification',
   PreCompact: 'compact',
   Stop: 'stop',
+  AssistantResponse: 'assistant_response',
 };
 
 export const CLAUDE_HOOK_EVENT_NAMES = new Set(Object.keys(CLAUDE_HOOK_EVENT_MAP));
@@ -126,6 +127,11 @@ export class ClaudeAdapter implements Adapter {
 
       case 'PostToolUseFailure':
         if (raw.error) event.error = String(raw.error);
+        break;
+
+      case 'AssistantResponse':
+        if (raw.assistant_text) event.text = raw.assistant_text as string;
+        if (raw.model) event.model = raw.model as string;
         break;
     }
 

@@ -25,7 +25,12 @@ export const SPAWN_NODE: Node = {
 };
 
 /** Event types that are stored in the timeline but don't produce graph nodes */
-export const NO_GRAPH_EVENTS = new Set<string>(['stop', 'permission_request', 'notification']);
+export const NO_GRAPH_EVENTS = new Set<string>([
+  'stop',
+  'permission_request',
+  'notification',
+  'assistant_response',
+]);
 
 // ── Node / Edge ID helpers ───────────────────────────────────
 

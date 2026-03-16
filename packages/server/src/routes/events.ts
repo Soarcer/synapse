@@ -123,7 +123,7 @@ export function createEventsRouter(broadcaster: Broadcaster): Router {
       );
 
       // Auto-resolve pending permissions when the session advances locally.
-      // Any event from the same session (except PermissionRequest itself) triggers this.
+      // Only completion events (PostToolUse, PostToolUseFailure, Stop) trigger this.
       resolveIfSessionAdvanced(raw, broadcaster);
 
       res.status(200).json({ ok: true, eventId: event.id });

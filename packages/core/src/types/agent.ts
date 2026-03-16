@@ -16,6 +16,7 @@ export type AgentEventType =
   | 'notification'
   | 'compact'
   | 'stop'
+  | 'assistant_response'
   | 'text_delta'
   | 'result';
 

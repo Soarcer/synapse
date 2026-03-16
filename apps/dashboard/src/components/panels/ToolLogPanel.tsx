@@ -16,12 +16,19 @@ export function ToolLogPanel() {
   const [filterStatus, setFilterStatus] = useState<string>('');
   const virtuosoRef = useRef<VirtuosoHandle>(null);
 
-  // Filter tool events
+  // Filter tool events + assistant responses
   const toolEvents = events.filter(
     (e) =>
-      (e.type === 'tool_start' || e.type === 'tool_end' || e.type === 'tool_error') &&
-      (!filterTool || e.toolName === filterTool) &&
-      (!filterStatus || e.type === `tool_${filterStatus}`),
+      (e.type === 'tool_start' ||
+        e.type === 'tool_end' ||
+        e.type === 'tool_error' ||
+        e.type === 'assistant_response') &&
+      (!filterTool ||
+        e.toolName === filterTool ||
+        (e.type === 'assistant_response' && !filterTool)) &&
+      (!filterStatus ||
+        e.type === `tool_${filterStatus}` ||
+        (e.type === 'assistant_response' && !filterStatus)),
   );
 
   // Unique tool names for filter
@@ -110,25 +117,41 @@ function ToolEventRow({
   onToggle: () => void;
 }) {
   const time = new Date(event.timestamp).toLocaleTimeString();
-  const statusBadge = (
-    {
-      tool_start: { text: 'running', cls: 'bg-purple-900/50 text-purple-300' },
-      tool_end: { text: 'success', cls: 'bg-teal-900/50 text-teal-300' },
-      tool_error: { text: 'error', cls: 'bg-red-900/50 text-red-300' },
-    } as Record<string, { text: string; cls: string }>
-  )[event.type] ?? { text: event.type, cls: 'bg-gray-700 text-gray-300' };
+  const isResponse = event.type === 'assistant_response';
+
+  const statusBadge = isResponse
+    ? { text: 'response', cls: 'bg-blue-900/50 text-blue-300' }
+    : ((
+        {
+          tool_start: { text: 'running', cls: 'bg-purple-900/50 text-purple-300' },
+          tool_end: { text: 'success', cls: 'bg-teal-900/50 text-teal-300' },
+          tool_error: { text: 'error', cls: 'bg-red-900/50 text-red-300' },
+        } as Record<string, { text: string; cls: string }>
+      )[event.type] ?? { text: event.type, cls: 'bg-gray-700 text-gray-300' });
 
   const duration = event.duration != null ? `${(event.duration / 1000).toFixed(2)}s` : null;
+
+  // Preview for assistant responses
+  const responsePreview =
+    isResponse && event.text
+      ? event.text.slice(0, 120) + (event.text.length > 120 ? '…' : '')
+      : null;
 
   return (
     <div className="text-xs">
       <button
         onClick={onToggle}
-        className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-800/50 text-left transition-colors"
+        className={`w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-800/50 text-left transition-colors ${isResponse ? 'bg-blue-950/20' : ''}`}
       >
         <span className="text-gray-600 font-mono w-20 flex-shrink-0">{time}</span>
-        <span className="text-gray-400 w-16 truncate flex-shrink-0">{agentType ?? '—'}</span>
-        <span className="text-gray-200 font-medium flex-1 truncate">{event.toolName}</span>
+        <span className="text-gray-400 w-16 truncate flex-shrink-0">
+          {isResponse ? 'Claude' : (agentType ?? '—')}
+        </span>
+        <span
+          className={`font-medium flex-1 truncate ${isResponse ? 'text-blue-300' : 'text-gray-200'}`}
+        >
+          {isResponse ? (responsePreview ?? 'Assistant response') : event.toolName}
+        </span>
         <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${statusBadge.cls}`}>
           {statusBadge.text}
         </span>
@@ -138,6 +161,16 @@ function ToolEventRow({
 
       {isExpanded && (
         <div className="px-3 pb-3 space-y-2">
+          {isResponse && event.text && (
+            <div>
+              <span className="text-blue-400 text-[10px]">
+                Assistant Response {event.model ? `(${event.model})` : ''}
+              </span>
+              <pre className="bg-blue-950/20 rounded p-2 text-gray-300 overflow-auto max-h-64 font-mono text-[10px] whitespace-pre-wrap">
+                {event.text}
+              </pre>
+            </div>
+          )}
           {event.toolInput && (
             <div>
               <span className="text-gray-500 text-[10px]">Input</span>
