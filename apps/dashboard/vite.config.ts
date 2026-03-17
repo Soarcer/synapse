@@ -4,10 +4,13 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-import { SYNAPSE_PORT, DEV_PORT, PROTOCOL, WS_PROTOCOL } from '@synapse-ai/core';
+import { HTTP_FALLBACK_PORT, DEV_PORT } from '@synapse-ai/core';
 
-const proxyTarget = `${PROTOCOL}://127.0.0.1:${SYNAPSE_PORT}`;
-const wsTarget = `${WS_PROTOCOL}://127.0.0.1:${SYNAPSE_PORT}`;
+// Always proxy to the HTTP fallback port (SYNAPSE_PORT + 2, default 27248).
+// This port is always plain HTTP regardless of TLS config, so the proxy
+// works identically whether the main server uses HTTP or HTTPS.
+const proxyTarget = `http://127.0.0.1:${HTTP_FALLBACK_PORT}`;
+const wsTarget = `ws://127.0.0.1:${HTTP_FALLBACK_PORT}`;
 
 export default defineConfig({
   root: import.meta.dirname,

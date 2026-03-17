@@ -11,56 +11,12 @@
 
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 
-// Parse --port from command line (set by VS Code extension hookManager)
-function getCliPort() {
-  const idx = process.argv.indexOf('--port');
-  if (idx !== -1 && process.argv[idx + 1]) {
-    return parseInt(process.argv[idx + 1], 10);
-  }
-  return null;
-}
-
-// Read port from .claude/.synapse-port file (written by VS Code extension or CLI).
-// This survives extension reinstalls — the cached hook command never changes,
-// only the port file content updates when the server restarts on a new port.
-function getPortFromFile() {
-  try {
-    const portFile = path.join(process.cwd(), '.claude', '.synapse-port');
-    const content = fs.readFileSync(portFile, 'utf-8').trim();
-    const port = parseInt(content, 10);
-    if (port > 0 && port < 65536) return port;
-  } catch { /* file doesn't exist or unreadable */ }
-  return null;
-}
-
-// Read port from global ~/.synapse/port file (written by standalone daemon).
-function getGlobalPort() {
-  try {
-    const portFile = path.join(os.homedir(), '.synapse', 'port');
-    const content = fs.readFileSync(portFile, 'utf-8').trim();
-    const port = parseInt(content, 10);
-    if (port > 0 && port < 65536) return port;
-  } catch { /* file doesn't exist or unreadable */ }
-  return null;
-}
-
-const SERVER_URL = (() => {
-  if (process.env.SYNAPSE_URL) return process.env.SYNAPSE_URL;
-  if (process.env.AGENTVIZ_URL) {
-    process.stderr.write('[hook] AGENTVIZ_URL is deprecated, use SYNAPSE_URL instead\n');
-    return process.env.AGENTVIZ_URL;
-  }
-  // Priority: project port file → global daemon port → CLI arg → default
-  const filePort = getPortFromFile();
-  if (filePort) return `http://localhost:${filePort}/api/events`;
-  const globalPort = getGlobalPort();
-  if (globalPort) return `http://localhost:${globalPort}/api/events`;
-  const cliPort = getCliPort();
-  if (cliPort) return `http://localhost:${cliPort}/api/events`;
-  return 'http://localhost:4000/api/events';
-})();
+// Always POST to the HTTP fallback port (SYNAPSE_PORT + 2, default 27248).
+// This port is always plain HTTP regardless of TLS config.
+const basePort = Number(process.env.SYNAPSE_PORT || '27246');
+const httpPort = basePort + 2; // HTTP fallback: always plain HTTP
+const SERVER_URL = process.env.SYNAPSE_URL || `http://localhost:${httpPort}/api/events`;
 const DEBUG = process.env.SYNAPSE_DEBUG === '1';
 const DEBUG_LOG = path.join(__dirname, '..', 'hook_debug.log');
 

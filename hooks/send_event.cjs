@@ -12,11 +12,11 @@
 const fs = require('fs');
 const path = require('path');
 
-// Note: if the server uses TLS, set SYNAPSE_TLS_CERT in your shell profile
-// or use SYNAPSE_URL=https://localhost:27246/api/events
-const port = process.env.SYNAPSE_PORT || '27246';
-const protocol = process.env.SYNAPSE_TLS_CERT ? 'https' : 'http';
-const SERVER_URL = process.env.SYNAPSE_URL || `${protocol}://localhost:${port}/api/events`;
+// Always POST to the HTTP fallback port (SYNAPSE_PORT + 2, default 27248).
+// This port is always plain HTTP regardless of TLS config.
+const basePort = Number(process.env.SYNAPSE_PORT || '27246');
+const httpPort = basePort + 2; // HTTP fallback: always plain HTTP
+const SERVER_URL = process.env.SYNAPSE_URL || `http://localhost:${httpPort}/api/events`;
 const DEBUG = process.env.SYNAPSE_DEBUG === '1';
 const DEBUG_LOG = path.join(__dirname, '..', 'hook_debug.log');
 

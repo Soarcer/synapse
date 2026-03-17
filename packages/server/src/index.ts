@@ -22,6 +22,7 @@ import { createHookApp } from './hookServer.js';
 import { pending, stopConnectionMonitor } from './state/permissionState.js';
 import { initPush } from './services/pushService.js';
 import { selectLanIp } from './routes/network.js';
+import { Features } from '@synapse-ai/core';
 
 import {
   SYNAPSE_PORT,
@@ -45,7 +46,7 @@ seedBuiltInTemplates();
 const pruneTimer = startPruneTimer();
 
 // Initialize push notification service (reads VAPID keys from env)
-initPush();
+if (Features.pushNotifications) initPush();
 
 // --- Services ---
 
@@ -66,14 +67,16 @@ app.get('/api/hook-server/status', (_req, res) => {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const explicitDashDir = process.env.SYNAPSE_DASHBOARD_DIR;
-const defaultDistPath = path.resolve(__dirname, '..', '..', '..', 'apps', 'dashboard', 'dist');
-
+// Candidate paths in priority order:
+// 1. Explicit env override (set by VS Code extension serverManager)
+// 2. Sibling 'dashboard/' dir — works when bundled as server.mjs in resources/synapse-server/
+// 3. Dev monorepo path: packages/server/src → ../../../apps/dashboard/dist
 const dashDir =
-  explicitDashDir && fs.existsSync(explicitDashDir)
-    ? explicitDashDir
-    : fs.existsSync(defaultDistPath)
-      ? defaultDistPath
-      : null;
+  [
+    explicitDashDir,
+    path.resolve(__dirname, 'dashboard'),
+    path.resolve(__dirname, '..', '..', '..', 'apps', 'dashboard', 'dist'),
+  ].find((p): p is string => !!p && fs.existsSync(p)) ?? null;
 
 if (dashDir) {
   // Serve the built dashboard (production, VS Code extension, or local dist)
@@ -121,14 +124,17 @@ if (usingTls) {
     app,
   );
   logger.info('HTTPS enabled — push notifications available on LAN');
-  // Also start an HTTP fallback for mobile Safari (self-signed certs block ES module loads)
-  httpFallbackServer = createHttpServer(app);
 } else {
   server = createHttpServer(app);
   if (tlsCert || tlsKey) {
     logger.warn('TLS cert/key specified but files not found — falling back to HTTP');
   }
 }
+
+// Always start HTTP fallback — hooks and Vite proxy always connect via plain HTTP.
+// When TLS is on, main port is HTTPS-only; when TLS is off, this is a redundant
+// HTTP listener on the same Express app (harmless).
+httpFallbackServer = createHttpServer(app);
 
 // --- Start (fail-loud — no port auto-increment) ---
 
@@ -168,38 +174,36 @@ await failLoudBind(server, SYNAPSE_PORT, HOST, 'main server');
 process.stdout.write(`SYNAPSE_PORT=${SYNAPSE_PORT}\n`);
 logger.info({ host: HOST, port: SYNAPSE_PORT }, 'Synapse server started');
 
-// --- HTTP fallback for mobile Safari (self-signed certs block ES module loads in CORS mode) ---
-if (httpFallbackServer) {
-  try {
-    await new Promise<void>((resolve, reject) => {
-      httpFallbackServer!.once('error', (err: NodeJS.ErrnoException) => {
-        if (err.code === 'EADDRINUSE') {
-          logger.warn(
-            { port: HTTP_FALLBACK_PORT },
-            'HTTP fallback port in use — mobile may not load',
-          );
-          resolve();
-        } else {
-          reject(err);
-        }
-      });
-      httpFallbackServer!.once('listening', resolve);
-      httpFallbackServer!.listen(HTTP_FALLBACK_PORT, HOST);
+// --- HTTP fallback (always started — hooks and Vite proxy connect here) ---
+try {
+  await new Promise<void>((resolve, reject) => {
+    httpFallbackServer!.once('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE') {
+        logger.warn(
+          { port: HTTP_FALLBACK_PORT },
+          'HTTP fallback port in use — hooks and dev proxy may not connect',
+        );
+        resolve();
+      } else {
+        reject(err);
+      }
     });
-    if (httpFallbackServer.listening) {
-      const lanIp = selectLanIp(os.networkInterfaces());
-      const mobileUrl = lanIp
-        ? `http://${lanIp}:${HTTP_FALLBACK_PORT}`
-        : `http://localhost:${HTTP_FALLBACK_PORT}`;
-      logger.info(
-        { host: HOST, port: HTTP_FALLBACK_PORT, mobileUrl },
-        'HTTP fallback started — use this URL on mobile Safari',
-      );
-    }
-  } catch (err) {
-    logger.error({ err }, 'HTTP fallback server failed to start');
-    httpFallbackServer = null;
+    httpFallbackServer!.once('listening', resolve);
+    httpFallbackServer!.listen(HTTP_FALLBACK_PORT, HOST);
+  });
+  if (httpFallbackServer.listening) {
+    const lanIp = selectLanIp(os.networkInterfaces());
+    const mobileUrl = lanIp
+      ? `http://${lanIp}:${HTTP_FALLBACK_PORT}`
+      : `http://localhost:${HTTP_FALLBACK_PORT}`;
+    logger.info(
+      { host: HOST, port: HTTP_FALLBACK_PORT, mobileUrl },
+      'HTTP fallback started — use this URL on mobile Safari',
+    );
   }
+} catch (err) {
+  logger.error({ err }, 'HTTP fallback server failed to start');
+  httpFallbackServer = null;
 }
 
 // --- Hook Server (fixed port for Claude Code HTTP hooks) ---
