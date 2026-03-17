@@ -315,3 +315,24 @@ export interface ReasoningData {
   sessionId: string;
   turns: ReasoningTurn[];
 }
+
+// ─── Prompt-Turn Grouping (transcript-driven responses) ──────────
+
+/** A user prompt with all its assistant responses grouped by parentUuid */
+export interface PromptTurnGroup {
+  /** uuid of the user ConversationRecord */
+  promptUuid: string;
+  /** Timestamp of the user message */
+  promptTimestamp: number;
+  /** Text content of the user prompt (for matching to hook-derived prompt nodes) */
+  promptText: string;
+  /** Assistant turns linked to this prompt (direct parentUuid or via tool_result chain) */
+  turns: ReasoningTurn[];
+  /** Aggregate response text (all text blocks concatenated) */
+  responseText: string | null;
+}
+
+export interface PromptTurnData {
+  sessionId: string;
+  groups: PromptTurnGroup[];
+}

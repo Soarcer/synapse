@@ -66,7 +66,11 @@ export class ClaudeAdapter implements Adapter {
 
   normalize(raw: Record<string, unknown>): AgentEvent {
     const hookEventName = (raw.hook_event_name as string) || 'unknown';
-    const eventType = CLAUDE_HOOK_EVENT_MAP[hookEventName] || 'result';
+    // Stop events with last_assistant_message are really assistant responses
+    const eventType =
+      hookEventName === 'Stop' && raw.last_assistant_message
+        ? 'assistant_response'
+        : CLAUDE_HOOK_EVENT_MAP[hookEventName] || 'result';
     const now = Date.now();
 
     const event: AgentEvent = {
@@ -129,6 +133,11 @@ export class ClaudeAdapter implements Adapter {
         if (raw.error) event.error = String(raw.error);
         break;
 
+      case 'Stop':
+        if (raw.last_assistant_message) event.text = raw.last_assistant_message as string;
+        if (raw.model) event.model = raw.model as string;
+        break;
+
       case 'AssistantResponse':
         if (raw.assistant_text) event.text = raw.assistant_text as string;
         if (raw.model) event.model = raw.model as string;
@@ -152,10 +161,15 @@ export class ClaudeAdapter implements Adapter {
     const hookName = raw.hook_event_name ?? '';
     const toolUseId = raw.tool_use_id ?? '';
     const agentId = raw.agent_id ?? '';
-    const promptText =
-      hookName === 'UserPromptSubmit'
-        ? String(typeof raw.prompt === 'string' ? raw.prompt : '').slice(0, 200)
-        : '';
-    return `${sessionId}:${hookName}:${toolUseId}:${agentId}:${promptText}`;
+    // Include text content for prompts and responses to avoid false dedup
+    let textKey = '';
+    if (hookName === 'UserPromptSubmit') {
+      textKey = String(typeof raw.prompt === 'string' ? raw.prompt : '').slice(0, 200);
+    } else if (hookName === 'AssistantResponse') {
+      textKey = String(raw.assistant_text ?? '').slice(0, 200);
+    } else if (hookName === 'Stop' && raw.last_assistant_message) {
+      textKey = String(raw.last_assistant_message).slice(0, 200);
+    }
+    return `${sessionId}:${hookName}:${toolUseId}:${agentId}:${textKey}`;
   }
 }

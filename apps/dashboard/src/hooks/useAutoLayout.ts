@@ -9,7 +9,7 @@ import type { Node, Edge } from '@xyflow/react';
 
 const NODE_DEFAULTS: Record<string, { width: number; height: number }> = {
   session: { width: 220, height: 65 },
-  userPrompt: { width: 240, height: 150 }, // worst case: 3-line preview + compaction + stats ≈ 127px + margin
+  userPrompt: { width: 260, height: 150 }, // fixed width (matches w-[260px] in UserPromptNode)
   agent: { width: 200, height: 100 }, // accounts for tokens + tool count badge
   toolCall: { width: 150, height: 28 },
   toolGroup: { width: 280, height: 120 }, // composite tool group (pill grid default)
@@ -288,26 +288,33 @@ export function computeGraphLayout(
         childY += (subH.get(kid) ?? 0) + GAP_Y;
       }
 
-      // Place parent at midpoint of first and last child's vertical center
-      const fc = positions.get(kids[0])!.y + nodeDims(nodeById.get(kids[0])!).height / 2;
-      const lc =
-        positions.get(kids[kids.length - 1])!.y +
-        nodeDims(nodeById.get(kids[kids.length - 1])!).height / 2;
-      const mid = (fc + lc) / 2;
+      // Session nodes: top-align with first child so conversation flows down.
+      // All other parents: center on children midpoint.
+      const isSession = node.type === 'session';
+      if (isSession) {
+        const firstChildY = positions.get(kids[0])!.y;
+        positions.set(nodeId, { x, y: firstChildY });
+      } else {
+        const fc = positions.get(kids[0])!.y + nodeDims(nodeById.get(kids[0])!).height / 2;
+        const lc =
+          positions.get(kids[kids.length - 1])!.y +
+          nodeDims(nodeById.get(kids[kids.length - 1])!).height / 2;
+        const mid = (fc + lc) / 2;
 
-      // Clamp so node + tool stack stay within subtree slot
-      let selfH = dims.height;
-      const tools = leafToolsByParent.get(nodeId);
-      if (tools && tools.length > 0) {
-        selfH = Math.max(selfH, computeToolStackHeight(nodeId, tools));
+        // Clamp so node + tool stack stay within subtree slot
+        let selfH = dims.height;
+        const tools = leafToolsByParent.get(nodeId);
+        if (tools && tools.length > 0) {
+          selfH = Math.max(selfH, computeToolStackHeight(nodeId, tools));
+        }
+        const minY = yTop + selfH / 2 - dims.height / 2;
+        const maxY = yTop + totalH - selfH / 2 - dims.height / 2;
+
+        positions.set(nodeId, {
+          x,
+          y: Math.max(minY, Math.min(maxY, mid - dims.height / 2)),
+        });
       }
-      const minY = yTop + selfH / 2 - dims.height / 2;
-      const maxY = yTop + totalH - selfH / 2 - dims.height / 2;
-
-      positions.set(nodeId, {
-        x,
-        y: Math.max(minY, Math.min(maxY, mid - dims.height / 2)),
-      });
     }
     assignPos(root.id, globalOffsetY);
 
@@ -380,6 +387,20 @@ export function computeGraphLayout(
     globalOffsetY = subtreeBottom + ROOT_GAP;
   }
 
+  // ── Post-pass: vertically center response nodes with their parent prompt ──
+  for (const edge of edges) {
+    if (!edge.target.startsWith('response-')) continue;
+    const parentPos = positions.get(edge.source);
+    const responsePos = positions.get(edge.target);
+    const parentNode = nodeById.get(edge.source);
+    const responseNode = nodeById.get(edge.target);
+    if (!parentPos || !responsePos || !parentNode || !responseNode) continue;
+    const parentMidY = parentPos.y + nodeDims(parentNode).height / 2;
+    const responseMidY = responsePos.y + nodeDims(responseNode).height / 2;
+    // Shift the response node so its vertical center aligns with the prompt's
+    responsePos.y += parentMidY - responseMidY;
+  }
+
   // ── Step 5: Handle orphan nodes ─────────────────────────────
   for (const node of graphNodes) {
     if (!positions.has(node.id)) {
@@ -429,7 +450,10 @@ export function useAutoLayout(
       };
     }
 
-    const result = computeGraphLayout(graphNodes, edges, expandedParentId);
+    // Thread edges are visual-only (conversation flow between prompts).
+    // Exclude them from layout so they don't create false parent-child relationships.
+    const layoutEdges = edges.filter((e) => !e.id.startsWith('thread-'));
+    const result = computeGraphLayout(graphNodes, layoutEdges, expandedParentId);
     const positions = result.positions;
     const zIndexMap = result.zIndexMap;
 

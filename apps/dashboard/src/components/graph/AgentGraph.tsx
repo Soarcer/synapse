@@ -25,6 +25,9 @@ import { NudgeBadge } from './NudgeBadge';
 import { registerToastNavigator, unregisterToastNavigator } from '../Toast';
 import { buildParentMap, collectAncestors } from '../../utils/graphSearch';
 import type { AgentNodeData } from '@synapse-ai/core';
+import { Features } from '@synapse-ai/core';
+import { usePromptTurns, PromptTurnsContext } from '../../hooks/usePromptTurns';
+import { selectSessions } from '../../store/agentStore';
 
 // ── MiniMap ───────────────────────────────────────────────────
 const MINIMAP_THRESHOLD = 300;
@@ -58,7 +61,12 @@ function AgentGraphInner() {
   const collapsedNodes = useAgentStore((s) => s.collapsedNodes);
   const lockViewport = useAgentStore((s) => s.lockViewport);
   const pendingFitView = useAgentStore((s) => s.pendingFitView);
+  const sessions = useAgentStore(selectSessions);
   const { fitView, getViewport, setViewport } = useReactFlow();
+
+  // Prompt-turn groups from transcripts (shared via context to all prompt nodes)
+  const sessionIds = useMemo(() => [...sessions.keys()], [sessions]);
+  const promptTurnGroups = usePromptTurns(sessionIds);
   const prevNodeCountRef = useRef(rawNodes.length);
   const prevExpandedRef = useRef<string | null>(null);
   const [toolGroupDims, setToolGroupDims] = useState<
@@ -481,17 +489,23 @@ function AgentGraphInner() {
         // Zoom directly to the toolgroup container the user clicked
         fitView({ nodes: [{ id: selectedNodeId }], duration: 400, padding: 0.3 });
       } else if (expansionHappened && expandedParentId) {
-        // Frame parent + its toolGroup child (or structural tool children)
-        const nodeIds = [expandedParentId];
-        for (const edge of visibleEdges) {
-          if (
-            edge.source === expandedParentId &&
-            (edge.target.startsWith('tool-') || edge.target.startsWith('toolgroup-'))
-          ) {
-            nodeIds.push(edge.target);
+        // Frame parent + its toolGroup child (or structural tool children).
+        // Skip for response expansion — keep viewport stable when toggling responses.
+        const hasResponseChildren = visibleEdges.some(
+          (e) => e.source === expandedParentId && e.target.startsWith('response-'),
+        );
+        if (!hasResponseChildren) {
+          const nodeIds = [expandedParentId];
+          for (const edge of visibleEdges) {
+            if (
+              edge.source === expandedParentId &&
+              (edge.target.startsWith('tool-') || edge.target.startsWith('toolgroup-'))
+            ) {
+              nodeIds.push(edge.target);
+            }
           }
+          fitView({ nodes: nodeIds.map((id) => ({ id })), duration: 400, padding: 0.3 });
         }
-        fitView({ nodes: nodeIds.map((id) => ({ id })), duration: 400, padding: 0.3 });
       } else {
         // Check if selected node is hidden behind the detail panel
         const vp = getViewport();
@@ -576,108 +590,110 @@ function AgentGraphInner() {
   const hasContentNodes = nodes.length > 1;
 
   return (
-    <>
-      <GraphSearchBox matchCount={searchMatchCount} />
-      {isLoading && nodes.length <= 1 && (
-        <div className="absolute inset-0 flex items-center justify-center z-10">
-          <div className="text-gray-500 text-sm flex items-center gap-2">
-            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-                fill="none"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-              />
-            </svg>
-            Loading events...
+    <PromptTurnsContext.Provider value={promptTurnGroups}>
+      <>
+        <GraphSearchBox matchCount={searchMatchCount} />
+        {isLoading && nodes.length <= 1 && (
+          <div className="absolute inset-0 flex items-center justify-center z-10">
+            <div className="text-gray-500 text-sm flex items-center gap-2">
+              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  fill="none"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                />
+              </svg>
+              Loading events...
+            </div>
           </div>
-        </div>
-      )}
-      {loadError && (
-        <div className="absolute inset-0 flex items-center justify-center z-10">
-          <div className="bg-gray-900 rounded-lg p-6 border border-red-900/30 text-center max-w-sm">
-            <p className="text-red-400 text-sm mb-2">Failed to connect to server</p>
-            <p className="text-gray-500 text-xs mb-4">{loadError}</p>
-            <button
-              onClick={() => reloadAllEvents({ showLoading: true })}
-              className="px-4 py-2 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-700"
-            >
-              Retry
-            </button>
-          </div>
-        </div>
-      )}
-      {!hasContentNodes && !isLoading && !loadError && events.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
-          <div className="pointer-events-auto bg-gray-900/90 rounded-lg p-8 border border-gray-800 text-center max-w-sm backdrop-blur-sm">
-            <div className="text-3xl mb-3 text-gray-600">&#x2B22;</div>
-            <h3 className="text-sm font-medium text-gray-300 mb-2">No active sessions</h3>
-            <p className="text-xs text-gray-500">
-              Start a Claude Code session in this project, or run a simulation script to see the
-              graph in action.
-            </p>
-          </div>
-        </div>
-      )}
-      {!hasContentNodes && events.length > 0 && !showHookEvents && (
-        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-10 px-4 py-2 bg-amber-900/70 border border-amber-600/40 rounded-lg text-xs text-amber-200 backdrop-blur-sm text-center">
-          Hook events are hidden — press{' '}
-          <kbd className="px-1.5 py-0.5 bg-amber-800/60 rounded text-amber-100 font-mono mx-0.5">
-            H
-          </kbd>{' '}
-          to show them
-        </div>
-      )}
-      <ReactFlow
-        nodes={nodes}
-        edges={styledEdges}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        onNodeClick={onNodeClick}
-        onNodeDoubleClick={onNodeDoubleClick}
-        onPaneClick={onPaneClick}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        defaultEdgeOptions={{ zIndex: 0 }}
-        nodesDraggable={false}
-        edgesFocusable={false}
-        fitView
-        fitViewOptions={{ padding: 0.2 }}
-        minZoom={0.1}
-        maxZoom={2}
-        proOptions={{ hideAttribution: true }}
-        className="bg-transparent"
-      >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#1e293b" />
-        {rawNodes.length <= MINIMAP_THRESHOLD && (
-          <MiniMap
-            position="bottom-right"
-            pannable
-            zoomable
-            style={{ background: '#0d1117', border: '1px solid #1e293b' }}
-            maskColor="rgba(13, 17, 23, 0.7)"
-            maskStrokeColor="rgba(96, 165, 250, 0.5)"
-            maskStrokeWidth={2}
-            nodeColor={miniMapNodeColor}
-          />
         )}
-        <Controls
-          position="bottom-left"
-          style={{ background: '#161b22', border: '1px solid #30363d', borderRadius: '8px' }}
-        />
-      </ReactFlow>
-      <EdgeCostLegend />
-      <NudgeBadge />
-      <NotificationPulse /> {/* [notifications] */}
-    </>
+        {loadError && (
+          <div className="absolute inset-0 flex items-center justify-center z-10">
+            <div className="bg-gray-900 rounded-lg p-6 border border-red-900/30 text-center max-w-sm">
+              <p className="text-red-400 text-sm mb-2">Failed to connect to server</p>
+              <p className="text-gray-500 text-xs mb-4">{loadError}</p>
+              <button
+                onClick={() => reloadAllEvents({ showLoading: true })}
+                className="px-4 py-2 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-700"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
+        {!hasContentNodes && !isLoading && !loadError && events.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+            <div className="pointer-events-auto bg-gray-900/90 rounded-lg p-8 border border-gray-800 text-center max-w-sm backdrop-blur-sm">
+              <div className="text-3xl mb-3 text-gray-600">&#x2B22;</div>
+              <h3 className="text-sm font-medium text-gray-300 mb-2">No active sessions</h3>
+              <p className="text-xs text-gray-500">
+                Start a Claude Code session in this project, or run a simulation script to see the
+                graph in action.
+              </p>
+            </div>
+          </div>
+        )}
+        {!hasContentNodes && events.length > 0 && !showHookEvents && (
+          <div className="absolute top-14 left-1/2 -translate-x-1/2 z-10 px-4 py-2 bg-amber-900/70 border border-amber-600/40 rounded-lg text-xs text-amber-200 backdrop-blur-sm text-center">
+            Hook events are hidden — press{' '}
+            <kbd className="px-1.5 py-0.5 bg-amber-800/60 rounded text-amber-100 font-mono mx-0.5">
+              H
+            </kbd>{' '}
+            to show them
+          </div>
+        )}
+        <ReactFlow
+          nodes={nodes}
+          edges={styledEdges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          onNodeClick={onNodeClick}
+          onNodeDoubleClick={onNodeDoubleClick}
+          onPaneClick={onPaneClick}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          defaultEdgeOptions={{ zIndex: 0 }}
+          nodesDraggable={false}
+          edgesFocusable={false}
+          fitView
+          fitViewOptions={{ padding: 0.2 }}
+          minZoom={0.1}
+          maxZoom={2}
+          proOptions={{ hideAttribution: true }}
+          className="bg-transparent"
+        >
+          <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#1e293b" />
+          {rawNodes.length <= MINIMAP_THRESHOLD && (
+            <MiniMap
+              position="bottom-right"
+              pannable
+              zoomable
+              style={{ background: '#0d1117', border: '1px solid #1e293b' }}
+              maskColor="rgba(13, 17, 23, 0.7)"
+              maskStrokeColor="rgba(96, 165, 250, 0.5)"
+              maskStrokeWidth={2}
+              nodeColor={miniMapNodeColor}
+            />
+          )}
+          <Controls
+            position="bottom-left"
+            style={{ background: '#161b22', border: '1px solid #30363d', borderRadius: '8px' }}
+          />
+        </ReactFlow>
+        <EdgeCostLegend />
+        {Features.coaching && <NudgeBadge />}
+        <NotificationPulse /> {/* [notifications] */}
+      </>
+    </PromptTurnsContext.Provider>
   );
 }
 

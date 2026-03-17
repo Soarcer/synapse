@@ -11,6 +11,7 @@ export type {
   AgentNodeData,
   ToolCallSummary,
   UserPromptData,
+  AssistantResponseData,
   SpawnAgentRequest,
   McpServerConfig,
   WsServerMessage,
@@ -45,6 +46,8 @@ export type {
   ReasoningToolCall,
   ReasoningTurn,
   ReasoningData,
+  PromptTurnGroup,
+  PromptTurnData,
 } from './types/transcript.js';
 
 export type {
@@ -120,6 +123,9 @@ export {
 } from './utils/format.js';
 
 export type { ColorPalette } from './utils/format.js';
+
+// Feature flags
+export { Features, type FeatureName } from './features.js';
 
 // Network configuration (server-side only — do NOT import in browser code)
 export {

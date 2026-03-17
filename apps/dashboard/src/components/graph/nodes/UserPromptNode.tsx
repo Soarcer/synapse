@@ -2,11 +2,17 @@
 // Copyright (c) 2026 Bernhard
 
 import { memo, useCallback, useMemo } from 'react';
-import { Handle, type NodeProps } from '@xyflow/react';
-import type { UserPromptData, AgentNodeData, AssistantResponseData } from '@synapse-ai/core';
+import { Handle, Position, type NodeProps } from '@xyflow/react';
+import type {
+  UserPromptData,
+  AgentNodeData,
+  AssistantResponseData,
+  PromptTurnGroup,
+} from '@synapse-ai/core';
 import { formatTokens, formatTime } from '@synapse-ai/core';
 import { useHandlePositions } from '../../../hooks/useHandlePositions';
 import { useAgentStore } from '../../../store/agentStore';
+import { usePromptTurnsContext } from '../../../hooks/usePromptTurns';
 import { CollapsibleSourceHandle } from '../CollapsibleSourceHandle';
 import { extractUserMessage } from '../../../utils/promptText';
 import { Tooltip } from '../../ui/Tooltip';
@@ -37,6 +43,45 @@ function UserPromptNodeComponent({ data }: NodeProps) {
     [allResponses, prompt.id],
   );
   const lastResponse = responses.length > 0 ? responses[responses.length - 1] : null;
+
+  // Transcript-derived response data (richer than hook-based)
+  const promptTurnGroupMap = usePromptTurnsContext();
+  const promptTurnGroups = promptTurnGroupMap.get(prompt.sessionId);
+  const transcriptGroup = useMemo((): PromptTurnGroup | null => {
+    if (!promptTurnGroups?.length || !prompt.text) return null;
+
+    // Primary match: timestamp within ±5 seconds
+    const candidates = promptTurnGroups.filter(
+      (g) => Math.abs(g.promptTimestamp - prompt.timestamp) < 5000,
+    );
+
+    if (candidates.length === 1) return candidates[0];
+
+    // Tiebreaker: text prefix confirmation
+    const promptPrefix = prompt.text.slice(0, 80).toLowerCase();
+    if (candidates.length > 1) {
+      return (
+        candidates.find(
+          (g) =>
+            g.promptText.toLowerCase().startsWith(promptPrefix) ||
+            promptPrefix.startsWith(g.promptText.slice(0, 80).toLowerCase()),
+        ) ?? candidates[0]
+      );
+    }
+
+    // Fallback: text-only match (timestamps may differ due to clock skew)
+    return (
+      promptTurnGroups.find(
+        (g) =>
+          g.promptText.toLowerCase().startsWith(promptPrefix) ||
+          promptPrefix.startsWith(g.promptText.slice(0, 80).toLowerCase()),
+      ) ?? null
+    );
+  }, [promptTurnGroups, prompt.text, prompt.timestamp]);
+
+  // Merge: prefer transcript data, fall back to hook-derived responses
+  const displayResponseText = transcriptGroup?.responseText ?? responses[0]?.text ?? null;
+  const displayResponseCount = transcriptGroup?.turns.length ?? responses.length;
   const isExpanded = useAgentStore((s) => s.expandedTurns.has(nodeId));
   const toggleTurnExpanded = useAgentStore((s) => s.toggleTurnExpanded);
   const handleToggleExpand = useCallback(
@@ -84,7 +129,7 @@ function UserPromptNodeComponent({ data }: NodeProps) {
 
   return (
     <div
-      className={`relative rounded-lg px-3 py-2 min-w-[200px] max-w-[260px] shadow-md border border-amber-600/40 bg-gradient-to-br from-amber-900/60 to-yellow-900/40 ${isSelected ? 'node-selected' : isHighlighted ? 'node-highlighted' : ''}`}
+      className={`relative rounded-lg px-3 py-2 w-[260px] shadow-md border border-amber-600/40 bg-gradient-to-br from-amber-900/60 to-yellow-900/40 ${isSelected ? 'node-selected' : isHighlighted ? 'node-highlighted' : ''}`}
     >
       <Handle
         type="target"
@@ -147,51 +192,34 @@ function UserPromptNodeComponent({ data }: NodeProps) {
         </div>
       )}
 
-      {/* Assistant response section (conversation threading) */}
-      {responses.length > 0 && !isExpanded && (
-        <Tooltip content="Click to expand response chain">
+      {/* Assistant response section — always visible, chevron toggles expand/collapse */}
+      {displayResponseText && (
+        <Tooltip content={isExpanded ? 'Click to collapse' : 'Click to expand response chain'}>
           <div
-            className="relative mt-1.5 pt-1.5 border-t border-blue-500/30 bg-blue-900/20 -mx-3 -mb-2 px-3 pb-2 rounded-b-lg cursor-pointer hover:brightness-125 transition-[filter]"
+            className={`relative mt-1.5 pt-1.5 border-t border-blue-500/30 -mx-3 -mb-2 px-3 pb-2 rounded-b-lg cursor-pointer hover:brightness-125 transition-[filter] ${
+              isExpanded ? 'bg-blue-900/30' : 'bg-blue-900/20'
+            }`}
             onClick={handleToggleExpand}
           >
             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-blue-300/50 text-[11px] font-bold pointer-events-none">
-              {'>'}
+              {isExpanded ? '\u25BE' : '>'}
             </span>
             <div className="flex items-center gap-1 mb-0.5">
               <span className="text-blue-400 text-[10px] font-semibold">Claude</span>
-              <span className="text-gray-500 text-[10px]">{'\u25B8'}</span>
-              {responses.length > 1 && (
+              <span className="text-gray-500 text-[10px]">{isExpanded ? '\u25BE' : '\u25B8'}</span>
+              {displayResponseCount > 1 && (
                 <span className="text-gray-500 text-[10px] ml-auto">
-                  {responses.length} responses
+                  {displayResponseCount} responses
                 </span>
               )}
             </div>
-            {responses.map((resp, i) => (
-              <p
-                key={resp.id}
-                className={`text-[11px] text-blue-200/70 leading-snug line-clamp-2 ${i > 0 ? 'mt-1 pt-1 border-t border-blue-400/30' : ''}`}
-              >
-                {resp.text.length > 160 ? resp.text.slice(0, 160) + '...' : resp.text}
-              </p>
-            ))}
+            <p className="text-[11px] text-blue-200/70 leading-snug line-clamp-2">
+              {displayResponseText.length > 160
+                ? displayResponseText.slice(0, 160) + '...'
+                : displayResponseText}
+            </p>
           </div>
         </Tooltip>
-      )}
-
-      {/* Expanded indicator — response nodes are synthesized in the graph */}
-      {lastResponse && isExpanded && (
-        <div
-          className="mt-1.5 pt-1 border-t border-blue-500/30 -mx-3 -mb-2 px-3 pb-1.5 rounded-b-lg cursor-pointer hover:brightness-125 transition-[filter] bg-blue-900/10"
-          onClick={handleToggleExpand}
-        >
-          <div className="flex items-center gap-1">
-            <span className="text-blue-400 text-[10px] font-semibold">Claude</span>
-            <span className="text-gray-500 text-[10px]">{'\u25BE'}</span>
-            <span className="text-gray-500 text-[10px] ml-auto">
-              {responses.length} response{responses.length !== 1 ? 's' : ''}
-            </span>
-          </div>
-        </div>
       )}
 
       <CollapsibleSourceHandle
@@ -199,6 +227,20 @@ function UserPromptNodeComponent({ data }: NodeProps) {
         position={source}
         style={sourceStyle}
         baseClassName="!bg-amber-400 !w-2.5 !h-2.5 !border-2 !border-gray-900"
+      />
+
+      {/* Thread handles: bottom (source) → top (target) for conversation chaining */}
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id="thread-out"
+        className="!bg-blue-500/40 !w-1.5 !h-1.5 !border-0"
+      />
+      <Handle
+        type="target"
+        position={Position.Top}
+        id="thread-in"
+        className="!bg-blue-500/40 !w-1.5 !h-1.5 !border-0"
       />
     </div>
   );

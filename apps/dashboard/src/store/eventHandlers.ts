@@ -224,12 +224,37 @@ function handleUserPrompt(event: AgentEvent, draft: StateDraft): void {
     style: HIDDEN_STYLE,
     data: { prompt },
   });
+  const isFirstPrompt = sessionPrompts.length === 0;
   draft.edges.push({
     id: eid(nid.session(event.sessionId), nid.prompt(event.id)),
     source: nid.session(event.sessionId),
     target: nid.prompt(event.id),
     type: 'smoothstep',
+    // Hide session→prompt edge for non-first prompts (kept for layout, invisible to user)
+    ...(isFirstPrompt ? {} : { hidden: true }),
   });
+
+  // Thread edge: chain consecutive prompts to show conversation flow.
+  // The session→prompt edge above stays for layout (keeps prompts in same rank).
+  // This thread edge is purely visual — shows "prompt 1, then prompt 2, then prompt 3".
+  if (!isFirstPrompt) {
+    const prevPrompt = sessionPrompts[sessionPrompts.length - 1];
+    draft.edges.push({
+      id: `thread-${nid.prompt(prevPrompt.id)}-${nid.prompt(event.id)}`,
+      source: nid.prompt(prevPrompt.id),
+      target: nid.prompt(event.id),
+      sourceHandle: 'thread-out',
+      targetHandle: 'thread-in',
+      type: 'straight',
+      markerEnd: {
+        type: 'arrowclosed' as const,
+        color: 'rgba(59, 130, 246, 0.4)',
+        width: 12,
+        height: 12,
+      },
+      style: { stroke: 'rgba(59, 130, 246, 0.35)', strokeWidth: 1.5 },
+    });
+  }
 
   // Set session title from first prompt text (if not already set)
   const session = draft.sessions.get(event.sessionId);
@@ -409,6 +434,10 @@ function handleToolStart(event: AgentEvent, draft: StateDraft): void {
     const pending = draft.pendingTaskTools.get(event.sessionId) ?? [];
     draft.pendingTaskTools.set(event.sessionId, [...pending, toolUseId]);
   }
+
+  // Guard: skip duplicate tool_start for the same toolUseId
+  const toolNodeId = nid.tool(toolUseId);
+  if (draft.nodes.some((n) => n.id === toolNodeId)) return;
 
   const tc: ToolCallSummary = {
     toolUseId,

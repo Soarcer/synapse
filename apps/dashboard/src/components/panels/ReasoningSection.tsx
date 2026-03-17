@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Bernhard
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import type { ReasoningData, ReasoningTurn } from '@synapse-ai/core';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import type { ReasoningData, ReasoningTurn, PromptTurnData } from '@synapse-ai/core';
 import { apiUrl } from '../../utils/api.js';
 import { getToolIcon } from '@synapse-ai/core';
 
@@ -19,15 +19,28 @@ function loadAutoScroll(): boolean {
 
 interface ReasoningSectionProps {
   sessionId: string;
+  /** If provided, scope reasoning to only turns belonging to this prompt */
+  promptText?: string;
+  /** Used alongside promptText for timestamp-based matching */
+  promptTimestamp?: number;
+  /** Hide mode toggle, auto-scroll, turn numbers — just show structured content */
+  compact?: boolean;
 }
 
-export function ReasoningSection({ sessionId }: ReasoningSectionProps) {
+export function ReasoningSection({
+  sessionId,
+  promptText,
+  promptTimestamp,
+  compact = false,
+}: ReasoningSectionProps) {
   const [data, setData] = useState<ReasoningData | null>(null);
+  const [promptTurnData, setPromptTurnData] = useState<PromptTurnData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<'structured' | 'raw'>('structured');
   const [autoScroll, setAutoScroll] = useState(loadAutoScroll);
 
+  const isScoped = !!promptText;
   const bottomRef = useRef<HTMLDivElement>(null);
   const prevTurnCount = useRef(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -43,18 +56,29 @@ export function ReasoningSection({ sessionId }: ReasoningSectionProps) {
 
     // Clear stale data immediately so old reasoning never shows under new node
     setData(null);
+    setPromptTurnData(null);
     setLoading(true);
     setError(null);
 
+    // When scoped to a prompt, fetch /prompt-turns; otherwise fetch /reasoning
+    const endpoint = isScoped
+      ? `/api/transcript/${sessionId}/prompt-turns`
+      : `/api/transcript/${sessionId}/reasoning`;
+
     const doFetch = (isInitial: boolean) => {
       if (controller.signal.aborted) return;
-      fetch(apiUrl(`/api/transcript/${sessionId}/reasoning`), { signal: controller.signal })
+      fetch(apiUrl(endpoint), { signal: controller.signal })
         .then((r) => {
           if (!r.ok) throw new Error(`${r.status}`);
           return r.json();
         })
-        .then((d: ReasoningData) => {
-          if (!controller.signal.aborted) setData(d);
+        .then((d: ReasoningData | PromptTurnData) => {
+          if (controller.signal.aborted) return;
+          if (isScoped) {
+            setPromptTurnData(d as PromptTurnData);
+          } else {
+            setData(d as ReasoningData);
+          }
         })
         .catch((e) => {
           if (e instanceof DOMException && e.name === 'AbortError') return;
@@ -72,7 +96,25 @@ export function ReasoningSection({ sessionId }: ReasoningSectionProps) {
       controller.abort();
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [sessionId]);
+  }, [sessionId, isScoped]);
+
+  // When scoped, match the specific prompt group
+  const scopedTurns = useMemo((): ReasoningTurn[] | null => {
+    if (!isScoped || !promptTurnData?.groups.length) return null;
+
+    const candidates = promptTurnData.groups.filter(
+      (g) => Math.abs(g.promptTimestamp - (promptTimestamp ?? 0)) < 5000,
+    );
+    if (candidates.length === 1) return candidates[0].turns;
+
+    const prefix = (promptText ?? '').slice(0, 80).toLowerCase();
+    const match = (candidates.length > 1 ? candidates : promptTurnData.groups).find(
+      (g) =>
+        g.promptText.toLowerCase().startsWith(prefix) ||
+        prefix.startsWith(g.promptText.slice(0, 80).toLowerCase()),
+    );
+    return match?.turns ?? [];
+  }, [isScoped, promptTurnData, promptText, promptTimestamp]);
 
   const toggleAutoScroll = useCallback(() => {
     setAutoScroll((prev) => {
@@ -86,8 +128,10 @@ export function ReasoningSection({ sessionId }: ReasoningSectionProps) {
     });
   }, []);
 
-  const thinkingTurns = data?.turns.filter((t) => t.thinkingText) ?? [];
-  const errorTurns = data?.turns.filter((t) => t.isApiErrorMessage || t.error) ?? [];
+  // Use scoped turns when available, otherwise all session turns
+  const allTurns = scopedTurns ?? data?.turns ?? [];
+  const thinkingTurns = allTurns.filter((t) => t.thinkingText);
+  const errorTurns = allTurns.filter((t) => t.isApiErrorMessage || t.error);
   const totalChars = thinkingTurns.reduce((s, t) => s + (t.thinkingText?.length ?? 0), 0);
 
   // Auto-scroll when new turns arrive
@@ -108,13 +152,15 @@ export function ReasoningSection({ sessionId }: ReasoningSectionProps) {
 
   return (
     <div aria-label="Reasoning section">
-      {badge && <div className="text-gray-500 text-[10px] mb-2">{badge}</div>}
+      {!compact && badge && <div className="text-gray-500 text-[10px] mb-2">{badge}</div>}
       <div className="space-y-2 pb-2">
-        {loading && <div className="text-gray-600 text-xs py-2">Loading reasoning data...</div>}
+        {loading && !compact && (
+          <div className="text-gray-600 text-xs py-2">Loading reasoning data...</div>
+        )}
 
         {error && <div className="text-red-400/60 text-xs py-2">{error}</div>}
 
-        {!loading && !error && thinkingTurns.length === 0 && (
+        {!loading && !error && thinkingTurns.length === 0 && !compact && (
           <div className="text-gray-600 text-xs py-2">
             No reasoning data available — thinking may have been disabled for this session.
           </div>
@@ -144,52 +190,54 @@ export function ReasoningSection({ sessionId }: ReasoningSectionProps) {
 
         {!loading && !error && thinkingTurns.length > 0 && (
           <>
-            {/* Mode toggle + auto-scroll */}
-            <div className="flex gap-1 items-center">
-              <button
-                onClick={() => setMode('structured')}
-                className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
-                  mode === 'structured'
-                    ? 'bg-blue-900/50 text-blue-300 border border-blue-800/50'
-                    : 'bg-gray-900/30 text-gray-500 border border-gray-800/30 hover:text-gray-400'
-                }`}
-              >
-                Structured
-              </button>
-              <button
-                onClick={() => setMode('raw')}
-                className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
-                  mode === 'raw'
-                    ? 'bg-blue-900/50 text-blue-300 border border-blue-800/50'
-                    : 'bg-gray-900/30 text-gray-500 border border-gray-800/30 hover:text-gray-400'
-                }`}
-              >
-                Raw
-              </button>
-              <button
-                onClick={toggleAutoScroll}
-                title={
-                  autoScroll
-                    ? 'Auto-scroll on — click to disable'
-                    : 'Auto-scroll off — click to enable'
-                }
-                className={`ml-auto px-2 py-0.5 rounded text-[10px] transition-colors flex items-center gap-1 ${
-                  autoScroll
-                    ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-800/40'
-                    : 'bg-gray-900/30 text-gray-500 border border-gray-800/30 hover:text-gray-400'
-                }`}
-              >
-                <span className="text-[10px]">{autoScroll ? '↓' : '⏸'}</span>
-                Auto-scroll
-              </button>
-            </div>
+            {/* Mode toggle + auto-scroll (hidden in compact mode) */}
+            {!compact && (
+              <div className="flex gap-1 items-center">
+                <button
+                  onClick={() => setMode('structured')}
+                  className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
+                    mode === 'structured'
+                      ? 'bg-blue-900/50 text-blue-300 border border-blue-800/50'
+                      : 'bg-gray-900/30 text-gray-500 border border-gray-800/30 hover:text-gray-400'
+                  }`}
+                >
+                  Structured
+                </button>
+                <button
+                  onClick={() => setMode('raw')}
+                  className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
+                    mode === 'raw'
+                      ? 'bg-blue-900/50 text-blue-300 border border-blue-800/50'
+                      : 'bg-gray-900/30 text-gray-500 border border-gray-800/30 hover:text-gray-400'
+                  }`}
+                >
+                  Raw
+                </button>
+                <button
+                  onClick={toggleAutoScroll}
+                  title={
+                    autoScroll
+                      ? 'Auto-scroll on — click to disable'
+                      : 'Auto-scroll off — click to enable'
+                  }
+                  className={`ml-auto px-2 py-0.5 rounded text-[10px] transition-colors flex items-center gap-1 ${
+                    autoScroll
+                      ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-800/40'
+                      : 'bg-gray-900/30 text-gray-500 border border-gray-800/30 hover:text-gray-400'
+                  }`}
+                >
+                  <span className="text-[10px]">{autoScroll ? '↓' : '⏸'}</span>
+                  Auto-scroll
+                </button>
+              </div>
+            )}
 
-            {/* Turn cards */}
+            {/* Turn cards — compact mode always shows structured, no turn numbers */}
             {thinkingTurns.map((turn, i) =>
-              mode === 'structured' ? (
-                <StructuredTurnCard key={turn.uuid} turn={turn} index={i} />
-              ) : (
+              !compact && mode === 'raw' ? (
                 <RawTurnCard key={turn.uuid} turn={turn} index={i} />
+              ) : (
+                <StructuredTurnCard key={turn.uuid} turn={turn} index={i} compact={compact} />
               ),
             )}
             <div ref={bottomRef} />
@@ -202,30 +250,38 @@ export function ReasoningSection({ sessionId }: ReasoningSectionProps) {
 
 // ─── Structured Turn Card ────────────────────────────────────────
 
-function StructuredTurnCard({ turn, index }: { turn: ReasoningTurn; index: number }) {
+function StructuredTurnCard({
+  turn,
+  index,
+  compact = false,
+}: {
+  turn: ReasoningTurn;
+  index: number;
+  compact?: boolean;
+}) {
   const isError = turn.isApiErrorMessage || !!turn.error;
   return (
     <div
-      className={`bg-syn-bg-primary border rounded-lg p-3 space-y-2 ${
-        isError ? 'border-red-800/60' : 'border-gray-800'
-      }`}
+      className={`${compact ? 'space-y-2' : `bg-syn-bg-primary border rounded-lg p-3 space-y-2 ${isError ? 'border-red-800/60' : 'border-gray-800'}`}`}
     >
-      {/* Header */}
-      <div className="flex items-center gap-2">
-        <span className="text-gray-500 text-[10px] font-mono">#{index + 1}</span>
-        {turn.model && <span className="text-gray-600 text-[10px]">{turn.model}</span>}
-        {turn.isSidechain && (
-          <span className="bg-purple-900/50 text-purple-300 text-[9px] px-1.5 rounded">Task</span>
-        )}
-        {isError && (
-          <span className="bg-red-900/50 text-red-300 text-[9px] px-1.5 rounded">
-            {turn.error ?? 'error'}
-          </span>
-        )}
-        {turn.structured?.confidence != null && (
-          <ConfidenceBadge confidence={turn.structured.confidence} />
-        )}
-      </div>
+      {/* Header (hidden in compact mode) */}
+      {!compact && (
+        <div className="flex items-center gap-2">
+          <span className="text-gray-500 text-[10px] font-mono">#{index + 1}</span>
+          {turn.model && <span className="text-gray-600 text-[10px]">{turn.model}</span>}
+          {turn.isSidechain && (
+            <span className="bg-purple-900/50 text-purple-300 text-[9px] px-1.5 rounded">Task</span>
+          )}
+          {isError && (
+            <span className="bg-red-900/50 text-red-300 text-[9px] px-1.5 rounded">
+              {turn.error ?? 'error'}
+            </span>
+          )}
+          {turn.structured?.confidence != null && (
+            <ConfidenceBadge confidence={turn.structured.confidence} />
+          )}
+        </div>
+      )}
 
       {/* Intent */}
       {turn.structured?.intent && (

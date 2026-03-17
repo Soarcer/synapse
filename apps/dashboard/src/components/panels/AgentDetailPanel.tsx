@@ -17,6 +17,7 @@ import { TokenBreakdownBar } from '../analytics/shared/TokenBreakdownBar';
 import { ToolBadges } from '../analytics/shared/ToolBadges';
 import { ModelBadge } from '../analytics/shared/ModelBadge';
 import { ReasoningSection } from './ReasoningSection';
+import { usePromptTurnsContext } from '../../hooks/usePromptTurns';
 import { CATEGORY_COLORS, fmtTokens } from '../analytics/shared/constants';
 import { computeCostUsd as coreComputeCostUsd, getPrice } from '@synapse-ai/core';
 import {
@@ -148,11 +149,13 @@ export function AgentDetailPanel() {
   const agents = useAgentStore((s) => s.agents);
   const sessions = useAgentStore((s) => s.sessions);
   const prompts = useAgentStore((s) => s.prompts);
+  const responses = useAgentStore((s) => s.responses);
   const toolCalls = useAgentStore((s) => s.toolCalls);
   const events = useAgentStore((s) => s.events);
   const toolAgentMap = useAgentStore((s) => s.toolAgentMap);
   const storeEdges = useAgentStore((s) => s.edges);
   const transcripts = useAgentStore((s) => s.transcripts);
+  const promptTurnGroupMap = usePromptTurnsContext();
   const selectNode = useAgentStore((s) => s.selectNode);
   const removeNode = useAgentStore((s) => s.removeNode);
   const [message, setMessage] = useState('');
@@ -266,6 +269,7 @@ export function AgentDetailPanel() {
   const agentId = selectedNodeId?.startsWith('agent-') ? selectedNodeId.slice(6) : null;
   const sessionId = selectedNodeId?.startsWith('session-') ? selectedNodeId.slice(8) : null;
   const promptId = selectedNodeId?.startsWith('prompt-') ? selectedNodeId.slice(7) : null;
+  const responseId = selectedNodeId?.startsWith('response-') ? selectedNodeId.slice(9) : null;
   const toolNodeId = selectedNodeId?.startsWith('tool-') ? selectedNodeId.slice(5) : null;
   const toolGroupParentId = selectedNodeId?.startsWith('toolgroup-')
     ? selectedNodeId.slice('toolgroup-'.length)
@@ -548,6 +552,290 @@ export function AgentDetailPanel() {
         dialogs={dialogs}
       />
     );
+  }
+
+  // ── Assistant response detail view ─────────────────────────
+  if (responseId) {
+    // Find the response across all sessions
+    let foundResponse: import('@synapse-ai/core').AssistantResponseData | null = null;
+    let responseSessionId: string | null = null;
+    for (const [sid, arr] of responses) {
+      const match = arr.find((r) => r.id === responseId);
+      if (match) {
+        foundResponse = match;
+        responseSessionId = sid;
+        break;
+      }
+    }
+
+    if (foundResponse && responseSessionId) {
+      // Sibling responses for the same prompt
+      const siblings = (responses.get(responseSessionId) ?? [])
+        .filter((r) => r.promptId === foundResponse!.promptId)
+        .sort((a, b) => a.timestamp - b.timestamp);
+
+      // Find parent prompt for latency
+      const sessionPromptList = prompts.get(responseSessionId) ?? [];
+      const parentPrompt = sessionPromptList.find((p) => p.id === foundResponse!.promptId);
+
+      // Tool attribution: both agent-attached tools AND direct/orphan tools
+      const sessionAgents = [...agents.values()].filter((a) => a.sessionId === responseSessionId);
+
+      // Reasoning is shown inline via ReasoningSection component below response text
+
+      return (
+        <>
+          <PanelShell
+            title="Claude Response"
+            titleRight={
+              siblings.length > 1 ? (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-900/40 text-blue-300">
+                  {siblings.length} responses
+                </span>
+              ) : undefined
+            }
+            onClose={() => selectNode(null)}
+          >
+            <div className="p-4 space-y-3 text-sm flex-1 overflow-auto">
+              {/* Basic info */}
+              <Detail label="Time" value={formatTime(foundResponse.timestamp)} />
+              <Detail label="Session" value={responseSessionId.slice(0, 12)} mono />
+              {parentPrompt && (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Prompt</span>
+                  <button
+                    onClick={() => selectNode(`prompt-${parentPrompt.id}`)}
+                    className="text-amber-400 hover:text-amber-300 transition-colors truncate max-w-[180px] text-right"
+                  >
+                    {extractUserMessage(parentPrompt.text).slice(0, 50) ||
+                      parentPrompt.id.slice(0, 12)}
+                  </button>
+                </div>
+              )}
+
+              {/* Metrics */}
+              {(() => {
+                // Compute aggregate metrics across all siblings
+                const transcript = transcripts.get(responseSessionId!);
+                const assistantTurns =
+                  transcript?.turns.filter((t) => t.type === 'assistant') ?? [];
+
+                // Latency (from prompt to this specific response)
+                const latencyMs = parentPrompt
+                  ? foundResponse.timestamp - parentPrompt.timestamp
+                  : 0;
+
+                // Output tokens from nearest transcript turn
+                const nearestTurn = assistantTurns
+                  .filter((t) => Math.abs(t.timestamp - foundResponse!.timestamp) < 30_000)
+                  .sort(
+                    (a, b) =>
+                      Math.abs(a.timestamp - foundResponse!.timestamp) -
+                      Math.abs(b.timestamp - foundResponse!.timestamp),
+                  )[0];
+                const outputTokens = nearestTurn?.outputTokens ?? 0;
+
+                // Total tool count: agent-attached tools + direct/orphan tools
+                let totalToolCount = 0;
+                const allToolCounts = new Map<string, number>();
+                const countedToolIds = new Set<string>();
+                if (parentPrompt) {
+                  const nextPrompt = sessionPromptList.find(
+                    (p) => p.timestamp > parentPrompt.timestamp,
+                  );
+                  const promptWindowEnd = nextPrompt?.timestamp ?? Infinity;
+                  // Agent-attached tools
+                  for (const agent of sessionAgents) {
+                    if (
+                      agent.startTime >= parentPrompt.timestamp &&
+                      agent.startTime < promptWindowEnd
+                    ) {
+                      for (const tc of agent.toolCalls) {
+                        countedToolIds.add(tc.toolUseId);
+                        allToolCounts.set(tc.toolName, (allToolCounts.get(tc.toolName) ?? 0) + 1);
+                        totalToolCount++;
+                      }
+                    }
+                  }
+                  // Direct/orphan tools (from hooks, no agent_start)
+                  for (const [, tcs] of toolCalls) {
+                    for (const tc of tcs) {
+                      if (
+                        tc.startTime >= parentPrompt.timestamp &&
+                        tc.startTime < promptWindowEnd &&
+                        !countedToolIds.has(tc.toolUseId)
+                      ) {
+                        allToolCounts.set(tc.toolName, (allToolCounts.get(tc.toolName) ?? 0) + 1);
+                        totalToolCount++;
+                      }
+                    }
+                  }
+                }
+
+                const hasMetrics = latencyMs > 0 || outputTokens > 0 || totalToolCount > 0;
+
+                return hasMetrics ? (
+                  <>
+                    <Divider />
+                    <div className="grid grid-cols-2 gap-2">
+                      {latencyMs > 0 && (
+                        <MetricCard
+                          label="Latency"
+                          value={
+                            latencyMs < 1000
+                              ? `${Math.round(latencyMs)}ms`
+                              : `${(latencyMs / 1000).toFixed(1)}s`
+                          }
+                          color="text-gray-200"
+                        />
+                      )}
+                      {outputTokens > 0 && (
+                        <MetricCard
+                          label="Output Tokens"
+                          value={fmtTokens(outputTokens)}
+                          color="text-orange-400"
+                        />
+                      )}
+                      {totalToolCount > 0 && (
+                        <MetricCard
+                          label="Tools"
+                          value={String(totalToolCount)}
+                          color="text-purple-400"
+                        />
+                      )}
+                      {sessionAgents.filter((a) => {
+                        if (!parentPrompt) return false;
+                        const nextP = sessionPromptList.find(
+                          (p) => p.timestamp > parentPrompt.timestamp,
+                        );
+                        return (
+                          a.startTime >= parentPrompt.timestamp &&
+                          a.startTime < (nextP?.timestamp ?? Infinity)
+                        );
+                      }).length > 0 && (
+                        <MetricCard
+                          label="Agents"
+                          value={String(
+                            sessionAgents.filter((a) => {
+                              if (!parentPrompt) return false;
+                              const nextP = sessionPromptList.find(
+                                (p) => p.timestamp > parentPrompt.timestamp,
+                              );
+                              return (
+                                a.startTime >= parentPrompt.timestamp &&
+                                a.startTime < (nextP?.timestamp ?? Infinity)
+                              );
+                            }).length,
+                          )}
+                          color="text-green-400"
+                        />
+                      )}
+                    </div>
+
+                    {/* Tool badges */}
+                    {allToolCounts.size > 0 && (
+                      <div className="bg-syn-bg-primary border border-gray-800 rounded-lg px-3 py-2">
+                        <ToolBadges
+                          toolNames={[...allToolCounts.keys()]}
+                          toolCounts={Object.fromEntries(allToolCounts)}
+                          label={`Tools (${totalToolCount})`}
+                        />
+                      </div>
+                    )}
+                  </>
+                ) : null;
+              })()}
+
+              <Divider />
+
+              {/* Response text per sibling */}
+              {siblings.map((resp, i) => {
+                const isActive = resp.id === responseId;
+                const respLatencyMs = parentPrompt ? resp.timestamp - parentPrompt.timestamp : 0;
+                const respLatencyLabel =
+                  respLatencyMs <= 0
+                    ? null
+                    : respLatencyMs < 1000
+                      ? `+${respLatencyMs}ms`
+                      : `+${(respLatencyMs / 1000).toFixed(1)}s`;
+
+                return (
+                  <div key={resp.id}>
+                    {/* Divider row */}
+                    {siblings.length > 1 && (
+                      <div className="flex items-center gap-2 text-[11px] text-gray-500 mb-1.5">
+                        <span className="flex-1 border-t border-gray-700" />
+                        <span>
+                          Response {i + 1}
+                          {'  '}
+                          {formatTime(resp.timestamp)}
+                          {respLatencyLabel && <span className="ml-1">{respLatencyLabel}</span>}
+                        </span>
+                        <span className="flex-1 border-t border-gray-700" />
+                      </div>
+                    )}
+
+                    {/* Response text */}
+                    <div>
+                      <span className="text-gray-500 text-xs block mb-1.5">Response text</span>
+                      <div className="relative">
+                        <button
+                          onClick={() => {
+                            copyToClipboard(resp.text);
+                            toast('Copied');
+                          }}
+                          className="absolute top-1 right-1 px-1.5 py-0.5 rounded text-[10px] bg-gray-700/50 hover:bg-gray-600/50 text-gray-400 transition-colors z-10"
+                        >
+                          copy
+                        </button>
+                        <div
+                          className={`text-xs rounded p-3 overflow-auto max-h-72 leading-relaxed select-text ${
+                            isActive ? 'bg-blue-900/30 text-blue-100' : 'bg-gray-900 text-gray-200'
+                          }`}
+                        >
+                          {resp.text ? (
+                            formatPanelText(resp.text)
+                          ) : (
+                            <span className="text-gray-500">(empty)</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Reasoning section — scoped to parent prompt */}
+              {parentPrompt && (
+                <>
+                  <Divider />
+                  <span className="text-gray-500 text-xs block mb-1">Reasoning</span>
+                  <ReasoningSection
+                    key={`response-reasoning-${responseId}`}
+                    sessionId={responseSessionId}
+                    promptText={parentPrompt.text}
+                    promptTimestamp={parentPrompt.timestamp}
+                    compact
+                  />
+                </>
+              )}
+
+              <Divider />
+
+              <button
+                onClick={() =>
+                  setConfirmRemove({ nodeId: `response-${responseId}`, label: 'response' })
+                }
+                className="w-full px-3 py-1.5 bg-red-900/30 hover:bg-red-800/40 border border-red-700/40 rounded text-xs text-red-300 transition-colors"
+              >
+                Remove Response
+              </button>
+            </div>
+          </PanelShell>
+          {dialogs}
+        </>
+      );
+    }
   }
 
   // ── Tool group detail view ────────────────────────────────
@@ -910,9 +1198,9 @@ export function AgentDetailPanel() {
                   Tool calls ({agent.toolCalls.length})
                 </span>
                 <div className="space-y-1 max-h-60 overflow-auto">
-                  {agent.toolCalls.map((tc) => (
+                  {agent.toolCalls.map((tc, i) => (
                     <button
-                      key={tc.toolUseId}
+                      key={tc.toolUseId ?? `tc-${i}`}
                       onClick={() => selectNode(`tool-${tc.toolUseId}`)}
                       className="w-full text-left flex items-center justify-between bg-gray-900/50 hover:bg-gray-800/50 rounded px-2 py-1.5 text-xs transition-colors"
                     >
@@ -1186,6 +1474,37 @@ function PromptDetailView({
   const promptText = foundPrompt ? extractUserMessage(foundPrompt.text) : '';
   const session = foundPrompt ? sessions.get(foundPrompt.sessionId) : undefined;
 
+  // Transcript-derived response text for this prompt
+  const promptTurnGroupMap = usePromptTurnsContext();
+  const transcriptGroup = useMemo(() => {
+    if (!foundPrompt?.text) return null;
+    const groups = promptTurnGroupMap.get(foundPrompt.sessionId);
+    if (!groups?.length) return null;
+
+    const candidates = groups.filter(
+      (g) => Math.abs(g.promptTimestamp - foundPrompt.timestamp) < 5000,
+    );
+    if (candidates.length === 1) return candidates[0];
+
+    const prefix = foundPrompt.text.slice(0, 80).toLowerCase();
+    if (candidates.length > 1) {
+      return (
+        candidates.find(
+          (g) =>
+            g.promptText.toLowerCase().startsWith(prefix) ||
+            prefix.startsWith(g.promptText.slice(0, 80).toLowerCase()),
+        ) ?? candidates[0]
+      );
+    }
+    return (
+      groups.find(
+        (g) =>
+          g.promptText.toLowerCase().startsWith(prefix) ||
+          prefix.startsWith(g.promptText.slice(0, 80).toLowerCase()),
+      ) ?? null
+    );
+  }, [promptTurnGroupMap, foundPrompt]);
+
   // Find agents belonging to this prompt (started after this prompt, before the next)
   const sessionPromptList = foundPrompt ? (prompts.get(foundPrompt.sessionId) ?? []) : [];
   const promptIdx = sessionPromptList.findIndex((p) => p.id === promptId);
@@ -1426,6 +1745,37 @@ function PromptDetailView({
               </pre>
             </div>
 
+            {/* Response text (from transcript) */}
+            {transcriptGroup?.responseText && (
+              <>
+                <Divider />
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-gray-500 text-xs">Response text</span>
+                    {transcriptGroup.turns.length > 1 && (
+                      <span className="text-gray-600 text-[10px]">
+                        {transcriptGroup.turns.length} responses
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <button
+                      onClick={() => {
+                        copyToClipboard(transcriptGroup.responseText!);
+                        toast('Copied');
+                      }}
+                      className="absolute top-1 right-1 px-1.5 py-0.5 rounded text-[10px] bg-gray-700/50 hover:bg-gray-600/50 text-gray-400 transition-colors z-10"
+                    >
+                      copy
+                    </button>
+                    <div className="text-xs bg-blue-900/30 text-blue-100 rounded p-3 overflow-auto max-h-72 leading-relaxed select-text">
+                      {formatPanelText(transcriptGroup.responseText)}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
             <Divider />
 
             {/* AI Analysis Section */}
@@ -1453,7 +1803,12 @@ function PromptDetailView({
         {/* Reasoning tab */}
         {detailTab === 'reasoning' && (
           <div className="p-4 flex-1 overflow-auto">
-            <ReasoningSection key={`prompt-${promptId}`} sessionId={foundPrompt.sessionId} />
+            <ReasoningSection
+              key={`prompt-${promptId}`}
+              sessionId={foundPrompt.sessionId}
+              promptText={foundPrompt.text}
+              promptTimestamp={foundPrompt.timestamp}
+            />
           </div>
         )}
       </PanelShell>

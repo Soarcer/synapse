@@ -2,20 +2,22 @@
 // Copyright (c) 2026 Bernhard
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import type { ReasoningData } from '@synapse-ai/core';
+import type { PromptTurnData, ReasoningTurn } from '@synapse-ai/core';
 import { CollapsibleSection } from './CollapsibleSection.js';
 import { apiUrl } from '../../utils/api.js';
 
 interface PromptReasoningSummaryProps {
   sessionId: string;
+  promptText: string;
   promptTimestamp: number;
 }
 
 export function PromptReasoningSummary({
   sessionId,
+  promptText,
   promptTimestamp,
 }: PromptReasoningSummaryProps) {
-  const [data, setData] = useState<ReasoningData | null>(null);
+  const [data, setData] = useState<PromptTurnData | null>(null);
   const [loading, setLoading] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -29,12 +31,12 @@ export function PromptReasoningSummary({
     setData(null);
     setLoading(true);
 
-    fetch(apiUrl(`/api/transcript/${sessionId}/reasoning`), { signal: controller.signal })
+    fetch(apiUrl(`/api/transcript/${sessionId}/prompt-turns`), { signal: controller.signal })
       .then((r) => {
         if (!r.ok) throw new Error(`${r.status}`);
         return r.json();
       })
-      .then((d: ReasoningData) => {
+      .then((d: PromptTurnData) => {
         if (!controller.signal.aborted) setData(d);
       })
       .catch((e) => {
@@ -50,16 +52,25 @@ export function PromptReasoningSummary({
     };
   }, [sessionId]);
 
-  // Filter turns to the prompt's time window (from promptTimestamp to the next prompt or end)
-  const relevantTurns = useMemo(() => {
-    if (!data?.turns.length) return [];
-    return data.turns.filter((t) => {
-      // Include turns that occurred after this prompt timestamp
-      // A rough heuristic: within 5 minutes of the prompt
-      const diff = t.timestamp - promptTimestamp;
-      return diff >= -1000 && diff < 5 * 60 * 1000;
-    });
-  }, [data, promptTimestamp]);
+  // Match to the specific prompt's group using timestamp + text
+  const relevantTurns: ReasoningTurn[] = useMemo(() => {
+    if (!data?.groups.length || !promptText) return [];
+
+    // Primary: timestamp within ±5 seconds
+    const candidates = data.groups.filter(
+      (g) => Math.abs(g.promptTimestamp - promptTimestamp) < 5000,
+    );
+    if (candidates.length === 1) return candidates[0].turns;
+
+    // Tiebreaker: text prefix match
+    const prefix = promptText.slice(0, 80).toLowerCase();
+    const match = (candidates.length > 1 ? candidates : data.groups).find(
+      (g) =>
+        g.promptText.toLowerCase().startsWith(prefix) ||
+        prefix.startsWith(g.promptText.slice(0, 80).toLowerCase()),
+    );
+    return match?.turns ?? [];
+  }, [data, promptText, promptTimestamp]);
 
   if (loading) return null;
   if (!data || relevantTurns.length === 0) return null;
