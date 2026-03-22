@@ -8,6 +8,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
+import request from 'supertest';
+import express from 'express';
+import type { Express } from 'express';
 import {
   validateCwd,
   readHookStatus,
@@ -235,5 +238,66 @@ describe('writeHookConfig', () => {
     expect(() => writeHookConfig(tmpDir, { observation: true, remoteApproval: false })).toThrow(
       /hook script/i,
     );
+  });
+});
+
+describe('hook-config routes', () => {
+  let app: Express;
+  let tmpDir: string;
+  const fakeScript = path.join(os.tmpdir(), 'fake-send_event.cjs');
+
+  beforeEach(async () => {
+    tmpDir = path.join(os.tmpdir(), 'hookconfig-route-' + Date.now());
+    fs.mkdirSync(path.join(tmpDir, '.claude'), { recursive: true });
+    fs.writeFileSync(fakeScript, '// fake');
+    configure(fakeScript);
+
+    const { createHookConfigRouter } = await import('../routes/hookConfig.js');
+    app = express();
+    app.use(express.json());
+    app.use('/api/hook-config', createHookConfigRouter());
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    try {
+      fs.unlinkSync(fakeScript);
+    } catch {
+      /* ok */
+    }
+  });
+
+  it('GET returns 400 without cwd', async () => {
+    const res = await request(app).get('/api/hook-config');
+    expect(res.status).toBe(400);
+  });
+
+  it('GET returns status for valid cwd', async () => {
+    const res = await request(app).get('/api/hook-config').query({ cwd: tmpDir });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ observation: false, remoteApproval: false, cwd: tmpDir });
+  });
+
+  it('POST enables observation hooks', async () => {
+    const res = await request(app)
+      .post('/api/hook-config')
+      .send({ cwd: tmpDir, observation: true, remoteApproval: false });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.observation).toBe(true);
+  });
+
+  it('POST returns 400 for invalid body', async () => {
+    const res = await request(app)
+      .post('/api/hook-config')
+      .send({ cwd: tmpDir, observation: 'yes' });
+    expect(res.status).toBe(400);
+  });
+
+  it('POST returns 400 for invalid cwd', async () => {
+    const res = await request(app)
+      .post('/api/hook-config')
+      .send({ cwd: 'relative/path', observation: true, remoteApproval: false });
+    expect(res.status).toBe(400);
   });
 });

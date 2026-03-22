@@ -15,9 +15,11 @@ import { createSnapshotRouter } from './routes/snapshot.js';
 import { createAnalyticsRouter } from './routes/analytics.js';
 import { createCoachingRouter } from './routes/coaching.js';
 import { createSettingsRouter } from './routes/settings.js';
+import { Features } from '@synapse-ai/core';
 import { createPermissionsRouter } from './routes/permissions.js';
 import { createNetworkRouter } from './routes/network.js';
 import { createPushRouter } from './routes/push.js';
+import { createHookConfigRouter } from './routes/hookConfig.js';
 import { getDbStats } from './db.js';
 import { logger } from './lib/logger.js';
 
@@ -109,23 +111,27 @@ export function createApp(deps: AppDeps) {
   app.use('/api/snapshot/import', express.json({ limit: '50mb' }));
   app.use('/api/snapshot', createSnapshotRouter());
   app.use('/api/analytics', createAnalyticsRouter(broadcaster));
-  app.use('/api/analytics/coaching', createCoachingRouter());
+  if (Features.coaching) app.use('/api/analytics/coaching', createCoachingRouter());
   app.use('/api/settings', createSettingsRouter());
+  app.use('/api/hook-config', createHookConfigRouter());
   app.use('/api/permissions', createPermissionsRouter(broadcaster));
   app.use('/api/network', createNetworkRouter());
-  app.use('/api/push', createPushRouter());
+  if (Features.pushNotifications) app.use('/api/push', createPushRouter());
 
   // Health check
-  app.get('/api/health', (_req, res) => {
+  app.get('/api/health', (req, res) => {
     const dbStats = getDbStats();
-    res.json({
+    const body: Record<string, unknown> = {
       ok: true,
       clients: broadcaster.clientCount,
       agents: agentManager.getActive().length,
       mode: process.env.SYNAPSE_MODE || 'standalone',
       db: dbStats,
-      memoryUsage: process.memoryUsage(),
-    });
+    };
+    if (req.query.verbose === '1') {
+      body.memoryUsage = process.memoryUsage();
+    }
+    res.json(body);
   });
 
   // Global error handler (must be after all route registrations)
