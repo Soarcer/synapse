@@ -4,6 +4,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { HOOK_PORT } from '@synapse-ai/core/config';
 
 /** Resolved path to send_event.cjs — set via configure(). */
 let hookScriptPath: string | null = null;
@@ -88,6 +89,127 @@ export function readHookStatus(cwd: string): HookStatus {
   } catch {
     return { observation: false, remoteApproval: false };
   }
+}
+
+/**
+ * Write hook configuration to a project's settings.local.json.
+ * - observation: true → add send_event.cjs for all events
+ * - remoteApproval: true → add HTTP hook to PermissionRequest
+ * Preserves non-Synapse entries and non-send_event.cjs Synapse hooks.
+ */
+export function writeHookConfig(
+  cwd: string,
+  opts: { observation: boolean; remoteApproval: boolean },
+): void {
+  const filePath = settingsFilePath(cwd);
+
+  // Disabling both — cleanup path
+  if (!opts.observation && !opts.remoteApproval) {
+    if (!fs.existsSync(filePath)) return; // ENOENT is fine
+
+    let settings: Record<string, unknown>;
+    try {
+      settings = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    } catch {
+      return;
+    }
+
+    // Remove all Synapse hook events
+    const hooks = (settings.hooks ?? {}) as Record<string, unknown>;
+    for (const event of ALL_EVENTS) {
+      delete hooks[event];
+    }
+    if (Object.keys(hooks).length === 0) delete settings.hooks;
+
+    // Clean up file if empty
+    if (Object.keys(settings).length === 0) {
+      try {
+        fs.unlinkSync(filePath);
+      } catch {
+        /* ok */
+      }
+    } else {
+      fs.writeFileSync(filePath, JSON.stringify(settings, null, 2));
+    }
+    return;
+  }
+
+  // Enabling — need the hook script
+  if (opts.observation && !hookScriptPath) {
+    throw new Error('Hook script path not configured — call configure() first');
+  }
+  if (opts.observation && hookScriptPath && !fs.existsSync(hookScriptPath)) {
+    throw new Error(`Hook script not found: ${hookScriptPath}`);
+  }
+
+  const hookCmd = hookScriptPath ? `node "${hookScriptPath.replace(/\\/g, '/')}"` : '';
+
+  // Read existing settings
+  let settings: Record<string, unknown> = {};
+  if (fs.existsSync(filePath)) {
+    try {
+      settings = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    } catch {
+      /* start fresh */
+    }
+  }
+
+  const existingHooks = (settings.hooks ?? {}) as Record<string, unknown[]>;
+
+  if (opts.observation) {
+    // Build hook entries for each event
+    for (const event of ALL_EVENTS) {
+      // Collect non-send_event.cjs entries to preserve (e.g., send_response.cjs)
+      const existing = Array.isArray(existingHooks[event]) ? existingHooks[event] : [];
+      const preserved: Array<Record<string, unknown>> = [];
+
+      for (const matcher of existing) {
+        const m = matcher as Record<string, unknown>;
+        if (Array.isArray(m.hooks)) {
+          for (const h of m.hooks as Array<Record<string, unknown>>) {
+            const cmd = typeof h.command === 'string' ? h.command : '';
+            const isObservation = cmd.includes('send_event.cjs');
+            const isHttpPermission =
+              h.type === 'http' &&
+              typeof h.url === 'string' &&
+              (h.url as string).includes('/api/hooks/permission');
+            if (!isObservation && !isHttpPermission) {
+              preserved.push(h);
+            }
+          }
+        }
+      }
+
+      const inner: Array<Record<string, unknown>> = [
+        { type: 'command', command: hookCmd, async: true },
+        ...preserved,
+      ];
+
+      // Add HTTP hook for PermissionRequest if remote approval enabled
+      if (event === 'PermissionRequest' && opts.remoteApproval) {
+        inner.push({
+          type: 'http',
+          url: `http://localhost:${HOOK_PORT}/api/hooks/permission`,
+          timeout: 1800,
+        });
+      }
+
+      existingHooks[event] = [{ hooks: inner }];
+    }
+  } else {
+    // observation: false — remove all Synapse events
+    for (const event of ALL_EVENTS) {
+      delete existingHooks[event];
+    }
+  }
+
+  if (Object.keys(existingHooks).length === 0) {
+    delete settings.hooks;
+  } else {
+    settings.hooks = existingHooks;
+  }
+
+  fs.writeFileSync(filePath, JSON.stringify(settings, null, 2));
 }
 
 /**
