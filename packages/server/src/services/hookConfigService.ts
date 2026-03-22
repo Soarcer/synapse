@@ -41,6 +41,55 @@ function settingsFilePath(cwd: string): string {
   return path.join(cwd, '.claude', 'settings.local.json');
 }
 
+export interface HookStatus {
+  observation: boolean;
+  remoteApproval: boolean;
+}
+
+/**
+ * Read the current hook status from a project's settings.local.json.
+ * Returns { observation, remoteApproval } booleans.
+ */
+export function readHookStatus(cwd: string): HookStatus {
+  const filePath = settingsFilePath(cwd);
+  if (!fs.existsSync(filePath)) {
+    return { observation: false, remoteApproval: false };
+  }
+
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+
+    // Quick string check for observation (matches CLI's isHooked())
+    const observation = content.includes('send_event.cjs');
+
+    // Parse for structured remoteApproval check
+    let remoteApproval = false;
+    if (observation) {
+      const settings = JSON.parse(content) as Record<string, unknown>;
+      const hooks = settings?.hooks as Record<string, unknown> | undefined;
+      const permHooks = hooks?.PermissionRequest;
+      if (Array.isArray(permHooks)) {
+        for (const matcher of permHooks as Array<Record<string, unknown>>) {
+          const innerHooks = Array.isArray(matcher?.hooks)
+            ? (matcher.hooks as Array<Record<string, unknown>>)
+            : [];
+          remoteApproval = innerHooks.some(
+            (h: Record<string, unknown>) =>
+              h.type === 'http' &&
+              typeof h.url === 'string' &&
+              (h.url as string).includes('/api/hooks/permission'),
+          );
+          if (remoteApproval) break;
+        }
+      }
+    }
+
+    return { observation, remoteApproval };
+  } catch {
+    return { observation: false, remoteApproval: false };
+  }
+}
+
 /**
  * Validate cwd is safe to read/write hook config for.
  * Throws on invalid paths.
