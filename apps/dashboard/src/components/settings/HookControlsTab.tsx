@@ -207,6 +207,10 @@ export function HookControlsTab({ open, onClose }: Props) {
               </p>
             )}
 
+            {uiState === 'error' && !config && error && (
+              <p className="text-[10px] text-red-400">{error}</p>
+            )}
+
             {(uiState === 'ready' || uiState === 'saving' || uiState === 'error') && config && (
               <div className="space-y-3">
                 {/* Observation toggle */}
