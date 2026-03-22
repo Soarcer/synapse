@@ -6,73 +6,162 @@ import { apiUrl } from '../../utils/api';
 import { QRCodePanel } from './QRCodePanel';
 import { PushSetup } from './PushSetup';
 import { usePermissionStore } from '../../store/permissionStore';
+import { Features } from '@synapse-ai/core';
+import { projectCwd } from '../../store/agentStore';
 
 interface Props {
   open: boolean;
   onClose: () => void;
 }
 
-interface HookStatus {
-  running: boolean;
-  port: number;
-  pending?: number;
+interface HookConfig {
+  observation: boolean;
+  remoteApproval: boolean;
+  cwd: string;
 }
 
-function buildConfigSnippet(hookPort: number): string {
-  return JSON.stringify(
-    {
-      hooks: {
-        PermissionRequest: [
-          {
-            type: 'http',
-            url: `http://localhost:${hookPort}/api/hooks/permission`,
-          },
-        ],
-      },
-    },
-    null,
-    2,
-  );
-}
+type UiState = 'loading' | 'ready' | 'saving' | 'error' | 'no-project';
 
 export function HookControlsTab({ open, onClose }: Props) {
-  const [status, setStatus] = useState<HookStatus | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [config, setConfig] = useState<HookConfig | null>(null);
+  const [hookServerRunning, setHookServerRunning] = useState(false);
+  const [uiState, setUiState] = useState<UiState>('loading');
+  const [error, setError] = useState<string | null>(null);
   const resolved = usePermissionStore((s) => s.resolved);
 
-  // Poll hook server status when tab opens
+  // Resolve cwd — use projectCwd from URL, fallback to most recent session
+  const resolveCwd = useCallback(async (): Promise<string | null> => {
+    if (projectCwd) return projectCwd;
+    try {
+      // Server returns up to 500 sessions; we only need the first one
+      const res = await fetch(apiUrl('/api/events/sessions'));
+      if (!res.ok) return null;
+      const sessions = await res.json();
+      if (Array.isArray(sessions) && sessions.length > 0 && sessions[0].cwd) {
+        return sessions[0].cwd;
+      }
+    } catch {
+      /* ok */
+    }
+    return null;
+  }, []);
+
+  // Fetch hook config + hook server status on open
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    fetch(apiUrl('/api/hook-server/status'))
-      .then((r) => r.json())
-      .then((data: HookStatus) => {
-        if (!cancelled) setStatus(data);
-      })
-      .catch(() => {
-        if (!cancelled) setStatus({ running: false, port: 27247 });
-      });
+
+    async function load() {
+      setUiState('loading');
+      setError(null);
+
+      // Fetch hook server status in parallel
+      const hookStatusP = fetch(apiUrl('/api/hook-server/status'))
+        .then((r) => r.json())
+        .then((d: Record<string, unknown>) => d.running === true)
+        .catch(() => false);
+
+      const cwd = await resolveCwd();
+      if (cancelled) return;
+
+      if (!cwd) {
+        setUiState('no-project');
+        setHookServerRunning(await hookStatusP);
+        return;
+      }
+
+      try {
+        const [hookRunning, configRes] = await Promise.all([
+          hookStatusP,
+          fetch(apiUrl(`/api/hook-config?cwd=${encodeURIComponent(cwd)}`)),
+        ]);
+        if (cancelled) return;
+
+        setHookServerRunning(hookRunning);
+
+        if (configRes.ok) {
+          const data: HookConfig = await configRes.json();
+          setConfig(data);
+          setUiState('ready');
+        } else {
+          const err = await configRes.json().catch(() => ({ error: 'Unknown error' }));
+          setError((err as Record<string, string>).error ?? 'Failed to load hook config');
+          setUiState('error');
+        }
+      } catch {
+        if (!cancelled) {
+          setError('Could not reach server');
+          setUiState('error');
+        }
+      }
+    }
+
+    load();
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, resolveCwd]);
 
-  const configSnippet = buildConfigSnippet(status?.port ?? 27247);
+  // Toggle handler
+  const handleToggle = useCallback(
+    async (field: 'observation' | 'remoteApproval') => {
+      if (!config) return;
 
-  const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(configSnippet);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Fallback — clipboard API unavailable
-    }
-  }, [configSnippet]);
+      const prev = { ...config };
+      const next = { ...config, [field]: !config[field] };
+
+      // Dependency: enabling remoteApproval auto-enables observation
+      if (field === 'remoteApproval' && !config.remoteApproval) {
+        next.observation = true;
+      }
+      // Dependency: disabling observation auto-disables remoteApproval
+      if (field === 'observation' && config.observation) {
+        next.remoteApproval = false;
+      }
+
+      setConfig(next);
+      setUiState('saving');
+      setError(null);
+
+      try {
+        const res = await fetch(apiUrl('/api/hook-config'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            cwd: config.cwd,
+            observation: next.observation,
+            remoteApproval: next.remoteApproval,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setConfig({
+            cwd: config.cwd,
+            observation: data.observation,
+            remoteApproval: data.remoteApproval,
+          });
+          setUiState('ready');
+        } else {
+          const err = await res.json().catch(() => ({ error: 'Unknown error' }));
+          setConfig(prev); // revert
+          setError((err as Record<string, string>).error ?? 'Failed to update hooks');
+          setUiState('error');
+        }
+      } catch {
+        setConfig(prev); // revert
+        setError('Could not reach server');
+        setUiState('error');
+      }
+    },
+    [config],
+  );
 
   if (!open) return null;
 
   const approved = resolved.filter((r) => r.behavior === 'allow').length;
   const denied = resolved.filter((r) => r.behavior === 'deny').length;
+  const isSaving = uiState === 'saving';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -101,48 +190,101 @@ export function HookControlsTab({ open, onClose }: Props) {
           {/* QR Code section */}
           <QRCodePanel />
 
-          {/* Hook Server Status */}
+          {/* Hook Setup */}
           <section>
-            <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-2">
-              Hook Server Status
-            </h3>
-            <div className="flex items-center gap-2">
-              <span
-                className={`w-2 h-2 rounded-full ${status?.running ? 'bg-green-400' : 'bg-red-400'}`}
-              />
-              <span className="text-xs text-gray-300">
-                {status?.running
-                  ? `Running on port ${status.port}`
-                  : 'Unavailable — using terminal fallback'}
-              </span>
-              {status?.running && status.pending != null && status.pending > 0 && (
-                <span className="text-[10px] text-amber-400 ml-auto">{status.pending} pending</span>
-              )}
-            </div>
+            <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-3">Hook Setup</h3>
+
+            {uiState === 'loading' && (
+              <div className="space-y-3">
+                <div className="h-10 bg-gray-800/50 rounded-lg animate-pulse" />
+                <div className="h-10 bg-gray-800/50 rounded-lg animate-pulse" />
+              </div>
+            )}
+
+            {uiState === 'no-project' && (
+              <p className="text-xs text-gray-500 italic">
+                No project detected. Open Synapse from a project directory to configure hooks.
+              </p>
+            )}
+
+            {(uiState === 'ready' || uiState === 'saving' || uiState === 'error') && config && (
+              <div className="space-y-3">
+                {/* Observation toggle */}
+                <div className="flex items-center justify-between rounded-lg bg-gray-800/30 px-3 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`w-2 h-2 rounded-full ${config.observation ? 'bg-green-400' : 'bg-gray-600'}`}
+                    />
+                    <div>
+                      <p className="text-xs text-gray-200 font-medium">Observation Hooks</p>
+                      <p className="text-[10px] text-gray-500">
+                        Monitor sessions, tools, and agent activity
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleToggle('observation')}
+                    disabled={isSaving}
+                    className={`relative w-9 h-5 rounded-full transition-colors ${
+                      config.observation ? 'bg-green-600' : 'bg-gray-600'
+                    } ${isSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    aria-label={
+                      config.observation ? 'Disable observation hooks' : 'Enable observation hooks'
+                    }
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                        config.observation ? 'translate-x-4' : ''
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Remote Approval toggle */}
+                <div className="flex items-center justify-between rounded-lg bg-gray-800/30 px-3 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`w-2 h-2 rounded-full ${config.remoteApproval ? 'bg-green-400' : 'bg-gray-600'}`}
+                    />
+                    <div>
+                      <p className="text-xs text-gray-200 font-medium">Remote Approval</p>
+                      <p className="text-[10px] text-gray-500">
+                        Route permission prompts to this dashboard
+                      </p>
+                    </div>
+                  </div>
+                  <div className="relative group">
+                    <button
+                      onClick={() => handleToggle('remoteApproval')}
+                      disabled={isSaving || !hookServerRunning}
+                      className={`relative w-9 h-5 rounded-full transition-colors ${
+                        config.remoteApproval ? 'bg-green-600' : 'bg-gray-600'
+                      } ${isSaving || !hookServerRunning ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                      aria-label={
+                        config.remoteApproval ? 'Disable remote approval' : 'Enable remote approval'
+                      }
+                    >
+                      <span
+                        className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                          config.remoteApproval ? 'translate-x-4' : ''
+                        }`}
+                      />
+                    </button>
+                    {!hookServerRunning && (
+                      <div className="absolute right-0 bottom-full mb-1.5 px-2 py-1 text-[10px] text-gray-300 bg-gray-900 border border-gray-700 rounded shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                        Start Synapse with remote approval to enable
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Error message */}
+                {error && <p className="text-[10px] text-red-400 mt-1">{error}</p>}
+              </div>
+            )}
           </section>
 
-          {/* Permission Approval Setup */}
-          <section>
-            <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-2">
-              Permission Approval
-            </h3>
-            <p className="text-xs text-gray-400 mb-3">
-              Route permission prompts to this dashboard. Add to{' '}
-              <code className="text-gray-300 bg-gray-800 px-1 rounded">.claude/settings.json</code>:
-            </p>
-            <pre className="bg-gray-950/60 border border-gray-800 rounded-lg p-3 text-[11px] text-gray-300 font-mono overflow-x-auto">
-              {configSnippet}
-            </pre>
-            <button
-              onClick={handleCopy}
-              className="mt-2 flex items-center gap-1.5 px-3 py-1.5 text-xs rounded bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors border border-gray-700/50"
-              aria-label={copied ? 'Copied' : 'Copy config snippet'}
-            >
-              {copied ? 'Copied!' : 'Copy config snippet'}
-            </button>
-          </section>
-
-          {/* Session stats (only when there are resolved permissions) */}
+          {/* Session stats */}
           {resolved.length > 0 && (
             <section>
               <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-2">Session Stats</h3>
@@ -154,7 +296,7 @@ export function HookControlsTab({ open, onClose }: Props) {
           )}
 
           {/* Push Notifications */}
-          <PushSetup />
+          {Features.pushNotifications && <PushSetup />}
 
           {/* Bypass note */}
           <div className="bg-blue-950/20 border border-blue-800/30 rounded-lg p-3">
