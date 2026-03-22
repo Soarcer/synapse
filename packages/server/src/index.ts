@@ -19,10 +19,12 @@ import { initDb, closeDb, startPruneTimer } from './db.js';
 import { seedBuiltInTemplates } from './services/playbookService.js';
 import { registerAllRules } from './services/rules/index.js';
 import { createHookApp } from './hookServer.js';
+import { FileEventRelay } from './services/fileEventRelay.js';
 import { pending, stopConnectionMonitor } from './state/permissionState.js';
 import { initPush } from './services/pushService.js';
 import { selectLanIp } from './routes/network.js';
 import { Features } from '@synapse-ai/core';
+import { configure as configureHookService } from './services/hookConfigService.js';
 
 import {
   SYNAPSE_PORT,
@@ -53,9 +55,52 @@ if (Features.pushNotifications) initPush();
 const broadcaster = new Broadcaster();
 const agentManager = new AgentManager();
 
+// --- File event relay (zero-cost hook delivery — no per-event process spawning) ---
+const relayPath = path.join(os.tmpdir(), `synapse_relay_${SYNAPSE_PORT}.jsonl`);
+const offsetPath = path.join(os.tmpdir(), `synapse_relay_offset_${SYNAPSE_PORT}.json`);
+const fileRelay = new FileEventRelay(relayPath, offsetPath, broadcaster);
+fileRelay.start();
+
 // --- Express App ---
 
 const app = createApp({ broadcaster, agentManager });
+
+// --- Hook config service setup ---
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+function resolveHookScript(): string | null {
+  // 1. Env var override
+  if (process.env.SYNAPSE_HOOKS_DIR) {
+    const p = path.join(process.env.SYNAPSE_HOOKS_DIR, 'send_event.cjs');
+    if (fs.existsSync(p)) return p;
+  }
+  // 2. Walk up from __dirname looking for pnpm-workspace.yaml (monorepo root)
+  let dir = __dirname;
+  for (let i = 0; i < 10; i++) {
+    if (fs.existsSync(path.join(dir, 'pnpm-workspace.yaml'))) {
+      const p = path.join(dir, 'hooks', 'send_event.cjs');
+      if (fs.existsSync(p)) return p;
+      break;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  // 3. VS Code bundle layout (hooks/ sibling to server.mjs)
+  const bundled = path.join(__dirname, 'hooks', 'send_event.cjs');
+  if (fs.existsSync(bundled)) return bundled;
+
+  return null;
+}
+
+const hookScript = resolveHookScript();
+if (hookScript) {
+  configureHookService(hookScript);
+  logger.info({ hookScript }, 'Hook config service initialized');
+} else {
+  logger.warn('Could not find send_event.cjs — hook config API will not write hooks');
+}
 
 // --- Hook server status on main server (must be before catch-all SPA route) ---
 let hookServerRunning = false;
@@ -63,9 +108,13 @@ app.get('/api/hook-server/status', (_req, res) => {
   res.json({ running: hookServerRunning, port: CONFIG_HOOK_PORT, pending: pending.size });
 });
 
+// --- File relay status (diagnostic endpoint) ---
+app.get('/api/relay/status', (_req, res) => {
+  res.json(fileRelay.getStatus());
+});
+
 // --- Serve built frontend OR dev status page ---
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const explicitDashDir = process.env.SYNAPSE_DASHBOARD_DIR;
 // Candidate paths in priority order:
 // 1. Explicit env override (set by VS Code extension serverManager)
@@ -174,6 +223,19 @@ await failLoudBind(server, SYNAPSE_PORT, HOST, 'main server');
 process.stdout.write(`SYNAPSE_PORT=${SYNAPSE_PORT}\n`);
 logger.info({ host: HOST, port: SYNAPSE_PORT }, 'Synapse server started');
 
+// Clear the hook circuit breaker so hooks resume sending.
+// The CB file is written by send_event.cjs / send_response.cjs when the server
+// was unreachable — deleting it signals "server is back".
+try {
+  const cbFile = path.join(os.tmpdir(), `synapse_cb_${SYNAPSE_PORT}.json`);
+  if (fs.existsSync(cbFile)) {
+    fs.unlinkSync(cbFile);
+    logger.info('Cleared hook circuit breaker');
+  }
+} catch {
+  /* ignore — file may not exist */
+}
+
 // --- HTTP fallback (always started — hooks and Vite proxy connect here) ---
 try {
   await new Promise<void>((resolve, reject) => {
@@ -281,9 +343,10 @@ httpFallbackWss?.on('connection', handleWsConnection);
 function shutdown() {
   logger.info('Shutting down...');
 
-  // 0. Stop prune timer and connection monitor
+  // 0. Stop prune timer, connection monitor, and file relay
   if (pruneTimer) clearInterval(pruneTimer);
   stopConnectionMonitor();
+  fileRelay.stop();
 
   // 1. Drain pending permissions — deny all before shutdown
   for (const [, entry] of pending.entries()) {
