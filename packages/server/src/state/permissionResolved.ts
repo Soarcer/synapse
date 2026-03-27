@@ -10,8 +10,15 @@ export function buildPermissionResolved(
   id: string,
   behavior: 'allow' | 'deny' | 'auto-dismissed',
   event: Record<string, unknown>,
-): { type: 'permissionResolved'; data: Record<string, unknown> } {
-  const data: Record<string, unknown> = { id, behavior };
+): {
+  type: 'permissionResolved';
+  data: { id: string; behavior: 'allow' | 'deny' | 'auto-dismissed'; [key: string]: unknown };
+} {
+  const data: {
+    id: string;
+    behavior: 'allow' | 'deny' | 'auto-dismissed';
+    [key: string]: unknown;
+  } = { id, behavior };
 
   const sessionId = event.session_id as string | undefined;
   const toolUseId = event.tool_use_id as string | undefined;

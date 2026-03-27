@@ -74,7 +74,7 @@ export function ingestRawEvent(
   try {
     // Pre-normalized events from OpenClaw plugin bypass the adapter registry
     if (raw.eventSource === 'openclaw' && raw.id && raw.type && raw.sessionId) {
-      storePreNormalized(raw as Parameters<typeof storePreNormalized>[0], broadcaster);
+      storePreNormalized(raw as unknown as Parameters<typeof storePreNormalized>[0], broadcaster);
       logger.info(
         { eventSource: 'openclaw', type: raw.type, sessionId: raw.sessionId },
         'Event received',

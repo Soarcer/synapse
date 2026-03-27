@@ -549,7 +549,17 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   setTranscript: (sessionId, data) => {
     const transcripts = new Map(get().transcripts);
     transcripts.set(sessionId, data);
-    set({ transcripts });
+
+    // Backfill session model from transcript if missing
+    const session = get().sessions.get(sessionId);
+    if (session && !session.model && data.modelUsage.length > 0) {
+      const primary = data.modelUsage.reduce((a, b) => (b.calls > a.calls ? b : a));
+      const sessions = new Map(get().sessions);
+      sessions.set(sessionId, { ...session, model: primary.model });
+      set({ transcripts, sessions });
+    } else {
+      set({ transcripts });
+    }
   },
 
   setTranscriptReasoning: (sessionId, data) => {
@@ -777,7 +787,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       type: status === 'error' ? 'tool_error' : 'tool_end',
       sessionId,
       timestamp: Date.now(),
-      eventSource: 'hook',
+      eventSource: 'synthetic',
       vendor: 'anthropic',
       toolUseId: resolvedToolUseId,
       status,

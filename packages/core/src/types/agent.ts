@@ -49,7 +49,7 @@ export interface AgentEvent {
   notificationType?: string; // permission_prompt/idle_prompt/auth_success
   compactTrigger?: string; // manual/auto
   gitBranch?: string; // Git branch from session metadata
-  eventSource?: 'hook' | 'sdk' | 'openclaw'; // Where the event originated
+  eventSource?: 'hook' | 'sdk' | 'openclaw' | 'synthetic'; // Where the event originated
 
   // Multi-vendor support (OpenClaw integration)
   vendor?: string; // 'anthropic' | 'openai' | 'google' | 'groq' | 'openrouter' | 'custom'
