@@ -9,7 +9,7 @@ import type {
   AssistantResponseData,
   PromptTurnGroup,
 } from '@synapse-ai/core';
-import { formatTokens, formatTime } from '@synapse-ai/core';
+import { formatTokens, formatTime, formatModelName } from '@synapse-ai/core';
 import { useHandlePositions } from '../../../hooks/useHandlePositions';
 import { useAgentStore } from '../../../store/agentStore';
 import { usePromptTurnsContext } from '../../../hooks/usePromptTurns';
@@ -35,6 +35,7 @@ function UserPromptNodeComponent({ data }: NodeProps) {
   const isHighlighted = !isSelected && highlightedNodeIds?.has(nodeId);
 
   const transcripts = useAgentStore((s) => s.transcripts);
+  const sessionModel = useAgentStore((s) => s.sessions.get(prompt.sessionId))?.model;
 
   // Response data for conversation threading
   const allResponses = useAgentStore((s) => s.responses.get(prompt.sessionId)) ?? EMPTY_RESPONSES;
@@ -234,7 +235,9 @@ function UserPromptNodeComponent({ data }: NodeProps) {
               {isExpanded ? '\u25BE' : '>'}
             </span>
             <div className="flex items-center gap-1 mb-0.5">
-              <span className="text-blue-400 text-[10px] font-semibold">Claude</span>
+              <span className="text-blue-400 text-[10px] font-semibold">
+                {formatModelName(sessionModel) ?? 'Claude'}
+              </span>
               <span className="text-gray-500 text-[10px]">{isExpanded ? '\u25BE' : '\u25B8'}</span>
               {displayResponseCount > 1 && (
                 <span className="text-gray-500 text-[10px] ml-auto">
