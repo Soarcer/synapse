@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Bernhard
 
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useState, useEffect } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { ToolCallSummary } from '@synapse-ai/core';
 import { formatDuration, getToolIcon } from '@synapse-ai/core';
@@ -9,6 +9,7 @@ import { useTranscriptDetail, findThinkingForTool } from '../../../hooks/useTran
 import { useAgentStore } from '../../../store/agentStore';
 import { Tooltip } from '../../ui/Tooltip';
 import { GAME_MODES_ENABLED, GAME_MODE_REGISTRY, ArcadeOverlay } from './game-modes';
+import { closeAudioCtx } from './game-modes/arcade-utils';
 
 // ── Tool color map (shared across modes) ─────────────────────
 
@@ -89,11 +90,23 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
   const arcadeSoundEnabled = useAgentStore((s) => s.arcadeSoundEnabled);
   const arcadeVolume = useAgentStore((s) => s.arcadeVolume);
 
-  // Find the active game mode's scorer (if any)
-  const activeScorer = useMemo(() => {
-    const mode = GAME_MODE_REGISTRY.find((m) => m.id === toolGroupMode);
-    return mode?.scorer;
+  // Find the active game mode's scorer and hideScore flag (if any)
+  const activeMode = useMemo(
+    () => GAME_MODE_REGISTRY.find((m) => m.id === toolGroupMode),
+    [toolGroupMode],
+  );
+  const activeScorer = activeMode?.scorer;
+
+  // Live score reported by the active game component
+  const [liveScore, setLiveScore] = useState<import('./game-modes').GameScore | null>(null);
+  // Reset live score when switching modes; close audio when leaving arcade
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: reset derived state on mode change
+  useEffect(() => {
+    setLiveScore(null);
   }, [toolGroupMode]);
+  useEffect(() => {
+    if (!arcadeMode) closeAudioCtx();
+  }, [arcadeMode]);
 
   // Reasoning tooltip support
   const agentData = agents.get(parentAgentId);
@@ -222,6 +235,8 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
         volume={arcadeVolume}
         tools={tools}
         scorer={activeScorer}
+        hideScore={activeMode?.hideScore}
+        liveScore={liveScore}
       >
         <div className="p-2">
           {toolGroupMode === 'pillGrid' && (
@@ -244,7 +259,12 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
               if (!mode) return null;
               const GameMode = mode.component;
               return (
-                <GameMode tools={tools} selectedNodeId={selectedNodeId} selectNode={selectNode} />
+                <GameMode
+                  tools={tools}
+                  selectedNodeId={selectedNodeId}
+                  selectNode={selectNode}
+                  onScoreChange={setLiveScore}
+                />
               );
             })()}
         </div>

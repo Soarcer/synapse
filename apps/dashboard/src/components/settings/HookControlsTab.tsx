@@ -22,11 +22,19 @@ interface HookConfig {
 
 type UiState = 'loading' | 'ready' | 'saving' | 'error' | 'no-project';
 
+interface PendingToggle {
+  field: 'observation' | 'remoteApproval';
+  next: HookConfig;
+  prev: HookConfig;
+}
+
 export function HookControlsTab({ open, onClose }: Props) {
   const [config, setConfig] = useState<HookConfig | null>(null);
   const [hookServerRunning, setHookServerRunning] = useState(false);
   const [uiState, setUiState] = useState<UiState>('loading');
   const [error, setError] = useState<string | null>(null);
+  const [pendingToggle, setPendingToggle] = useState<PendingToggle | null>(null);
+  const [showReloadNotice, setShowReloadNotice] = useState(false);
   const resolved = usePermissionStore((s) => s.resolved);
 
   // Resolve cwd — use projectCwd from URL, fallback to most recent session
@@ -102,9 +110,9 @@ export function HookControlsTab({ open, onClose }: Props) {
     };
   }, [open, resolveCwd]);
 
-  // Toggle handler
+  // Toggle handler — shows confirmation before writing
   const handleToggle = useCallback(
-    async (field: 'observation' | 'remoteApproval') => {
+    (field: 'observation' | 'remoteApproval') => {
       if (!config) return;
 
       const prev = { ...config };
@@ -119,43 +127,58 @@ export function HookControlsTab({ open, onClose }: Props) {
         next.remoteApproval = false;
       }
 
-      setConfig(next);
-      setUiState('saving');
-      setError(null);
-
-      try {
-        const res = await fetch(apiUrl('/api/hook-config'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            cwd: config.cwd,
-            observation: next.observation,
-            remoteApproval: next.remoteApproval,
-          }),
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          setConfig({
-            cwd: config.cwd,
-            observation: data.observation,
-            remoteApproval: data.remoteApproval,
-          });
-          setUiState('ready');
-        } else {
-          const err = await res.json().catch(() => ({ error: 'Unknown error' }));
-          setConfig(prev); // revert
-          setError((err as Record<string, string>).error ?? 'Failed to update hooks');
-          setUiState('error');
-        }
-      } catch {
-        setConfig(prev); // revert
-        setError('Could not reach server');
-        setUiState('error');
-      }
+      setPendingToggle({ field, next, prev });
     },
     [config],
   );
+
+  // Confirm handler — actually writes settings
+  const confirmToggle = useCallback(async () => {
+    if (!pendingToggle || !config) return;
+    const { next, prev } = pendingToggle;
+
+    setPendingToggle(null);
+    setConfig(next);
+    setUiState('saving');
+    setError(null);
+    setShowReloadNotice(false);
+
+    try {
+      const res = await fetch(apiUrl('/api/hook-config'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cwd: config.cwd,
+          observation: next.observation,
+          remoteApproval: next.remoteApproval,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setConfig({
+          cwd: config.cwd,
+          observation: data.observation,
+          remoteApproval: data.remoteApproval,
+        });
+        setUiState('ready');
+        setShowReloadNotice(true);
+      } else {
+        const err = await res.json().catch(() => ({ error: 'Unknown error' }));
+        setConfig(prev); // revert
+        setError((err as Record<string, string>).error ?? 'Failed to update hooks');
+        setUiState('error');
+      }
+    } catch {
+      setConfig(prev); // revert
+      setError('Could not reach server');
+      setUiState('error');
+    }
+  }, [pendingToggle, config]);
+
+  const cancelToggle = useCallback(() => {
+    setPendingToggle(null);
+  }, []);
 
   if (!open) return null;
 
@@ -245,45 +268,158 @@ export function HookControlsTab({ open, onClose }: Props) {
                 </div>
 
                 {/* Remote Approval toggle */}
-                <div className="flex items-center justify-between rounded-lg bg-gray-800/30 px-3 py-2.5">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`w-2 h-2 rounded-full ${config.remoteApproval ? 'bg-green-400' : 'bg-gray-600'}`}
-                    />
-                    <div>
-                      <p className="text-xs text-gray-200 font-medium">Remote Approval</p>
-                      <p className="text-[10px] text-gray-500">
-                        Route permission prompts to this dashboard
-                      </p>
+                <div className="rounded-lg bg-gray-800/30 px-3 py-2.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`w-2 h-2 rounded-full ${config.remoteApproval ? 'bg-green-400' : 'bg-gray-600'}`}
+                      />
+                      <div>
+                        <p className="text-xs text-gray-200 font-medium">Remote Approval</p>
+                        <p className="text-[10px] text-gray-500">
+                          Route permission prompts to this dashboard
+                        </p>
+                      </div>
+                    </div>
+                    <div className="relative group">
+                      <button
+                        onClick={() => handleToggle('remoteApproval')}
+                        disabled={isSaving || !hookServerRunning}
+                        className={`relative w-9 h-5 rounded-full transition-colors ${
+                          config.remoteApproval ? 'bg-green-600' : 'bg-gray-600'
+                        } ${isSaving || !hookServerRunning ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                        aria-label={
+                          config.remoteApproval
+                            ? 'Disable remote approval'
+                            : 'Enable remote approval'
+                        }
+                      >
+                        <span
+                          className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                            config.remoteApproval ? 'translate-x-4' : ''
+                          }`}
+                        />
+                      </button>
                     </div>
                   </div>
-                  <div className="relative group">
-                    <button
-                      onClick={() => handleToggle('remoteApproval')}
-                      disabled={isSaving || !hookServerRunning}
-                      className={`relative w-9 h-5 rounded-full transition-colors ${
-                        config.remoteApproval ? 'bg-green-600' : 'bg-gray-600'
-                      } ${isSaving || !hookServerRunning ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                      aria-label={
-                        config.remoteApproval ? 'Disable remote approval' : 'Enable remote approval'
-                      }
-                    >
-                      <span
-                        className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                          config.remoteApproval ? 'translate-x-4' : ''
-                        }`}
-                      />
-                    </button>
-                    {!hookServerRunning && (
-                      <div className="absolute right-0 bottom-full mb-1.5 px-2 py-1 text-[10px] text-gray-300 bg-gray-900 border border-gray-700 rounded shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                        Start Synapse with remote approval to enable
-                      </div>
-                    )}
+
+                  {/* Hook server status */}
+                  <div
+                    className={`flex items-start gap-2 rounded-md px-2.5 py-2 text-[10px] leading-relaxed ${
+                      hookServerRunning
+                        ? 'bg-green-950/20 border border-green-800/30 text-green-300/80'
+                        : 'bg-amber-950/20 border border-amber-800/30 text-amber-300/80'
+                    }`}
+                  >
+                    <span className="mt-px shrink-0">
+                      {hookServerRunning ? (
+                        <svg
+                          className="w-3 h-3"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2.5}
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      ) : (
+                        <svg
+                          className="w-3 h-3"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2.5}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M12 9v4m0 4h.01M12 2a10 10 0 100 20 10 10 0 000-20z"
+                          />
+                        </svg>
+                      )}
+                    </span>
+                    <div>
+                      {hookServerRunning ? (
+                        <span>
+                          Approval server running on port{' '}
+                          <code className="text-green-200 bg-green-900/30 px-0.5 rounded">
+                            27247
+                          </code>
+                        </span>
+                      ) : (
+                        <>
+                          <p className="font-medium text-amber-200">Approval server not running</p>
+                          <p className="mt-0.5">
+                            This can happen if Synapse was started with{' '}
+                            <code className="text-amber-200 bg-amber-900/30 px-0.5 rounded">
+                              --observe-only
+                            </code>{' '}
+                            or port 27247 was busy at launch. Restart without that flag to enable:
+                          </p>
+                          <code className="mt-1 block bg-gray-900/60 text-gray-300 px-2 py-1 rounded font-mono select-all">
+                            synapse start -d
+                          </code>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
 
                 {/* Error message */}
                 {error && <p className="text-[10px] text-red-400 mt-1">{error}</p>}
+
+                {/* Confirmation dialog */}
+                {pendingToggle && (
+                  <div className="bg-gray-900/80 border border-gray-600 rounded-lg p-3 space-y-2">
+                    <p className="text-[11px] text-gray-200 leading-relaxed">
+                      This will modify{' '}
+                      <code className="text-gray-300 bg-gray-800 px-1 rounded text-[10px]">
+                        .claude/settings.local.json
+                      </code>{' '}
+                      in your project directory. Continue?
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={confirmToggle}
+                        className="px-3 py-1 text-[11px] font-medium rounded bg-blue-600 hover:bg-blue-500 text-white transition-colors"
+                      >
+                        Apply
+                      </button>
+                      <button
+                        onClick={cancelToggle}
+                        className="px-3 py-1 text-[11px] font-medium rounded bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Reload notice after successful save */}
+                {showReloadNotice && !pendingToggle && (
+                  <div className="flex items-start gap-2 bg-amber-950/20 border border-amber-800/30 rounded-lg px-2.5 py-2 text-[10px] text-amber-300/80 leading-relaxed">
+                    <svg
+                      className="w-3 h-3 mt-px shrink-0 text-amber-400"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 9v4m0 4h.01M12 2a10 10 0 100 20 10 10 0 000-20z"
+                      />
+                    </svg>
+                    <span>
+                      Settings saved.{' '}
+                      <span className="text-amber-200 font-medium">
+                        Active Claude sessions need to be reloaded
+                      </span>{' '}
+                      for changes to take effect.
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </section>

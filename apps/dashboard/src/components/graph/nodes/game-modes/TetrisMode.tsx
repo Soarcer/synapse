@@ -28,6 +28,22 @@ const ROWS = 16;
 const CELL = 16;
 const BLOCK_W = 2;
 
+// Inject keyframes once (uses computed ROWS * CELL value)
+let tetrisKeyframesInjected = false;
+function injectTetrisKeyframes() {
+  if (tetrisKeyframesInjected) return;
+  tetrisKeyframesInjected = true;
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes tetris-drop {
+      0% { transform: translateY(-${ROWS * CELL}px); opacity: 0.3; }
+      70% { transform: translateY(4px); opacity: 0.85; }
+      100% { transform: translateY(0); opacity: 0.85; }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 interface BlockPlacement {
   tc: ToolCallSummary;
   col: number;
@@ -86,9 +102,11 @@ interface Props {
 }
 
 export function TetrisMode({ tools, selectedNodeId, selectNode }: Props) {
-  const blocks = useMemo(() => {
+  injectTetrisKeyframes();
+  const { blocks } = useMemo(() => {
     const grid: boolean[][] = Array.from({ length: ROWS }, () => Array(COLS).fill(false));
     const placements: BlockPlacement[] = [];
+    let lines = 0;
 
     const seed = tools.length > 0 ? hashCode(tools[0].toolUseId) : 42;
     const rng = mulberry32(seed);
@@ -137,6 +155,7 @@ export function TetrisMode({ tools, selectedNodeId, selectNode }: Props) {
       // Step 4: Line clearing — detect full rows, remove, collapse above
       for (let r = 0; r < ROWS; r++) {
         if (grid[r].every(Boolean)) {
+          lines++;
           // Clear this row: shift all rows above down by 1
           grid.splice(r, 1);
           grid.push(Array(COLS).fill(false));
@@ -149,7 +168,7 @@ export function TetrisMode({ tools, selectedNodeId, selectNode }: Props) {
       }
     }
 
-    return placements;
+    return { blocks: placements, linesCleared: lines };
   }, [tools]);
 
   return (
@@ -212,14 +231,6 @@ export function TetrisMode({ tools, selectedNodeId, selectNode }: Props) {
           </Tooltip>
         );
       })}
-
-      <style>{`
-        @keyframes tetris-drop {
-          0% { transform: translateY(-${ROWS * CELL}px); opacity: 0.3; }
-          70% { transform: translateY(4px); opacity: 0.85; }
-          100% { transform: translateY(0); opacity: 0.85; }
-        }
-      `}</style>
     </div>
   );
 }

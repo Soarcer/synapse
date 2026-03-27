@@ -486,30 +486,6 @@ function AgentGraphInner() {
     }
   }, [layoutNodes, scheduleFitView]);
 
-  // Re-fit view when tool view mode changes (density shifts can lose the graph).
-  // If a node is selected, zoom to it; otherwise fit the whole graph.
-  const toolGroupMode = useAgentStore((s) => s.toolGroupMode);
-  const showAllTools = useAgentStore((s) => s.showAllTools);
-  const prevToolGroupModeRef = useRef(toolGroupMode);
-  const prevShowAllToolsRef = useRef(showAllTools);
-  useEffect(() => {
-    if (
-      toolGroupMode === prevToolGroupModeRef.current &&
-      showAllTools === prevShowAllToolsRef.current
-    )
-      return;
-    prevToolGroupModeRef.current = toolGroupMode;
-    prevShowAllToolsRef.current = showAllTools;
-    if (selectedNodeId) {
-      const visibleId = resolveVisibleId(selectedNodeId);
-      if (visibleId) {
-        scheduleFitView({ nodes: [{ id: visibleId }], duration: 300, padding: 0.8 });
-        return;
-      }
-    }
-    scheduleFitView({ padding: 0.2, duration: 300 });
-  }, [toolGroupMode, showAllTools, selectedNodeId, resolveVisibleId, scheduleFitView]);
-
   // Center on node when selected from lens panel.
   // Zoom to node when pendingZoomNodeId is set (from lens panel click).
   // Zoom to node from lens panel (treemap/sankey click).
@@ -875,6 +851,52 @@ function AgentGraphInner() {
           <Controls
             position="bottom-left"
             style={{ background: '#161b22', border: '1px solid #30363d', borderRadius: '8px' }}
+            onFitView={() => {
+              cancelPendingFit();
+              useAgentStore.getState().selectNode(null);
+
+              // Bypass React Flow's fitView — compute viewport directly
+              const rfNodes = getNodes();
+              if (rfNodes.length === 0) return;
+              const container = document.querySelector('.react-flow') as HTMLElement | null;
+              if (!container) return;
+
+              let minX = Infinity,
+                minY = Infinity,
+                maxX = -Infinity,
+                maxY = -Infinity;
+              for (const n of rfNodes) {
+                const w = n.measured?.width ?? n.width ?? 200;
+                const h = n.measured?.height ?? n.height ?? 100;
+                const x =
+                  (n as unknown as { positionAbsolute?: { x: number } }).positionAbsolute?.x ??
+                  n.position.x;
+                const y =
+                  (n as unknown as { positionAbsolute?: { y: number } }).positionAbsolute?.y ??
+                  n.position.y;
+                if (x < minX) minX = x;
+                if (y < minY) minY = y;
+                if (x + w > maxX) maxX = x + w;
+                if (y + h > maxY) maxY = y + h;
+              }
+
+              const graphW = maxX - minX;
+              const graphH = maxY - minY;
+              const cw = container.clientWidth;
+              const ch = container.clientHeight;
+              const padding = 0.2;
+              const zoom = Math.min(
+                cw / (graphW * (1 + padding * 2)),
+                ch / (graphH * (1 + padding * 2)),
+                1.5,
+              );
+              const cx = minX + graphW / 2;
+              const cy = minY + graphH / 2;
+              setViewport(
+                { x: cw / 2 - cx * zoom, y: ch / 2 - cy * zoom, zoom },
+                { duration: 300 },
+              );
+            }}
           />
         </ReactFlow>
         <EdgeCostLegend />

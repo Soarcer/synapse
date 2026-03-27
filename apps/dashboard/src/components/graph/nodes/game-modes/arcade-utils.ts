@@ -46,6 +46,26 @@ export function drawParticles(ctx: CanvasRenderingContext2D, particles: Particle
   ctx.globalAlpha = 1;
 }
 
+// ── Tool point values (rarer tools = more points) ───────────
+
+const TOOL_POINTS: Record<string, number> = {
+  Read: 10,
+  Grep: 15,
+  Bash: 15,
+  Edit: 25,
+  Write: 30,
+  Glob: 30,
+  WebSearch: 50,
+  WebFetch: 50,
+  TodoWrite: 75,
+  Task: 100,
+};
+const DEFAULT_POINTS = 40;
+
+export function getToolPoints(toolName: string): number {
+  return TOOL_POINTS[toolName] ?? DEFAULT_POINTS;
+}
+
 // ── Score computation ────────────────────────────────────────
 
 export interface ScoreState {
@@ -80,7 +100,23 @@ let audioCtx: AudioContext | null = null;
 
 function getAudioCtx(): AudioContext {
   if (!audioCtx) audioCtx = new AudioContext();
+  // Resume if suspended (browser policy: requires user gesture to have happened)
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume().catch(() => {
+      /* ignore */
+    });
+  }
   return audioCtx;
+}
+
+/** Close the shared AudioContext to release hardware audio session. */
+export function closeAudioCtx() {
+  if (audioCtx) {
+    audioCtx.close().catch(() => {
+      /* ignore */
+    });
+    audioCtx = null;
+  }
 }
 
 export function playChirp(volume: number) {

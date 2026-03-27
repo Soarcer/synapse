@@ -290,42 +290,13 @@ export default function App() {
         e.preventDefault();
         store.setPaused(!store.paused);
       }
-      if (Features.spawnAgent && e.key === 'n' && !e.ctrlKey && !e.metaKey) {
-        useAgentStore.getState().setShowSpawnDialog(true);
-      }
-      if (Features.promptLab && e.key === 'w' && !e.ctrlKey && !e.metaKey) {
-        useAgentStore.getState().setShowWorkshop(true);
-      }
       if (e.key === 'v' && !e.ctrlKey && !e.metaKey) {
         const store = useAgentStore.getState();
         store.setLockViewport(!store.lockViewport);
       }
-      if (e.key === 'f' && !e.ctrlKey && !e.metaKey) {
-        const store = useAgentStore.getState();
-        store.setShowAllTools(!store.showAllTools);
-      }
-      if (e.key === 'h' && !e.ctrlKey && !e.metaKey) {
-        const store = useAgentStore.getState();
-        store.setShowHookEvents(!store.showHookEvents);
-      }
-      if (e.key === 'c' && !e.ctrlKey && !e.metaKey) {
-        const store = useAgentStore.getState();
-        store.setAutoClosePrompts(!store.autoClosePrompts);
-      }
       if (e.key === 'l' && !e.ctrlKey && !e.metaKey) {
         const store = useAgentStore.getState();
         store.setLensVisible(!store.lensVisible);
-      }
-      if (e.key === 'a' && !e.ctrlKey && !e.metaKey) {
-        // [notifications]
-        const s = useNotificationStore.getState();
-        s.setEnabled(!s.enabled);
-      }
-      if (e.key === 'e' && !e.ctrlKey && !e.metaKey) {
-        (document.getElementById('snapshot-export-btn') as HTMLButtonElement)?.click();
-      }
-      if (e.key === 'i' && !e.ctrlKey && !e.metaKey) {
-        (document.getElementById('snapshot-import-input') as HTMLInputElement)?.click();
       }
       if (e.key === '/') {
         e.preventDefault();

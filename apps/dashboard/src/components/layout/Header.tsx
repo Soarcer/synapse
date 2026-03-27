@@ -15,7 +15,6 @@ import { TimeFilterDropdown } from './TimeFilterDropdown';
 import { SessionSelector } from './SessionSelector';
 import { ViewSettingsDropdown } from './ViewSettingsDropdown';
 import { KeyboardShortcutsTooltip } from './KeyboardShortcutsTooltip';
-import { ActionsMenu } from './ActionsMenu';
 import { GraphStats } from './GraphStats';
 import { HookControlsTab } from '../settings/HookControlsTab';
 
@@ -260,6 +259,9 @@ export function Header() {
           </Tooltip>
         )}
 
+        {/* Keyboard shortcuts help */}
+        <KeyboardShortcutsTooltip />
+
         {/* Hook Controls */}
         <Tooltip content="Hook Controls">
           <button
@@ -283,14 +285,8 @@ export function Header() {
           </button>
         </Tooltip>
 
-        {/* View settings */}
-        <ViewSettingsDropdown />
-
-        {/* Keyboard shortcuts help */}
-        <KeyboardShortcutsTooltip />
-
-        {/* Actions menu */}
-        <ActionsMenu
+        {/* View settings & actions */}
+        <ViewSettingsDropdown
           onExport={handleExport}
           onImportClick={() => fileInputRef.current?.click()}
           onClear={() => setShowClearConfirm(true)}

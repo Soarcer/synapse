@@ -5,6 +5,8 @@ import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import type { ToolCallSummary } from '@synapse-ai/core';
 import { formatDuration } from '@synapse-ai/core';
 import type { GameModeProps } from './types';
+import { getToolPoints, playChirp, playBuzz } from './arcade-utils';
+import { useAgentStore } from '../../../../store/agentStore';
 
 const GRID_COLS = 32;
 const GRID_ROWS = 20;
@@ -154,8 +156,9 @@ function randomEmptyCell(state: SnakeState): [number, number] | null {
 
 // ── Component ─────────────────────────────────────────────────
 
-export function SnakeMode({ tools, selectedNodeId, selectNode }: GameModeProps) {
+export function SnakeMode({ tools, selectedNodeId, selectNode, onScoreChange }: GameModeProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const scoreRef = useRef(0);
   const stateRef = useRef<SnakeState>({
     segments: [{ col: 0, row: 0, color: DEFAULT_COLOR, toolUseId: '', toolName: 'head' }],
     frozenSegments: [],
@@ -164,6 +167,16 @@ export function SnakeMode({ tools, selectedNodeId, selectNode }: GameModeProps) 
     processedCount: 0,
     flashFrames: 0,
   });
+  const onScoreChangeRef = useRef(onScoreChange);
+  useEffect(() => {
+    onScoreChangeRef.current = onScoreChange;
+  }, [onScoreChange]);
+  const soundEnabled = useAgentStore((s) => s.arcadeSoundEnabled);
+  const volume = useAgentStore((s) => s.arcadeVolume);
+  const soundRef = useRef({ enabled: soundEnabled, volume });
+  useEffect(() => {
+    soundRef.current = { enabled: soundEnabled, volume };
+  }, [soundEnabled, volume]);
   const toolsRef = useRef<ToolCallSummary[]>(tools);
   const selectedNodeIdRef = useRef<string | null>(selectedNodeId);
   const [tooltipInfo, setTooltipInfo] = useState<{ text: string; x: number; y: number } | null>(
@@ -388,6 +401,14 @@ export function SnakeMode({ tools, selectedNodeId, selectNode }: GameModeProps) 
           toolName: fruit.toolName,
         });
         ate = true;
+        scoreRef.current += getToolPoints(fruit.toolName);
+        if (soundRef.current.enabled) {
+          if (fruit.status === 'error') {
+            playBuzz(soundRef.current.volume);
+          } else {
+            playChirp(soundRef.current.volume);
+          }
+        }
         if (fruit.status === 'error') state.flashFrames = 3;
       }
 
@@ -404,6 +425,14 @@ export function SnakeMode({ tools, selectedNodeId, selectNode }: GameModeProps) 
       void ate;
 
       renderGrid();
+
+      // Report score: length = segments with a real tool (exclude head placeholder)
+      const length = state.segments.filter((s) => s.toolUseId).length;
+      onScoreChangeRef.current?.({
+        score: scoreRef.current,
+        combo: length,
+        comboLabel: 'LENGTH!',
+      });
     }, TICK_INTERVAL);
 
     renderGrid();
@@ -449,7 +478,9 @@ export function SnakeMode({ tools, selectedNodeId, selectNode }: GameModeProps) 
       const row = Math.floor((e.clientY - rect.top) / CELL_SIZE);
       const item = findAt(col, row);
       if (item) {
-        setHoveredToolId(item.toolUseId);
+        if (hoveredToolIdRef.current !== item.toolUseId) {
+          setHoveredToolId(item.toolUseId);
+        }
         const tc = toolsRef.current.find((t) => t.toolUseId === item.toolUseId);
         if (tc) {
           const dur = tc.duration != null ? ` \u00b7 ${formatDuration(tc.duration)}` : '';
@@ -461,7 +492,9 @@ export function SnakeMode({ tools, selectedNodeId, selectNode }: GameModeProps) 
         }
         return;
       }
-      setHoveredToolId(null);
+      if (hoveredToolIdRef.current !== null) {
+        setHoveredToolId(null);
+      }
       setTooltipInfo(null);
     },
     [findAt],
@@ -475,14 +508,16 @@ export function SnakeMode({ tools, selectedNodeId, selectNode }: GameModeProps) 
   // ── Legend ────────────────────────────────────────────────────
 
   const legend = useMemo(() => {
-    const seen = new Set<string>();
-    const items: { name: string; color: string }[] = [];
+    const counts = new Map<string, { name: string; color: string; count: number }>();
     for (const t of tools) {
-      if (seen.has(t.toolName)) continue;
-      seen.add(t.toolName);
-      items.push({ name: t.toolName, color: getColor(t.toolName) });
+      const entry = counts.get(t.toolName);
+      if (entry) {
+        entry.count++;
+      } else {
+        counts.set(t.toolName, { name: t.toolName, color: getColor(t.toolName), count: 1 });
+      }
     }
-    return items;
+    return [...counts.values()];
   }, [tools]);
 
   return (
@@ -510,13 +545,13 @@ export function SnakeMode({ tools, selectedNodeId, selectNode }: GameModeProps) 
       </div>
       {legend.length > 0 && (
         <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1 px-0.5">
-          {legend.map(({ name, color }) => (
+          {legend.map(({ name, color, count }) => (
             <span key={name} className="flex items-center gap-1 text-[8px] text-gray-400">
               <span
                 className="w-2 h-2 rounded-sm flex-shrink-0"
                 style={{ backgroundColor: color, opacity: 0.85 }}
               />
-              {name}
+              {name} <span className="text-gray-500">x{count}</span>
             </span>
           ))}
         </div>

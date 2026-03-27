@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Bernhard
 
 import type { GameModeDefinition, GameScorer } from './types';
+import { getToolPoints } from './arcade-utils';
 import { GameOfLifeMode } from './GameOfLifeMode';
 import { TetrisMode } from './TetrisMode';
 import { SnakeMode } from './SnakeMode';
@@ -42,30 +43,27 @@ const scoreTetris: GameScorer = (tools) => {
   return { score, combo, comboLabel: combo >= 3 ? 'LINE!' : 'COMBO!' };
 };
 
-/** Snake: 75 pts per segment, +150 per consecutive success (apple). Errors = crash. */
+/** Snake: weighted points per tool eaten. Rarer tools = more points. Length = combo. */
 const scoreSnake: GameScorer = (tools) => {
   let score = 0;
-  let combo = 0;
+  let length = 0;
   for (const t of tools) {
-    if (t.status === 'success') {
-      combo++;
-      score += 75 + combo * 25; // longer snake = more points per segment
-    } else if (t.status === 'error') {
-      combo = 0;
-      score += 10; // small consolation
+    if (t.status !== 'running') {
+      score += getToolPoints(t.toolName);
+      length++;
     }
   }
-  return { score, combo, comboLabel: 'LENGTH!' };
+  return { score, combo: length, comboLabel: 'LENGTH!' };
 };
 
-/** Breakout: 100 pts per brick broken, +200 per streak. Error bricks = bounce only. */
+/** Breakout: weighted points per brick. Rarer tools = more points. Combo on consecutive success. */
 const scoreBreakout: GameScorer = (tools) => {
   let score = 0;
   let combo = 0;
   for (const t of tools) {
     if (t.status === 'success') {
       combo++;
-      score += 100 + combo * 50;
+      score += getToolPoints(t.toolName) * combo;
     } else if (t.status === 'error') {
       combo = 0;
     }
@@ -89,7 +87,13 @@ export const GAME_MODES_ENABLED = true;
  * That's it — menus, rendering, and store all pick it up automatically.
  */
 export const GAME_MODE_REGISTRY: GameModeDefinition[] = [
-  { id: 'bubbles', label: 'Game of Life', component: GameOfLifeMode, scorer: scoreGameOfLife },
+  {
+    id: 'bubbles',
+    label: 'Game of Life',
+    component: GameOfLifeMode,
+    scorer: scoreGameOfLife,
+    hideScore: true,
+  },
   { id: 'tetris', label: 'Tetris', component: TetrisMode, scorer: scoreTetris },
   { id: 'snake', label: 'Snake', component: SnakeMode, scorer: scoreSnake },
   { id: 'breakout', label: 'Breakout', component: BreakoutMode, scorer: scoreBreakout },

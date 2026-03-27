@@ -5,20 +5,12 @@ import { useState } from 'react';
 
 const SHORTCUTS = [
   { key: 'Space', action: 'Pause / Resume' },
+  { key: 'V', action: 'Lock viewport' },
+  { key: '/', action: 'Focus search' },
   { key: 'T', action: 'Tool log' },
   { key: 'L', action: 'Toggle lens panel' },
-  { key: 'V', action: 'Lock viewport' },
-  { key: 'F', action: 'Show all tools' },
-  { key: 'H', action: 'Hook events' },
-  { key: 'C', action: 'Collapse prompts' },
-  { key: 'L', action: 'Toggle lens panel' },
-  { key: 'N', action: 'Spawn agent' },
-  { key: 'W', action: 'Prompt Lab' },
-  { key: 'E', action: 'Export snapshot' },
-  { key: 'I', action: 'Import snapshot' },
+  { key: '1-4', action: 'Switch lens tab' },
   { key: '$', action: 'Toggle cost display' },
-  { key: '/', action: 'Focus search' },
-  { key: '1-6', action: 'Switch lens tab' },
   { key: 'Esc', action: 'Close panels' },
 ] as const;
 
@@ -43,7 +35,7 @@ export function KeyboardShortcutsTooltip() {
           <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
             {SHORTCUTS.map(({ key, action }) => (
               <div key={key} className="contents">
-                <kbd className="text-[11px] text-gray-300 bg-gray-800 px-1.5 py-0.5 rounded font-mono text-right">
+                <kbd className="text-[11px] text-gray-300 bg-gray-800 px-1.5 py-0.5 rounded font-mono text-center">
                   {key}
                 </kbd>
                 <span className="text-[11px] text-gray-400">{action}</span>

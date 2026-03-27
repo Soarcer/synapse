@@ -186,6 +186,9 @@ export function GameOfLifeMode({ tools, selectedNodeId, selectNode }: Props) {
   );
   const seededToolsRef = useRef(new Set<string>());
   const toolStatusRef = useRef(new Map<string, string>());
+  const [lifeStats, setLifeStats] = useState({ alive: 0, dead: 0, generation: 0 });
+  const deadCountRef = useRef(0);
+  const generationRef = useRef(0);
   const [hoveredToolId, setHoveredToolId] = useState<string | null>(null);
   const hoveredToolIdRef = useRef<string | null>(null);
   const selectedNodeIdRef = useRef<string | null>(null);
@@ -360,8 +363,28 @@ export function GameOfLifeMode({ tools, selectedNodeId, selectNode }: Props) {
         }
       }
 
+      // Count alive cells in previous grid that are dead in next → newly dead
+      let aliveCount = 0;
+      let newlyDead = 0;
+      for (let r = 0; r < GRID_ROWS; r++) {
+        for (let c = 0; c < GRID_COLS; c++) {
+          if (next[r][c].alive) aliveCount++;
+          if (grid[r][c].alive && !next[r][c].alive) newlyDead++;
+        }
+      }
+      deadCountRef.current += newlyDead;
+      generationRef.current++;
+
       gridRef.current = next;
       renderGrid();
+      // Throttle React state updates to ~1/sec (every 5th tick at 200ms interval)
+      if (generationRef.current % 5 === 0) {
+        setLifeStats({
+          alive: aliveCount,
+          dead: deadCountRef.current,
+          generation: generationRef.current,
+        });
+      }
     }, SIM_INTERVAL);
 
     // Initial render
@@ -403,7 +426,9 @@ export function GameOfLifeMode({ tools, selectedNodeId, selectNode }: Props) {
       if (row >= 0 && row < GRID_ROWS && col >= 0 && col < GRID_COLS) {
         const cell = gridRef.current[row][col];
         if (cell.alive && cell.toolUseId) {
-          setHoveredToolId(cell.toolUseId);
+          if (hoveredToolIdRef.current !== cell.toolUseId) {
+            setHoveredToolId(cell.toolUseId);
+          }
           const tc = tools.find((t) => t.toolUseId === cell.toolUseId);
           if (tc) {
             const dur = tc.duration != null ? ` \u00b7 ${formatDuration(tc.duration)}` : '';
@@ -416,7 +441,9 @@ export function GameOfLifeMode({ tools, selectedNodeId, selectNode }: Props) {
           return;
         }
       }
-      setHoveredToolId(null);
+      if (hoveredToolIdRef.current !== null) {
+        setHoveredToolId(null);
+      }
       setTooltipInfo(null);
     },
     [tools],
@@ -429,18 +456,34 @@ export function GameOfLifeMode({ tools, selectedNodeId, selectNode }: Props) {
 
   // Legend: distinct tool types currently on the board
   const legend = useMemo(() => {
-    const seen = new Set<string>();
-    const items: { name: string; color: string }[] = [];
+    const counts = new Map<string, { name: string; color: string; count: number }>();
     for (const t of tools) {
-      if (seen.has(t.toolName)) continue;
-      seen.add(t.toolName);
-      items.push({ name: t.toolName, color: getColor(t.toolName) });
+      const entry = counts.get(t.toolName);
+      if (entry) {
+        entry.count++;
+      } else {
+        counts.set(t.toolName, { name: t.toolName, color: getColor(t.toolName), count: 1 });
+      }
     }
-    return items;
+    return [...counts.values()];
   }, [tools]);
 
   return (
     <div className="relative" style={{ width: CONTAINER_W }}>
+      {/* Stats header */}
+      {tools.length > 0 && (
+        <div className="flex items-center gap-3 mb-1 px-0.5 text-[8px] text-gray-400">
+          <span>
+            Alive <span className="text-green-400">{lifeStats.alive}</span>
+          </span>
+          <span>
+            Dead <span className="text-red-400">{lifeStats.dead}</span>
+          </span>
+          <span>
+            Gen <span className="text-gray-300">{lifeStats.generation}</span>
+          </span>
+        </div>
+      )}
       <div style={{ width: CONTAINER_W, height: CONTAINER_H, position: 'relative' }}>
         <canvas
           ref={canvasRef}
@@ -462,13 +505,13 @@ export function GameOfLifeMode({ tools, selectedNodeId, selectNode }: Props) {
       </div>
       {legend.length > 0 && (
         <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1 px-0.5">
-          {legend.map(({ name, color }) => (
+          {legend.map(({ name, color, count }) => (
             <span key={name} className="flex items-center gap-1 text-[8px] text-gray-400">
               <span
                 className="w-2 h-2 rounded-sm flex-shrink-0"
                 style={{ backgroundColor: color, opacity: 0.85 }}
               />
-              {name}
+              {name} <span className="text-gray-500">x{count}</span>
             </span>
           ))}
         </div>

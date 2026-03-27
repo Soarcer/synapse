@@ -12,6 +12,8 @@ export interface GameModeProps {
   tools: ToolCallSummary[];
   selectedNodeId: string | null;
   selectNode: (id: string | null, source?: 'graph' | 'lens') => void;
+  /** Report live game score + combo to the overlay. Called on each game tick. */
+  onScoreChange?: (score: GameScore) => void;
 }
 
 /** Score result returned by a game mode's scoring function. */
@@ -45,4 +47,6 @@ export interface GameModeDefinition {
   component: ComponentType<GameModeProps>;
   /** Optional custom scoring. Falls back to generic arcade scoring if omitted. */
   scorer?: GameScorer;
+  /** Hide the ArcadeOverlay score counter (game renders its own stats). */
+  hideScore?: boolean;
 }

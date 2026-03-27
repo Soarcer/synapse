@@ -4,36 +4,36 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAgentStore } from '../../store/agentStore';
 import { Tooltip } from '../ui/Tooltip';
-import { NotificationSettings } from '../../features/notifications/NotificationSettings'; // [notifications]
+// import { NotificationSettings } from '../../features/notifications/NotificationSettings'; // [notifications]
 import { GAME_MODE_OPTIONS } from '../graph/nodes/game-modes';
 
 const TOOL_VIEW_MODES = [
+  { value: 'heatmap' as const, label: 'Heatmap' },
   { value: 'pillGrid' as const, label: 'Pill Grid' },
   { value: 'timeline' as const, label: 'Timeline' },
-  { value: 'heatmap' as const, label: 'Heatmap' },
 ];
 
-export function ViewSettingsDropdown() {
+interface ViewSettingsDropdownProps {
+  onExport: () => void;
+  onImportClick: () => void;
+  onClear: () => void;
+}
+
+export function ViewSettingsDropdown({
+  onExport,
+  onImportClick,
+  onClear,
+}: ViewSettingsDropdownProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   const lockViewport = useAgentStore((s) => s.lockViewport);
   const setLockViewport = useAgentStore((s) => s.setLockViewport);
-  const showAllTools = useAgentStore((s) => s.showAllTools);
-  const setShowAllTools = useAgentStore((s) => s.setShowAllTools);
   const toolGroupMode = useAgentStore((s) => s.toolGroupMode);
   const setToolGroupMode = useAgentStore((s) => s.setToolGroupMode);
-  const autoClosePrompts = useAgentStore((s) => s.autoClosePrompts);
-  const setAutoClosePrompts = useAgentStore((s) => s.setAutoClosePrompts);
-  const showHookEvents = useAgentStore((s) => s.showHookEvents);
-  const setShowHookEvents = useAgentStore((s) => s.setShowHookEvents);
-  const costDisplayMode = useAgentStore((s) => s.costDisplayMode);
-  const toggleCostDisplayMode = useAgentStore((s) => s.toggleCostDisplayMode);
   const arcadeUnlocked = useAgentStore((s) => s.arcadeUnlocked);
   const arcadeMode = useAgentStore((s) => s.arcadeMode);
   const setArcadeMode = useAgentStore((s) => s.setArcadeMode);
-  const arcadeSoundEnabled = useAgentStore((s) => s.arcadeSoundEnabled);
-  const setArcadeSoundEnabled = useAgentStore((s) => s.setArcadeSoundEnabled);
 
   useEffect(() => {
     if (!open) return;
@@ -130,7 +130,7 @@ export function ViewSettingsDropdown() {
                 className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-800/80 transition-colors text-left text-gray-300"
               >
                 <span
-                  className={`w-2 h-2 rounded-full flex-shrink-0 ${toolGroupMode === value ? 'bg-blue-400' : 'bg-gray-600'}`}
+                  className={`w-2 h-2 rounded-full flex-shrink-0 ${!arcadeMode && toolGroupMode === value ? 'bg-blue-400' : 'bg-gray-600'}`}
                 />
                 <span className="flex-1">{label}</span>
               </button>
@@ -139,56 +139,63 @@ export function ViewSettingsDropdown() {
           {/* Arcade — only visible after Easter egg unlock */}
           {arcadeUnlocked && (
             <div className="border-t border-gray-700/50 mt-1 pt-1">
-              <button
-                onClick={() => setArcadeMode(!arcadeMode)}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-800/80 transition-colors text-left text-gray-300"
-                role="switch"
-                aria-checked={arcadeMode}
-                aria-expanded={arcadeMode}
-              >
-                <span
-                  className={`w-2 h-2 rounded-full flex-shrink-0 ${arcadeMode ? 'bg-green-400' : 'bg-gray-600'}`}
-                />
-                <span className="flex-1">Arcade Mode</span>
-                <span
-                  className={`text-[10px] text-gray-600 transition-transform ${arcadeMode ? 'rotate-90' : ''}`}
+              <div className="px-2 py-1 text-[10px] text-gray-500 uppercase tracking-wider">
+                Arcade Mode
+              </div>
+              {GAME_MODE_OPTIONS.map(({ value, label }) => (
+                <button
+                  key={value}
+                  onClick={() => {
+                    setToolGroupMode(value);
+                    setArcadeMode(true);
+                    setOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-800/80 transition-colors text-left text-gray-300"
                 >
-                  {'›'}
-                </span>
-              </button>
-              {arcadeMode && (
-                <div className="pl-5 pb-1">
-                  {GAME_MODE_OPTIONS.map(({ value, label }) => (
-                    <button
-                      key={value}
-                      onClick={() => {
-                        setToolGroupMode(value);
-                        setOpen(false);
-                      }}
-                      className="w-full flex items-center gap-2 px-2 py-1 text-[11px] hover:bg-gray-800/80 transition-colors text-left text-gray-400"
-                    >
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${toolGroupMode === value ? 'bg-blue-400' : 'bg-gray-600'}`}
-                      />
-                      <span className="flex-1">{label}</span>
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => setArcadeSoundEnabled(!arcadeSoundEnabled)}
-                    className="w-full flex items-center gap-2 px-2 py-1 text-[11px] hover:bg-gray-800/80 transition-colors text-left text-gray-400 mt-0.5"
-                    role="switch"
-                    aria-checked={arcadeSoundEnabled}
-                  >
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${arcadeSoundEnabled ? 'bg-green-400' : 'bg-gray-600'}`}
-                    />
-                    <span className="flex-1">Sound Effects</span>
-                  </button>
-                </div>
-              )}
+                  <span
+                    className={`w-2 h-2 rounded-full flex-shrink-0 ${arcadeMode && toolGroupMode === value ? 'bg-blue-400' : 'bg-gray-600'}`}
+                  />
+                  <span className="flex-1">{label}</span>
+                </button>
+              ))}
             </div>
           )}
           {/* NotificationSettings hidden for v0.1.0 */}
+
+          {/* Actions */}
+          <div className="border-t border-gray-700/50 mt-1 pt-1">
+            <div className="px-2 py-1 text-[10px] text-gray-500 uppercase tracking-wider">
+              Actions
+            </div>
+            <button
+              id="snapshot-export-btn"
+              onClick={() => {
+                onExport();
+                setOpen(false);
+              }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-green-400 hover:bg-gray-800/80 transition-colors text-left"
+            >
+              Export Snapshot
+            </button>
+            <button
+              onClick={() => {
+                onImportClick();
+                setOpen(false);
+              }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-blue-400 hover:bg-gray-800/80 transition-colors text-left"
+            >
+              Import Snapshot
+            </button>
+            <button
+              onClick={() => {
+                onClear();
+                setOpen(false);
+              }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-400 hover:bg-gray-800/80 transition-colors text-left"
+            >
+              Clear All
+            </button>
+          </div>
         </div>
       )}
     </div>

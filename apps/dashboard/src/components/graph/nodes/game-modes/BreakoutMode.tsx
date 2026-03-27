@@ -4,7 +4,16 @@
 import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { formatDuration } from '@synapse-ai/core';
 import type { GameModeProps } from './types';
-import { spawnBurst, updateParticles, drawParticles, type Particle } from './arcade-utils';
+import {
+  spawnBurst,
+  updateParticles,
+  drawParticles,
+  getToolPoints,
+  playChirp,
+  playBuzz,
+  type Particle,
+} from './arcade-utils';
+import { useAgentStore } from '../../../../store/agentStore';
 
 // ── Constants ────────────────────────────────────────────────
 
@@ -81,14 +90,28 @@ function initialBall(): Ball {
 
 // ── Component ────────────────────────────────────────────────
 
-export function BreakoutMode({ tools, selectedNodeId, selectNode }: GameModeProps) {
+export function BreakoutMode({ tools, selectedNodeId, selectNode, onScoreChange }: GameModeProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const bricksRef = useRef<Brick[]>([]);
+  const scoreRef = useRef(0);
+  const comboRef = useRef(0);
+  const onScoreChangeRef = useRef(onScoreChange);
+  useEffect(() => {
+    onScoreChangeRef.current = onScoreChange;
+  }, [onScoreChange]);
+  const soundEnabled = useAgentStore((s) => s.arcadeSoundEnabled);
+  const arcadeVolume = useAgentStore((s) => s.arcadeVolume);
+  const soundRef = useRef({ enabled: soundEnabled, volume: arcadeVolume });
+  useEffect(() => {
+    soundRef.current = { enabled: soundEnabled, volume: arcadeVolume };
+  }, [soundEnabled, arcadeVolume]);
   const ballRef = useRef<Ball>(initialBall());
   const paddleXRef = useRef(CANVAS_W / 2 - PADDLE_W / 2);
   const particlesRef = useRef<Particle[]>([]);
   const rafRef = useRef(0);
   const lastTimeRef = useRef(0);
+  const frameRef = useRef(0);
+  const dprRef = useRef(1);
   const knownToolsRef = useRef(new Set<string>());
   const [hoveredToolId, setHoveredToolId] = useState<string | null>(null);
   const hoveredToolIdRef = useRef<string | null>(null);
@@ -96,6 +119,16 @@ export function BreakoutMode({ tools, selectedNodeId, selectNode }: GameModeProp
   const [tooltipInfo, setTooltipInfo] = useState<{ text: string; x: number; y: number } | null>(
     null,
   );
+
+  // Set up canvas DPR scaling once on mount
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    dprRef.current = dpr;
+    canvas.width = CANVAS_W * dpr;
+    canvas.height = CANVAS_H * dpr;
+  }, []);
 
   // Keep refs in sync
   useEffect(() => {
@@ -159,7 +192,7 @@ export function BreakoutMode({ tools, selectedNodeId, selectNode }: GameModeProp
         // Faint label
         ctx.globalAlpha = isHovered ? 0.5 : 0.2;
         ctx.fillStyle = color;
-        ctx.font = '7px monospace';
+        ctx.font = 'bold 7px monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(brick.toolName.slice(0, 4), x + w / 2, y + h / 2);
@@ -233,9 +266,9 @@ export function BreakoutMode({ tools, selectedNodeId, selectNode }: GameModeProp
       }
 
       // Tool name label
-      ctx.globalAlpha = 0.7;
+      ctx.globalAlpha = 1;
       ctx.fillStyle = '#ffffff';
-      ctx.font = '7px monospace';
+      ctx.font = 'bold 7px monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(brick.toolName.slice(0, 4), x + w / 2, y + h / 2);
@@ -342,10 +375,16 @@ export function BreakoutMode({ tools, selectedNodeId, selectNode }: GameModeProp
           if (brick.status === 'success') {
             // eslint-disable-next-line react-hooks/immutability -- game loop: mutating ref-owned brick array
             brick.alive = false;
+            comboRef.current++;
+            scoreRef.current += getToolPoints(brick.toolName) * comboRef.current;
             // Spawn burst particles
             particlesRef.current.push(
               ...spawnBurst(brick.x + brick.w / 2, brick.y + brick.h / 2, brick.color, 10),
             );
+            if (soundRef.current.enabled) playChirp(soundRef.current.volume);
+          } else if (brick.status === 'error') {
+            comboRef.current = 0;
+            if (soundRef.current.enabled) playBuzz(soundRef.current.volume);
           }
           // running and error bricks: ball bounces but brick stays
 
@@ -357,6 +396,7 @@ export function BreakoutMode({ tools, selectedNodeId, selectNode }: GameModeProp
       particlesRef.current = updateParticles(particlesRef.current, dt / 60);
 
       // ── Draw ──
+      ctx.setTransform(dprRef.current, 0, 0, dprRef.current, 0, 0);
       ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
       // Background
@@ -396,6 +436,16 @@ export function BreakoutMode({ tools, selectedNodeId, selectNode }: GameModeProp
 
       // Particles
       drawParticles(ctx, particlesRef.current);
+
+      // Report score to overlay (throttled to ~4fps)
+      frameRef.current++;
+      if (frameRef.current % 15 === 0) {
+        onScoreChangeRef.current?.({
+          score: scoreRef.current,
+          combo: comboRef.current,
+          comboLabel: 'SMASH!',
+        });
+      }
 
       // eslint-disable-next-line react-hooks/immutability -- game loop: recursive rAF is standard pattern
       rafRef.current = requestAnimationFrame(tick);
@@ -449,7 +499,9 @@ export function BreakoutMode({ tools, selectedNodeId, selectNode }: GameModeProp
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       const brick = findBrickAt(e.clientX, e.clientY);
       if (brick) {
-        setHoveredToolId(brick.toolUseId);
+        if (hoveredToolIdRef.current !== brick.toolUseId) {
+          setHoveredToolId(brick.toolUseId);
+        }
         const canvas = canvasRef.current;
         if (canvas) {
           const rect = canvas.getBoundingClientRect();
@@ -462,7 +514,9 @@ export function BreakoutMode({ tools, selectedNodeId, selectNode }: GameModeProp
           });
         }
       } else {
-        setHoveredToolId(null);
+        if (hoveredToolIdRef.current !== null) {
+          setHoveredToolId(null);
+        }
         setTooltipInfo(null);
       }
     },
@@ -477,14 +531,16 @@ export function BreakoutMode({ tools, selectedNodeId, selectNode }: GameModeProp
   // ── Legend ─────────────────────────────────────────────────
 
   const legend = useMemo(() => {
-    const seen = new Set<string>();
-    const items: { name: string; color: string }[] = [];
+    const counts = new Map<string, { name: string; color: string; count: number }>();
     for (const t of tools) {
-      if (seen.has(t.toolName)) continue;
-      seen.add(t.toolName);
-      items.push({ name: t.toolName, color: getColor(t.toolName) });
+      const entry = counts.get(t.toolName);
+      if (entry) {
+        entry.count++;
+      } else {
+        counts.set(t.toolName, { name: t.toolName, color: getColor(t.toolName), count: 1 });
+      }
     }
-    return items;
+    return [...counts.values()];
   }, [tools]);
 
   // ── Render ────────────────────────────────────────────────
@@ -494,9 +550,8 @@ export function BreakoutMode({ tools, selectedNodeId, selectNode }: GameModeProp
       <div style={{ width: CANVAS_W, height: CANVAS_H, position: 'relative' }}>
         <canvas
           ref={canvasRef}
-          width={CANVAS_W}
-          height={CANVAS_H}
           className="cursor-pointer rounded"
+          style={{ width: CANVAS_W, height: CANVAS_H }}
           role="img"
           aria-label="Tool call breakout game"
           onClick={handleClick}
@@ -514,13 +569,13 @@ export function BreakoutMode({ tools, selectedNodeId, selectNode }: GameModeProp
       </div>
       {legend.length > 0 && (
         <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1 px-0.5">
-          {legend.map(({ name, color }) => (
+          {legend.map(({ name, color, count }) => (
             <span key={name} className="flex items-center gap-1 text-[8px] text-gray-400">
               <span
                 className="w-2 h-2 rounded-sm flex-shrink-0"
                 style={{ backgroundColor: color, opacity: 0.85 }}
               />
-              {name}
+              {name} <span className="text-gray-500">x{count}</span>
             </span>
           ))}
         </div>
