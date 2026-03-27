@@ -248,6 +248,7 @@ interface AgentStore {
   isLoading: boolean;
   loadError: string | null;
   pendingFitView: boolean;
+  pendingZoomNodeId: string | null;
 
   // Lens Panel state
   lensVisible: boolean;
@@ -301,6 +302,7 @@ interface AgentStore {
   addNudge: (nudge: CoachingNudge) => void;
   dismissNudge: (id: string) => void;
   undismissNudge: (id: string) => void;
+  finalizePermissionTool: (toolUseId: string, sessionId: string, behavior: string) => void;
   clearEvents: () => void;
   loadEvents: (events: AgentEvent[]) => void;
   setCwdFilter: (cwd: string | null) => void;
@@ -407,8 +409,8 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   showSpawnDialog: false,
   showWorkshop: false,
   paused: false,
-  showHookEvents: savedViewSettings.showHookEvents ?? true,
-  showAllTools: savedViewSettings.showAllTools ?? true,
+  showHookEvents: true, // always on — toggle removed in v0.1.0
+  showAllTools: true, // always on — toggle removed in v0.1.0
   toolGroupMode: savedViewSettings.toolGroupMode ?? 'heatmap',
   costDisplayMode: savedViewSettings.costDisplayMode ?? 'consumption',
   arcadeUnlocked: savedViewSettings.arcadeUnlocked ?? savedViewSettings.arcadeMode ?? false,
@@ -416,7 +418,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   arcadeSoundEnabled: savedViewSettings.arcadeSoundEnabled ?? false,
   arcadeVolume: savedViewSettings.arcadeVolume ?? 15,
   lockViewport: savedViewSettings.lockViewport ?? false,
-  autoClosePrompts: savedViewSettings.autoClosePrompts ?? false,
+  autoClosePrompts: false, // always off — toggle removed in v0.1.0
   lensVisible: savedViewSettings.lensVisible ?? true,
   cwdFilter: projectCwd,
   timeRange: computeTimeRange(savedTimeLabel),
@@ -429,6 +431,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   isLoading: true,
   loadError: null,
   pendingFitView: false,
+  pendingZoomNodeId: null,
 
   // Lens Panel state
   activeLensTab: 'treemap',
@@ -473,7 +476,12 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   // ── Simple setters ───────────────────────────────────────
 
   selectNode: (id, source) =>
-    set({ selectedNodeId: id, selectSource: source ?? null, multiHighlightIds: null }),
+    set({
+      selectedNodeId: id,
+      selectSource: source ?? null,
+      multiHighlightIds: null,
+      pendingZoomNodeId: source === 'lens' ? id : null,
+    }),
 
   setFilter: (filter) => set({ filter }),
 
@@ -515,9 +523,11 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
   toggleTurnExpanded: (promptId) => {
     const s = new Set(get().expandedTurns);
-    if (s.has(promptId)) s.delete(promptId);
-    else s.add(promptId);
-    set({ expandedTurns: s });
+    const expanding = !s.has(promptId);
+    if (expanding) s.add(promptId);
+    else s.delete(promptId);
+    // Select the prompt node when expanding to prevent fitView from zooming out
+    set({ expandedTurns: s, selectedNodeId: expanding ? promptId : get().selectedNodeId });
   },
   setHighlightedNodeIds: (highlightedNodeIds) => {
     if (highlightedNodeIds === get().highlightedNodeIds) return;
@@ -743,10 +753,28 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       liveNudges: s.liveNudges.map((n) => (n.id === id ? { ...n, dismissed: false } : n)),
     })),
 
+  // ── Permission tool finalization ─────────────────────────────
+  finalizePermissionTool: (toolUseId, sessionId, behavior) => {
+    const status = behavior === 'deny' ? 'error' : 'success';
+    const syntheticEvent: AgentEvent = {
+      id: `perm-resolve-${toolUseId}`,
+      type: status === 'error' ? 'tool_error' : 'tool_end',
+      sessionId,
+      timestamp: Date.now(),
+      eventSource: 'hook',
+      vendor: 'anthropic',
+      toolUseId,
+      status,
+    };
+    get().addEvent(syntheticEvent);
+  },
+
   // ── clearEvents / loadEvents (batched — single set()) ────
 
   clearEvents: () => {
     eventCapToastFired = false;
+    // Also clear from DB so reloadAllEvents doesn't bring them back
+    fetch(apiUrl('/api/events'), { method: 'DELETE' }).catch(() => {});
     set({
       sessions: new Map(),
       agents: new Map(),
@@ -912,20 +940,43 @@ wsClient.setOnBatchEvent((msgs) => {
 
     // Skip events from other projects when cwd filter is active
     const { cwdFilter, timePresetLabel } = useAgentStore.getState();
-    if (cwdFilter && event.cwd && normalizeCwd(event.cwd) !== cwdFilter) continue;
+    if (cwdFilter && event.cwd && normalizeCwd(event.cwd) !== cwdFilter) {
+      console.log(
+        '[store] SKIP cwd filter:',
+        event.type,
+        'event cwd:',
+        event.cwd,
+        'filter:',
+        cwdFilter,
+      );
+      continue;
+    }
 
     // Skip events outside the active time range
     const liveRange = computeTimeRange(timePresetLabel);
-    if (liveRange && event.timestamp < liveRange.from) continue;
+    if (liveRange && event.timestamp < liveRange.from) {
+      console.log(
+        '[store] SKIP time range:',
+        event.type,
+        'ts:',
+        event.timestamp,
+        'from:',
+        liveRange.from,
+      );
+      continue;
+    }
 
     // Content-based dedup
-    if (isWsDuplicate(event)) continue;
+    if (isWsDuplicate(event)) {
+      console.log('[store] SKIP ws dedup:', event.type, event.id?.slice(0, 8));
+      continue;
+    }
 
+    console.log('[store] ACCEPT:', event.type, event.sessionId?.slice(0, 8));
     eventsToAdd.push(event);
   }
 
   if (eventsToAdd.length === 1) {
-    // Single event — use addEvent for efficiency (avoids batch overhead)
     useAgentStore.getState().addEvent(eventsToAdd[0]);
   } else if (eventsToAdd.length > 1) {
     useAgentStore.getState().addEvents(eventsToAdd);
@@ -943,11 +994,28 @@ wsClient.setOnEvent((msg) => {
     }
   }
   if (msg.type === 'permissionResolved') {
-    const data = msg.data as { id: string; behavior: 'allow' | 'deny' };
+    const data = msg.data as {
+      id: string;
+      behavior: 'allow' | 'deny' | 'auto-dismissed';
+      tool_use_id?: string;
+      session_id?: string;
+    };
     const devStore = useRemoteDevStore.getState();
     if (devStore.pendingQuestion?.id === data.id) {
       devStore.resolveQuestion();
-      return;
+      // Finalize tool node before returning (remote-dev path)
+      if (data.tool_use_id && data.session_id) {
+        useAgentStore
+          .getState()
+          .finalizePermissionTool(data.tool_use_id, data.session_id, data.behavior);
+      }
+      return; // Keep return — don't double-process in permissionStore
+    }
+    // Finalize the tool node if we have the IDs (non-remote-dev path)
+    if (data.tool_use_id && data.session_id) {
+      useAgentStore
+        .getState()
+        .finalizePermissionTool(data.tool_use_id, data.session_id, data.behavior);
     }
   }
   if (handlePermissionWsMessage(msg)) return;
@@ -1002,10 +1070,54 @@ wsClient.setOnReconnect(() => {
 });
 
 // ── Sliding time window refresh ──────────────────────────────
-// Periodically reload events so relative presets ("Last hour", etc.) evict stale data.
-const SLIDING_REFRESH_MS = 60_000;
-setInterval(() => {
-  const { timePresetLabel } = useAgentStore.getState();
-  if (timePresetLabel === 'All time') return;
-  reloadAllEvents();
-}, SLIDING_REFRESH_MS);
+// Evicts expired events client-side instead of reloading from DB.
+// Only events and sessions outside the active time range are removed.
+export const SLIDING_REFRESH_MS = 60_000;
+export function slidingRefreshTick(): void {
+  const state = useAgentStore.getState();
+  if (state.timePresetLabel === 'All time') return;
+
+  const range = computeTimeRange(state.timePresetLabel);
+  if (!range) return;
+
+  // Find sessions that started before the time window
+  const expiredSessionIds = new Set<string>();
+  for (const [sid, session] of state.sessions) {
+    // Keep sessions that are still running or ended within the window
+    const endTime = session.endTime ?? Date.now();
+    if (endTime < range.from) expiredSessionIds.add(sid);
+  }
+
+  if (expiredSessionIds.size === 0) return;
+
+  // Filter out expired events, nodes, and edges
+  const events = state.events.filter((e) => !expiredSessionIds.has(e.sessionId));
+  const eventIds = new Set(events.map((e) => e.id));
+  const nodes = state.nodes.filter((n) => {
+    const sid = (n.data as Record<string, unknown>)?.sessionId as string | undefined;
+    return !sid || !expiredSessionIds.has(sid);
+  });
+  const nodeIds = new Set(nodes.map((n) => n.id));
+  const edges = state.edges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
+
+  // Clean up maps
+  const sessions = new Map(state.sessions);
+  const agents = new Map(state.agents);
+  const prompts = new Map(state.prompts);
+  for (const sid of expiredSessionIds) {
+    sessions.delete(sid);
+    agents.delete(sid);
+    prompts.delete(sid);
+  }
+
+  useAgentStore.setState({
+    events,
+    eventIds,
+    nodes,
+    edges,
+    sessions,
+    agents,
+    prompts,
+    sourceHasEdge: buildSourceHasEdge(edges),
+  });
+}
