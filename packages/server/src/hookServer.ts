@@ -14,9 +14,11 @@ import {
   startConnectionMonitor,
 } from './state/permissionState.js';
 import { sendToAll } from './services/pushService.js';
+import { buildPermissionResolved } from './state/permissionResolved.js';
 import { selectLanIp } from './routes/network.js';
 import { createEventsRouter } from './routes/events.js';
 import { HOOK_PORT, SYNAPSE_PORT, PROTOCOL } from '@synapse-ai/core/config';
+import { Features } from '@synapse-ai/core';
 
 export interface HookAppDeps {
   broadcaster: Broadcaster;
@@ -58,9 +60,11 @@ export function createHookApp(deps: HookAppDeps): express.Express {
     const id = crypto.randomUUID();
     const createdAt = Date.now();
     const expiresAt = createdAt + PERMISSION_TIMEOUT_MS;
+    const hookEvent = req.body as Record<string, unknown>;
 
     const timer = setTimeout(() => {
       pending.delete(id);
+      broadcaster.broadcastRaw(buildPermissionResolved(id, 'deny', hookEvent));
       try {
         res.json({
           hookSpecificOutput: {
@@ -90,11 +94,8 @@ export function createHookApp(deps: HookAppDeps): express.Express {
       if (!entry) return; // Already resolved by another layer
       clearTimeout(entry.timer);
       pending.delete(id);
-      broadcaster.broadcastRaw({
-        type: 'permissionResolved',
-        data: { id, behavior: 'allow' },
-      });
-      logger.info({ id }, 'Permission auto-resolved: res.on(close)');
+      broadcaster.broadcastRaw(buildPermissionResolved(id, 'auto-dismissed', entry.event));
+      logger.info({ id }, 'Permission auto-dismissed: res.on(close)');
     });
 
     // Broadcast to dashboard via WS
@@ -114,24 +115,28 @@ export function createHookApp(deps: HookAppDeps): express.Express {
     });
 
     // Fire-and-forget push notification with absolute URLs
-    const lanIp = selectLanIp(os.networkInterfaces()) ?? 'localhost';
-    const baseUrl = `${PROTOCOL}://${lanIp}:${SYNAPSE_PORT}`;
+    if (Features.pushNotifications) {
+      const lanIp = selectLanIp(os.networkInterfaces()) ?? 'localhost';
+      const baseUrl = `${PROTOCOL}://${lanIp}:${SYNAPSE_PORT}`;
 
-    // Format notification based on tool type
-    const isQuestion = toolName === 'AskUserQuestion';
-    const timeoutMin = Math.round(PERMISSION_TIMEOUT_MS / 60000);
-    const title = isQuestion ? `💬 Claude needs your input` : `🔒 Approve ${toolName || 'action'}?`;
-    const body = isQuestion
-      ? toolInput.slice(0, 120)
-      : `${toolInput.slice(0, 100)}\n⏱ ${timeoutMin}m to respond`;
+      // Format notification based on tool type
+      const isQuestion = toolName === 'AskUserQuestion';
+      const timeoutMin = Math.round(PERMISSION_TIMEOUT_MS / 60000);
+      const title = isQuestion
+        ? `💬 Claude needs your input`
+        : `🔒 Approve ${toolName || 'action'}?`;
+      const body = isQuestion
+        ? toolInput.slice(0, 120)
+        : `${toolInput.slice(0, 100)}\n⏱ ${timeoutMin}m to respond`;
 
-    sendToAll({
-      title,
-      body,
-      requestId: id,
-      decisionUrl: `${baseUrl}/api/permissions/${id}/decision`,
-      url: baseUrl,
-    }).catch((err) => logger.error({ err }, 'Push send failed'));
+      sendToAll({
+        title,
+        body,
+        requestId: id,
+        decisionUrl: `${baseUrl}/api/permissions/${id}/decision`,
+        url: baseUrl,
+      }).catch((err) => logger.error({ err }, 'Push send failed'));
+    }
 
     // res intentionally NOT called — held until decision or timeout
   });

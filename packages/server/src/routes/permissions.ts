@@ -11,6 +11,7 @@ import {
   PERMISSION_TIMEOUT_MS,
   purgeExpiredDecisions,
 } from '../state/permissionState.js';
+import { buildPermissionResolved } from '../state/permissionResolved.js';
 
 export function createPermissionsRouter(broadcaster: Broadcaster): Router {
   const router = Router();
@@ -60,10 +61,7 @@ export function createPermissionsRouter(broadcaster: Broadcaster): Router {
       }
 
       // Broadcast resolution to all dashboard clients
-      broadcaster.broadcastRaw({
-        type: 'permissionResolved',
-        data: { id, behavior },
-      });
+      broadcaster.broadcastRaw(buildPermissionResolved(id, behavior, entry.event));
 
       // Resolve the held hook response to Claude Code.
       // For AskUserQuestion with answers: use behavior "deny" with message containing

@@ -6,6 +6,7 @@ import type { ClaudeHookEvent } from '@synapse-ai/core';
 import { logger } from '../lib/logger.js';
 import type { Broadcaster } from '../services/broadcaster.js';
 import { hasCompletionForSessionSince } from '../db.js';
+import { buildPermissionResolved } from './permissionResolved.js';
 
 export interface PendingEntry {
   res: Response;
@@ -50,6 +51,8 @@ export function startConnectionMonitor(broadcaster: Broadcaster): void {
   if (connectionMonitor) return; // Already running
 
   connectionMonitor = setInterval(() => {
+    purgeExpiredDecisions();
+
     if (pending.size === 0) {
       stopConnectionMonitor();
       return;
@@ -90,11 +93,9 @@ export function startConnectionMonitor(broadcaster: Broadcaster): void {
           }
         }
 
-        monitorBroadcaster?.broadcastRaw({
-          type: 'permissionResolved',
-          data: { id, behavior: 'allow' },
-        });
-        logger.info({ id, reason }, 'Permission auto-resolved (Layer 2)');
+        const behavior = sessionAdvanced ? 'allow' : 'auto-dismissed';
+        monitorBroadcaster?.broadcastRaw(buildPermissionResolved(id, behavior, entry.event));
+        logger.info({ id, reason }, 'Permission auto-dismissed (Layer 2)');
       }
     }
   }, CONNECTION_CHECK_INTERVAL_MS);
