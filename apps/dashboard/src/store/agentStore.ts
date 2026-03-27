@@ -302,7 +302,12 @@ interface AgentStore {
   addNudge: (nudge: CoachingNudge) => void;
   dismissNudge: (id: string) => void;
   undismissNudge: (id: string) => void;
-  finalizePermissionTool: (toolUseId: string, sessionId: string, behavior: string) => void;
+  finalizePermissionTool: (
+    toolUseId: string | undefined,
+    sessionId: string,
+    behavior: string,
+    toolName?: string,
+  ) => void;
   clearEvents: () => void;
   loadEvents: (events: AgentEvent[]) => void;
   setCwdFilter: (cwd: string | null) => void;
@@ -754,16 +759,27 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     })),
 
   // ── Permission tool finalization ─────────────────────────────
-  finalizePermissionTool: (toolUseId, sessionId, behavior) => {
+  finalizePermissionTool: (toolUseId, sessionId, behavior, toolName) => {
     const status = behavior === 'deny' ? 'error' : 'success';
+
+    // If tool_use_id is missing (PermissionRequest doesn't include it),
+    // find the most recent running tool matching session + toolName
+    let resolvedToolUseId = toolUseId;
+    if (!resolvedToolUseId && toolName) {
+      const allTools = [...get().toolCalls.values()].flat();
+      const match = allTools.filter((t) => t.toolName === toolName && t.status === 'running').pop(); // most recent
+      resolvedToolUseId = match?.toolUseId;
+    }
+    if (!resolvedToolUseId) return; // nothing to finalize
+
     const syntheticEvent: AgentEvent = {
-      id: `perm-resolve-${toolUseId}`,
+      id: `perm-resolve-${resolvedToolUseId}`,
       type: status === 'error' ? 'tool_error' : 'tool_end',
       sessionId,
       timestamp: Date.now(),
       eventSource: 'hook',
       vendor: 'anthropic',
-      toolUseId,
+      toolUseId: resolvedToolUseId,
       status,
     };
     get().addEvent(syntheticEvent);
@@ -999,23 +1015,24 @@ wsClient.setOnEvent((msg) => {
       behavior: 'allow' | 'deny' | 'auto-dismissed';
       tool_use_id?: string;
       session_id?: string;
+      tool_name?: string;
     };
     const devStore = useRemoteDevStore.getState();
     if (devStore.pendingQuestion?.id === data.id) {
       devStore.resolveQuestion();
       // Finalize tool node before returning (remote-dev path)
-      if (data.tool_use_id && data.session_id) {
+      if (data.session_id) {
         useAgentStore
           .getState()
-          .finalizePermissionTool(data.tool_use_id, data.session_id, data.behavior);
+          .finalizePermissionTool(data.tool_use_id, data.session_id, data.behavior, data.tool_name);
       }
       return; // Keep return — don't double-process in permissionStore
     }
     // Finalize the tool node if we have the IDs (non-remote-dev path)
-    if (data.tool_use_id && data.session_id) {
+    if (data.session_id) {
       useAgentStore
         .getState()
-        .finalizePermissionTool(data.tool_use_id, data.session_id, data.behavior);
+        .finalizePermissionTool(data.tool_use_id, data.session_id, data.behavior, data.tool_name);
     }
   }
   if (handlePermissionWsMessage(msg)) return;
