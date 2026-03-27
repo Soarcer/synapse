@@ -560,8 +560,15 @@ function AskUserQuestionRenderer({ input, response, status }: ToolRendererProps)
 
   const activeQ = questions[activeTab];
   const selectedAnswer = answers?.[activeQ.question];
-  // For multiSelect, the answer is comma-separated labels
-  const selectedLabels = selectedAnswer ? new Set(selectedAnswer.split(', ')) : new Set<string>();
+  // Match selected answer against known option labels (avoids comma-in-label bugs)
+  const selectedLabels = new Set<string>();
+  if (selectedAnswer && activeQ.options) {
+    for (const opt of activeQ.options) {
+      if (selectedAnswer === opt.label || selectedAnswer.includes(opt.label)) {
+        selectedLabels.add(opt.label);
+      }
+    }
+  }
 
   return (
     <div className="space-y-3">
