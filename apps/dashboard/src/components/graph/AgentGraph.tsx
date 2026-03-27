@@ -15,6 +15,7 @@ import type { NodeChange, Viewport } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useAgentStore, reloadAllEvents } from '../../store/agentStore';
 import { useAutoLayout } from '../../hooks/useAutoLayout';
+import { useStyledEdges } from '../../hooks/useStyledEdges';
 import { useVisibleGraph } from '../../hooks/useVisibleGraph';
 import { useGraphNavigation } from '../../hooks/useGraphNavigation';
 import { nodeTypes, edgeTypes } from './nodeTypes';
@@ -286,25 +287,13 @@ function AgentGraphInner() {
     return { cumTokens, maxCum };
   }, [visibleNodes, visibleEdges, mergedHighlightIds]);
 
-  // Single-pass edge styling: smoothstep type + cost gradient + highlight opacity
-  // Also assigns explicit sourceHandle/targetHandle IDs and filters thread edges (TB mode)
+  // Edge styling: handle routing (shared) + cost gradient + highlight opacity (desktop-only)
+  const baseEdges = useStyledEdges(visibleNodes, visibleEdges);
   const styledEdges = useMemo(() => {
     const hasHighlight = mergedHighlightIds && mergedHighlightIds.size > 0;
+    if (!hasHighlight && !edgeCostMap) return baseEdges;
 
-    // Build node type lookup for handle ID assignment
-    const nodeTypeMap = new Map<string, string>();
-    for (const n of visibleNodes) {
-      nodeTypeMap.set(n.id, n.type ?? '');
-    }
-
-    // Shelf node types receive edges from the Left handle.
-    // Unlike isShelfNode in useAutoLayout (which treats everything non-spine as shelf),
-    // this excludes spawnAgent (filtered before layout) and '' (unknown type safety).
-    const isShelf = (type: string) =>
-      type !== 'session' && type !== 'userPrompt' && type !== 'spawnAgent' && type !== '';
-
-    return visibleEdges.map((edge) => {
-      const isThread = edge.id.startsWith('thread-');
+    return baseEdges.map((edge) => {
       const style: Record<string, unknown> = { ...edge.style };
 
       // Cost gradient (only when no highlight active)
@@ -325,53 +314,9 @@ function AgentGraphInner() {
         style.transition = 'opacity 0.2s ease';
       }
 
-      // Assign explicit handle IDs based on node types
-      const sourceType = nodeTypeMap.get(edge.source) ?? '';
-      const targetType = nodeTypeMap.get(edge.target) ?? '';
-      let sourceHandle: string | undefined = edge.sourceHandle ?? 'structural';
-      let targetHandle: string | undefined = edge.targetHandle ?? undefined;
-
-      // TB mode: thread edges become spine edges (re-route to structural handles)
-      if (isThread) {
-        sourceHandle = 'structural';
-        targetHandle = undefined;
-      } else if (isShelf(targetType)) {
-        // Shelf edge: source handle depends on the source node type
-        if (sourceType === 'agent') {
-          sourceHandle = 'tools';
-        } else if (sourceType === 'userPrompt' || sourceType === 'session') {
-          sourceHandle = 'shelf';
-        } else {
-          // assistantResponse, toolCall, etc. — use default handle (no named ID)
-          sourceHandle = undefined;
-        }
-      }
-
-      // Shelf edges with a single sibling use straight lines (no smoothstep kinks).
-      // Multi-child shelf edges and spine/thread edges use smoothstep for routing.
-      const isShelfEdge = !isThread && isShelf(targetType);
-      const sourceShelfCount = isShelfEdge
-        ? visibleEdges.filter(
-            (e) =>
-              e.source === edge.source &&
-              !e.id.startsWith('thread-') &&
-              isShelf(nodeTypeMap.get(e.target) ?? ''),
-          ).length
-        : 0;
-      const edgeType = isShelfEdge && sourceShelfCount === 1 ? 'straight' : 'smoothstep';
-
-      return {
-        ...edge,
-        type: edgeType as 'straight' | 'smoothstep',
-        ...(edgeType === 'smoothstep' ? { pathOptions: { borderRadius: 12 } } : {}),
-        sourceHandle,
-        targetHandle,
-        // Thread edges: clear LR-era styling (blue straight line → normal structural edge)
-        ...(isThread ? { markerEnd: undefined, animated: false } : {}),
-        style,
-      };
+      return { ...edge, style };
     });
-  }, [visibleNodes, visibleEdges, mergedHighlightIds, edgeCostMap]);
+  }, [baseEdges, mergedHighlightIds, edgeCostMap]);
 
   // Resolve a node ID to a visible ID — if the node is a grouped tool,
   // return its parent toolgroup ID instead so fitView can find it.

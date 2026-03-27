@@ -116,6 +116,7 @@ export {
   VENDOR_COLORS,
   getVendorColor,
   inferVendor,
+  formatModelName,
   statusBorderColor,
   TYPE_COLORS,
   getTypeColor,

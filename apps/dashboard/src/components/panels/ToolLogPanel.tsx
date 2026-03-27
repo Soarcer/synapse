@@ -7,6 +7,13 @@ import { useAgentStore } from '../../store/agentStore';
 import { SkeletonLoader } from '../SkeletonLoader';
 import type { AgentEvent } from '@synapse-ai/core';
 
+/** Map a tool log event to its corresponding graph node ID */
+function eventToNodeId(event: AgentEvent): string | null {
+  if (event.toolUseId) return `tool-${event.toolUseId}`;
+  if (event.agentId) return `agent-${event.agentId}`;
+  return null;
+}
+
 export function ToolLogPanel() {
   const events = useAgentStore((s) => s.events);
   const agents = useAgentStore((s) => s.agents);
@@ -95,6 +102,10 @@ export function ToolLogPanel() {
                   agentType={agents.get(event.agentId ?? '')?.agentType}
                   isExpanded={expanded.has(event.id)}
                   onToggle={() => toggleExpand(event.id)}
+                  onSelect={() => {
+                    const nodeId = eventToNodeId(event);
+                    if (nodeId) useAgentStore.getState().selectNode(nodeId, 'lens');
+                  }}
                 />
               </div>
             )}
@@ -110,11 +121,13 @@ function ToolEventRow({
   agentType,
   isExpanded,
   onToggle,
+  onSelect,
 }: {
   event: AgentEvent;
   agentType?: string;
   isExpanded: boolean;
   onToggle: () => void;
+  onSelect: () => void;
 }) {
   const time = new Date(event.timestamp).toLocaleTimeString();
   const isResponse = event.type === 'assistant_response';
@@ -148,7 +161,12 @@ function ToolEventRow({
           {isResponse ? 'Claude' : (agentType ?? '—')}
         </span>
         <span
-          className={`font-medium flex-1 truncate ${isResponse ? 'text-blue-300' : 'text-gray-200'}`}
+          className={`font-medium flex-1 truncate ${isResponse ? 'text-blue-300' : 'text-gray-200'} hover:underline cursor-pointer`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect();
+          }}
+          title="Click to select in graph"
         >
           {isResponse ? (responsePreview ?? 'Assistant response') : event.toolName}
         </span>

@@ -42,10 +42,7 @@ export function MobileSettingsButton() {
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  const showAllTools = useAgentStore((s) => s.showAllTools);
   const toolGroupMode = useAgentStore((s) => s.toolGroupMode);
-  const autoClosePrompts = useAgentStore((s) => s.autoClosePrompts);
-  const showHookEvents = useAgentStore((s) => s.showHookEvents);
   const lockViewport = useAgentStore((s) => s.lockViewport);
   const paused = useAgentStore((s) => s.paused);
   const timePresetLabel = useAgentStore((s) => s.timePresetLabel);
@@ -112,21 +109,6 @@ export function MobileSettingsButton() {
           </div>
 
           <div className="border-t border-gray-700 pt-2 space-y-3">
-            <Toggle
-              label="Expand tools"
-              checked={showAllTools}
-              onChange={(v) => useAgentStore.getState().setShowAllTools(v)}
-            />
-            <Toggle
-              label="Auto-close prompts"
-              checked={autoClosePrompts}
-              onChange={(v) => useAgentStore.getState().setAutoClosePrompts(v)}
-            />
-            <Toggle
-              label="Show hook events"
-              checked={showHookEvents}
-              onChange={(v) => useAgentStore.getState().setShowHookEvents(v)}
-            />
             <Toggle
               label="Lock viewport"
               checked={lockViewport}

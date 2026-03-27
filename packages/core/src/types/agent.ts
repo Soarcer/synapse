@@ -129,6 +129,7 @@ export interface AssistantResponseData {
   text: string;
   timestamp: number;
   promptId: string; // Resolved: last prompt with timestamp <= response timestamp
+  model?: string;
 }
 
 // ─── API Request/Response Types ─────────────────────────────────────

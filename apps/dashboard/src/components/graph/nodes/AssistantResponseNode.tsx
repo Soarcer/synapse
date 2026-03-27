@@ -37,6 +37,7 @@ function AssistantResponseNodeComponent({ data, id }: NodeProps) {
     useAgentStore((s) => s.agentsBySession.get(response.sessionId)) ?? EMPTY_AGENTS;
   const transcript = useAgentStore((s) => s.transcripts.get(response.sessionId));
   const sessionModel = useAgentStore((s) => s.sessions.get(response.sessionId))?.model;
+  const responseModel = response.model ?? sessionModel;
 
   // Sibling responses for per-response tool windowing
   const allSessionResponses =
@@ -106,9 +107,9 @@ function AssistantResponseNodeComponent({ data, id }: NodeProps) {
           <span className="text-blue-300 text-xs font-semibold">
             Claude{total > 1 ? ` (${index + 1}/${total})` : ''}
           </span>
-          {sessionModel && (
+          {responseModel && (
             <span className="text-[9px] text-gray-400 font-medium">
-              {formatModelName(sessionModel)}
+              {formatModelName(responseModel)}
             </span>
           )}
         </div>

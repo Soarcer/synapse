@@ -5,7 +5,6 @@ import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { AgentDetailPanel } from '../panels/AgentDetailPanel';
 import { ToolLogPanel } from '../panels/ToolLogPanel';
 import { SpawnAgentDialog } from '../panels/SpawnAgentDialog';
-import { TimelinePanel } from '../panels/TimelinePanel';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { useAgentStore } from '../../store/agentStore';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
@@ -109,9 +108,7 @@ export function GraphLayout() {
           </div>
         )}
 
-        <ErrorBoundary name="TimelinePanel">
-          <TimelinePanel />
-        </ErrorBoundary>
+        {/* TimelinePanel disabled — needs redesign before re-enabling */}
       </div>
 
       <SpawnAgentDialog />

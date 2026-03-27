@@ -8,6 +8,7 @@ import '@xyflow/react/dist/style.css';
 import { useAgentStore } from '../../store/agentStore';
 import { useVisibleGraph } from '../../hooks/useVisibleGraph';
 import { useAutoLayout } from '../../hooks/useAutoLayout';
+import { useStyledEdges } from '../../hooks/useStyledEdges';
 import { nodeTypes, edgeTypes } from '../graph/nodeTypes';
 import { MobileSearchButton } from './MobileSearchButton';
 
@@ -36,10 +37,13 @@ function MobileGraphInner() {
   const lockViewport = useAgentStore((s) => s.lockViewport);
   const { fitView } = useReactFlow();
 
-  // Own toolGroupDims state (same pattern as AgentGraph)
+  // Own toolGroupDims + responseDims state (same pattern as AgentGraph)
   const [toolGroupDims, setToolGroupDims] = useState<
     Map<string, { width: number; height: number }>
   >(() => new Map());
+  const [responseDims, setResponseDims] = useState<Map<string, { width: number; height: number }>>(
+    () => new Map(),
+  );
 
   // Own expandedParentId computation (same as AgentGraph lines 57-71)
   const expandedParentId = useMemo(() => {
@@ -64,9 +68,11 @@ function MobileGraphInner() {
     autoClosePrompts,
     collapsedNodes: EMPTY_SET,
     toolGroupDims,
+    responseDims,
   });
 
   const layoutNodes = useAutoLayout(visibleNodes, visibleEdges, expandedParentId);
+  const styledEdges = useStyledEdges(visibleNodes, visibleEdges);
 
   // Filter out spawn node on mobile
   const mobileNodes = useMemo(() => layoutNodes.filter((n) => n.id !== '__spawn__'), [layoutNodes]);
@@ -77,10 +83,15 @@ function MobileGraphInner() {
     (changes: NodeChange[]) => {
       const dimUpdates: Array<{ id: string; width: number; height: number }> = [];
       const tgUpdates: Array<{ id: string; width: number; height: number }> = [];
+      const respUpdates: Array<{ id: string; width: number; height: number }> = [];
       for (const c of changes) {
         if (c.type === 'dimensions' && c.dimensions?.width && c.dimensions?.height) {
           if (c.id.startsWith('toolgroup-')) {
             tgUpdates.push({ id: c.id, width: c.dimensions.width, height: c.dimensions.height });
+            continue;
+          }
+          if (c.id.startsWith('response-')) {
+            respUpdates.push({ id: c.id, width: c.dimensions.width, height: c.dimensions.height });
             continue;
           }
           dimUpdates.push({ id: c.id, width: c.dimensions.width, height: c.dimensions.height });
@@ -100,6 +111,22 @@ function MobileGraphInner() {
           if (!changed) return prev;
           const next = new Map(prev);
           for (const { id, width, height } of tgUpdates) next.set(id, { width, height });
+          return next;
+        });
+      }
+      if (respUpdates.length > 0) {
+        setResponseDims((prev) => {
+          let changed = false;
+          for (const { id, width, height } of respUpdates) {
+            const existing = prev.get(id);
+            if (!existing || existing.width !== width || existing.height !== height) {
+              changed = true;
+              break;
+            }
+          }
+          if (!changed) return prev;
+          const next = new Map(prev);
+          for (const { id, width, height } of respUpdates) next.set(id, { width, height });
           return next;
         });
       }
@@ -211,7 +238,7 @@ function MobileGraphInner() {
     <div className="flex-1 relative" style={{ touchAction: 'none' }}>
       <ReactFlow
         nodes={mobileNodes}
-        edges={visibleEdges}
+        edges={styledEdges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onNodeClick={onNodeClick}

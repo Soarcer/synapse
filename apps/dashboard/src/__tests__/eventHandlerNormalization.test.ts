@@ -370,3 +370,54 @@ describe('processEvent routing', () => {
     expect(tc?.status).toBe('success');
   });
 });
+
+// ── Suppressed session handling ───────────────────────────────────────────────
+
+describe('suppressed session handling', () => {
+  it('ensureSession does not recreate a suppressed session', () => {
+    const draft = applyEvents([
+      makeEvent({ type: 'session_start', sessionId: 'sess-1', timestamp: 1000 }),
+      makeEvent({ type: 'user_prompt', sessionId: 'sess-1', text: 'hello', timestamp: 2000 }),
+    ]);
+
+    // Verify session exists
+    expect(draft.sessions.has('sess-1')).toBe(true);
+
+    // Simulate deletion: remove from draft and add to suppressed set
+    draft.sessions.delete('sess-1');
+    draft.nodes = draft.nodes.filter(
+      (n) => !n.id.startsWith('session-sess-1') && !n.id.startsWith('prompt-'),
+    );
+    draft.edges = [];
+    draft.prompts.delete('sess-1');
+    draft.suppressedSessionIds = new Set(['sess-1']);
+
+    // New event arrives for deleted session
+    processEvent(
+      makeEvent({ type: 'user_prompt', sessionId: 'sess-1', text: 'new prompt', timestamp: 5000 }),
+      draft,
+      true,
+    );
+
+    // Session should NOT be recreated
+    expect(draft.sessions.has('sess-1')).toBe(false);
+    // No new prompt node should exist
+    expect(draft.nodes.some((n) => n.id.includes('prompt-'))).toBe(false);
+  });
+
+  it('allows events for non-suppressed sessions', () => {
+    const draft = applyEvents([
+      makeEvent({ type: 'session_start', sessionId: 'sess-1', timestamp: 1000 }),
+    ]);
+    draft.suppressedSessionIds = new Set(['sess-other']);
+
+    processEvent(
+      makeEvent({ type: 'user_prompt', sessionId: 'sess-1', text: 'allowed', timestamp: 2000 }),
+      draft,
+      true,
+    );
+
+    // Prompt should exist for the non-suppressed session
+    expect(draft.nodes.some((n) => n.id.includes('prompt-'))).toBe(true);
+  });
+});

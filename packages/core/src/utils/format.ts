@@ -190,6 +190,39 @@ export function inferVendor(model?: string): string {
   return 'custom';
 }
 
+// ── Model name formatting ────────────────────────────────────
+
+/** Parse a raw model ID (e.g. "claude-opus-4-6", "claude-sonnet-4-6") into a short display name (e.g. "Opus 4.6") */
+export function formatModelName(model?: string): string | null {
+  if (!model) return null;
+  const m = model.toLowerCase();
+
+  // Claude models: claude-{family}-{version} → "Family Version"
+  const claudeMatch = m.match(/claude-(\w+)-(\d+)-(\d+)/);
+  if (claudeMatch) {
+    const family = claudeMatch[1].charAt(0).toUpperCase() + claudeMatch[1].slice(1);
+    return `${family} ${claudeMatch[2]}.${claudeMatch[3]}`;
+  }
+
+  // Claude models without sub-version: claude-{family}-{version}
+  const claudeSimple = m.match(/claude-(\w+)-(\d+)/);
+  if (claudeSimple) {
+    const family = claudeSimple[1].charAt(0).toUpperCase() + claudeSimple[1].slice(1);
+    return `${family} ${claudeSimple[2]}`;
+  }
+
+  // GPT models
+  if (m.includes('gpt-4')) return 'GPT-4';
+  if (m.includes('gpt-3')) return 'GPT-3.5';
+
+  // Gemini models
+  const geminiMatch = m.match(/gemini[- ]?([\d.]+\w*)/);
+  if (geminiMatch) return `Gemini ${geminiMatch[1]}`;
+
+  // Fallback: return the raw model string, truncated
+  return model.length > 20 ? model.slice(0, 20) + '...' : model;
+}
+
 export const statusBorderColor: Record<string, string> = {
   running: 'border-l-green-400',
   success: 'border-l-gray-500',

@@ -55,6 +55,7 @@ export function ReasoningSection({
     abortRef.current = controller;
 
     // Clear stale data immediately so old reasoning never shows under new node
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- synchronous reset before async fetch is intentional
     setData(null);
     setPromptTurnData(null);
     setLoading(true);
@@ -98,22 +99,39 @@ export function ReasoningSection({
     };
   }, [sessionId, isScoped]);
 
-  // When scoped, match the specific prompt group
+  // When scoped, match the specific prompt group.
+  // Strategy: timestamp match (30s window) → text prefix match → nearest timestamp.
   const scopedTurns = useMemo((): ReasoningTurn[] | null => {
     if (!isScoped || !promptTurnData?.groups.length) return null;
 
-    const candidates = promptTurnData.groups.filter(
-      (g) => Math.abs(g.promptTimestamp - (promptTimestamp ?? 0)) < 5000,
-    );
-    if (candidates.length === 1) return candidates[0].turns;
-
+    const ts = promptTimestamp ?? 0;
     const prefix = (promptText ?? '').slice(0, 80).toLowerCase();
-    const match = (candidates.length > 1 ? candidates : promptTurnData.groups).find(
-      (g) =>
-        g.promptText.toLowerCase().startsWith(prefix) ||
-        prefix.startsWith(g.promptText.slice(0, 80).toLowerCase()),
-    );
-    return match?.turns ?? [];
+
+    // 1. Timestamp match (30s window)
+    const byTime = promptTurnData.groups.filter((g) => Math.abs(g.promptTimestamp - ts) < 30_000);
+    if (byTime.length === 1) return byTime[0].turns;
+
+    // 2. Text prefix match (within timestamp candidates first, then all groups)
+    const textMatch = (pool: typeof promptTurnData.groups) =>
+      pool.find(
+        (g) =>
+          g.promptText.toLowerCase().startsWith(prefix) ||
+          prefix.startsWith(g.promptText.slice(0, 80).toLowerCase()),
+      );
+
+    const match =
+      (byTime.length > 1 ? textMatch(byTime) : null) ?? textMatch(promptTurnData.groups);
+    if (match) return match.turns;
+
+    // 3. Last resort: nearest timestamp (pick the closest group)
+    if (ts > 0) {
+      const nearest = promptTurnData.groups.reduce((best, g) =>
+        Math.abs(g.promptTimestamp - ts) < Math.abs(best.promptTimestamp - ts) ? g : best,
+      );
+      return nearest.turns;
+    }
+
+    return [];
   }, [isScoped, promptTurnData, promptText, promptTimestamp]);
 
   const toggleAutoScroll = useCallback(() => {

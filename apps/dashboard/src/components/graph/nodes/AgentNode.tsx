@@ -36,6 +36,8 @@ function AgentNodeComponent({ data }: NodeProps) {
   const toolsExpanded =
     isSelected || agent.toolCalls.some((tc) => selectedNodeId === `tool-${tc.toolUseId}`);
 
+  const transcript = useAgentStore((s) => s.transcripts.get(agent.sessionId));
+
   const { inputTokens, outputTokens } = useMemo(() => {
     let input = agent.tokenUsage.input;
     let output = agent.tokenUsage.output;
@@ -43,8 +45,24 @@ function AgentNodeComponent({ data }: NodeProps) {
       input += a.tokenUsage.input;
       output += a.tokenUsage.output;
     }
+    // Fallback to transcript data when hook events lack token info.
+    // 2s slack before startTime matches the pattern in UserPromptNode.
+    if (input === 0 && output === 0 && transcript) {
+      const windowStart = agent.startTime - 2000;
+      const windowEnd = agent.endTime ?? agent.startTime + 600_000;
+      for (const turn of transcript.turns) {
+        if (
+          turn.type === 'assistant' &&
+          turn.timestamp >= windowStart &&
+          turn.timestamp < windowEnd
+        ) {
+          input += turn.totalInputTokens;
+          output += turn.outputTokens;
+        }
+      }
+    }
     return { inputTokens: input, outputTokens: output };
-  }, [children, agent.tokenUsage]);
+  }, [children, agent.tokenUsage, agent.startTime, agent.endTime, transcript]);
 
   // Vendor color overrides the status border-left color when present
   const vendorBorderStyle = agent.vendor

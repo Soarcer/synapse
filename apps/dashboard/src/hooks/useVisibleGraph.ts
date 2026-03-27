@@ -42,14 +42,49 @@ export interface UseVisibleGraphResult {
 export function useVisibleGraph(options: UseVisibleGraphOptions): UseVisibleGraphResult {
   const { autoClosePrompts, collapsedNodes, toolGroupDims, responseDims } = options;
 
-  const rawNodes = useAgentStore((s) => s.nodes);
-  const rawEdges = useAgentStore((s) => s.edges);
+  const allNodes = useAgentStore((s) => s.nodes);
+  const allEdges = useAgentStore((s) => s.edges);
+  const filterSessionId = useAgentStore((s) => s.filter.sessionId);
   const graphSearchQuery = useAgentStore((s) => s.graphSearchQuery);
   const selectedNodeId = useAgentStore((s) => s.selectedNodeId);
   const expandedTurns = useAgentStore((s) => s.expandedTurns);
   const responses = useAgentStore((s) => s.responses);
   // showAllTools/toolGroupMode affect rendering but are already reflected in rawNodes
   // via the AgentGraph visibility memo, so no need to include them here.
+
+  // Phase 0: Session filtering — when a session is selected, keep only its nodes/edges.
+  // We walk the edge graph from the session root to find all reachable nodes,
+  // since not all node data objects carry a sessionId (e.g. toolCall nodes).
+  const { rawNodes, rawEdges } = useMemo(() => {
+    if (!filterSessionId) return { rawNodes: allNodes, rawEdges: allEdges };
+
+    // Build adjacency: source → targets
+    const children = new Map<string, string[]>();
+    for (const e of allEdges) {
+      const list = children.get(e.source) ?? [];
+      list.push(e.target);
+      children.set(e.source, list);
+    }
+
+    // BFS from the session root node
+    const rootId = `session-${filterSessionId}`;
+    const reachable = new Set<string>();
+    const queue = [rootId];
+    while (queue.length > 0) {
+      const id = queue.pop()!;
+      if (reachable.has(id)) continue;
+      reachable.add(id);
+      for (const child of children.get(id) ?? []) {
+        queue.push(child);
+      }
+    }
+
+    const filteredNodes = allNodes.filter((n) => reachable.has(n.id));
+    const filteredEdges = allEdges.filter(
+      (e) => reachable.has(e.source) && reachable.has(e.target),
+    );
+    return { rawNodes: filteredNodes, rawEdges: filteredEdges };
+  }, [allNodes, allEdges, filterSessionId]);
 
   // Phase 1: Toolgroup synthesis (only depends on structure + dims).
   // Cached across selection/search changes so clicking through nodes
@@ -115,7 +150,12 @@ export function useVisibleGraph(options: UseVisibleGraphOptions): UseVisibleGrap
   const { phase15Nodes, phase15Edges } = useMemo(() => {
     // Group ALL responses by promptId (always synthesize, not gated by expandedTurns)
     const promptResponses = new Map<string, AssistantResponseData[]>();
-    for (const sessionResponses of responses.values()) {
+    const responseEntries = filterSessionId
+      ? responses.get(filterSessionId)
+        ? [responses.get(filterSessionId)!]
+        : []
+      : [...responses.values()];
+    for (const sessionResponses of responseEntries) {
       for (const resp of sessionResponses) {
         const promptNodeId = `prompt-${resp.promptId}`;
         const list = promptResponses.get(promptNodeId) ?? [];
@@ -212,7 +252,7 @@ export function useVisibleGraph(options: UseVisibleGraphOptions): UseVisibleGrap
       phase15Nodes: [...baseNodes, ...syntheticNodes],
       phase15Edges: [...baseEdges.filter((e) => !reparentedEdgeIds.has(e.id)), ...syntheticEdges],
     };
-  }, [baseNodes, baseEdges, expandedTurns, responses, responseDims]);
+  }, [baseNodes, baseEdges, expandedTurns, responses, responseDims, filterSessionId]);
 
   // Phase 2+: Search, auto-close, collapse (depends on selection, search, etc.)
   return useMemo(() => {

@@ -67,7 +67,14 @@ interface PersistedViewSettings {
 const savedViewSettings: PersistedViewSettings = (() => {
   try {
     const raw = localStorage.getItem(VIEW_SETTINGS_KEY);
-    return raw ? JSON.parse(raw) : {};
+    const parsed = raw ? JSON.parse(raw) : {};
+    // Clean up deprecated settings that are now always-on
+    if ('showHookEvents' in parsed || 'showAllTools' in parsed) {
+      delete parsed.showHookEvents;
+      delete parsed.showAllTools;
+      localStorage.setItem(VIEW_SETTINGS_KEY, JSON.stringify(parsed));
+    }
+    return parsed;
   } catch {
     return {};
   }
@@ -213,6 +220,7 @@ interface AgentStore {
   toolAgentMap: Map<string, string>;
   pendingTaskTools: Map<string, string[]>;
   taskToolAgentMap: Map<string, string>;
+  suppressedSessionIds: Set<string>;
   events: AgentEvent[];
   eventIds: Set<string>;
   pauseQueue: AgentEvent[];
@@ -401,6 +409,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   toolAgentMap: new Map(),
   pendingTaskTools: new Map(),
   taskToolAgentMap: new Map(),
+  suppressedSessionIds: new Set<string>(),
   events: [],
   eventIds: new Set<string>(),
   pauseQueue: [],
@@ -489,7 +498,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       pendingZoomNodeId: source === 'lens' ? id : null,
     }),
 
-  setFilter: (filter) => set({ filter }),
+  setFilter: (filter) => set({ filter, pendingFitView: true }),
 
   setConnectionStatus: (connectionStatus) => {
     if (connectionStatus === get().connectionStatus) return;
@@ -569,10 +578,9 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     set({ transcriptReasoning });
   },
 
-  setShowHookEvents: (showHookEvents) => {
-    persistViewSettings({ showHookEvents });
-    set({ showHookEvents });
-    reloadAllEvents();
+  setShowHookEvents: () => {
+    // Hook events are always visible — toggle removed in v0.1.0.
+    // Setter kept for interface compatibility but is a no-op.
   },
 
   setShowAllTools: (showAllTools) => {
@@ -731,6 +739,12 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
         ? state.events.filter((e) => !removedSessionIds.has(e.sessionId))
         : state.events;
 
+    // Suppress future events for deleted sessions
+    const suppressedSessionIds = new Set(state.suppressedSessionIds);
+    for (const sid of removedSessionIds) {
+      suppressedSessionIds.add(sid);
+    }
+
     set({
       sessions,
       agents,
@@ -740,6 +754,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       events,
       nodes,
       edges,
+      suppressedSessionIds,
       sourceHasEdge: buildSourceHasEdge(edges),
       selectedNodeId:
         state.selectedNodeId && removeIds.has(state.selectedNodeId) ? null : state.selectedNodeId,
@@ -804,6 +819,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     eventCapToastFired = false;
     // Also clear from DB so reloadAllEvents doesn't bring them back
     fetch(apiUrl('/api/events'), { method: 'DELETE' }).catch(() => {});
+    const { suppressedSessionIds } = get();
     set({
       sessions: new Map(),
       agents: new Map(),
@@ -827,6 +843,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       highlightedNodeIds: null,
       multiHighlightIds: null,
       collapsedNodes: new Set(),
+      suppressedSessionIds,
       transcripts: new Map(),
       transcriptReasoning: new Map(),
       liveNudges: EMPTY_NUDGES,
@@ -880,6 +897,9 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       ...buildDerivedMaps(draft.agents, draft.sessions),
       events: finalEvents,
       eventIds,
+      // Preserve suppression set across reloads — backend DELETE removes persisted
+      // events but live WS events may still arrive for recently-deleted sessions
+      suppressedSessionIds: prevState.suppressedSessionIds,
       sourceHasEdge: buildSourceHasEdge(draft.edges),
       selectedNodeId: null,
       highlightedNodeIds: null,
@@ -997,11 +1017,9 @@ wsClient.setOnBatchEvent((msgs) => {
 
     // Content-based dedup
     if (isWsDuplicate(event)) {
-      console.log('[store] SKIP ws dedup:', event.type, event.id?.slice(0, 8));
       continue;
     }
 
-    console.log('[store] ACCEPT:', event.type, event.sessionId?.slice(0, 8));
     eventsToAdd.push(event);
   }
 

@@ -66,6 +66,7 @@ function resetStore() {
     autoClosePrompts: false,
     graphSearchQuery: '',
     collapsedNodes: new Set(),
+    suppressedSessionIds: new Set<string>(),
     transcripts: new Map(),
     liveNudges: [],
     isLoading: true,
@@ -1271,6 +1272,74 @@ describe('agentStore', () => {
       const taskEdge = edges.find((e) => e.source === 'tool-tu1' && e.target === 'agent-a2');
       expect(taskEdge).toBeDefined();
       expect((taskEdge?.data as Record<string, unknown>)?.isTaskEdge).toBe(true);
+    });
+  });
+
+  // ── Session deletion suppression ──────────────────────────────────
+
+  describe('session deletion suppression', () => {
+    beforeEach(() => resetStore());
+
+    it('suppresses events for deleted sessions', () => {
+      const store = useAgentStore.getState();
+
+      store.addEvent({
+        id: 'e1',
+        type: 'session_start',
+        sessionId: 'sess-del',
+        timestamp: 1000,
+      });
+      store.addEvent({
+        id: 'e2',
+        type: 'user_prompt',
+        sessionId: 'sess-del',
+        text: 'hello',
+        timestamp: 2000,
+      });
+
+      expect(useAgentStore.getState().sessions.has('sess-del')).toBe(true);
+
+      // Delete the session
+      store.removeSession('sess-del');
+
+      expect(useAgentStore.getState().sessions.has('sess-del')).toBe(false);
+      expect(useAgentStore.getState().suppressedSessionIds.has('sess-del')).toBe(true);
+
+      // New event arrives for deleted session
+      store.addEvent({
+        id: 'e3',
+        type: 'user_prompt',
+        sessionId: 'sess-del',
+        text: 'ghost prompt',
+        timestamp: 5000,
+      });
+
+      // Session should NOT be recreated
+      expect(useAgentStore.getState().sessions.has('sess-del')).toBe(false);
+      // No nodes for this session
+      expect(useAgentStore.getState().nodes.some((n) => n.id.includes('sess-del'))).toBe(false);
+    });
+
+    it('preserves suppressedSessionIds across loadEvents', () => {
+      const store = useAgentStore.getState();
+
+      store.addEvent({
+        id: 'e1',
+        type: 'session_start',
+        sessionId: 'sess-del',
+        timestamp: 1000,
+      });
+      store.removeSession('sess-del');
+
+      expect(useAgentStore.getState().suppressedSessionIds.has('sess-del')).toBe(true);
+
+      // loadEvents simulates a reload
+      store.loadEvents([
+        { id: 'e10', type: 'session_start', sessionId: 'sess-other', timestamp: 500 },
+      ]);
+
+      // suppressedSessionIds should survive the reload
+      expect(useAgentStore.getState().suppressedSessionIds.has('sess-del')).toBe(true);
     });
   });
 });

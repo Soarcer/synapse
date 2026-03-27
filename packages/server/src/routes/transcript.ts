@@ -283,6 +283,26 @@ export function createTranscriptRouter(): Router {
     }
   });
 
+  // HEAD /api/transcript/:sessionId/reasoning — check if reasoning exists (lightweight)
+  router.head('/:sessionId/reasoning', async (req: Request, res: Response) => {
+    try {
+      const sessionId = req.params.sessionId as string;
+      const transcriptPath = await resolveTranscriptPath(sessionId);
+      if (!transcriptPath) {
+        res.status(404).end();
+        return;
+      }
+      const full = await getCachedTranscript(transcriptPath, sessionId);
+      const hasThinking = full.conversations.some(
+        (c) => c.type === 'assistant' && c.content.some((b) => b.type === 'thinking'),
+      );
+      res.setHeader('X-Has-Reasoning', hasThinking ? '1' : '0');
+      res.status(hasThinking ? 200 : 204).end();
+    } catch {
+      res.status(404).end();
+    }
+  });
+
   // GET /api/transcript/:sessionId/reasoning — thinking blocks + linked tool calls
   router.get('/:sessionId/reasoning', async (req: Request, res: Response) => {
     try {

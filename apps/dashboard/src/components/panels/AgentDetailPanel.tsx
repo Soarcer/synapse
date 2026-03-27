@@ -166,6 +166,7 @@ export function AgentDetailPanel() {
   const [confirmStop, setConfirmStop] = useState<string | null>(null);
   const textRef = useRef<HTMLPreElement>(null);
   const [detailTab, setDetailTab] = useState<'stats' | 'reasoning'>('stats');
+  const [hasReasoning, setHasReasoning] = useState<boolean | null>(null);
 
   // AI analysis state for prompt panel
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>(loadPanelMode);
@@ -277,6 +278,22 @@ export function AgentDetailPanel() {
 
   const agent = agentId ? agents.get(agentId) : null;
   const session = sessionId ? sessions.get(sessionId) : null;
+
+  // Prefetch reasoning availability for agent detail panel
+  const agentSessionId = agent?.sessionId ?? null;
+  useEffect(() => {
+    setHasReasoning(null);
+    setDetailTab('stats');
+    if (!agentSessionId) return;
+    const controller = new AbortController();
+    fetch(apiUrl(`/api/transcript/${agentSessionId}/reasoning`), {
+      method: 'HEAD',
+      signal: controller.signal,
+    })
+      .then((r) => setHasReasoning(r.status === 200))
+      .catch(() => setHasReasoning(false));
+    return () => controller.abort();
+  }, [agentSessionId]);
 
   // Compute rich metrics for agent panel (must be before conditional returns)
   const agentMetrics = useMemo(() => {
@@ -1007,7 +1024,7 @@ export function AgentDetailPanel() {
       tabs={{
         items: [
           { key: 'stats', label: 'Stats' },
-          { key: 'reasoning', label: 'Reasoning' },
+          { key: 'reasoning', label: 'Reasoning', disabled: hasReasoning === false },
         ],
         activeKey: detailTab,
         onChange: (k) => setDetailTab(k as 'stats' | 'reasoning'),
@@ -1305,7 +1322,7 @@ export function PanelShell({
   title: string;
   titleRight?: React.ReactNode;
   tabs?: {
-    items: { key: string; label: string }[];
+    items: { key: string; label: string; disabled?: boolean }[];
     activeKey: string;
     onChange: (key: string) => void;
   };
@@ -1325,11 +1342,14 @@ export function PanelShell({
               {tabs.items.map((tab) => (
                 <button
                   key={tab.key}
-                  onClick={() => tabs.onChange(tab.key)}
+                  onClick={() => !tab.disabled && tabs.onChange(tab.key)}
+                  disabled={tab.disabled}
                   className={`px-2 py-1 text-xs font-medium border-b-2 transition-colors ${
-                    tabs.activeKey === tab.key
-                      ? 'text-gray-200 border-blue-400'
-                      : 'text-gray-500 border-transparent hover:text-gray-300'
+                    tab.disabled
+                      ? 'text-gray-700 border-transparent cursor-not-allowed'
+                      : tabs.activeKey === tab.key
+                        ? 'text-gray-200 border-blue-400'
+                        : 'text-gray-500 border-transparent hover:text-gray-300'
                   }`}
                 >
                   {tab.label}
@@ -1455,10 +1475,12 @@ function PromptDetailView({
   dialogs: React.ReactNode;
 }) {
   const [detailTab, setDetailTab] = useState<'stats' | 'reasoning'>('stats');
+  const [hasReasoning, setHasReasoning] = useState<boolean | null>(null); // null = loading
 
-  // Reset tab when prompt changes
+  // Reset tab and prefetch reasoning availability when prompt changes
   useEffect(() => {
     setDetailTab('stats');
+    setHasReasoning(null);
   }, [promptId]);
 
   // Find the prompt across all session prompts
@@ -1473,6 +1495,19 @@ function PromptDetailView({
 
   const promptText = foundPrompt ? extractUserMessage(foundPrompt.text) : '';
   const session = foundPrompt ? sessions.get(foundPrompt.sessionId) : undefined;
+
+  // Prefetch reasoning availability via lightweight HEAD request
+  useEffect(() => {
+    if (!foundPrompt?.sessionId) return;
+    const controller = new AbortController();
+    fetch(apiUrl(`/api/transcript/${foundPrompt.sessionId}/reasoning`), {
+      method: 'HEAD',
+      signal: controller.signal,
+    })
+      .then((r) => setHasReasoning(r.status === 200))
+      .catch(() => setHasReasoning(false));
+    return () => controller.abort();
+  }, [foundPrompt?.sessionId]);
 
   // Transcript-derived response text for this prompt
   const promptTurnGroupMap = usePromptTurnsContext();
@@ -1554,6 +1589,7 @@ function PromptDetailView({
         if (tc.startTime >= promptTs && tc.startTime < nextTs && !agentToolIds.has(tc.toolUseId)) {
           toolCountMap.set(tc.toolName, (toolCountMap.get(tc.toolName) ?? 0) + 1);
           toolCount++;
+          // eslint-disable-next-line react-hooks/purity -- Date.now() needed for running tool elapsed time
           const end = tc.endTime ?? (tc.status === 'running' ? Date.now() : tc.startTime);
           if (end > latestToolEnd) latestToolEnd = end;
         }
@@ -1632,7 +1668,7 @@ function PromptDetailView({
         tabs={{
           items: [
             { key: 'stats', label: 'Stats' },
-            { key: 'reasoning', label: 'Reasoning' },
+            { key: 'reasoning', label: 'Reasoning', disabled: hasReasoning === false },
           ],
           activeKey: detailTab,
           onChange: (k) => setDetailTab(k as 'stats' | 'reasoning'),
@@ -1778,19 +1814,6 @@ function PromptDetailView({
 
             <Divider />
 
-            {/* AI Analysis Section */}
-            <PromptAiSection
-              promptText={promptText}
-              devAnalysis={aiCache[panelCacheKey(promptText, 'developer')] ?? null}
-              vibeAnalysis={aiCache[panelCacheKey(promptText, 'vibe')] ?? null}
-              loading={aiLoading}
-              mode={analysisMode}
-              onModeChange={onModeChange}
-              onAnalyze={(skipCache) => onAnalyze(promptText, skipCache)}
-            />
-
-            <Divider />
-
             <button
               onClick={() => onRemove(`prompt-${promptId}`)}
               className="w-full px-3 py-1.5 bg-red-900/30 hover:bg-red-800/40 border border-red-700/40 rounded text-xs text-red-300 transition-colors"
@@ -1827,6 +1850,7 @@ function TranscriptToolDetail({ sessionId, toolUseId }: { sessionId: string; too
 
   useEffect(() => {
     if (!sessionId || tried) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- synchronous reset before async fetch is intentional
     setLoading(true);
     setTried(true);
 

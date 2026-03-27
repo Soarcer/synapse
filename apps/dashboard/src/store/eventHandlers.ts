@@ -71,6 +71,8 @@ export interface StateDraft {
   pendingTaskTools: Map<string, string[]>;
   /** taskToolUseId → childAgentId (set when SubagentStart links to a Task tool) */
   taskToolAgentMap: Map<string, string>;
+  /** Session IDs that were explicitly deleted — skip events for these */
+  suppressedSessionIds: Set<string>;
   nodes: Node[];
   edges: Edge[];
 }
@@ -86,6 +88,7 @@ export function createFreshDraft(): StateDraft {
     toolAgentMap: new Map(),
     pendingTaskTools: new Map(),
     taskToolAgentMap: new Map(),
+    suppressedSessionIds: new Set(),
     nodes: [{ ...SPAWN_NODE }],
     edges: [],
   };
@@ -102,6 +105,7 @@ export function draftFromState(state: StateDraft): StateDraft {
     toolAgentMap: new Map(state.toolAgentMap),
     pendingTaskTools: new Map(Array.from(state.pendingTaskTools, ([k, v]) => [k, [...v]])),
     taskToolAgentMap: new Map(state.taskToolAgentMap),
+    suppressedSessionIds: new Set(state.suppressedSessionIds),
     nodes: [...state.nodes],
     edges: [...state.edges],
   };
@@ -684,6 +688,16 @@ function handleCompact(event: AgentEvent, draft: StateDraft): void {
 function handleAssistantResponse(event: AgentEvent, draft: StateDraft): void {
   if (!event.text) return;
 
+  // Backfill session model from assistant response (hooks don't include model on SessionStart)
+  if (event.model) {
+    const session = draft.sessions.get(event.sessionId);
+    if (session && !session.model) {
+      const updated = { ...session, model: event.model };
+      draft.sessions.set(event.sessionId, updated);
+      updateNode(draft.nodes, nid.session(event.sessionId), { session: updated });
+    }
+  }
+
   // Find the last prompt with timestamp <= response timestamp
   const sessionPrompts = draft.prompts.get(event.sessionId) ?? [];
   let promptId = '';
@@ -700,6 +714,7 @@ function handleAssistantResponse(event: AgentEvent, draft: StateDraft): void {
     text: event.text,
     timestamp: event.timestamp,
     promptId,
+    model: event.model,
   };
 
   const existing = draft.responses.get(event.sessionId) ?? [];
@@ -709,6 +724,9 @@ function handleAssistantResponse(event: AgentEvent, draft: StateDraft): void {
 // ── Event dispatcher ─────────────────────────────────────────
 
 export function processEvent(event: AgentEvent, draft: StateDraft, showHookEvents: boolean): void {
+  // Skip events for sessions that were explicitly deleted by the user
+  if (draft.suppressedSessionIds.has(event.sessionId)) return;
+
   // assistant_response bypasses hook visibility — it's conversation data via hook transport
   if (event.eventSource === 'hook' && !showHookEvents && event.type !== 'assistant_response')
     return;
