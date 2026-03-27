@@ -124,6 +124,8 @@ class WSClient {
       this.ws.onmessage = (event) => {
         try {
           const msg: WsServerMessage = JSON.parse(event.data);
+          if (msg.type === 'event')
+            console.log('[ws] event:', msg.data?.type, msg.data?.sessionId?.slice(0, 8));
           if (this.batcher) {
             this.batcher.batchEvent(msg);
           } else {

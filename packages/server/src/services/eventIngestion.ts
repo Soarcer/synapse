@@ -100,15 +100,16 @@ export function ingestRawEvent(
       rawPayload: raw,
     });
 
-    logger.info(
-      {
-        adapter: adapter.id,
-        hookEvent: raw.hook_event_name || 'unknown',
-        type: event.type,
-        sessionId: event.sessionId,
-      },
-      'Event received',
-    );
+    const hookEvent = raw.hook_event_name || 'unknown';
+    if (hookEvent === 'UserPromptSubmit') {
+      const text = (event.text ?? '').slice(0, 120);
+      logger.info(`\x1b[38;5;208m${text}\x1b[0m`);
+    } else {
+      logger.info(
+        { adapter: adapter.id, hookEvent, type: event.type, sessionId: event.sessionId },
+        'Event received',
+      );
+    }
 
     resolveIfSessionAdvanced(raw, broadcaster);
 

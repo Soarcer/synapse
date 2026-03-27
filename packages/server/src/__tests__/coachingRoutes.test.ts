@@ -9,6 +9,7 @@ process.env.SYNAPSE_DB_PATH = path.join(os.tmpdir(), 'synapse-test-coaching-' + 
 import request from 'supertest';
 import type { Express } from 'express';
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest';
+import { Features } from '@synapse-ai/core';
 import { initDb, deleteAllEvents, deleteAllPlaybooks, insertEvent } from '../db.js';
 import { createApp } from '../app.js';
 import { Broadcaster } from '../services/broadcaster.js';
@@ -97,7 +98,7 @@ function seedSession(sessionId: string): void {
 // GET /api/analytics/coaching/report-card
 // ═══════════════════════════════════════════════════════════════════════
 
-describe('GET /api/analytics/coaching/report-card', () => {
+describe.skipIf(!Features.coaching)('GET /api/analytics/coaching/report-card', () => {
   it('returns 400 without sessionId', async () => {
     const res = await request(app).get('/api/analytics/coaching/report-card').expect(400);
 
@@ -135,7 +136,7 @@ describe('GET /api/analytics/coaching/report-card', () => {
 // GET /api/analytics/coaching/report-cards
 // ═══════════════════════════════════════════════════════════════════════
 
-describe('GET /api/analytics/coaching/report-cards', () => {
+describe.skipIf(!Features.coaching)('GET /api/analytics/coaching/report-cards', () => {
   it('returns computed report cards within range', async () => {
     seedSession('rc-range-1');
 
@@ -156,7 +157,7 @@ describe('GET /api/analytics/coaching/report-cards', () => {
 // GET /api/analytics/coaching/nudges
 // ═══════════════════════════════════════════════════════════════════════
 
-describe('GET /api/analytics/coaching/nudges', () => {
+describe.skipIf(!Features.coaching)('GET /api/analytics/coaching/nudges', () => {
   it('returns 400 without sessionId', async () => {
     const res = await request(app).get('/api/analytics/coaching/nudges').expect(400);
 
@@ -176,7 +177,7 @@ describe('GET /api/analytics/coaching/nudges', () => {
 // POST /api/analytics/coaching/nudges/dismiss
 // ═══════════════════════════════════════════════════════════════════════
 
-describe('POST /api/analytics/coaching/nudges/dismiss', () => {
+describe.skipIf(!Features.coaching)('POST /api/analytics/coaching/nudges/dismiss', () => {
   it('returns 400 with missing fields', async () => {
     const res = await request(app)
       .post('/api/analytics/coaching/nudges/dismiss')
@@ -200,7 +201,7 @@ describe('POST /api/analytics/coaching/nudges/dismiss', () => {
 // Playbook CRUD
 // ═══════════════════════════════════════════════════════════════════════
 
-describe('Playbook CRUD', () => {
+describe.skipIf(!Features.coaching)('Playbook CRUD', () => {
   it('GET /playbooks returns empty array initially', async () => {
     const res = await request(app).get('/api/analytics/coaching/playbooks').expect(200);
 
@@ -291,7 +292,7 @@ describe('Playbook CRUD', () => {
 // POST /playbooks/from-session
 // ═══════════════════════════════════════════════════════════════════════
 
-describe('POST /api/analytics/coaching/playbooks/from-session', () => {
+describe.skipIf(!Features.coaching)('POST /api/analytics/coaching/playbooks/from-session', () => {
   it('returns 400 without sessionId', async () => {
     const res = await request(app)
       .post('/api/analytics/coaching/playbooks/from-session')

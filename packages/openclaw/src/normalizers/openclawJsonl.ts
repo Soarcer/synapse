@@ -2,69 +2,27 @@
 // Copyright (c) 2026 Bernhard
 
 import { nanoid } from 'nanoid';
+import type { AgentEvent } from '@synapse-ai/core';
+import { inferVendor, getPrice, computeCostUsd } from '@synapse-ai/core';
 import type { TranscriptLine, TranscriptContentBlock } from '../types.js';
 
-// ─── Types from Synapse core ────────────────────────────────────────
-
-interface AgentEvent {
-  id: string;
-  type: string;
-  sessionId: string;
-  agentId?: string;
-  agentType?: string;
-  parentAgentId?: string;
-  toolName?: string;
-  toolInput?: Record<string, unknown>;
-  toolResponse?: Record<string, unknown>;
-  toolUseId?: string;
-  text?: string;
-  status?: 'running' | 'success' | 'error' | 'stopped';
-  error?: string;
-  tokenUsage?: { input: number; output: number };
-  duration?: number;
-  timestamp: number;
-  model?: string;
-  eventSource?: 'hook' | 'sdk' | 'openclaw';
-  vendor?: string;
-  costUsd?: number;
-}
-
-// ─── Vendor Inference ───────────────────────────────────────────────
-
-export function inferVendor(model?: string): string {
-  if (!model) return 'custom';
-  const m = model.toLowerCase();
-  if (m.includes('claude') || m.startsWith('anthropic/')) return 'anthropic';
-  if (m.includes('gpt') || m.startsWith('openai/')) return 'openai';
-  if (m.includes('gemini') || m.startsWith('google/')) return 'google';
-  if (m.startsWith('groq/')) return 'groq';
-  if (m.startsWith('openrouter/')) return 'openrouter';
-  return 'custom';
-}
-
-// ─── Pricing Table (per 1M tokens) ─────────────────────────────────
-
-const PRICING: Record<string, { input: number; output: number }> = {
-  'claude-opus-4-6': { input: 15, output: 75 },
-  'claude-sonnet-4-5': { input: 3, output: 15 },
-  'claude-haiku-4-5': { input: 0.8, output: 4 },
-  'gpt-4o': { input: 2.5, output: 10 },
-  'gpt-4-turbo': { input: 10, output: 30 },
-  'gpt-3.5-turbo': { input: 0.5, output: 1.5 },
-  'gemini-2.0-flash': { input: 0.075, output: 0.3 },
-  'gemini-2.0-pro': { input: 1.25, output: 5 },
-};
-
-function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
-  // Strip vendor prefix (e.g., "anthropic/claude-opus-4-6" → "claude-opus-4-6")
-  const modelName = model.includes('/') ? model.split('/').pop()! : model;
-
-  // Find pricing by prefix match (handles versioned model names)
-  const pricing =
-    PRICING[modelName] ?? Object.entries(PRICING).find(([k]) => modelName.startsWith(k))?.[1];
-
-  if (!pricing) return 0;
-  return (inputTokens * pricing.input + outputTokens * pricing.output) / 1_000_000;
+function estimateCostFull(
+  model: string,
+  inputTokens: number,
+  outputTokens: number,
+  cacheReadTokens = 0,
+  cacheCreationTokens = 0,
+): number {
+  const price = getPrice(model);
+  const breakdown = computeCostUsd({
+    inputTokens,
+    outputTokens,
+    cacheReadTokens,
+    cacheCreationTokens,
+    thinkingTokens: 0,
+    price,
+  });
+  return breakdown.total;
 }
 
 // ─── Session State Tracker ──────────────────────────────────────────
@@ -219,12 +177,13 @@ export function normalizeOpenClawJsonl(
 
       // Token usage from this turn
       if (line.usage) {
-        const inputTokens =
-          (line.usage.input_tokens ?? 0) +
-          (line.usage.cache_creation_input_tokens ?? 0) +
-          (line.usage.cache_read_input_tokens ?? 0);
+        const inputTokens = line.usage.input_tokens ?? 0;
         const outputTokens = line.usage.output_tokens ?? 0;
-        const cost = model ? estimateCost(model, inputTokens, outputTokens) : 0;
+        const cacheReadTokens = line.usage.cache_read_input_tokens ?? 0;
+        const cacheCreationTokens = line.usage.cache_creation_input_tokens ?? 0;
+        const cost = model
+          ? estimateCostFull(model, inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens)
+          : 0;
 
         events.push({
           id: nanoid(),

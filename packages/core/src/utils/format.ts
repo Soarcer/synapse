@@ -6,10 +6,10 @@
 export function formatTokens(n: number): string {
   if (n === 0) return '0';
   if (n < 1000) return String(n);
-  if (n < 10000) return `${(n / 1000).toFixed(1)}k`;
-  if (n < 1000000) return `${Math.round(n / 1000)}k`;
-  if (n >= 10_000_000) return `${Math.round(n / 1_000_000)}M`;
-  return `${(n / 1000000).toFixed(1)}M`;
+  if (n < 10_000) return `${(n / 1000).toFixed(1)}k`;
+  if (n < 1_000_000) return `${Math.round(n / 1000)}k`;
+  if (n < 10_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  return `${Math.round(n / 1_000_000)}M`;
 }
 
 export function formatElapsed(startTime: number, endTime?: number): string {
@@ -206,7 +206,12 @@ export function getTypeColor(agentType: string, paletteIndex = 0): string {
 
 // ── Path utilities ──────────────────────────────────────────
 
-/** Normalize a cwd path for cross-platform comparison (lowercase, forward slashes, no trailing slash). */
+/** Normalize a cwd path for cross-platform comparison (forward slashes, no trailing slash, lowercase on Windows).
+ *  Detects Windows by drive letter pattern (C:/) since process.platform is unavailable in the browser. */
 export function normalizeCwd(cwd: string): string {
-  return cwd.replace(/\\/g, '/').replace(/\/$/, '').toLowerCase();
+  const normalized = cwd.replace(/\\/g, '/').replace(/\/$/, '');
+  const isWindows =
+    /^[A-Za-z]:/.test(normalized) ||
+    (typeof process !== 'undefined' && process.platform === 'win32');
+  return isWindows ? normalized.toLowerCase() : normalized;
 }

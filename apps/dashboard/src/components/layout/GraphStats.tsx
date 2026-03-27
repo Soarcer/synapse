@@ -1,69 +1,30 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Bernhard
 
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import { useAgentStore } from '../../store/agentStore';
-import { formatTokens, formatDuration, computeCostUsd, getPrice } from '@synapse-ai/core';
+import { formatTokens, formatDuration, computeCostUsd, getPrice, Features } from '@synapse-ai/core';
 import { Tooltip } from '../ui/Tooltip';
-import { PlanBadge } from './PlanBadge';
-import { apiUrl } from '../../utils/api';
-
-interface PlanInfo {
-  plan: string;
-  source: 'auto' | 'manual';
-  monthlyLimit: number | null;
-  /** Whether the plan was confidently detected (false = fallback assumption). */
-  detected: boolean;
-}
 
 export function GraphStats() {
-  const nodes = useAgentStore((s) => s.nodes);
+  // Primitive selectors — returning an object from a selector creates a new reference
+  // every render, causing the "getSnapshot should be cached" infinite loop.
+  const promptCount = useAgentStore((s) =>
+    s.nodes.reduce((n, node) => n + (node.type === 'userPrompt' ? 1 : 0), 0),
+  );
+  const agentNodeCount = useAgentStore((s) =>
+    s.nodes.reduce((n, node) => n + (node.type === 'agent' ? 1 : 0), 0),
+  );
+  const toolCount = useAgentStore((s) =>
+    s.nodes.reduce((n, node) => n + (node.type === 'toolCall' ? 1 : 0), 0),
+  );
+  const nodeCounts = { prompts: promptCount, agentCount: agentNodeCount, tools: toolCount };
   const agents = useAgentStore((s) => s.agents);
   const timePresetLabel = useAgentStore((s) => s.timePresetLabel);
   const costDisplayMode = useAgentStore((s) => s.costDisplayMode);
 
-  const [plan, setPlan] = useState<PlanInfo | null>(null);
-
-  useEffect(() => {
-    fetch(apiUrl('/api/analytics/budget'))
-      .then((r) => r.json())
-      .then((data) => {
-        const planData = data?.data?.plan;
-        if (planData && typeof planData.plan === 'string') {
-          setPlan({
-            plan: planData.plan,
-            source: planData.source ?? 'auto',
-            monthlyLimit: planData.monthlyLimit ?? null,
-            detected: planData.detected !== false,
-          });
-        } else {
-          // Fallback if endpoint returns no plan info
-          setPlan({ plan: 'pro', source: 'auto', monthlyLimit: 20, detected: false });
-        }
-      })
-      .catch(() => {
-        // Fallback on error
-        setPlan({ plan: 'pro', source: 'auto', monthlyLimit: 20, detected: false });
-      });
-  }, []);
-
   const stats = useMemo(() => {
-    let prompts = 0,
-      agentCount = 0,
-      tools = 0;
-    for (const node of nodes) {
-      switch (node.type) {
-        case 'userPrompt':
-          prompts++;
-          break;
-        case 'agent':
-          agentCount++;
-          break;
-        case 'toolCall':
-          tools++;
-          break;
-      }
-    }
+    const { prompts, agentCount, tools } = nodeCounts;
     const total = prompts + agentCount + tools;
     const parts: string[] = [];
     if (prompts > 0) parts.push(`${prompts} prompt${prompts !== 1 ? 's' : ''}`);
@@ -89,6 +50,7 @@ export function GraphStats() {
       });
       totalCost += breakdown.total;
       if (agent.startTime < earliest) earliest = agent.startTime;
+      // eslint-disable-next-line react-hooks/purity -- monitoring dashboard: fallback for running agents
       const end = agent.endTime ?? Date.now();
       if (end > latest) latest = end;
     }
@@ -101,10 +63,9 @@ export function GraphStats() {
       totalCost,
       durationMs,
     };
-  }, [nodes, agents]);
+  }, [nodeCounts, agents]);
 
   const isFiltered = timePresetLabel !== 'All time';
-  const isApiPlan = plan?.plan === 'api';
 
   if (stats.total === 0) return null;
 
@@ -130,18 +91,14 @@ export function GraphStats() {
           <span className="hidden md:inline text-gray-600">&middot;</span>
           <Tooltip
             content={
-              costDisplayMode === 'cost'
-                ? isApiPlan
-                  ? 'API cost'
-                  : 'API-equivalent cost'
+              Features.costDisplayMode && costDisplayMode === 'cost'
+                ? 'API-equivalent cost'
                 : 'Combined input + output tokens'
             }
           >
             <span className="hidden md:inline tabular-nums whitespace-nowrap text-gray-400">
-              {costDisplayMode === 'cost' ? (
-                <span title={isApiPlan ? 'API cost' : 'API-equivalent cost'}>
-                  {isApiPlan ? '' : '≈'}${stats.totalCost.toFixed(2)}
-                </span>
+              {Features.costDisplayMode && costDisplayMode === 'cost' ? (
+                <span title="API-equivalent cost">≈${stats.totalCost.toFixed(2)}</span>
               ) : (
                 <span>{formatTokens(stats.totalTokens)} tokens</span>
               )}
@@ -149,7 +106,7 @@ export function GraphStats() {
           </Tooltip>
         </>
       )}
-      {costDisplayMode !== 'cost' && stats.totalCost > 0 && (
+      {(!Features.costDisplayMode || costDisplayMode !== 'cost') && stats.totalCost > 0 && (
         <>
           <span className="hidden md:inline text-gray-600">&middot;</span>
           <Tooltip content="Estimated API cost">
@@ -167,12 +124,6 @@ export function GraphStats() {
               {formatDuration(stats.durationMs)}
             </span>
           </Tooltip>
-        </>
-      )}
-      {plan && (
-        <>
-          <span className="hidden lg:inline text-gray-600">&middot;</span>
-          <PlanBadge plan={plan} onPlanChange={setPlan} />
         </>
       )}
       {isFiltered && (

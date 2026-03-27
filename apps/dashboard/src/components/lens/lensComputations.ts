@@ -174,17 +174,53 @@ export function buildSankeyData(
   const links: SankeyLink[] = [];
   const seen = new Set<string>();
 
+  // Merge map: for agents and tools, merge nodes with the same label in the same layer
+  // so "claude-sonnet-4-5" appearing 25 times becomes one merged node
+  const mergeKey = (kind: string, label: string, layer: number) => `${kind}:${label}:${layer}`;
+  const mergedIds = new Map<string, string>(); // mergeKey → canonical id
+  const mergedValues = new Map<string, number>(); // canonical id → accumulated value
+
   function layerFor(node: LensTreeNode): number {
-    return Math.min(node.depth, 3);
+    switch (node.kind) {
+      case 'session':
+        return 0;
+      case 'prompt':
+        return 1;
+      case 'agent':
+        return 2;
+      case 'tool':
+        return 3;
+      default:
+        return Math.min(node.depth, 3);
+    }
+  }
+
+  function resolveId(node: LensTreeNode): string {
+    // Only merge agents and tools — sessions and prompts stay individual
+    if (node.kind !== 'agent' && node.kind !== 'tool') return node.id;
+    const key = mergeKey(node.kind, node.label, layerFor(node));
+    const existing = mergedIds.get(key);
+    if (existing) return existing;
+    mergedIds.set(key, node.id);
+    return node.id;
   }
 
   function addNode(node: LensTreeNode) {
-    if (seen.has(node.id)) return;
-    seen.add(node.id);
+    const id = resolveId(node);
     const value = nodeMetricValue(node, metric);
+
+    if (seen.has(id)) {
+      // Accumulate value into existing merged node
+      mergedValues.set(id, (mergedValues.get(id) ?? 0) + value);
+      const existing = nodes.find((n) => n.id === id);
+      if (existing) existing.value = mergedValues.get(id)!;
+      return;
+    }
+    seen.add(id);
+    mergedValues.set(id, value);
     nodes.push({
-      id: node.id,
-      label: node.kind === 'tool' && node.groupCount ? `${node.label}` : node.label,
+      id,
+      label: node.label,
       kind: node.kind,
       layer: layerFor(node),
       value,
@@ -192,21 +228,32 @@ export function buildSankeyData(
     });
   }
 
+  // Deduplicate links by source+target
+  const linkMap = new Map<string, SankeyLink>();
+
   function walk(node: LensTreeNode) {
     addNode(node);
+    const parentId = resolveId(node);
     for (const child of node.children) {
       // Skip individual tools inside a grouped tool
       if (node.kind === 'tool' && child.kind === 'tool') continue;
 
       addNode(child);
+      const childId = resolveId(child);
       const value = nodeMetricValue(child, metric);
-      links.push({ source: node.id, target: child.id, value: Math.max(value, 1) });
+      const linkKey = `${parentId}->${childId}`;
+      const existing = linkMap.get(linkKey);
+      if (existing) {
+        existing.value += Math.max(value, 1);
+      } else {
+        linkMap.set(linkKey, { source: parentId, target: childId, value: Math.max(value, 1) });
+      }
       walk(child);
     }
   }
 
   for (const root of treeRoots) walk(root);
-  return { nodes, links };
+  return { nodes, links: [...linkMap.values()] };
 }
 
 // ── Compaction & cost derivation ─────────────────────────────

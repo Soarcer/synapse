@@ -18,8 +18,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/Soarcer.synapse-vscode)](https://marketplace.visualstudio.com/items?itemName=Soarcer.synapse-vscode)
-[![Tests](https://img.shields.io/badge/tests-591_passing-brightgreen)](.)
-[![Bundle](https://img.shields.io/badge/vsix-1.5_MB-blue)](.)
+[![Tests](https://img.shields.io/badge/tests-825_passing-brightgreen)](.)
 
 ---
 
@@ -34,7 +33,7 @@ So I built Synapse. It started as a weekend hack to visualize hook events and tu
 <!-- 📸 HERO SCREENSHOT: Full dashboard showing a complex agent tree with animated edges, lens panel open on the left, detail panel on the right -->
 <!-- ![Synapse dashboard](docs/assets/hero-screenshot.png) -->
 
-> **Status:** Prototype with opinions. 591 tests. 10 completed development phases. Some edges are load-bearing. I'm proud of it anyway.
+> **Status:** Prototype with opinions. 825 tests. 10 completed development phases. Some edges are load-bearing. I'm proud of it anyway.
 
 ---
 
@@ -119,6 +118,8 @@ The dashboard is a full Progressive Web App — pin it to your home screen and i
 But the real reason for mobile: **remote approval**. Start a big job on your laptop, walk away, and your phone buzzes when Claude is blocked on a permission. Swipe to approve. Job continues. You never opened your laptop. Claude Code's HTTP hooks hold the response open until you tap Approve or Deny from any device. Cards stack with countdown timers, and you can swipe-cycle through multiple pending requests.
 
 And you don't even need the dashboard open — Synapse registers a Service Worker and sends **native push notifications** when Claude is blocked. On Android you get Approve/Deny action buttons right in the notification. On iOS you tap to open. Works with the app completely closed.
+
+> **Heads up:** Remote approval requires `--lan` mode, which opens unauthenticated HTTP endpoints on your local network. This is great on your home Wi-Fi. This is less great at a coffee shop. See [Security Model](#security-model) for what's exposed and how to lock it down.
 
 <!-- 📸 GIF: Phone showing permission card with countdown, user tapping Approve, then showing the graph resuming -->
 <!-- ![Mobile + remote approval](docs/assets/remote-approval.gif) -->
@@ -247,58 +248,54 @@ Both modes connect to the same backend. Use the extension for integrated develop
 
 ## Getting Started
 
-Three ways to run Synapse, from simplest to most involved:
-
-### 1. CLI (Quickest)
+### Install
 
 ```bash
 npm install -g @synapse-ai/cli
-synapse start          # starts server, configures hooks, opens dashboard
 ```
 
-That's it. Synapse auto-detects your project, wires up the hooks, starts the server, and opens your browser. Run `synapse stop` when you're done, or `synapse status` to check on it. Background mode with `synapse start --bg` for daemon operation.
-
-> **Note:** Not yet published to npm — coming soon. For now, build from source (option 3) or use the VS Code extension.
-
-### 2. VS Code Extension
+### Quick Start
 
 ```bash
-code --install-extension synapse-vscode-0.2.0.vsix
+cd ~/your-project
+synapse start
 ```
 
-Or install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=Soarcer.synapse-vscode). The full stack — server, dashboard, hook scripts, SQLite — bundled into a `.vsix` with zero native dependencies. Also works in Cursor.
-
-<!-- 📸 SCREENSHOT: VS Code with Synapse — lens sidebar, graph editor, status bar -->
-<!-- ![VS Code extension](docs/assets/vscode-split.png) -->
-
-- **Auto-start** — Opens when you open a Claude project. Stops when VS Code closes.
-- **Split layout** — Lens sidebar + graph editor panel. Or single panel mode.
-- **11 commands** — Open Dashboard, Start/Stop Server, Configure Hooks, Switch Lens, Reconnect, Settings, Send to Terminal, Clear/Reload Events
-- **QR code panel** — Scan to connect your phone
-- **Explorer tree** — Session → Agent → Tool hierarchy in the sidebar
-- **Status bar** — Connection dot, agent count, tool count
-
-### 3. From Source
+That's it. Synapse starts the server, configures Claude Code hooks for the current project, and opens the dashboard in your browser. Every Claude Code session now streams events to the graph.
 
 ```bash
-git clone https://github.com/anthropics/synapse.git
+synapse start -d              # background daemon (recommended)
+synapse start --observe-only  # monitor only — no permission interception
+synapse start --lan           # LAN-accessible (required for mobile/remote approval)
+synapse stop                  # shut it down
+synapse status                # check what's running
+```
+
+Requires Node.js 20+. Don't want to install globally? `npx @synapse-ai/cli start` works too.
+
+By default, the server binds to **localhost only**. Nothing leaves your machine unless you pass `--lan`. See [Security Model](#security-model).
+
+### Multi-Project Setup
+
+The server is global — start it once, then hook multiple projects:
+
+```bash
+synapse start -d                           # start once
+cd ~/project-a && synapse hook             # hook project A
+cd ~/project-b && synapse hook             # hook project B
+synapse open                               # dashboard shows all projects
+```
+
+### From Source
+
+```bash
+git clone https://github.com/Soarcer/synapse.git
 cd synapse
 pnpm install
 pnpm dev  # starts backend (port 27246) + frontend (port 5173)
 ```
 
 Open **http://localhost:5173**. Requires Node.js >= 20 and pnpm >= 9.
-
-### Connecting Claude Code
-
-If you're running Claude Code in this project, it's already wired up. The `.claude/settings.json` configures hooks that send events to the dashboard automatically.
-
-For other projects, copy the hook configuration:
-
-```bash
-# Copy hooks/ directory and .claude/settings.json to your target project
-# Update command paths to point to this project's hooks/send_event.cjs
-```
 
 ### Try It Without Claude
 
@@ -320,7 +317,7 @@ npx tsx scripts/simulate_all_nodes.ts
 | **Backend**   | Express 5, WebSocket (ws 8), sql.js (pure JS SQLite), Node 20+ |
 | **Agent SDK** | @anthropic-ai/claude-agent-sdk                                 |
 | **Language**  | TypeScript 5.7 throughout                                      |
-| **Testing**   | Vitest 4 — 591 tests                                           |
+| **Testing**   | Vitest 4 — 825 tests                                           |
 | **Monorepo**  | pnpm workspaces (@synapse-ai/\*)                               |
 | **Linting**   | ESLint 9, Prettier 3, Husky + lint-staged                      |
 
@@ -392,25 +389,75 @@ WS /ws                              # Real-time event stream
 
 ## Configuration
 
-| Variable             | Default   | Description                              |
-| -------------------- | --------- | ---------------------------------------- |
-| `ANTHROPIC_API_KEY`  | —         | Spawning agents + Prompt Lab AI analysis |
-| `PORT`               | `27246`   | Main server port                         |
-| `SYNAPSE_MAX_EVENTS` | unlimited | Cap stored events                        |
+| Variable             | Default   | Description                                      |
+| -------------------- | --------- | ------------------------------------------------ |
+| `SYNAPSE_PORT`       | `27246`   | Main server port (hook port = +1, fallback = +2) |
+| `SYNAPSE_MAX_EVENTS` | unlimited | Cap stored events                                |
 
-The database lives at `packages/server/synapse.db` (auto-created, gitignored). Delete it to start fresh.
+Or use CLI flags: `synapse start --port 9000 --lan --observe-only`. Run `synapse help` for the full list.
+
+---
+
+## Security Model
+
+Let's be honest about what this opens on your machine.
+
+### The Default: Localhost Only
+
+Out of the box, `synapse start` binds to `127.0.0.1`. Nothing is reachable from other devices. Your events, your permissions, your dashboard — all local. Boring, but safe.
+
+### LAN Mode: `--lan`
+
+Pass `--lan` and the server binds to `0.0.0.0`, making it reachable from your local network. This is what enables mobile remote approval — your phone on the same Wi-Fi can see and respond to permission requests.
+
+**What's exposed in LAN mode:**
+
+| Endpoint                            | Auth | What it does                        |
+| ----------------------------------- | ---- | ----------------------------------- |
+| `GET /api/events`                   | None | View event history                  |
+| `GET /api/permissions/pending`      | None | See pending permission requests     |
+| `PUT /api/permissions/:id/decision` | None | Approve or deny a pending tool call |
+| `WS /ws`                            | None | Real-time event stream              |
+
+Yes, that means anyone on your network can approve or deny Claude's tool calls. There is no authentication on permission endpoints — Claude Code hooks can't send Bearer tokens, and requiring phone users to configure auth tokens would defeat the purpose of "approve from your phone while making coffee."
+
+**This is fine on your home network.** This is less fine at a coffee shop, coworking space, or hotel Wi-Fi. If you're on an untrusted network, don't use `--lan`. That's it. That's the security model.
+
+### Hardening Options
+
+If the above made you twitch, here are your options:
+
+| Approach              | Command                        | Trade-off                                                                                          |
+| --------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------- |
+| **Don't use `--lan`** | `synapse start`                | No mobile approval, but fully isolated                                                             |
+| **Observe only**      | `synapse start --observe-only` | No permission interception at all — pure read-only monitoring. The hook server doesn't even start. |
+| **Firewall rules**    | OS-level                       | Allow only your phone's IP to reach port 27246                                                     |
+| **VPN/Tailscale**     | Network-level                  | Treat your phone as "local" without exposing to the LAN                                            |
+
+### What We Don't Do
+
+- **No auth tokens on permission endpoints.** See above for why.
+- **No TLS by default.** Your LAN traffic is plaintext. If someone is sniffing packets on your home network, you have bigger problems — but it's worth knowing.
+- **No rate limiting on approvals.** The hook POST endpoint is rate-limited (60/min), but the decision endpoint is not. If someone is spamming your approval endpoint, again, you have bigger problems.
+
+### The `--observe-only` Escape Hatch
+
+If you just want to watch the pretty graph and don't need remote approval, `--observe-only` is your friend. It skips the `PermissionRequest` hook entirely — Claude Code is never blocked, the hook server doesn't bind, and the only network surface is the dashboard and event stream. All the visualization, none of the attack surface.
+
+```bash
+synapse start --observe-only    # just the graph, no permission interception
+synapse hook --observe-only     # re-hook a project without approval
+```
 
 ---
 
 ## Known Limitations
 
-Let's be honest with each other:
+Let's continue being honest:
 
-- **No authentication** — Localhost only. Don't port-forward this unless you enjoy surprise visitors.
 - **WebSocket reconnect is loyal** — If the server goes down, the client will try to reconnect. Forever. With exponential backoff. But also forever.
 - **Memory at scale** — Long sessions with thousands of events accumulate in the Zustand store. If your agent tree looks like a fractal, refresh.
-- **Windows-first** — Built on Windows, start scripts are PowerShell. `pnpm dev` works everywhere.
-- **AI features need an API key** — Prompt Lab analysis and rewrite suggestions call the Anthropic API. Without a key, those degrade gracefully to rule-based analysis. We're exploring whether existing Claude subscriptions can be used instead.
+- **Windows-first** — Built on Windows, start scripts are PowerShell. `pnpm dev` works everywhere though.
 
 ---
 
@@ -462,7 +509,7 @@ MIT — see [LICENSE](./LICENSE)
 ---
 
 <p align="center">
-  <sub>Built with curiosity, caffeine, and an mass amount of Claude.</sub>
+  <sub>Built with curiosity, caffeine, and a mass amount of Claude.</sub>
   <br />
   <sub>If you're reading this, an AI agent might be watching you read this. <em>Check the graph.</em></sub>
 </p>

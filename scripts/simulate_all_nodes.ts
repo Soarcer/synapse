@@ -11,18 +11,19 @@
  *
  * Non-graph events tested:
  *   - Stop (pause between turns)
- *   - Notification
+ *   - PreCompact
  *   - PreCompact (compaction indicator on prompt)
  *   - PermissionRequest
  */
 
-const API_URL = process.env.API_URL ?? 'http://localhost:27246/api/events';
+// Hook events go to the hook server (main port + 1), which is always plain HTTP.
+const API_URL = process.env.API_URL ?? 'http://localhost:27247/api/events';
 
 const ts = Date.now().toString(36);
 const SESSION_ID = `allnodes-${ts}`;
 const EXPLORE_AGENT = `agent-explore-${ts}`;
 const PLAN_AGENT = `agent-plan-${ts}`;
-const CWD = process.cwd();
+const CWD = process.env.SIM_CWD ?? process.cwd();
 
 interface HookPayload {
   hook_event_name: string;
@@ -57,8 +58,9 @@ async function postEvent(payload: HookPayload, label: string): Promise<void> {
   }
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
+const DELAY = parseInt(process.env.SIM_DELAY ?? '1500', 10);
+function sleep(_ms?: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, DELAY));
 }
 
 async function main() {
@@ -205,6 +207,19 @@ async function main() {
     },
     'Stop (turn 1 done)',
   );
+  await sleep(100);
+
+  // AssistantResponse (conversation threading — appears as blue section in prompt node)
+  await postEvent(
+    {
+      hook_event_name: 'AssistantResponse',
+      session_id: SESSION_ID,
+      cwd: CWD,
+      assistant_text:
+        'I\'ve added a health check endpoint at `/health` that returns `{ok: true}`. I read the existing server code, added the route using `app.get("/health", ...)`, and verified it works by curling the endpoint.',
+    },
+    'AssistantResponse (turn 1)',
+  );
   await sleep(300);
 
   // ═══════════════════════════════════════════════════════════════
@@ -324,6 +339,19 @@ async function main() {
       stop_hook_active: false,
     },
     'Stop (turn 2 done)',
+  );
+  await sleep(100);
+
+  // AssistantResponse (turn 2)
+  await postEvent(
+    {
+      hook_event_name: 'AssistantResponse',
+      session_id: SESSION_ID,
+      cwd: CWD,
+      assistant_text:
+        'I found 3 TypeScript files referencing WebSocket. The main one is `server/services/broadcaster.ts` which imports `WebSocket` from the `ws` package. The Explore agent searched with Glob for all `.ts` files and then Grep for "WebSocket" matches.',
+    },
+    'AssistantResponse (turn 2)',
   );
   await sleep(300);
 
@@ -563,19 +591,6 @@ async function main() {
   );
   await sleep(200);
 
-  // Notification (no graph node)
-  await postEvent(
-    {
-      hook_event_name: 'Notification',
-      session_id: SESSION_ID,
-      cwd: CWD,
-      message: 'Context window approaching limit, compaction recommended',
-      notification_type: 'warning',
-    },
-    'Notification — timeline only',
-  );
-  await sleep(200);
-
   // Compaction x2 (tests compaction badge count on agent)
   await postEvent(
     {
@@ -608,6 +623,43 @@ async function main() {
       stop_hook_active: false,
     },
     'Stop (turn 3 done)',
+  );
+  await sleep(100);
+
+  // AssistantResponse (turn 3 — multiple responses to test chaining)
+  await postEvent(
+    {
+      hook_event_name: 'AssistantResponse',
+      session_id: SESSION_ID,
+      cwd: CWD,
+      assistant_text:
+        "Let me start by reading the broadcaster code and understanding the current architecture. I'll then create the channel abstraction.",
+    },
+    'AssistantResponse (turn 3, segment 1/3)',
+  );
+  await sleep(150);
+
+  await postEvent(
+    {
+      hook_event_name: 'AssistantResponse',
+      session_id: SESSION_ID,
+      cwd: CWD,
+      assistant_text:
+        "I've created the `ChannelBroadcaster` class and attempted to run the tests, but the test script doesn't exist yet. Let me also check the architecture docs.",
+    },
+    'AssistantResponse (turn 3, segment 2/3)',
+  );
+  await sleep(150);
+
+  await postEvent(
+    {
+      hook_event_name: 'AssistantResponse',
+      session_id: SESSION_ID,
+      cwd: CWD,
+      assistant_text:
+        'Done! The broadcaster now supports multiple channels. The Plan agent confirmed the approach aligns with the architecture, and the Task agent found the auth files for the next step. Context was compacted twice during this turn.',
+    },
+    'AssistantResponse (turn 3, segment 3/3)',
   );
   await sleep(200);
 
@@ -670,9 +722,13 @@ async function main() {
   console.log('  ✓ Purple cost badge on Task→Agent edge (16.5k tokens)');
   console.log('  ✓ Orange compaction badge on agent (×2)');
   console.log('  ✓ FIFO mismatch warning (not triggered — explicit toolUseId used)');
+  console.log('  ✓ Conversation threading: blue response section in each prompt node');
+  console.log(
+    '    → Click blue section to expand response chain (response node between prompt and tools)',
+  );
   console.log('');
   console.log('\x1b[1mTimeline-only events (no graph node):\x1b[0m');
-  console.log('  Stop x3, PermissionRequest x1, Notification x1');
+  console.log('  Stop x3, PermissionRequest x1, AssistantResponse x3');
   console.log(`\n  Open \x1b[4mhttp://localhost:5173\x1b[0m to verify.\n`);
 }
 

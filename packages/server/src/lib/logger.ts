@@ -3,12 +3,21 @@
 
 import pino from 'pino';
 
+const isDev = process.env.NODE_ENV !== 'production';
+
 export const logger = pino({
   level: process.env.LOG_LEVEL || 'info',
-  transport:
-    process.env.NODE_ENV !== 'production'
-      ? { target: 'pino/file', options: { destination: 1 } }
-      : undefined,
+  transport: isDev
+    ? {
+        target: 'pino-pretty',
+        options: {
+          colorize: true,
+          translateTime: 'HH:MM:ss.l',
+          ignore: 'pid,hostname',
+          messageFormat: '{msg}',
+        },
+      }
+    : undefined,
   formatters: {
     level(label) {
       return { level: label };

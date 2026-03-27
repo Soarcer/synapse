@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Bernhard
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
+import { Features } from '@synapse-ai/core';
 import { useAnalyticsData, type AnalyticsFilters } from './useAnalyticsData';
 import type { MockData } from './mockData';
 // import { ExecutiveOverview } from './executive/ExecutiveOverview'; // hidden for v0.1.0
@@ -22,8 +23,20 @@ const TABS: { id: AnalyticsTab; label: string; description: string }[] = [
   // { id: 'executive', label: 'Executive', description: 'KPI overview with sparklines' }, // hidden for v0.1.0
   { id: 'prompts', label: 'Prompts', description: 'Prompt analysis with session replay' },
   // { id: 'workshop', label: 'Workshop', description: 'Draft and improve prompts before sending' }, // hidden for v0.1.0 (code kept — used as Prompt Lab)
-  { id: 'insights', label: 'Insights', description: 'AI coach, badges & budget' },
-  { id: 'nudges', label: 'Live Nudges', description: 'Real-time coaching & nudge config' },
+  ...(Features.coaching
+    ? [
+        {
+          id: 'insights' as AnalyticsTab,
+          label: 'Insights',
+          description: 'AI coach, badges & budget',
+        },
+        {
+          id: 'nudges' as AnalyticsTab,
+          label: 'Live Nudges',
+          description: 'Real-time coaching & nudge config',
+        },
+      ]
+    : []),
 ];
 
 const MODEL_OPTIONS: { id: string; label: string }[] = [
@@ -82,6 +95,8 @@ export function AnalyticsPage() {
   const analytics = useAnalyticsData(filters);
 
   // Adapt analytics data to MockData shape for existing prototype components
+  // eslint-disable-next-line react-hooks/purity -- monitoring dashboard: fallback timestamp is intentional
+  const now = useRef(Date.now());
   const mockData: MockData = useMemo(
     () => ({
       sessions: analytics.sessions,
@@ -92,11 +107,11 @@ export function AnalyticsPage() {
         start:
           analytics.timeseries.length > 0
             ? analytics.timeseries[0].timestamp
-            : Date.now() - 7 * 86_400_000,
+            : now.current - 7 * 86_400_000,
         end:
           analytics.timeseries.length > 0
             ? analytics.timeseries[analytics.timeseries.length - 1].timestamp
-            : Date.now(),
+            : now.current,
       },
     }),
     [

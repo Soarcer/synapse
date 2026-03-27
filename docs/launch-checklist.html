@@ -1,0 +1,2627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Synapse v0.1.0 — Launch Runbook</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-primary: #0d1117;
+    --bg-secondary: #161b22;
+    --bg-card: #21262d;
+    --bg-hover: #292e36;
+    --bg-done: #0d1117;
+    --border: #30363d;
+    --border-active: #58a6ff;
+    --text-primary: #e6edf3;
+    --text-secondary: #8b949e;
+    --text-muted: #6e7681;
+    --text-done: #3d4450;
+    --blue: #58a6ff;
+    --green: #3fb950;
+    --orange: #d29922;
+    --red: #f85149;
+    --purple: #bc8cff;
+    --cyan: #39d2c0;
+    --pink: #f778ba;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* Sticky top bar (header + tabs + filters all stick together) */
+  .sticky-top {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg-secondary);
+    backdrop-filter: blur(12px);
+  }
+
+  /* Header */
+  .header {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .header .version {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--bg-primary);
+    background: var(--blue);
+    padding: 3px 10px;
+    border-radius: 10px;
+  }
+
+  .progress-bar-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .progress-bar {
+    width: 200px;
+    height: 8px;
+    background: var(--bg-card);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--green), var(--cyan));
+    border-radius: 4px;
+    transition: width 0.4s ease;
+  }
+
+  .progress-text {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-family: 'JetBrains Mono', monospace;
+    min-width: 80px;
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .header-btn {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .header-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    border-color: var(--border-active);
+  }
+
+  .header-btn.danger { border-color: var(--red); color: var(--red); }
+  .header-btn.danger:hover { background: rgba(248,81,73,0.1); }
+
+  /* Font size toggle */
+  .font-toggle {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px;
+  }
+
+  .font-toggle-btn {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 24px;
+  }
+
+  .font-toggle-btn:hover { color: var(--text-secondary); background: var(--bg-hover); }
+  .font-toggle-btn.active { color: var(--text-primary); background: var(--bg-card); }
+
+  .font-toggle-btn.size-s { font-size: 11px; }
+  .font-toggle-btn.size-m { font-size: 14px; }
+  .font-toggle-btn.size-l { font-size: 17px; }
+
+  /* Font size scales */
+  body.font-m .item-title { font-size: 15px; }
+  body.font-m .item-detail { font-size: 14px; }
+  body.font-m .item-detail pre { font-size: 13px; }
+  body.font-m .item-detail code { font-size: 13px; }
+  body.font-m .item-tag { font-size: 12px; }
+  body.font-m .sub-item { font-size: 13px; }
+  body.font-m .section-tab { font-size: 13px; }
+
+  body.font-l .item-title { font-size: 17px; }
+  body.font-l .item-detail { font-size: 16px; }
+  body.font-l .item-detail pre { font-size: 14px; }
+  body.font-l .item-detail code { font-size: 14px; }
+  body.font-l .item-tag { font-size: 13px; }
+  body.font-l .sub-item { font-size: 15px; }
+  body.font-l .section-tab { font-size: 14px; }
+  body.font-l .item-main { padding: 12px 16px; }
+  body.font-l .sub-item { padding: 8px 10px; }
+
+  /* Item number badge */
+  .item-number {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    padding: 1px 5px;
+    border-radius: 4px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-top: 3px;
+  }
+
+  .item.done .item-number { opacity: 0.4; }
+
+  /* Notes */
+  .item-notes-btn {
+    font-size: 13px;
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-top: 2px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.15s;
+    opacity: 0.35;
+    user-select: none;
+  }
+
+  .item-notes-btn:hover { opacity: 0.7; background: var(--bg-hover); }
+  .item-notes-btn.has-notes { opacity: 0.9; color: var(--orange); }
+  .item.done .item-notes-btn { opacity: 0.2; }
+
+  .item-notes-area {
+    display: none;
+    padding: 0 16px 12px 46px;
+  }
+
+  .item.notes-open .item-notes-area { display: block; }
+
+  .item-notes-thread {
+    margin-bottom: 8px;
+  }
+
+  .note-msg {
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.5;
+    margin-bottom: 4px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .note-msg-user {
+    background: rgba(247,120,186,0.1);
+    border-left: 3px solid var(--pink);
+  }
+
+  .note-msg-claude {
+    background: rgba(88,166,255,0.1);
+    border-left: 3px solid var(--blue);
+  }
+
+  .note-msg-header {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .note-msg-user .note-msg-header { color: var(--pink); }
+  .note-msg-claude .note-msg-header { color: var(--blue); }
+
+  .note-msg-time {
+    font-weight: 400;
+    opacity: 0.6;
+    margin-left: 8px;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  .item-notes-textarea {
+    width: 100%;
+    min-height: 48px;
+    padding: 8px 10px;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .item-notes-textarea:focus { border-color: var(--border-active); }
+  .item-notes-textarea::placeholder { color: var(--text-muted); }
+
+  .notes-send-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+    align-items: center;
+  }
+
+  .notes-send-btn {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--pink);
+    background: rgba(247,120,186,0.1);
+    color: var(--pink);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .notes-send-btn:hover { background: rgba(247,120,186,0.2); }
+
+  .notes-hint {
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  /* Sync button */
+  .header-btn.sync { border-color: var(--orange); color: var(--orange); }
+  .header-btn.sync:hover { background: rgba(210,153,34,0.1); }
+  .header-btn.load { border-color: var(--cyan); color: var(--cyan); }
+  .header-btn.load:hover { background: rgba(57,210,192,0.1); }
+
+  /* Section tabs — wrap into rows, no scrollbar */
+  .section-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px 24px 10px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-tab {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 7px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-primary);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .section-tab:hover { color: var(--text-secondary); background: var(--bg-hover); border-color: var(--text-muted); }
+  .section-tab.active { color: var(--text-primary); background: var(--bg-card); border-color: var(--border-active); box-shadow: 0 0 8px rgba(88,166,255,0.15); }
+
+  .section-tab .tab-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .section-tab .tab-progress {
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-muted);
+    background: var(--bg-card);
+    padding: 1px 6px;
+    border-radius: 8px;
+  }
+
+  .section-tab.active .tab-progress {
+    background: rgba(88,166,255,0.15);
+    color: var(--blue);
+  }
+
+  .section-tab.section-complete .tab-progress {
+    background: rgba(63,185,80,0.15);
+    color: var(--green);
+  }
+
+  /* Filter bar */
+  .filter-bar {
+    display: flex;
+    gap: 4px;
+    padding: 8px 24px;
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    align-items: center;
+  }
+
+  .filter-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-right: 8px;
+    white-space: nowrap;
+  }
+
+  .filter-tab {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 12px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .filter-tab:hover { background: var(--bg-card); color: var(--text-secondary); }
+  .filter-tab.active { background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border); }
+
+  .filter-count {
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Main content */
+  .content {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 24px;
+  }
+
+  /* Section (now used as the content area, no collapsing) */
+  .section-items {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  /* Item */
+  .item {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+
+  .item:last-child { border-bottom: none; }
+
+  .item-main {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 16px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .item-main:hover { background: var(--bg-hover); }
+
+  .item-checkbox { cursor: pointer; }
+  .item-checkbox:hover { transform: scale(1.15); }
+
+  .item.done .item-main { opacity: 0.4; }
+  .item.done .item-title { text-decoration: line-through; }
+
+  .item-checkbox {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    border: 2px solid var(--border);
+    flex-shrink: 0;
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    font-size: 11px;
+    color: transparent;
+  }
+
+  .item.done .item-checkbox {
+    background: var(--green);
+    border-color: var(--green);
+    color: #fff;
+  }
+
+  .item-checkbox:hover { border-color: var(--blue); }
+
+  .item-content { flex: 1; min-width: 0; }
+
+  .item-title {
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
+  .item-meta {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+    flex-wrap: wrap;
+  }
+
+  .item-tag {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .tag-effort { background: rgba(188,140,255,0.15); color: var(--purple); }
+  .tag-blocker { background: rgba(248,81,73,0.15); color: var(--red); }
+  .tag-parallel { background: rgba(57,210,192,0.15); color: var(--cyan); }
+  .tag-you { background: rgba(247,120,186,0.15); color: var(--pink); }
+  .tag-claude { background: rgba(88,166,255,0.15); color: var(--blue); }
+  .tag-mechanical { background: rgba(210,153,34,0.15); color: var(--orange); }
+  .tag-done { background: rgba(63,185,80,0.15); color: var(--green); }
+
+  .item-expand-btn {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    flex-shrink: 0;
+    width: 20px;
+    text-align: center;
+    transition: transform 0.2s;
+  }
+
+  /* Expandable detail */
+  .item-detail {
+    display: none;
+    padding: 0 16px 12px 46px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+  }
+
+  .item.expanded .item-detail { display: block; }
+  .item.expanded .item-expand-btn { transform: rotate(90deg); }
+
+  .item-detail h4 {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 8px 0 4px;
+  }
+
+  .item-detail p { margin: 4px 0; }
+
+  .item-detail code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    background: var(--bg-card);
+    padding: 1px 6px;
+    border-radius: 4px;
+    color: var(--cyan);
+  }
+
+  .item-detail pre {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    background: var(--bg-card);
+    padding: 12px;
+    border-radius: 6px;
+    margin: 8px 0;
+    overflow-x: auto;
+    line-height: 1.5;
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+  }
+
+  .item-detail ul {
+    margin: 4px 0;
+    padding-left: 16px;
+  }
+
+  .item-detail li { margin: 2px 0; }
+
+  .item-detail .callout {
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin: 8px 0;
+    font-size: 12px;
+    border-left: 3px solid;
+  }
+
+  .callout-why { background: rgba(88,166,255,0.08); border-color: var(--blue); }
+  .callout-warn { background: rgba(248,81,73,0.08); border-color: var(--red); }
+  .callout-tip { background: rgba(63,185,80,0.08); border-color: var(--green); }
+
+  /* Sub-items */
+  .sub-items {
+    margin: 8px 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .sub-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.15s;
+    font-size: 12px;
+  }
+
+  .sub-item:last-child { border-bottom: none; }
+  .sub-item:hover { background: var(--bg-hover); }
+  .sub-item.done { opacity: 0.4; text-decoration: line-through; }
+
+  .sub-checkbox {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    border: 1.5px solid var(--border);
+    flex-shrink: 0;
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    color: transparent;
+    transition: all 0.15s;
+  }
+
+  .sub-item.done .sub-checkbox {
+    background: var(--green);
+    border-color: var(--green);
+    color: #fff;
+  }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 48px 24px;
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+
+  /* Timestamp */
+  .timestamp {
+    text-align: center;
+    padding: 24px;
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Responsive */
+  @media (max-width: 640px) {
+    .content { padding: 12px; }
+    .header { padding: 12px 16px; flex-wrap: wrap; gap: 8px; }
+    .header h1 { font-size: 20px; }
+    .progress-bar { width: 100px; }
+    .header-actions { display: none; }
+    .section-tabs { padding: 4px 12px 4px; }
+    .filter-bar { padding: 6px 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <div class="header">
+    <div class="header-left">
+      <h1>Synapse v0.1.0</h1>
+      <span class="version">LAUNCH RUNBOOK</span>
+    </div>
+    <div class="progress-bar-container">
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <span class="progress-text" id="progressText">0 / 0</span>
+    </div>
+    <div class="header-actions">
+      <div class="font-toggle" id="fontToggle">
+        <button class="font-toggle-btn size-s active" onclick="setFontSize('s')" title="Small">A</button>
+        <button class="font-toggle-btn size-m" onclick="setFontSize('m')" title="Medium">A</button>
+        <button class="font-toggle-btn size-l" onclick="setFontSize('l')" title="Large">A</button>
+      </div>
+      <button class="header-btn sync" onclick="syncNotes()" title="Save notes to docs/launch-checklist-notes.json">Sync Notes</button>
+      <button class="header-btn load" onclick="loadNotesFromFile()" title="Load notes from file">Load Notes</button>
+      <button class="header-btn" onclick="expandAll()">Expand All</button>
+      <button class="header-btn" onclick="collapseAll()">Collapse All</button>
+      <button class="header-btn" onclick="exportState()">Export</button>
+      <button class="header-btn danger" onclick="resetAll()">Reset</button>
+      <input type="file" id="notesFileInput" accept=".json" style="display:none" onchange="handleNotesFile(event)">
+    </div>
+  </div>
+
+  <div class="section-tabs" id="sectionTabs"></div>
+  <div class="filter-bar" id="filterBar"></div>
+</div>
+
+<div class="content" id="content"></div>
+
+<div class="timestamp" id="timestamp"></div>
+
+<script>
+// Font size
+function setFontSize(size) {
+  document.body.classList.remove('font-s', 'font-m', 'font-l');
+  if (size !== 's') document.body.classList.add('font-' + size);
+  document.querySelectorAll('.font-toggle-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.classList.contains('size-' + size));
+  });
+  localStorage.setItem('synapse-checklist-font', size);
+}
+// Restore saved font size
+(function() {
+  var saved = localStorage.getItem('synapse-checklist-font');
+  if (saved && saved !== 's') setFontSize(saved);
+})();
+
+const DATA = [
+  {
+    id: 'bugs',
+    title: 'Bug Fixes',
+    icon: '🔴',
+    color: '#f85149',
+    prefix: 'BF',
+    items: [
+      {
+        id: 'fix-zoom',
+        title: 'Fix graph zoom (mouse wheel, pinch, keyboard)',
+        tags: ['blocker', '30-60min', 'claude'],
+        detail: `<h4>Why</h4>
+<p>The core product is the graph. If users can't zoom into a large session tree, the product is broken. This is a regression from a previous session's "zoom fix."</p>
+<h4>What to do</h4>
+<ul>
+<li>The regression is likely in <code>apps/dashboard/src/hooks/useAutoLayout.ts</code> or React Flow event handlers</li>
+<li>Check if <code>fitView</code>, <code>zoomIn</code>, <code>zoomOut</code> are being called/blocked incorrectly</li>
+<li>Check if <code>minZoom</code>/<code>maxZoom</code> props on <code>&lt;ReactFlow&gt;</code> are set to restrictive values</li>
+<li>Test with mouse wheel, trackpad pinch, and keyboard (+/- keys)</li>
+<li>Test on both desktop and mobile (pinch zoom via <code>PinchZoomWrapper</code>)</li>
+</ul>
+<h4>How to verify</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="fix-zoom-0">
+    <div class="sub-checkbox">✓</div>
+    <span>Mouse wheel zoom works on desktop</span>
+  </div>
+  <div class="sub-item" data-sub="fix-zoom-1">
+    <div class="sub-checkbox">✓</div>
+    <span>Trackpad pinch zoom works on desktop</span>
+  </div>
+  <div class="sub-item" data-sub="fix-zoom-2">
+    <div class="sub-checkbox">✓</div>
+    <span>+/- keyboard zoom works</span>
+  </div>
+  <div class="sub-item" data-sub="fix-zoom-3">
+    <div class="sub-checkbox">✓</div>
+    <span>Mobile pinch zoom works in PWA</span>
+  </div>
+  <div class="sub-item" data-sub="fix-zoom-4">
+    <div class="sub-checkbox">✓</div>
+    <span>Double-click to zoom-to-fit still works</span>
+  </div>
+</div>`
+      },
+      {
+        id: 'fix-permission-card',
+        title: 'Fix permission card [object Object] after refresh',
+        tags: ['blocker', '15min', 'claude'],
+        detail: `<h4>Why</h4>
+<p>Permission cards show <code>[object Object]</code> instead of tool details after page refresh. 7 tests are failing. This is a serialization bug that makes a core feature look broken.</p>
+<h4>Root cause</h4>
+<p>Server double-serializes <code>tool_input_raw</code> in <code>packages/server/src/routes/permissions.ts</code> line 115. The <code>rawInput</code> variable was already stringified on line 110, then gets JSON-serialized again when sent in the response.</p>
+<h4>Fix</h4>
+<pre>// Line 115 — change from:
+tool_input_raw: rawInput,
+// to:
+tool_input_raw: entry.event.tool_input,</pre>
+<h4>Verify</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="fix-perm-0">
+    <div class="sub-checkbox">✓</div>
+    <span>Permission card renders tool details correctly</span>
+  </div>
+  <div class="sub-item" data-sub="fix-perm-1">
+    <div class="sub-checkbox">✓</div>
+    <span>Refresh the page — card still renders correctly</span>
+  </div>
+  <div class="sub-item" data-sub="fix-perm-2">
+    <div class="sub-checkbox">✓</div>
+    <span>All 7 PermissionCard tests pass</span>
+  </div>
+</div>`
+      },
+      {
+        id: 'fix-cli-build',
+        title: 'Fix CLI build failure (readPort import mismatch)',
+        tags: ['done', 'blocker', '5min', 'claude'],
+        detail: `<h4>Why</h4>
+<p><code>packages/cli/src/cli.ts</code> line 15 imports <code>readPort</code> from <code>daemon.ts</code>, but <code>daemon.ts</code> exports <code>readPid()</code> not <code>readPort()</code>. The function was renamed during a refactor but the import wasn't updated.</p>
+<h4>Fix</h4>
+<p>The <code>hook</code> command (line 115-120) needs the <strong>port</strong> to configure hooks. The <code>status()</code> function already returns <code>{ running, pid, port }</code>. Use that instead:</p>
+<pre>// Replace readPort() call with:
+const { port } = await status();
+// port is already available from the status function</pre>
+<h4>Verify</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="fix-cli-0">
+    <div class="sub-checkbox">✓</div>
+    <span><code>pnpm --filter @synapse-ai/cli build</code> succeeds</span>
+  </div>
+  <div class="sub-item" data-sub="fix-cli-1">
+    <div class="sub-checkbox">✓</div>
+    <span><code>pnpm -r build</code> full monorepo build succeeds</span>
+  </div>
+</div>`
+      },
+      {
+        id: 'fix-tests',
+        title: 'Fix 10 failing tests (PermissionCard, RemoteDevChat, PushSetup)',
+        tags: ['done', 'blocker', '30min', 'claude'],
+        detail: `<h4>Why</h4>
+<p>10 tests failing across 3 files. All tests must be green before going public — a failing test suite on first clone is embarrassing.</p>
+<h4>Failing tests</h4>
+<ul>
+<li><strong>PermissionCard.test.tsx</strong> — 7 tests. Will likely auto-fix after the [object Object] serialization fix above.</li>
+<li><strong>RemoteDevChat.test.tsx</strong> — 2 tests. The feature is being gated (cut from v1), so these tests should be skipped or fixed to match current behavior.</li>
+<li><strong>PushSetup.test.tsx</strong> — 1 test. Regex mismatch in "shows unsupported message" assertion. The feature is being gated, so skip or fix.</li>
+</ul>
+<div class="callout callout-tip">For gated features, wrap tests in <code>describe.skipIf(!Features.remoteDevChat)</code> so they auto-enable when the feature flag flips.</div>
+<h4>Verify</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="fix-tests-0">
+    <div class="sub-checkbox">✓</div>
+    <span><code>pnpm test</code> — all 800 tests pass (or gated tests skipped)</span>
+  </div>
+  <div class="sub-item" data-sub="fix-tests-1">
+    <div class="sub-checkbox">✓</div>
+    <span>No test warnings or console errors</span>
+  </div>
+</div>`
+      },
+      {
+        id: 'fix-meta-tag',
+        title: 'Fix deprecated apple-mobile-web-app-capable meta tag',
+        tags: ['done', '2min', 'claude'],
+        detail: `<h4>Why</h4>
+<p><code>apple-mobile-web-app-capable</code> is deprecated. Modern PWA spec uses <code>mobile-web-app-capable</code>.</p>
+<h4>Fix</h4>
+<p>In <code>apps/dashboard/index.html</code>:</p>
+<pre>&lt;!-- Change from: --&gt;
+&lt;meta name="apple-mobile-web-app-capable" content="yes" /&gt;
+&lt;!-- To: --&gt;
+&lt;meta name="mobile-web-app-capable" content="yes" /&gt;</pre>`
+      },
+      {
+        id: 'fix-react-key',
+        title: 'Fix duplicate React key warning for tool_use_ids',
+        tags: ['done', '10min', 'claude'],
+        detail: `<h4>Why</h4>
+<p>Console warning about duplicate keys in list rendering. Not breaking but looks unprofessional in DevTools. Someone will open the console.</p>
+<h4>What to do</h4>
+<p>Search for list renders using <code>tool_use_id</code> as the key. If two tool calls can share the same tool_use_id, append the index: <code>key={\`\${tool.tool_use_id}-\${i}\`}</code></p>`
+      },
+      {
+        id: 'fix-viewport-reset-on-tool-view',
+        title: 'Fix viewport zoom-out when changing tool view mode',
+        tags: ['10min', 'claude'],
+        detail: `<h4>Why</h4>
+<p>Switching tool view mode (e.g. to Tetris/game mode) zooms out to fit the entire graph instead of staying at the current viewport position. Jarring UX — user loses their place in the graph.</p>
+<h4>Root cause</h4>
+<p>In <code>apps/dashboard/src/components/graph/AgentGraph.tsx</code> (lines ~354-376), the <code>toolGroupMode</code> change effect calls <code>scheduleFitView({ padding: 0.2, duration: 300 })</code> without a <code>nodes</code> argument when no node is selected. This fits the entire graph.</p>
+<h4>Fix</h4>
+<p>When no node is selected, skip the <code>fitView</code> call entirely — let the layout update in place without changing the viewport. Only fit-to-node when a node IS selected.</p>`
+      },
+      {
+        id: 'fix-port-discovery',
+        title: 'Hook scripts should read port from .claude/.synapse-port so they follow the server wherever it moves',
+        tags: ['30min', 'claude'],
+        detail: `<h4>Why</h4>
+<p>Hook scripts currently default to port 27246. If the user changes the server port (e.g. via the extension settings panel), hooks keep posting to the old port and events never arrive. The extension reconfigures <code>settings.local.json</code> when it can, but repo-level hooks in <code>settings.json</code> bypass that logic entirely.</p>
+<h4>Fix</h4>
+<ul>
+<li>When the extension starts the server, write the active port to <code>.claude/.synapse-port</code></li>
+<li>Update <code>hooks/send_event.cjs</code> (and gemini/codex variants) to read that file as a fallback before using the hardcoded default: <code>SYNAPSE_PORT env → .synapse-port file → 27246</code></li>
+</ul>
+<h4>Files</h4>
+<ul>
+<li><code>hooks/send_event.cjs</code></li>
+<li><code>hooks/send_gemini_event.cjs</code></li>
+<li><code>hooks/send_codex_event.cjs</code></li>
+<li><code>apps/vscode/src/serverManager.ts</code> — write port file on server start</li>
+</ul>`
+      },
+      {
+        id: 'fix-tool-view-localstorage-leak',
+        title: 'Fix tool view mode leaking across browser tabs via localStorage',
+        tags: ['10min', 'claude'],
+        detail: `<h4>Why</h4>
+<p>Changing tool view mode in one browser tab/window overwrites the setting for all other tabs on the same origin. Each tab should have independent view settings — these are ephemeral UI preferences, not shared state.</p>
+<h4>Root cause</h4>
+<p>In <code>apps/dashboard/src/store/agentStore.ts</code>, <code>toolGroupMode</code> is persisted to <code>localStorage</code> under key <code>synapse-view-settings</code>. All tabs on the same origin share that key. When Tab B refreshes, it loads Tab A's last-written setting.</p>
+<h4>Fix options</h4>
+<ul>
+<li><strong>Option A:</strong> Don't persist <code>toolGroupMode</code> at all — default to 'pill' on load. Simplest fix.</li>
+<li><strong>Option B:</strong> Use <code>sessionStorage</code> instead of <code>localStorage</code> — per-tab isolation.</li>
+</ul>`
+      }
+    ]
+  },
+  {
+    id: 'theming',
+    title: 'CSS Variable Migration',
+    icon: '🎨',
+    color: '#f0883e',
+    prefix: 'TH',
+    items: [
+      {
+        id: 'define-theme-tokens',
+        title: 'Define @theme token block',
+        tags: ['done', '30min', 'claude'],
+        detail: `<h4>Why</h4>
+<p>All colors are hardcoded hex values scattered across ~37 files. A single <code>@theme</code> token block in <code>index.css</code> makes theming possible and reduces duplication.</p>
+<h4>What to do</h4>
+<p>Add 17 CSS custom properties to <code>apps/dashboard/src/index.css</code> after <code>@import "tailwindcss"</code> — colors, spacing, radius, header height. Update <code>index.html</code> body class from <code>bg-[#0d1117]</code> to <code>bg-syn-bg-primary</code>.</p>`
+      },
+      {
+        id: 'migrate-hex-to-tokens',
+        title: 'Migrate component hex values → semantic utilities',
+        tags: ['done', '60min', 'claude'],
+        detail: `<h4>Why</h4>
+<p>Hardcoded hex values defeat the purpose of the token block. Every component needs to reference the semantic utilities instead.</p>
+<h4>What to do</h4>
+<p>Find-and-replace ~37 files: <code>bg-[#0d1117]</code> → <code>bg-syn-bg-primary</code>, <code>border-[#30363d]</code> → <code>border-syn-border-primary</code>, etc. Skip pixel scene colors and chart palettes — those are intentional fixed colors.</p>`
+      },
+      {
+        id: 'flash-prevention-script',
+        title: 'Add flash prevention script',
+        tags: ['done', '15min', 'claude'],
+        detail: `<h4>Why</h4>
+<p>Without this, custom themes flash the default dark theme for a frame on reload while React hydrates. Looks broken.</p>
+<h4>What to do</h4>
+<p>Inline <code>&lt;script&gt;</code> in <code>index.html</code> before <code>&lt;/head&gt;</code> — reads <code>synapse-custom-theme</code> from <code>localStorage</code> and injects <code>&lt;style&gt;</code> before React mounts. Prevents flash of default theme on reload.</p>`
+      },
+      {
+        id: 'smoke-test-theming',
+        title: 'Smoke test all views',
+        tags: ['done', '15min', 'manual'],
+        detail: `<h4>Why</h4>
+<p>Token migration touches ~37 files — need visual verification that nothing broke.</p>
+<h4>What to do</h4>
+<p>Verify full, graph, lens, analytics, mobile views render correctly with new token classes. No visual diff from current appearance.</p>
+<div class="sub-items">
+  <div class="sub-item" data-sub="smoke-theme-0">
+    <div class="sub-checkbox">✓</div>
+    <span>Full desktop view renders correctly</span>
+  </div>
+  <div class="sub-item" data-sub="smoke-theme-1">
+    <div class="sub-checkbox">✓</div>
+    <span>Graph view — nodes, edges, tool groups look right</span>
+  </div>
+  <div class="sub-item" data-sub="smoke-theme-2">
+    <div class="sub-checkbox">✓</div>
+    <span>All lens views render correctly</span>
+  </div>
+  <div class="sub-item" data-sub="smoke-theme-3">
+    <div class="sub-checkbox">✓</div>
+    <span>Analytics page renders correctly</span>
+  </div>
+  <div class="sub-item" data-sub="smoke-theme-4">
+    <div class="sub-checkbox">✓</div>
+    <span>Mobile view renders correctly</span>
+  </div>
+</div>`
+      }
+    ]
+  },
+  {
+    id: 'feature-gates',
+    title: 'Feature Gating',
+    icon: '🚪',
+    color: '#bc8cff',
+    prefix: 'FG',
+    items: [
+      {
+        id: 'create-features-ts',
+        title: 'Create packages/core/src/features.ts manifest',
+        tags: ['done', '10min', 'claude'],
+        detail: `<h4>Why</h4>
+<p>Single source of truth for which features are enabled. Vite tree-shakes disabled features at build time — zero bytes in the production bundle.</p>
+<h4>What to create</h4>
+<pre>// packages/core/src/features.ts
+export const Features = {
+  // v0.1.0 — ships
+  nodeGraph:         true,
+  lensTreemap:       true,
+  lensCompaction:    true,
+  lensCostWaterfall: true,
+  lensSankey:        true,
+  lensTree:          true,
+  toolGrouping:      true,
+  guidedTour:        true,
+  snapshotExport:    true,
+  permissionCards:   true,
+  mobileView:        true,
+  cli:               true,
+
+  // roadmap — code exists, doesn't ship
+  lensHeatmap:       false,
+  coaching:          false,
+  promptLab:         false,
+  analyticsDeep:     false,
+  costDisplayMode:   false,
+  remoteDevChat:     false,
+  pushNotifications: false,
+  spawnAgent:        false,
+  multiVendor:       false,
+} as const;
+
+export type FeatureName = keyof typeof Features;
+</pre>
+<div class="callout callout-why"><strong>Why <code>as const</code>?</strong> Literal <code>true</code>/<code>false</code> values let Vite prove branches are unreachable and eliminate dead code. A runtime <code>boolean</code> variable wouldn't get this treatment.</div>
+<h4>Also</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="features-0">
+    <div class="sub-checkbox">✓</div>
+    <span>Export from <code>packages/core/src/index.ts</code> barrel</span>
+  </div>
+  <div class="sub-item" data-sub="features-1">
+    <div class="sub-checkbox">✓</div>
+    <span>Verify import works: <code>import { Features } from '@synapse-ai/core'</code></span>
+  </div>
+</div>`
+      },
+      {
+        id: 'gate-heatmap',
+        title: 'Gate heatmap lens tab',
+        tags: ['done', '5min', 'claude'],
+        detail: `<h4>File</h4><p><code>apps/dashboard/src/components/lens/LensTabBar.tsx</code></p>
+<h4>What</h4><p>Filter the heatmap tab from the tab list using <code>Features.lensHeatmap</code>. Also remove the <code>2</code> keyboard shortcut in <code>App.tsx</code> that switches to heatmap.</p>`
+      },
+      {
+        id: 'gate-coaching',
+        title: 'Gate coaching system (nudges, report cards, analytics tabs, server routes)',
+        tags: ['done', '20min', 'claude'],
+        detail: `<h4>Files to modify</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="gate-coach-0">
+    <div class="sub-checkbox">✓</div>
+    <span>NudgeBadge in graph — wrap with <code>Features.coaching &&</code></span>
+  </div>
+  <div class="sub-item" data-sub="gate-coach-1">
+    <div class="sub-checkbox">✓</div>
+    <span>Analytics coaching tabs (PlaybookPanel, ReportCardPanel, NudgePanel) — gate</span>
+  </div>
+  <div class="sub-item" data-sub="gate-coach-2">
+    <div class="sub-checkbox">✓</div>
+    <span>LiveNudgesView — gate</span>
+  </div>
+  <div class="sub-item" data-sub="gate-coach-3">
+    <div class="sub-checkbox">✓</div>
+    <span>Server: <code>/api/analytics/coaching/*</code> routes — conditionally register</span>
+  </div>
+  <div class="sub-item" data-sub="gate-coach-4">
+    <div class="sub-checkbox">✓</div>
+    <span>Tests: wrap coaching tests in <code>describe.skipIf(!Features.coaching)</code></span>
+  </div>
+</div>`
+      },
+      {
+        id: 'gate-promptlab',
+        title: 'Gate prompt lab (W key, WorkshopModal)',
+        tags: ['done', '5min', 'claude'],
+        detail: `<h4>Files</h4>
+<ul>
+<li><code>App.tsx</code> — wrap W key handler with <code>Features.promptLab</code></li>
+<li><code>WorkshopModal</code> — wrap render with <code>Features.promptLab &&</code></li>
+</ul>`
+      },
+      {
+        id: 'gate-costmode',
+        title: 'Gate cost display mode toggle ($ key)',
+        tags: ['done', '5min', 'claude'],
+        detail: `<h4>Files</h4>
+<ul>
+<li><code>App.tsx</code> — wrap $ key handler with <code>Features.costDisplayMode</code></li>
+<li><code>GraphStats.tsx</code> — hide the plan badge and cost toggle UI</li>
+<li>Keep the underlying cost calculation (it feeds the cost waterfall lens which does ship)</li>
+</ul>`
+      },
+      {
+        id: 'gate-remotedev',
+        title: 'Gate remote dev chat (mobile Dev tab, store, component)',
+        tags: ['done', '10min', 'claude'],
+        detail: `<h4>Files</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="gate-rdev-0">
+    <div class="sub-checkbox">✓</div>
+    <span><code>MobileTabBar.tsx</code> — hide Dev tab with <code>Features.remoteDevChat</code></span>
+  </div>
+  <div class="sub-item" data-sub="gate-rdev-1">
+    <div class="sub-checkbox">✓</div>
+    <span><code>MobileView.tsx</code> — don't render RemoteDevChat</span>
+  </div>
+  <div class="sub-item" data-sub="gate-rdev-2">
+    <div class="sub-checkbox">✓</div>
+    <span><code>agentStore.ts</code> — skip remote-dev WS routing when gated</span>
+  </div>
+  <div class="sub-item" data-sub="gate-rdev-3">
+    <div class="sub-checkbox">✓</div>
+    <span>Tests: skip RemoteDevChat tests when gated</span>
+  </div>
+</div>`
+      },
+      {
+        id: 'gate-push',
+        title: 'Gate push notifications (settings UI, server routes)',
+        tags: ['done', '10min', 'claude'],
+        detail: `<h4>Files</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="gate-push-0">
+    <div class="sub-checkbox">✓</div>
+    <span>PushSetup component — wrap with <code>Features.pushNotifications</code></span>
+  </div>
+  <div class="sub-item" data-sub="gate-push-1">
+    <div class="sub-checkbox">✓</div>
+    <span>Server: <code>/api/push/*</code> routes — conditionally register</span>
+  </div>
+  <div class="sub-item" data-sub="gate-push-2">
+    <div class="sub-checkbox">✓</div>
+    <span>Hook server push notification sending — skip when gated</span>
+  </div>
+  <div class="sub-item" data-sub="gate-push-3">
+    <div class="sub-checkbox">✓</div>
+    <span>Tests: skip PushSetup tests when gated</span>
+  </div>
+</div>`
+      },
+      {
+        id: 'gate-spawn',
+        title: 'Gate spawn agent (N key — already commented out)',
+        tags: ['done', '2min', 'claude'],
+        detail: `<p>The N key handler and spawn button are already commented with <code>// TODO v0.2.0</code>. Replace the comments with proper feature gate: <code>if (Features.spawnAgent && ...)</code>. Consistent pattern, same result.</p>`
+      },
+      {
+        id: 'verify-bundle',
+        title: 'Verify bundle size decreased after gating',
+        tags: ['done', '5min', 'claude'],
+        detail: `<h4>What to do</h4>
+<pre># Before gating (note the sizes):
+pnpm --filter @synapse-ai/dashboard build
+# Check dist/assets/ sizes
+
+# After all gating is done, rebuild and compare:
+pnpm --filter @synapse-ai/dashboard build
+# Main chunk should be noticeably smaller</pre>
+<div class="callout callout-tip">If the main chunk didn't shrink, some gated components aren't tree-shaking properly. Check that lazy imports are behind the feature flag, not just the render.</div>`
+      }
+    ]
+  },
+  {
+    id: 'repo-cleanup',
+    title: 'Repo Cleanup',
+    icon: '🧹',
+    color: '#d29922',
+    prefix: 'RC',
+    items: [
+      {
+        id: 'license-mit',
+        title: 'Replace LICENSE file with MIT',
+        tags: ['done', '5min', 'claude', 'mechanical'],
+        detail: `<h4>What</h4>
+<p>Replace root <code>LICENSE</code> file content with MIT license. Copyright: "Bernhard" (or your full name). Year: 2026.</p>
+<h4>Also</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="license-0">
+    <div class="sub-checkbox">✓</div>
+    <span>Root LICENSE file is MIT</span>
+  </div>
+  <div class="sub-item" data-sub="license-1">
+    <div class="sub-checkbox">✓</div>
+    <span>Delete <code>ee/LICENSE</code> and <code>ee/README.md</code> (enterprise dir)</span>
+  </div>
+  <div class="sub-item" data-sub="license-2">
+    <div class="sub-checkbox">✓</div>
+    <span>Remove any imports referencing <code>ee/</code></span>
+  </div>
+</div>`
+      },
+      {
+        id: 'license-pkgjson',
+        title: 'Update license field in all package.json files',
+        tags: ['5min', 'claude', 'mechanical'],
+        detail: `<h4>Files</h4>
+<ul>
+<li><code>package.json</code> (root)</li>
+<li><code>packages/core/package.json</code></li>
+<li><code>packages/server/package.json</code></li>
+<li><code>packages/cli/package.json</code></li>
+<li><code>apps/dashboard/package.json</code></li>
+<li><code>apps/vscode/package.json</code></li>
+</ul>
+<p>All should say <code>"license": "MIT"</code></p>`
+      },
+      {
+        id: 'spdx-headers',
+        title: 'SPDX headers: AGPL→MIT across ~280 files (scripted)',
+        tags: ['15min', 'claude', 'mechanical'],
+        detail: `<h4>What</h4>
+<p>280 source files have <code>SPDX-License-Identifier: AGPL-3.0-only</code>. Modify the existing <code>scripts/add-license-headers.mjs</code> to bulk replace <code>AGPL-3.0-only</code> → <code>MIT</code> across all files.</p>
+<div class="callout callout-warn">Do NOT manually edit 280 files. Use the script.</div>`
+      },
+      {
+        id: 'version-normalize',
+        title: 'Normalize all package versions to 0.1.0',
+        tags: ['5min', 'claude', 'mechanical'],
+        detail: `<h4>Current versions</h4>
+<ul>
+<li><code>@synapse-ai/cli</code>: 0.9.0 → 0.1.0</li>
+<li><code>synapse-vscode</code>: 0.11.0 → 0.1.0</li>
+<li>Others already at 0.1.0</li>
+</ul>`
+      },
+      {
+        id: 'remove-ee',
+        title: 'Remove /ee directory entirely',
+        tags: ['5min', 'claude', 'mechanical'],
+        detail: `<p>Delete the entire <code>ee/</code> directory. Contains enterprise license and README only. Search codebase for any references to <code>ee/</code> and remove them.</p>`
+      },
+      {
+        id: 'clean-working-tree',
+        title: 'Clean working tree (debug files, temp files, PSD files)',
+        tags: ['10min', 'claude'],
+        detail: `<h4>Files to remove or gitignore</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="clean-0">
+    <div class="sub-checkbox">✓</div>
+    <span><code>apps/vscode/Synapse_Icons.psd</code> — remove (binary, 10MB+)</span>
+  </div>
+  <div class="sub-item" data-sub="clean-1">
+    <div class="sub-checkbox">✓</div>
+    <span><code>hook_debug.log</code> — gitignore</span>
+  </div>
+  <div class="sub-item" data-sub="clean-2">
+    <div class="sub-checkbox">✓</div>
+    <span><code>.claude/.synapse-port</code> — gitignore</span>
+  </div>
+  <div class="sub-item" data-sub="clean-3">
+    <div class="sub-checkbox">✓</div>
+    <span><code>packages/server/192.168.1.99+3*.pem</code> — remove (local certs!)</span>
+  </div>
+  <div class="sub-item" data-sub="clean-4">
+    <div class="sub-checkbox">✓</div>
+    <span><code>release/</code> — gitignore or remove</span>
+  </div>
+  <div class="sub-item" data-sub="clean-5">
+    <div class="sub-checkbox">✓</div>
+    <span><code>docs/Test.mc</code> — remove (test file)</span>
+  </div>
+  <div class="sub-item" data-sub="clean-6">
+    <div class="sub-checkbox">✓</div>
+    <span>Audit <code>.gitignore</code> for any other patterns needed</span>
+  </div>
+</div>
+<div class="callout callout-warn"><strong>CRITICAL:</strong> The <code>.pem</code> files are TLS certificates with your local IP address. These MUST NOT go public.</div>`
+      },
+      {
+        id: 'gitignore-update',
+        title: 'Update .gitignore for public repo',
+        tags: ['done', '10min', 'claude'],
+        detail: `<h4>Ensure these patterns are gitignored</h4>
+<pre>*.pem
+*.psd
+*.vsix
+*.db
+hook_debug.log
+.claude/.synapse-port
+.claude/settings.local.json
+.claude/projects/
+release/
+packages/server/*.pem</pre>`
+      },
+      {
+        id: 'openclaw-isolate',
+        title: 'Exclude openclaw from pnpm workspace',
+        tags: ['10min', 'claude'],
+        detail: `<h4>Why</h4>
+<p><code>packages/openclaw</code> depends on <code>better-sqlite3</code> (native C++ dep). Without this fix, <code>pnpm install</code> on a fresh clone will fail on machines without build tools.</p>
+<h4>Fix</h4>
+<p>In <code>pnpm-workspace.yaml</code>, exclude openclaw:</p>
+<pre>packages:
+  - 'packages/*'
+  - '!packages/openclaw'
+  - 'apps/*'</pre>`
+      },
+      {
+        id: 'fix-claudemd',
+        title: 'Fix CLAUDE.md (better-sqlite3 → sql.js reference)',
+        tags: ['5min', 'claude'],
+        detail: `<p>CLAUDE.md says better-sqlite3 is the backend DB. Server actually uses sql.js. Only openclaw uses better-sqlite3. Update the tech stack description.</p>`
+      },
+      {
+        id: 'contributing-update',
+        title: 'Update CONTRIBUTING.md (AGPL→MIT, remove enterprise refs)',
+        tags: ['done', '15min', 'claude'],
+        detail: `<div class="sub-items">
+  <div class="sub-item" data-sub="contrib-0">
+    <div class="sub-checkbox">✓</div>
+    <span>Remove "The /ee Boundary" section (lines 163-177)</span>
+  </div>
+  <div class="sub-item" data-sub="contrib-1">
+    <div class="sub-checkbox">✓</div>
+    <span>Update license references from AGPL-3.0 to MIT</span>
+  </div>
+  <div class="sub-item" data-sub="contrib-2">
+    <div class="sub-checkbox">✓</div>
+    <span>Update clone URL to <code>github.com/soarcer/synapse</code></span>
+  </div>
+  <div class="sub-item" data-sub="contrib-3">
+    <div class="sub-checkbox">✓</div>
+    <span>Replace <code>synapse-conduct@example.com</code> with real contact or remove</span>
+  </div>
+</div>`
+      },
+      {
+        id: 'governance-update',
+        title: 'Simplify GOVERNANCE.md to solo maintainer MIT project',
+        tags: ['done', '10min', 'claude'],
+        detail: `<div class="sub-items">
+  <div class="sub-item" data-sub="gov-0">
+    <div class="sub-checkbox">✓</div>
+    <span>Remove "Commercial Relationship" section (lines 46-55)</span>
+  </div>
+  <div class="sub-item" data-sub="gov-1">
+    <div class="sub-checkbox">✓</div>
+    <span>Change AGPL-3.0 reference to MIT</span>
+  </div>
+  <div class="sub-item" data-sub="gov-2">
+    <div class="sub-checkbox">✓</div>
+    <span>Remove or replace placeholder email</span>
+  </div>
+</div>`
+      }
+    ]
+  },
+  {
+    id: 'visual-assets',
+    title: 'Visual Assets',
+    icon: '📸',
+    color: '#f778ba',
+    prefix: 'VA',
+    items: [
+      {
+        id: 'record-gif',
+        title: 'Record hero GIF — graph animation (20 seconds)',
+        tags: ['blocker', '30min', 'you'],
+        detail: `<h4>Why</h4>
+<p>This is the single most important thing for the Reddit post. A dark-themed node graph with animated edges and tool calls appearing in real-time is visually compelling. Without a GIF, people scroll past.</p>
+<h4>What to capture</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="gif-0">
+    <div class="sub-checkbox">✓</div>
+    <span>Run <code>npx tsx scripts/simulate_all_nodes.ts</code> for a comprehensive demo</span>
+  </div>
+  <div class="sub-item" data-sub="gif-1">
+    <div class="sub-checkbox">✓</div>
+    <span>Show nodes appearing in real-time (session → agent → tools)</span>
+  </div>
+  <div class="sub-item" data-sub="gif-2">
+    <div class="sub-checkbox">✓</div>
+    <span>Click on a node to show the detail panel</span>
+  </div>
+  <div class="sub-item" data-sub="gif-3">
+    <div class="sub-checkbox">✓</div>
+    <span>Switch to a lens view (Sankey or treemap looks best)</span>
+  </div>
+  <div class="sub-item" data-sub="gif-4">
+    <div class="sub-checkbox">✓</div>
+    <span>Keep it under 20 seconds — attention spans are short</span>
+  </div>
+</div>
+<h4>Tools</h4>
+<ul>
+<li><strong>Windows:</strong> ShareX (free, built-in GIF), ScreenToGif, or OBS + ezgif.com</li>
+<li><strong>Tip:</strong> Record at 1280x720, optimize with <code>gifsicle</code> to keep under 5MB for GitHub</li>
+</ul>`
+      },
+      {
+        id: 'screenshot-hero',
+        title: 'Hero screenshot — full graph with session running',
+        tags: ['blocker', '10min', 'you'],
+        detail: `<h4>Why</h4>
+<p>The "above the fold" image in the README. First thing people see.</p>
+<h4>Tips</h4>
+<ul>
+<li>Run a simulation to get a populated graph</li>
+<li>1280x720 or larger, dark theme</li>
+<li>Save to <code>docs/screenshots/hero.png</code></li>
+</ul>`
+      },
+      {
+        id: 'screenshot-lenses',
+        title: 'Lens views grid (2x3) — show all 5 lenses',
+        tags: ['15min', 'you'],
+        detail: `<h4>Why</h4>
+<p>Shows breadth of the visualization capabilities. Each lens is a different way to see the same data.</p>
+<h4>What to capture</h4>
+<p>Screenshot each lens tab (treemap, compaction, cost waterfall, sankey, tree) and compose into a 2x3 or 3x2 grid image. Tools like ShareX or even PowerPoint/Figma work for compositing.</p>`
+      },
+      {
+        id: 'screenshot-toolgroup',
+        title: 'Tool grouping GIF — toggle between 3 modes',
+        tags: ['10min', 'you'],
+        detail: `<p>Short GIF showing the tool group modes toggling: pill grid → timeline → heatmap-within-group. Press F key to expand, then switch modes in ViewSettingsDropdown.</p>`
+      },
+      {
+        id: 'screenshot-mobile',
+        title: 'Mobile + remote approval GIF',
+        tags: ['15min', 'you'],
+        detail: `<h4>Why</h4>
+<p>This is the scroll-stopper for Reddit/HN — approving a permission request from your phone while the agent waits.</p>
+<h4>What to capture</h4>
+<p>Use Chrome DevTools mobile emulation (iPhone 14 Pro). Show the mobile graph view, switch to permissions tab, approve a pending request.</p>`
+      },
+      {
+        id: 'screenshot-cost',
+        title: 'Cost waterfall lens screenshot',
+        tags: ['10min', 'you'],
+        detail: `<p>People care about money. The cost waterfall lens showing token usage across a session is a great selling point. Run a sim with varied costs.</p>`
+      },
+      {
+        id: 'screenshot-vscode',
+        title: 'VS Code split layout screenshot',
+        tags: ['10min', 'you'],
+        detail: `<p>Shows the extension integration — VS Code with Synapse panel open alongside code. Demonstrates that this isn't just a standalone tool.</p>`
+      },
+      {
+        id: 'social-preview',
+        title: 'GitHub social preview image (og:image)',
+        tags: ['15min', 'you'],
+        detail: `<h4>Why</h4>
+<p>When someone shares the GitHub repo URL on Twitter/Slack/Discord, this image appears. Without it, GitHub shows a generic preview.</p>
+<h4>What</h4>
+<p>1280x640px image. Use the hero screenshot with a dark overlay, Synapse logo/name, and tagline. Upload via Settings → Social preview on GitHub.</p>`
+      },
+      {
+        id: 'demo-video',
+        title: 'Demo video (60-90 seconds)',
+        tags: ['you'],
+        detail: `<h4>Why</h4>
+<p>YouTube/Twitter embed, huge for Product Hunt. Shows the full flow: install → configure → see graph.</p>
+<p>Not blocking launch but extremely valuable for promotion. Can be done post-launch if needed.</p>`
+      }
+    ]
+  },
+  {
+    id: 'readme-docs',
+    title: 'README & Docs',
+    icon: '📖',
+    color: '#58a6ff',
+    prefix: 'RD',
+    items: [
+      {
+        id: 'readme-overhaul',
+        title: 'README overhaul — rewrite for public audience',
+        tags: ['done', '30min', 'claude'],
+        detail: `<h4>Changes needed</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="readme-0">
+    <div class="sub-checkbox">✓</div>
+    <span>Replace npm commands with pnpm throughout</span>
+  </div>
+  <div class="sub-item" data-sub="readme-1">
+    <div class="sub-checkbox">✓</div>
+    <span>Fix stale paths (<code>server/</code> → <code>packages/server/</code>, etc.)</span>
+  </div>
+  <div class="sub-item" data-sub="readme-2">
+    <div class="sub-checkbox">✓</div>
+    <span>Remove enterprise license section</span>
+  </div>
+  <div class="sub-item" data-sub="readme-3">
+    <div class="sub-checkbox">✓</div>
+    <span>Update keyboard shortcuts table (currently shows 6, should show 14+)</span>
+  </div>
+  <div class="sub-item" data-sub="readme-4">
+    <div class="sub-checkbox">✓</div>
+    <span>Verify test count claim ("2,000+ tests") against actual output</span>
+  </div>
+  <div class="sub-item" data-sub="readme-5">
+    <div class="sub-checkbox">✓</div>
+    <span>Add clear "Quick Start" section (3 steps max)</span>
+  </div>
+  <div class="sub-item" data-sub="readme-6">
+    <div class="sub-checkbox">✓</div>
+    <span>Add "VS Code Extension" install section</span>
+  </div>
+  <div class="sub-item" data-sub="readme-7">
+    <div class="sub-checkbox">✓</div>
+    <span>Remove any references to cut features (coaching, prompt lab, etc.)</span>
+  </div>
+</div>`
+      },
+      {
+        id: 'readme-badges',
+        title: 'Add README badges (MIT, npm, marketplace, CI)',
+        tags: ['10min', 'claude'],
+        detail: `<h4>Badges to add at top of README</h4>
+<pre>![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)
+![npm version](https://img.shields.io/npm/v/@synapse-ai/cli)
+![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/Soarcer.synapse-vscode)
+![CI](https://img.shields.io/github/actions/workflow/status/soarcer/synapse/ci.yml)</pre>
+<div class="callout callout-tip">The npm and CI badges won't resolve until the package is published and the workflow exists. Add them now — they'll auto-populate.</div>`
+      },
+      {
+        id: 'readme-preview-done',
+        title: 'readme-preview.html (dark theme HTML preview)',
+        tags: ['done'],
+        detail: `<p>Already created. Dark theme HTML version of the README for previewing before push.</p>`
+      },
+      {
+        id: 'how-it-works-done',
+        title: 'how-it-works.html (architecture deep-dive)',
+        tags: ['done'],
+        detail: `<p>Already created. Ars Technica-style architecture deep-dive.</p>`
+      },
+      {
+        id: 'claudemd-done',
+        title: 'CLAUDE.md (dev onboarding)',
+        tags: ['done'],
+        detail: `<p>Already exists and covers project structure, quick start, conventions.</p>`
+      }
+    ]
+  },
+  {
+    id: 'docs-pass',
+    title: 'Documentation Pass',
+    icon: '📐',
+    color: '#d2a8ff',
+    prefix: 'DP',
+    items: [
+      {
+        id: 'doc-architecture-refresh',
+        title: 'Refresh ARCHITECTURE.md for current monorepo + file relay',
+        tags: ['60min', 'claude'],
+        detail: `<h4>Why</h4>
+<p>ARCHITECTURE.md still references the pre-monorepo structure (<code>server/</code>, <code>src/</code>), port 4000, <code>better-sqlite3</code>, and <code>POST /api/events</code> as the only hook transport. It needs to reflect the actual 2026-03 architecture.</p>
+<h4>Sections to update</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="doc-arch-0">
+    <div class="sub-checkbox">✓</div>
+    <span>System overview diagram — add file relay path, hook server, HTTP fallback</span>
+  </div>
+  <div class="sub-item" data-sub="doc-arch-1">
+    <div class="sub-checkbox">✓</div>
+    <span>File structure — update to monorepo (<code>packages/</code>, <code>apps/</code>)</span>
+  </div>
+  <div class="sub-item" data-sub="doc-arch-2">
+    <div class="sub-checkbox">✓</div>
+    <span>Dependencies — <code>better-sqlite3</code> → <code>sql.js</code>, add <code>pino</code>, etc.</span>
+  </div>
+  <div class="sub-item" data-sub="doc-arch-3">
+    <div class="sub-checkbox">✓</div>
+    <span>Hook configuration — update for async hooks, relay transport, circuit breaker</span>
+  </div>
+  <div class="sub-item" data-sub="doc-arch-4">
+    <div class="sub-checkbox">✓</div>
+    <span>Data flow diagram — add file relay path alongside HTTP</span>
+  </div>
+  <div class="sub-item" data-sub="doc-arch-5">
+    <div class="sub-checkbox">✓</div>
+    <span>Port table — document 3-port architecture (main, hook, HTTP fallback)</span>
+  </div>
+</div>`
+      },
+      {
+        id: 'doc-data-lifecycle',
+        title: 'Document data storage, retention, and lifecycle',
+        tags: ['30min', 'claude'],
+        detail: `<h4>Why</h4>
+<p>Users need to know: how much disk is Synapse using? Will it grow forever? What happens after months of daily use? Currently undocumented.</p>
+<h4>Content to add</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="doc-data-0">
+    <div class="sub-checkbox">✓</div>
+    <span>Relay file — location (<code>$TEMP/synapse_relay_&lt;port&gt;.jsonl</code>), compaction at 2MB, always &lt; 2MB</span>
+  </div>
+  <div class="sub-item" data-sub="doc-data-1">
+    <div class="sub-checkbox">✓</div>
+    <span>SQLite DB — 30-day age prune + 100K event cap, configurable via env vars</span>
+  </div>
+  <div class="sub-item" data-sub="doc-data-2">
+    <div class="sub-checkbox">✓</div>
+    <span>Offset file — purpose, location, what happens if deleted</span>
+  </div>
+  <div class="sub-item" data-sub="doc-data-3">
+    <div class="sub-checkbox">✓</div>
+    <span>Circuit breaker file — purpose, location, server-reset behavior</span>
+  </div>
+  <div class="sub-item" data-sub="doc-data-4">
+    <div class="sub-checkbox">✓</div>
+    <span>Sizing table: events/session, KB/event, daily/monthly growth, steady state</span>
+  </div>
+  <div class="sub-item" data-sub="doc-data-5">
+    <div class="sub-checkbox">✓</div>
+    <span>Env vars: <code>SYNAPSE_MAX_EVENT_AGE_DAYS</code>, <code>SYNAPSE_MAX_EVENTS</code></span>
+  </div>
+</div>`
+      },
+      {
+        id: 'doc-deployment-refresh',
+        title: 'Refresh DEPLOYMENT.md for current architecture',
+        tags: ['30min', 'claude'],
+        detail: `<h4>Why</h4>
+<p>DEPLOYMENT.md references port 4000, npm (not pnpm), <code>server/</code> paths, and doesn't mention the VS Code extension packaging at all.</p>
+<h4>Sections to update</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="doc-deploy-0">
+    <div class="sub-checkbox">✓</div>
+    <span>Minimal file sets — update for monorepo structure</span>
+  </div>
+  <div class="sub-item" data-sub="doc-deploy-1">
+    <div class="sub-checkbox">✓</div>
+    <span>Configuration variables — port 27246, pnpm, env vars</span>
+  </div>
+  <div class="sub-item" data-sub="doc-deploy-2">
+    <div class="sub-checkbox">✓</div>
+    <span>VS Code extension packaging — <code>.vsix</code> build, install, marketplace</span>
+  </div>
+  <div class="sub-item" data-sub="doc-deploy-3">
+    <div class="sub-checkbox">✓</div>
+    <span>Per-project hook setup — update for file relay + async hooks</span>
+  </div>
+</div>`
+      },
+      {
+        id: 'doc-hook-transport',
+        title: 'Document hook transport architecture (relay + HTTP + circuit breaker)',
+        tags: ['20min', 'claude'],
+        detail: `<h4>Why</h4>
+<p>The hook system now has 3 transport layers (file relay primary, HTTP fallback, circuit breaker) plus diagnostic endpoints. This needs a clear explanation for contributors.</p>
+<h4>Content</h4>
+<ul>
+<li>Transport selection logic in <code>send_event.cjs</code></li>
+<li>File relay: how it works, polling, compaction, offset tracking</li>
+<li>HTTP fallback: when it activates, circuit breaker behavior</li>
+<li>Diagnostic endpoint: <code>GET /api/relay/status</code></li>
+<li>Env var overrides: <code>SYNAPSE_TRANSPORT</code>, <code>SYNAPSE_RELAY_FILE</code>, <code>SYNAPSE_DEBUG</code></li>
+</ul>`
+      },
+      {
+        id: 'doc-perf-characteristics',
+        title: 'Document performance characteristics and resource usage',
+        tags: ['20min', 'claude'],
+        detail: `<h4>Why</h4>
+<p>Users evaluating Synapse want to know: will it slow down my Claude Code sessions? How much CPU/memory does it use? These numbers should be public.</p>
+<h4>Content</h4>
+<ul>
+<li>Per-event hook overhead: 14ms total (12ms stdin, 2ms file write), all async</li>
+<li>Server poll: 50ms interval, ~0.1ms per statSync call</li>
+<li>Memory: sql.js in-memory DB, ~5-30MB depending on event count</li>
+<li>Zero impact when server is down (circuit breaker trips after 3 failures)</li>
+<li>Lazy activation in VS Code: zero resources until panel opened</li>
+<li>Comparison table: before vs after the performance overhaul</li>
+</ul>`
+      }
+    ]
+  },
+  {
+    id: 'github-setup',
+    title: 'GitHub & npm',
+    icon: '🐙',
+    color: '#3fb950',
+    prefix: 'GH',
+    items: [
+      {
+        id: 'npm-scope',
+        title: 'Set up @synapse-ai npm scope for publishing',
+        tags: ['15min', 'you'],
+        detail: `<h4>Why</h4>
+<p>You own the <code>@synapse-ai</code> npm org at <a href="https://www.npmjs.com/settings/synapse-ai/packages">npmjs.com/settings/synapse-ai</a>. Now you need to configure it so <code>npm publish</code> works when the CI workflow runs.</p>
+<h4>Steps</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="npm-0">
+    <div class="sub-checkbox">✓</div>
+    <span>Verify scope: go to <a href="https://www.npmjs.com/settings/synapse-ai/packages">npmjs.com/settings/synapse-ai</a> — should show your org with zero packages</span>
+  </div>
+  <div class="sub-item" data-sub="npm-1">
+    <div class="sub-checkbox">✓</div>
+    <span>Create an access token: npmjs.com → Account → Access Tokens → Generate New Token → select <strong>Automation</strong> (this type works in CI without 2FA prompts)</span>
+  </div>
+  <div class="sub-item" data-sub="npm-2">
+    <div class="sub-checkbox">✓</div>
+    <span>Save the token somewhere safe (you'll need it for GitHub Secrets later)</span>
+  </div>
+  <div class="sub-item" data-sub="npm-3">
+    <div class="sub-checkbox">✓</div>
+    <span>Verify <code>packages/cli/package.json</code> has <code>"name": "@synapse-ai/cli"</code> and <code>"publishConfig": { "access": "public" }</code></span>
+  </div>
+  <div class="sub-item" data-sub="npm-4">
+    <div class="sub-checkbox">✓</div>
+    <span>Test locally: <code>cd packages/cli && npm pack --dry-run</code> — should list the files that would be published</span>
+  </div>
+</div>
+<div class="callout callout-why"><strong>Why "Automation" token?</strong> "Publish" tokens require 2FA confirmation on every publish. "Automation" tokens bypass 2FA, which is what you need for GitHub Actions CI. It's the standard approach.</div>
+<h4>What happens next</h4>
+<p>You won't publish now. The GitHub Actions release workflow (created in a later step) will use this token. You'll add it as a GitHub Secret called <code>NPM_TOKEN</code> after creating the repo.</p>`
+      },
+      {
+        id: 'create-repo',
+        title: 'Create public repo on GitHub',
+        tags: ['10min', 'you'],
+        detail: `<h4>Steps</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="repo-0">
+    <div class="sub-checkbox">✓</div>
+    <span>Go to github.com/new</span>
+  </div>
+  <div class="sub-item" data-sub="repo-1">
+    <div class="sub-checkbox">✓</div>
+    <span>Name: <code>synapse</code></span>
+  </div>
+  <div class="sub-item" data-sub="repo-2">
+    <div class="sub-checkbox">✓</div>
+    <span>Description: "Real-time visualization dashboard for Claude Code"</span>
+  </div>
+  <div class="sub-item" data-sub="repo-3">
+    <div class="sub-checkbox">✓</div>
+    <span>Public, NO readme, NO .gitignore, NO license (you'll push yours)</span>
+  </div>
+  <div class="sub-item" data-sub="repo-4">
+    <div class="sub-checkbox">✓</div>
+    <span>Add topics: <code>ai</code>, <code>agent</code>, <code>monitoring</code>, <code>claude</code>, <code>claude-code</code>, <code>vscode-extension</code>, <code>developer-tools</code>, <code>visualization</code></span>
+  </div>
+</div>`
+      },
+      {
+        id: 'push-code',
+        title: 'Push code to GitHub (set remote + push)',
+        tags: ['5min', 'you'],
+        detail: `<h4>Commands</h4>
+<pre># In your Synapse project directory:
+git remote add origin https://github.com/soarcer/synapse.git
+git branch -M main
+git push -u origin main</pre>
+<div class="callout callout-warn"><strong>Before pushing:</strong> Make sure all repo cleanup tasks are done (license, gitignore, secrets removed). You can't un-push history easily.</div>`
+      },
+      {
+        id: 'github-secrets',
+        title: 'Add GitHub Secrets (NPM_TOKEN, VSCE_PAT)',
+        tags: ['5min', 'you'],
+        detail: `<h4>Steps</h4>
+<p>Settings → Secrets and variables → Actions → New repository secret:</p>
+<div class="sub-items">
+  <div class="sub-item" data-sub="secret-0">
+    <div class="sub-checkbox">✓</div>
+    <span><code>NPM_TOKEN</code> — the Automation token from npm</span>
+  </div>
+  <div class="sub-item" data-sub="secret-1">
+    <div class="sub-checkbox">✓</div>
+    <span><code>VSCE_PAT</code> — VS Code Marketplace personal access token</span>
+  </div>
+</div>`
+      },
+      {
+        id: 'branch-protection',
+        title: 'Set up branch protection on main',
+        tags: ['5min', 'you'],
+        detail: `<h4>Steps</h4>
+<p>Settings → Branches → Add rule for <code>main</code>:</p>
+<div class="sub-items">
+  <div class="sub-item" data-sub="branch-0">
+    <div class="sub-checkbox">✓</div>
+    <span>Require status checks to pass before merging</span>
+  </div>
+  <div class="sub-item" data-sub="branch-1">
+    <div class="sub-checkbox">✓</div>
+    <span>Require branches to be up to date before merging</span>
+  </div>
+  <div class="sub-item" data-sub="branch-2">
+    <div class="sub-checkbox">✓</div>
+    <span>Do not allow force pushes</span>
+  </div>
+</div>`
+      },
+      {
+        id: 'issue-templates',
+        title: 'Create issue templates (Bug Report + Feature Request)',
+        tags: ['15min', 'claude'],
+        detail: `<h4>Create two files</h4>
+<ul>
+<li><code>.github/ISSUE_TEMPLATE/bug_report.md</code></li>
+<li><code>.github/ISSUE_TEMPLATE/feature_request.md</code></li>
+</ul>
+<p>Standard GitHub issue templates with sections for: description, steps to reproduce (bugs), expected behavior, environment (OS, Node version, VS Code version).</p>`
+      },
+      {
+        id: 'enable-discussions',
+        title: 'Enable GitHub Discussions + seed roadmap ideas',
+        tags: ['15min', 'you'],
+        detail: `<h4>Steps</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="disc-0">
+    <div class="sub-checkbox">✓</div>
+    <span>Settings → General → Features → check "Discussions"</span>
+  </div>
+  <div class="sub-item" data-sub="disc-1">
+    <div class="sub-checkbox">✓</div>
+    <span>Create "Ideas" category if not auto-created</span>
+  </div>
+  <div class="sub-item" data-sub="disc-2">
+    <div class="sub-checkbox">✓</div>
+    <span>Post: "Multi-vendor support (Gemini, Codex, Cursor)"</span>
+  </div>
+  <div class="sub-item" data-sub="disc-3">
+    <div class="sub-checkbox">✓</div>
+    <span>Post: "Push notifications for mobile approval"</span>
+  </div>
+  <div class="sub-item" data-sub="disc-4">
+    <div class="sub-checkbox">✓</div>
+    <span>Post: "Remote dev chat — talk to Claude from your phone"</span>
+  </div>
+  <div class="sub-item" data-sub="disc-5">
+    <div class="sub-checkbox">✓</div>
+    <span>Post: "Session comparison — diff two sessions"</span>
+  </div>
+  <div class="sub-item" data-sub="disc-6">
+    <div class="sub-checkbox">✓</div>
+    <span>Post: "Cross-session intelligence"</span>
+  </div>
+  <div class="sub-item" data-sub="disc-7">
+    <div class="sub-checkbox">✓</div>
+    <span>Pin top 3 ideas</span>
+  </div>
+</div>`
+      },
+      {
+        id: 'cloudflare-redirect',
+        title: 'Set up usesynapse.dev → GitHub redirect',
+        tags: ['5min', 'you'],
+        detail: `<h4>In Cloudflare Dashboard</h4>
+<p>DNS → Add CNAME or Page Rule that redirects <code>usesynapse.dev</code> to <code>https://github.com/soarcer/synapse</code>. A 301 redirect is fine.</p>`
+      },
+      {
+        id: 'ci-workflow',
+        title: 'CI workflow (.github/workflows/ci.yml)',
+        tags: ['done', '20min', 'claude'],
+        detail: `<h4>What it does</h4>
+<p>Runs on every push to main and all PRs. Installs deps, lints, typechecks, tests, builds.</p>
+<div class="sub-items">
+  <div class="sub-item" data-sub="ci-0">
+    <div class="sub-checkbox">✓</div>
+    <span>Trigger: push to main, all PRs</span>
+  </div>
+  <div class="sub-item" data-sub="ci-1">
+    <div class="sub-checkbox">✓</div>
+    <span>Matrix: Node 20 + 22, ubuntu-latest + windows-latest</span>
+  </div>
+  <div class="sub-item" data-sub="ci-2">
+    <div class="sub-checkbox">✓</div>
+    <span>Steps: pnpm install → typecheck → test → build</span>
+  </div>
+  <div class="sub-item" data-sub="ci-3">
+    <div class="sub-checkbox">✓</div>
+    <span>Cache pnpm store for fast CI</span>
+  </div>
+</div>`
+      },
+      {
+        id: 'release-workflow',
+        title: 'Release workflow (.github/workflows/release.yml)',
+        tags: ['done', '20min', 'claude'],
+        detail: `<p>Triggers on version tag push. Publishes @synapse-ai/cli to npm and VS Code extension to Marketplace + Open VSX.</p>`
+      },
+      {
+        id: 'npm-publish-cli',
+        title: 'Publish @synapse-ai/cli to npm',
+        tags: ['5min', 'you'],
+        detail: `<h4>Steps</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="npmpub-0">
+    <div class="sub-checkbox">✓</div>
+    <span>Ensure CLI builds: <code>pnpm --filter @synapse-ai/cli build</code></span>
+  </div>
+  <div class="sub-item" data-sub="npmpub-1">
+    <div class="sub-checkbox">✓</div>
+    <span>Tag release: <code>git tag v0.1.0 && git push origin v0.1.0</code></span>
+  </div>
+  <div class="sub-item" data-sub="npmpub-2">
+    <div class="sub-checkbox">✓</div>
+    <span>Release workflow publishes automatically, or manually: <code>npm publish --access public</code></span>
+  </div>
+  <div class="sub-item" data-sub="npmpub-3">
+    <div class="sub-checkbox">✓</div>
+    <span>Verify: <code>npm info @synapse-ai/cli</code> shows the package</span>
+  </div>
+</div>`
+      },
+      {
+        id: 'vscode-marketplace-done',
+        title: 'VS Code extension on Marketplace',
+        tags: ['done'],
+        detail: `<p>Already published as <code>Soarcer.synapse-vscode</code> v0.11.0. Release workflow handles future updates.</p>`
+      }
+    ]
+  },
+  {
+    id: 'smoke-test',
+    title: 'Smoke Test',
+    icon: '🧪',
+    color: '#39d2c0',
+    prefix: 'ST',
+    items: [
+      {
+        id: 'fresh-clone',
+        title: 'Fresh clone end-to-end test',
+        tags: ['blocker', '30min', 'you'],
+        detail: `<h4>Why</h4>
+<p>If someone can't get the project running from a clean clone, they'll close the tab immediately. This is the single most important test.</p>
+<h4>Steps</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="clone-0">
+    <div class="sub-checkbox">✓</div>
+    <span><code>git clone https://github.com/soarcer/synapse.git /tmp/synapse-test</code></span>
+  </div>
+  <div class="sub-item" data-sub="clone-1">
+    <div class="sub-checkbox">✓</div>
+    <span><code>cd /tmp/synapse-test && pnpm install</code> — no errors</span>
+  </div>
+  <div class="sub-item" data-sub="clone-2">
+    <div class="sub-checkbox">✓</div>
+    <span><code>pnpm -r build</code> — all packages build</span>
+  </div>
+  <div class="sub-item" data-sub="clone-3">
+    <div class="sub-checkbox">✓</div>
+    <span><code>pnpm test</code> — all tests pass</span>
+  </div>
+  <div class="sub-item" data-sub="clone-4">
+    <div class="sub-checkbox">✓</div>
+    <span>Start server + dashboard, load <code>localhost:5173</code></span>
+  </div>
+  <div class="sub-item" data-sub="clone-5">
+    <div class="sub-checkbox">✓</div>
+    <span>Run <code>npx tsx scripts/simulate_all_nodes.ts</code> — nodes appear in graph</span>
+  </div>
+  <div class="sub-item" data-sub="clone-6">
+    <div class="sub-checkbox">✓</div>
+    <span>Click through all lens views — no crashes</span>
+  </div>
+  <div class="sub-item" data-sub="clone-7">
+    <div class="sub-checkbox">✓</div>
+    <span>Export snapshot → import snapshot — round-trip works</span>
+  </div>
+  <div class="sub-item" data-sub="clone-8">
+    <div class="sub-checkbox">✓</div>
+    <span>No console errors, no 404s, no broken images</span>
+  </div>
+</div>`
+      },
+      {
+        id: 'vscode-test',
+        title: 'VS Code extension end-to-end test',
+        tags: ['15min', 'you'],
+        detail: `<h4>Steps</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="vsc-0">
+    <div class="sub-checkbox">✓</div>
+    <span>Install extension from Marketplace</span>
+  </div>
+  <div class="sub-item" data-sub="vsc-1">
+    <div class="sub-checkbox">✓</div>
+    <span>Open any project → Synapse panel shows up</span>
+  </div>
+  <div class="sub-item" data-sub="vsc-2">
+    <div class="sub-checkbox">✓</div>
+    <span>Configure hooks → start Claude Code session → events appear</span>
+  </div>
+  <div class="sub-item" data-sub="vsc-3">
+    <div class="sub-checkbox">✓</div>
+    <span>Extension doesn't throw errors in Output panel</span>
+  </div>
+</div>`
+      },
+      {
+        id: 'mobile-test',
+        title: 'Mobile PWA test',
+        tags: ['15min', 'you'],
+        detail: `<h4>Steps</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="mob-0">
+    <div class="sub-checkbox">✓</div>
+    <span>Open dashboard from phone on local network</span>
+  </div>
+  <div class="sub-item" data-sub="mob-1">
+    <div class="sub-checkbox">✓</div>
+    <span>Mobile layout auto-detected (bottom tabs appear)</span>
+  </div>
+  <div class="sub-item" data-sub="mob-2">
+    <div class="sub-checkbox">✓</div>
+    <span>Graph tab shows nodes</span>
+  </div>
+  <div class="sub-item" data-sub="mob-3">
+    <div class="sub-checkbox">✓</div>
+    <span>Permissions tab shows cards (approve/deny works)</span>
+  </div>
+  <div class="sub-item" data-sub="mob-4">
+    <div class="sub-checkbox">✓</div>
+    <span>Pinch zoom works on graph</span>
+  </div>
+</div>`
+      }
+    ]
+  },
+  {
+    id: 'launch',
+    title: 'Launch & Promotion',
+    icon: '🚀',
+    color: '#58a6ff',
+    prefix: 'LP',
+    items: [
+      {
+        id: 'launch-sequence',
+        title: 'Plan launch sequence (timing, platform order)',
+        tags: ['15min', 'you'],
+        detail: `<h4>Suggested order</h4>
+<ol>
+<li><strong>Saturday AM:</strong> Reddit r/ClaudeAI (your core audience)</li>
+<li><strong>Saturday PM:</strong> Twitter/X thread with GIF</li>
+<li><strong>Sunday:</strong> HN Show HN post</li>
+<li><strong>Monday:</strong> Product Hunt launch</li>
+<li><strong>During week:</strong> dev.to article, awesome-list PRs</li>
+</ol>
+<p>Stagger to maximize engagement on each platform.</p>`
+      },
+      {
+        id: 'reddit-post',
+        title: 'Post on r/ClaudeAI (short + medium versions drafted)',
+        tags: ['you'],
+        detail: `<h4>What</h4>
+<p>Both versions already drafted. Post the short version first with the GIF. If it gets engagement, share the medium version as a follow-up comment.</p>
+<h4>Tips</h4>
+<ul>
+<li>Post Saturday morning US time for maximum visibility</li>
+<li>GIF is required — text-only posts get scrolled past</li>
+<li>Reply to every comment in the first 2 hours</li>
+</ul>`
+      },
+      {
+        id: 'reddit-crosspost',
+        title: 'Cross-post to related subreddits',
+        tags: ['you'],
+        detail: `<h4>Subreddits</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="xpost-0">
+    <div class="sub-checkbox">✓</div>
+    <span>r/ClaudeAI — primary</span>
+  </div>
+  <div class="sub-item" data-sub="xpost-1">
+    <div class="sub-checkbox">✓</div>
+    <span>r/ChatGPTCoding — AI coding community</span>
+  </div>
+  <div class="sub-item" data-sub="xpost-2">
+    <div class="sub-checkbox">✓</div>
+    <span>r/LocalLLaMA — if relevant</span>
+  </div>
+  <div class="sub-item" data-sub="xpost-3">
+    <div class="sub-checkbox">✓</div>
+    <span>r/vscode — VS Code extension angle</span>
+  </div>
+</div>
+<div class="callout callout-tip">Wait 30 min between posts to avoid spam filters.</div>`
+      },
+      {
+        id: 'hn-post',
+        title: 'Hacker News — Show HN post',
+        tags: ['you'],
+        detail: `<p>Title: "Show HN: Synapse – Real-time visualization dashboard for Claude Code". Link to GitHub repo. Write a concise top comment explaining what it does and why you built it.</p>`
+      },
+      {
+        id: 'producthunt',
+        title: 'Product Hunt launch',
+        tags: ['you'],
+        detail: `<h4>To prepare</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="ph-0">
+    <div class="sub-checkbox">✓</div>
+    <span>Create product page with tagline and description</span>
+  </div>
+  <div class="sub-item" data-sub="ph-1">
+    <div class="sub-checkbox">✓</div>
+    <span>Upload hero screenshot + GIF</span>
+  </div>
+  <div class="sub-item" data-sub="ph-2">
+    <div class="sub-checkbox">✓</div>
+    <span>Write maker comment (why you built it)</span>
+  </div>
+  <div class="sub-item" data-sub="ph-3">
+    <div class="sub-checkbox">✓</div>
+    <span>Schedule for Monday 12:01 AM PST (PH day resets)</span>
+  </div>
+</div>`
+      },
+      {
+        id: 'twitter-thread',
+        title: 'Twitter/X thread with GIF',
+        tags: ['you'],
+        detail: `<h4>Thread structure</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="tw-0">
+    <div class="sub-checkbox">✓</div>
+    <span>Tweet 1: Hook + GIF ("I built a real-time dashboard for Claude Code...")</span>
+  </div>
+  <div class="sub-item" data-sub="tw-1">
+    <div class="sub-checkbox">✓</div>
+    <span>Tweet 2: The problem it solves</span>
+  </div>
+  <div class="sub-item" data-sub="tw-2">
+    <div class="sub-checkbox">✓</div>
+    <span>Tweet 3: Key features (lenses, mobile, permissions)</span>
+  </div>
+  <div class="sub-item" data-sub="tw-3">
+    <div class="sub-checkbox">✓</div>
+    <span>Tweet 4: Link to repo + "it's open source"</span>
+  </div>
+</div>`
+      },
+      {
+        id: 'devto-article',
+        title: 'dev.to / Medium article — "Why I built this"',
+        tags: ['you'],
+        detail: `<p>Longer-form article about the motivation, architecture decisions, and what you learned. Can reuse content from <code>docs/how-it-works.html</code>. Not blocking launch.</p>`
+      },
+      {
+        id: 'awesome-list',
+        title: 'Submit to awesome-claude-code and similar lists',
+        tags: ['you'],
+        detail: `<p>Open PRs to add Synapse to curated lists: awesome-claude-code, awesome-ai-tools, awesome-vscode-extensions.</p>`
+      },
+      {
+        id: 'discord-communities',
+        title: 'Share in relevant Discord communities',
+        tags: ['you'],
+        detail: `<h4>Communities to share in</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="discord-0">
+    <div class="sub-checkbox">✓</div>
+    <span>Anthropic Discord (if they have one)</span>
+  </div>
+  <div class="sub-item" data-sub="discord-1">
+    <div class="sub-checkbox">✓</div>
+    <span>AI/ML Discord servers</span>
+  </div>
+  <div class="sub-item" data-sub="discord-2">
+    <div class="sub-checkbox">✓</div>
+    <span>VS Code extension communities</span>
+  </div>
+</div>
+<div class="callout callout-tip">Be genuine, not spammy. Share as "I built this thing, here's a GIF" not "check out my product".</div>`
+      }
+    ]
+  },
+  {
+    id: 'nice-to-have',
+    title: 'Nice to Have',
+    icon: '✨',
+    color: '#d29922',
+    prefix: 'NH',
+    items: [
+      {
+        id: 'gemini-codex',
+        title: 'Gemini/Codex adapters tested',
+        tags: ['you'],
+        detail: `<p>Multi-vendor support is on the roadmap but fine to ship as "in progress." Just make sure the adapter code doesn't crash if present.</p>`
+      },
+      {
+        id: 'npm-unscoped',
+        title: 'Check npm "synapse" (unscoped) availability',
+        tags: ['5min', 'you'],
+        detail: `<p>Shorter install name: <code>npx synapse</code> instead of <code>npx @synapse-ai/cli</code>. Run <code>npm info synapse</code> to check — may not be available.</p>`
+      }
+    ]
+  },
+  {
+    id: 'post-launch',
+    title: 'Post-Launch',
+    icon: '📊',
+    color: '#8b949e',
+    prefix: 'PL',
+    items: [
+      {
+        id: 'monitor-issues',
+        title: 'Monitor GitHub issues (first 48 hours)',
+        tags: ['you'],
+        detail: `<p>Watch for: build failures on other platforms, unclear docs, feature requests. Quick responses in the first 48 hours set the tone for the community.</p>`
+      },
+      {
+        id: 'respond-comments',
+        title: 'Respond to Reddit/HN comments within 2 hours',
+        tags: ['you'],
+        detail: `<p>Engagement in the first few hours is critical for algorithm visibility. Be genuine, answer questions, take feedback gracefully.</p>`
+      },
+      {
+        id: 'track-metrics',
+        title: 'Track launch metrics',
+        tags: ['you'],
+        detail: `<h4>What to track</h4>
+<div class="sub-items">
+  <div class="sub-item" data-sub="metrics-0">
+    <div class="sub-checkbox">✓</div>
+    <span>GitHub stars count</span>
+  </div>
+  <div class="sub-item" data-sub="metrics-1">
+    <div class="sub-checkbox">✓</div>
+    <span>npm download count</span>
+  </div>
+  <div class="sub-item" data-sub="metrics-2">
+    <div class="sub-checkbox">✓</div>
+    <span>VS Code extension installs</span>
+  </div>
+  <div class="sub-item" data-sub="metrics-3">
+    <div class="sub-checkbox">✓</div>
+    <span>Reddit/HN upvotes and comments</span>
+  </div>
+</div>`
+      },
+      {
+        id: 'first-pr-response',
+        title: 'Respond to first PR within 24 hours',
+        tags: ['you'],
+        detail: `<p>If someone opens a PR, respond quickly even if just to say "thanks, reviewing." First contributor experience sets the tone.</p>`
+      },
+      {
+        id: 'collect-feedback',
+        title: 'Collect feedback themes — what do people actually want?',
+        tags: ['you'],
+        detail: `<p>After 3 days, review all comments, issues, and discussions. Look for patterns:</p>
+<ul>
+<li>What feature gets requested most?</li>
+<li>What confuses people?</li>
+<li>What do people love that you didn't expect?</li>
+<li>What do people ignore that you thought was cool?</li>
+</ul>
+<p>This tells you what to build next. Not your roadmap — theirs.</p>`
+      }
+    ]
+  }
+];
+
+// State management
+const STORAGE_KEY = 'synapse-launch-checklist-v2';
+const expandedItems = new Set();
+let activeSection = DATA[0].id;
+let activeFilter = 'all';
+
+function loadState() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) return JSON.parse(saved);
+    // Migrate from v1 if exists
+    const v1 = localStorage.getItem('synapse-launch-checklist-v1');
+    if (v1) return JSON.parse(v1);
+    return {};
+  } catch { return {}; }
+}
+
+function saveState(state) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  updateTimestamp();
+}
+
+function getState() {
+  return loadState();
+}
+
+function toggleItem(id) {
+  const state = getState();
+  state[id] = !state[id];
+  saveState(state);
+  render();
+}
+
+function toggleExpand(itemId, e) {
+  if (e) e.stopPropagation();
+  if (expandedItems.has(itemId)) {
+    expandedItems.delete(itemId);
+  } else {
+    expandedItems.add(itemId);
+  }
+  render();
+}
+
+const notesOpenItems = new Set();
+const NOTES_KEY = 'synapse-checklist-notes';
+
+// Notes structure: { "item-id": { messages: [{ from: "user"|"claude", text: "...", ts: "..." }] } }
+function loadNotes() {
+  try {
+    var raw = JSON.parse(localStorage.getItem(NOTES_KEY) || '{}');
+    // Migrate flat strings to thread format
+    for (var key in raw) {
+      if (typeof raw[key] === 'string') {
+        raw[key] = { messages: [{ from: 'user', text: raw[key], ts: new Date().toISOString() }] };
+      }
+    }
+    return raw;
+  } catch { return {}; }
+}
+
+function saveNotesStore(notes) {
+  localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+}
+
+function addNote(itemId) {
+  var ta = document.getElementById('notes-' + itemId);
+  if (!ta || !ta.value.trim()) return;
+  var msg = { from: 'user', text: ta.value.trim(), ts: new Date().toISOString() };
+  var notes = loadNotes();
+  if (!notes[itemId]) notes[itemId] = { messages: [] };
+  notes[itemId].messages.push(msg);
+  saveNotesStore(notes);
+  ta.value = '';
+  // Update thread inline without full re-render
+  var itemEl = document.querySelector('[data-item="' + itemId + '"]');
+  var threadEl = itemEl.querySelector('.item-notes-thread');
+  var time = new Date(msg.ts).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  var msgHtml = '<div class="note-msg note-msg-user"><div class="note-msg-header">You<span class="note-msg-time">' + time + '</span></div>' + msg.text.replace(/</g, '&lt;').replace(/\n/g, '<br>') + '</div>';
+  if (threadEl) {
+    threadEl.insertAdjacentHTML('beforeend', msgHtml);
+  } else {
+    ta.insertAdjacentHTML('beforebegin', '<div class="item-notes-thread">' + msgHtml + '</div>');
+  }
+  // Update icon
+  var btn = itemEl.querySelector('.item-notes-btn');
+  if (btn) { btn.classList.add('has-notes'); btn.textContent = '📝'; }
+  ta.focus();
+}
+
+function itemHasNotes(itemId) {
+  var notes = loadNotes();
+  return notes[itemId] && notes[itemId].messages && notes[itemId].messages.length > 0;
+}
+
+function toggleNotes(itemId, e) {
+  if (e) e.stopPropagation();
+  if (notesOpenItems.has(itemId)) {
+    notesOpenItems.delete(itemId);
+  } else {
+    notesOpenItems.add(itemId);
+  }
+  render();
+  if (notesOpenItems.has(itemId)) {
+    var ta = document.getElementById('notes-' + itemId);
+    if (ta) ta.focus();
+  }
+}
+
+function syncNotes() {
+  var notes = loadNotes();
+  var blob = new Blob([JSON.stringify(notes, null, 2)], { type: 'application/json' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'launch-checklist-notes.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function loadNotesFromFile() {
+  document.getElementById('notesFileInput').click();
+}
+
+function handleNotesFile(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var incoming = JSON.parse(e.target.result);
+      var current = loadNotes();
+      // Merge: add any messages from file that aren't already present
+      for (var itemId in incoming) {
+        if (!incoming[itemId].messages) continue;
+        if (!current[itemId]) { current[itemId] = incoming[itemId]; continue; }
+        var existingTexts = new Set(current[itemId].messages.map(function(m) { return m.from + ':' + m.text; }));
+        incoming[itemId].messages.forEach(function(msg) {
+          if (!existingTexts.has(msg.from + ':' + msg.text)) {
+            current[itemId].messages.push(msg);
+          }
+        });
+        // Sort by timestamp
+        current[itemId].messages.sort(function(a, b) { return (a.ts || '').localeCompare(b.ts || ''); });
+      }
+      saveNotesStore(current);
+      render();
+      alert('Notes loaded and merged successfully!');
+    } catch (err) {
+      alert('Failed to parse notes file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function setSection(sectionId) {
+  activeSection = sectionId;
+  render();
+}
+
+function setFilter(filter) {
+  activeFilter = filter;
+  render();
+}
+
+function expandAll() {
+  const section = DATA.find(s => s.id === activeSection);
+  if (section) section.items.forEach(i => expandedItems.add(i.id));
+  render();
+}
+
+function collapseAll() {
+  expandedItems.clear();
+  render();
+}
+
+function resetAll() {
+  if (confirm('Reset all progress? This cannot be undone.')) {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem('synapse-launch-checklist-v1');
+    render();
+  }
+}
+
+function exportState() {
+  const state = getState();
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `synapse-launch-checklist-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function updateTimestamp() {
+  const el = document.getElementById('timestamp');
+  el.textContent = `Last saved: ${new Date().toLocaleString()}`;
+}
+
+// Counting
+function countItems(items, state) {
+  let total = 0, done = 0;
+  items.forEach(item => {
+    total++;
+    if (state[item.id] || (item.tags || []).includes('done')) done++;
+  });
+  return { total, done };
+}
+
+function countAll(state) {
+  let total = 0, done = 0;
+  DATA.forEach(section => {
+    const c = countItems(section.items, state);
+    total += c.total;
+    done += c.done;
+  });
+  return { total, done };
+}
+
+// Tag rendering
+function renderTag(tag) {
+  const classes = {
+    'blocker': 'tag-blocker',
+    'you': 'tag-you',
+    'claude': 'tag-claude',
+    'mechanical': 'tag-mechanical',
+    'parallel': 'tag-parallel',
+    'done': 'tag-done',
+  };
+  let cls = 'tag-effort';
+  for (const [key, val] of Object.entries(classes)) {
+    if (tag === key) { cls = val; break; }
+  }
+  return '<span class="item-tag ' + cls + '">' + tag + '</span>';
+}
+
+// Filter logic
+function itemMatchesFilter(item) {
+  const state = getState();
+  if (activeFilter === 'all') return true;
+  if (activeFilter === 'blocker') return (item.tags || []).includes('blocker');
+  if (activeFilter === 'you') return (item.tags || []).includes('you');
+  if (activeFilter === 'claude') return (item.tags || []).includes('claude');
+  if (activeFilter === 'remaining') {
+    return !state[item.id] && !(item.tags || []).includes('done');
+  }
+  return true;
+}
+
+// Render
+function render() {
+  var scrollY = window.scrollY;
+  const state = getState();
+  const content = document.getElementById('content');
+  const { total, done } = countAll(state);
+
+  // Progress
+  document.getElementById('progressFill').style.width = (total ? (done/total*100) : 0) + '%';
+  document.getElementById('progressText').textContent = done + ' / ' + total;
+
+  // Section tabs
+  const tabsEl = document.getElementById('sectionTabs');
+  tabsEl.innerHTML = DATA.map(function(section) {
+    const counts = countItems(section.items, state);
+    const isComplete = counts.done === counts.total;
+    const cls = 'section-tab' + (activeSection === section.id ? ' active' : '') + (isComplete ? ' section-complete' : '');
+    return '<button class="' + cls + '" onclick="setSection(\'' + section.id + '\')">' +
+      '<span class="tab-dot" style="background:' + section.color + '"></span>' +
+      section.icon + ' ' + section.title +
+      '<span class="tab-progress">' + counts.done + '/' + counts.total + '</span>' +
+      '</button>';
+  }).join('');
+
+  // Filter bar
+  const filterBar = document.getElementById('filterBar');
+  const section = DATA.find(function(s) { return s.id === activeSection; });
+  if (!section) return;
+
+  const sectionItems = section.items;
+  const totalSection = sectionItems.length;
+  const remainingSection = sectionItems.filter(function(i) { return !state[i.id] && !(i.tags||[]).includes('done'); }).length;
+  const blockerSection = sectionItems.filter(function(i) { return (i.tags||[]).includes('blocker') && !state[i.id]; }).length;
+  const youSection = sectionItems.filter(function(i) { return (i.tags||[]).includes('you') && !state[i.id]; }).length;
+  const claudeSection = sectionItems.filter(function(i) { return (i.tags||[]).includes('claude') && !state[i.id]; }).length;
+
+  var filters = [
+    { id: 'all', label: 'All', count: totalSection },
+    { id: 'remaining', label: 'Remaining', count: remainingSection },
+  ];
+  if (blockerSection > 0) filters.push({ id: 'blocker', label: 'Blockers', count: blockerSection });
+  if (youSection > 0) filters.push({ id: 'you', label: 'You', count: youSection });
+  if (claudeSection > 0) filters.push({ id: 'claude', label: 'Claude', count: claudeSection });
+
+  filterBar.innerHTML = '<span class="filter-label">Filter:</span>' +
+    filters.map(function(f) {
+      return '<button class="filter-tab' + (activeFilter === f.id ? ' active' : '') + '" onclick="setFilter(\'' + f.id + '\')">' +
+        f.label + '<span class="filter-count">' + f.count + '</span></button>';
+    }).join('');
+
+  // Items for active section
+  var filteredItems = sectionItems.filter(itemMatchesFilter);
+
+  if (filteredItems.length === 0) {
+    content.innerHTML = '<div class="empty-state">All done in this section! 🎉</div>';
+  } else {
+    content.innerHTML = '<div class="section-items">' +
+      filteredItems.map(function(item) {
+        var isDone = state[item.id] || (item.tags || []).includes('done');
+        var isExpanded = expandedItems.has(item.id);
+        var isNotesOpen = notesOpenItems.has(item.id);
+        var hasDetail = !!item.detail;
+        var itemIdx = sectionItems.indexOf(item) + 1;
+        var itemCode = section.prefix + itemIdx;
+        var hasNotes = itemHasNotes(item.id);
+        var showNotes = isNotesOpen || hasNotes;
+        var cls = 'item' + (isDone ? ' done' : '') + (hasDetail ? '' : ' no-detail') + (isExpanded ? ' expanded' : '') + (showNotes ? ' notes-open' : '');
+        // Build thread HTML
+        var threadHtml = '';
+        if (hasNotes) {
+          var notes = loadNotes();
+          threadHtml = '<div class="item-notes-thread">' +
+            notes[item.id].messages.map(function(msg) {
+              var msgCls = msg.from === 'claude' ? 'note-msg note-msg-claude' : 'note-msg note-msg-user';
+              var label = msg.from === 'claude' ? 'Claude' : 'You';
+              var time = msg.ts ? new Date(msg.ts).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+              return '<div class="' + msgCls + '">' +
+                '<div class="note-msg-header">' + label + '<span class="note-msg-time">' + time + '</span></div>' +
+                msg.text.replace(/</g, '&lt;').replace(/\n/g, '<br>') +
+              '</div>';
+            }).join('') +
+          '</div>';
+        }
+        return '<div class="' + cls + '" data-item="' + item.id + '">' +
+          '<div class="item-main" onclick="' + (hasDetail ? "toggleExpand('" + item.id + "', event)" : "toggleItem('" + item.id + "')") + '">' +
+            '<div class="item-checkbox" onclick="event.stopPropagation(); toggleItem(\'' + item.id + '\')">✓</div>' +
+            '<span class="item-number">' + itemCode + '</span>' +
+            '<div class="item-content">' +
+              '<div class="item-title">' + item.title + '</div>' +
+              '<div class="item-meta">' + (item.tags||[]).map(renderTag).join('') + '</div>' +
+            '</div>' +
+            '<div class="item-notes-btn' + (hasNotes ? ' has-notes' : '') + '" onclick="event.stopPropagation(); toggleNotes(\'' + item.id + '\', event)" title="Notes">' + (hasNotes ? '📝' : '📋') + '</div>' +
+            (hasDetail ? '<div class="item-expand-btn">▸</div>' : '') +
+          '</div>' +
+          (hasDetail ? '<div class="item-detail">' + item.detail + '</div>' : '') +
+          '<div class="item-notes-area">' +
+            threadHtml +
+            '<textarea class="item-notes-textarea" id="notes-' + item.id + '" placeholder="Add a note..." onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();addNote(\'' + item.id + '\');}"></textarea>' +
+            '<div class="notes-send-row">' +
+              '<button class="notes-send-btn" onclick="addNote(\'' + item.id + '\')">Send</button>' +
+              '<span class="notes-hint">Enter to send, Shift+Enter for newline</span>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      }).join('') +
+    '</div>';
+  }
+
+  // Wire up sub-item clicks
+  document.querySelectorAll('.sub-item').forEach(function(el) {
+    var subId = el.dataset.sub;
+    if (state[subId]) el.classList.add('done');
+    el.onclick = function(e) {
+      e.stopPropagation();
+      toggleItem(subId);
+    };
+  });
+
+  updateTimestamp();
+  requestAnimationFrame(function() { window.scrollTo(0, scrollY); });
+}
+
+// Init
+render();
+</script>
+
+</body>
+</html>

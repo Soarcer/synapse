@@ -177,7 +177,10 @@ export function createAnalyticsRouter(broadcaster?: Broadcaster): Router {
       try {
         const { from, to } = parseTimeRange(req.query);
         const cwd = req.query.cwd as string | undefined;
-        const granularity = (req.query.granularity as string) || 'day';
+        const VALID_GRANULARITIES = new Set(['hour', 'day', 'week']);
+        const granularity = VALID_GRANULARITIES.has(req.query.granularity as string)
+          ? (req.query.granularity as string)
+          : 'day';
         const { clause, params } = buildWhereClause(from, to, cwd);
 
         // Build date truncation based on granularity

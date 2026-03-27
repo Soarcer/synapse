@@ -57,52 +57,10 @@ export function ViewSettingsDropdown() {
         setOpen(false);
       },
     },
-    {
-      label: 'Expand Tools',
-      key: 'F',
-      active: showAllTools,
-      onToggle: () => {
-        setShowAllTools(!showAllTools);
-        setOpen(false);
-      },
-    },
-    {
-      label: 'Collapse Prompts',
-      key: 'C',
-      active: autoClosePrompts,
-      onToggle: () => {
-        setAutoClosePrompts(!autoClosePrompts);
-        setOpen(false);
-      },
-    },
-    {
-      label: 'Show Hook Events',
-      key: 'H',
-      active: showHookEvents,
-      onToggle: () => {
-        setShowHookEvents(!showHookEvents);
-        setOpen(false);
-      },
-    },
-    {
-      label: 'Show API Costs',
-      key: '$',
-      active: costDisplayMode === 'cost',
-      onToggle: () => {
-        toggleCostDisplayMode();
-        setOpen(false);
-      },
-    },
   ];
 
   // Count active toggles (excluding layout which is always "active" in one mode)
-  const activeCount = [
-    lockViewport,
-    showAllTools,
-    autoClosePrompts,
-    !showHookEvents,
-    costDisplayMode === 'cost',
-  ].filter(Boolean).length;
+  const activeCount = [lockViewport].filter(Boolean).length;
 
   return (
     <div ref={ref} className="relative" data-tour="settings-dropdown">
@@ -230,7 +188,7 @@ export function ViewSettingsDropdown() {
               )}
             </div>
           )}
-          <NotificationSettings onClose={() => setOpen(false)} /> {/* [notifications] */}
+          {/* NotificationSettings hidden for v0.1.0 */}
         </div>
       )}
     </div>

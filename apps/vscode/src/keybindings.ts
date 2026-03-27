@@ -28,9 +28,7 @@ const KEYBINDING_MAP: Record<string, string> = {
   'ctrl+,': 'workbench.action.openSettings',
   'ctrl+shift+,': 'workbench.action.openSettingsJson',
 
-  // Editor management
-  'ctrl+w': 'workbench.action.closeActiveEditor',
-  'ctrl+shift+w': 'workbench.action.closeWindow',
+  // Editor management (ctrl+w and ctrl+shift+w intentionally omitted — destructive from iframe context)
   'ctrl+n': 'workbench.action.files.newUntitledFile',
   'ctrl+o': 'workbench.action.files.openFile',
   'ctrl+s': 'workbench.action.files.save',

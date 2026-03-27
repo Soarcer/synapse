@@ -53,6 +53,22 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.window.registerWebviewViewProvider(SynapseSidebarProvider.viewType, sidebarProvider),
   );
 
+  // Lazy start: when the sidebar is opened for the first time, start the server
+  sidebarProvider.onViewResolved(() => {
+    if (
+      vscode.workspace.getConfiguration('synapse').get('autoStart', true) &&
+      serverManager &&
+      !serverManager.isRunning
+    ) {
+      outputChannel.appendLine('Lazy-starting Synapse server on sidebar open...');
+      serverManager.start().catch((err) => {
+        outputChannel.appendLine(
+          `Server start error: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
+    }
+  });
+
   // Cross-panel sync: sidebar selection → graph panel
   sidebarProvider.onSelectionChanged((nodeId, source) => {
     graphPanel?.postSelectNode(nodeId, source);
@@ -99,6 +115,7 @@ export async function activate(context: vscode.ExtensionContext) {
   });
 
   serverManager.onError((msg) => {
+    updateStatusBar(false, 'error');
     vscode.window.showErrorMessage(`Synapse error: ${msg}`);
   });
 
@@ -107,7 +124,23 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('synapse.openDashboard', async () => {
       const port = serverManager?.port ?? 27246;
       // Check if server is reachable (covers both extension-managed and externally started servers)
-      const reachable = await checkServerHealth(port);
+      let reachable = await checkServerHealth(port);
+
+      // Lazy start: if autoStart is enabled and server isn't running, start it now
+      if (!reachable && vscode.workspace.getConfiguration('synapse').get('autoStart', true)) {
+        if (!serverManager?.isRunning) {
+          outputChannel.appendLine('Lazy-starting Synapse server on first panel open...');
+          try {
+            await serverManager!.start();
+            reachable = serverManager!.isRunning;
+          } catch (err) {
+            outputChannel.appendLine(
+              `Server start error: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          }
+        }
+      }
+
       if (!reachable) {
         vscode.window
           .showWarningMessage('Synapse server is not running.', 'Start Server')
@@ -227,17 +260,11 @@ export async function activate(context: vscode.ExtensionContext) {
     },
   });
 
-  // Auto-start server (hooks are configured in the onStarted callback once port is known)
-  // Fire-and-forget to avoid blocking extension activation
+  // Lazy activation: don't start the server eagerly on activate().
+  // Instead, start on first panel open to avoid resource waste when the user
+  // never interacts with Synapse in a given VS Code session.
   const autoStart = vscode.workspace.getConfiguration('synapse').get('autoStart', true);
-  if (autoStart) {
-    outputChannel.appendLine('Auto-starting Synapse server...');
-    serverManager.start().catch((err) => {
-      outputChannel.appendLine(
-        `Server start error: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    });
-  } else {
+  if (!autoStart) {
     // Check if an external server is already running and auto-open
     const port = serverManager.port;
     const reachable = await checkServerHealth(port);
@@ -248,9 +275,12 @@ export async function activate(context: vscode.ExtensionContext) {
       vscode.commands.executeCommand('synapse.openDashboard');
     }
   }
+  // If autoStart is true, server starts on first openDashboard / sidebar resolve
 }
 
 export async function deactivate() {
+  if (hydrateTimer) clearTimeout(hydrateTimer);
+  if (scoreRestoreTimer) clearTimeout(scoreRestoreTimer);
   wsClient?.dispose();
   if (serverManager?.isRunning) {
     serverManager.stop();
@@ -269,15 +299,28 @@ function connectWsClient(context: vscode.ExtensionContext, port: number): void {
     treeProvider?.handleEvent(event);
     handleNotificationEvent(event); // [notifications]
     updateStatusBarMetrics();
-    // Relay event to both iframes
+    // Relay event to both iframes — catch errors from corrupted webviews
+    // so a single broken panel doesn't stop the entire event pipeline.
     const msg = { type: 'synapseEvent', data: event };
-    sidebarProvider.postMessage(msg);
-    graphPanel?.postMessage(msg);
+    try {
+      sidebarProvider.postMessage(msg);
+    } catch {
+      /* webview disposed or corrupted */
+    }
+    try {
+      graphPanel?.postMessage(msg);
+    } catch {
+      /* webview disposed or corrupted */
+    }
   });
 
   wsClient.onConnected(() => {
-    updateStatusBarMetrics();
+    updateStatusBar(true);
     debouncedHydrateIframes(port);
+  });
+
+  wsClient.onDisconnected(() => {
+    updateStatusBar(false, 'reconnecting');
   });
 
   wsClient.onTerminalSend((text) => {
@@ -298,28 +341,44 @@ function debouncedHydrateIframes(port: number): void {
 
 async function fetchAndHydrateIframes(port: number): Promise<void> {
   try {
-    const cwdParam = workspaceCwd ? `&cwd=${encodeURIComponent(normalizeCwd(workspaceCwd))}` : '';
-    const body = await new Promise<string>((resolve, reject) => {
-      const req = http.get(`http://localhost:${port}/api/events?limit=2000${cwdParam}`, (res) => {
-        let data = '';
-        res.on('data', (chunk: Buffer) => {
-          data += chunk.toString();
+    // Absolute 10s timeout wrapping the entire fetch — prevents hanging on
+    // partial responses where data flows but 'end' never fires.
+    const body = await Promise.race([
+      new Promise<string>((resolve, reject) => {
+        const cwdParam = workspaceCwd
+          ? `&cwd=${encodeURIComponent(normalizeCwd(workspaceCwd))}`
+          : '';
+        const req = http.get(`http://localhost:${port}/api/events?limit=2000${cwdParam}`, (res) => {
+          let data = '';
+          res.on('data', (chunk: Buffer) => {
+            data += chunk.toString();
+          });
+          res.on('end', () => resolve(data));
         });
-        res.on('end', () => resolve(data));
-      });
-      req.on('error', reject);
-      req.setTimeout(5000, () => {
-        req.destroy();
-        reject(new Error('timeout'));
-      });
-    });
+        req.on('error', reject);
+        req.setTimeout(5000, () => {
+          req.destroy();
+          reject(new Error('timeout'));
+        });
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('absolute timeout')), 10_000),
+      ),
+    ]);
     const parsed = JSON.parse(body);
     const events = Array.isArray(parsed) ? parsed : parsed?.events;
     if (Array.isArray(events)) {
       const msg = { type: 'hydrateEvents', events };
-      sidebarProvider.postMessage(msg);
-      graphPanel?.postMessage(msg);
-      // Also hydrate the tree view so historical events show up immediately
+      try {
+        sidebarProvider.postMessage(msg);
+      } catch {
+        /* webview disposed */
+      }
+      try {
+        graphPanel?.postMessage(msg);
+      } catch {
+        /* webview disposed */
+      }
       treeProvider?.loadEvents(events);
       updateStatusBarMetrics();
     }
@@ -328,11 +387,19 @@ async function fetchAndHydrateIframes(port: number): Promise<void> {
   }
 }
 
-function updateStatusBar(running: boolean) {
-  if (running) {
+function updateStatusBar(running: boolean, state?: 'reconnecting' | 'error') {
+  if (running && !state) {
     updateStatusBarMetrics();
-    statusBarItem.tooltip = `Synapse running on port ${serverManager?.port}. Click to open dashboard.`;
+    statusBarItem.tooltip = `Synapse connected on port ${serverManager?.port}. Click to open dashboard.`;
     statusBarItem.backgroundColor = undefined;
+  } else if (state === 'reconnecting') {
+    statusBarItem.text = '$(sync~spin) Synapse';
+    statusBarItem.tooltip = 'Synapse reconnecting...';
+    statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+  } else if (state === 'error') {
+    statusBarItem.text = '$(error) Synapse';
+    statusBarItem.tooltip = 'Synapse error — click to open dashboard';
+    statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
   } else {
     statusBarItem.text = '$(circle-slash) Synapse';
     statusBarItem.tooltip = 'Synapse stopped. Click to open dashboard.';

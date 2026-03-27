@@ -88,7 +88,7 @@ if (watch) {
 
     const hooksDir = path.join(SERVER_OUT, 'hooks');
     fs.mkdirSync(hooksDir, { recursive: true });
-    for (const hookFile of ['send_event.cjs', 'send_gemini_event.cjs', 'send_codex_event.cjs']) {
+    for (const hookFile of ['send_event.cjs', 'send_response.cjs', 'send_gemini_event.cjs', 'send_codex_event.cjs']) {
       const hookSrc = path.join(ROOT, 'hooks', hookFile);
       const hookDst = path.join(hooksDir, hookFile);
       if (fs.existsSync(hookSrc)) {
@@ -96,6 +96,24 @@ if (watch) {
       }
     }
     console.log('[3/4] Hook scripts copied.');
+
+    // ── 3b. Copy pino/thread-stream worker files ──────────────────────
+    // pino v9 uses thread-stream which spawns a Worker from
+    // join(__dirname, "lib", "worker.js"). The bundled server.mjs sets
+    // __dirname to the server output dir, so we need the worker files there.
+    const libDir = path.join(SERVER_OUT, 'lib');
+    fs.mkdirSync(libDir, { recursive: true });
+    const workerFiles = [
+      { src: path.join(ROOT, 'node_modules', 'thread-stream', 'lib', 'worker.js'), dst: path.join(libDir, 'worker.js') },
+      { src: path.join(ROOT, 'node_modules', 'pino', 'lib', 'worker.js'), dst: path.join(libDir, 'pino-worker.js') },
+      { src: path.join(ROOT, 'node_modules', 'pino', 'file.js'), dst: path.join(SERVER_OUT, 'file.js') },
+    ];
+    for (const { src, dst } of workerFiles) {
+      if (fs.existsSync(src)) {
+        fs.copyFileSync(src, dst);
+      }
+    }
+    console.log('[3b/4] Pino worker files copied.');
 
     // ── 4. Build dashboard frontend ────────────────────────────────────
 

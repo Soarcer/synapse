@@ -10,6 +10,7 @@ import { ConfirmDialog } from '../ConfirmDialog';
 import type { TranscriptSummary } from '@synapse-ai/core';
 import { apiUrl } from '../../utils/api';
 import { Tooltip } from '../ui/Tooltip';
+import { Features } from '@synapse-ai/core';
 import { TimeFilterDropdown } from './TimeFilterDropdown';
 import { SessionSelector } from './SessionSelector';
 import { ViewSettingsDropdown } from './ViewSettingsDropdown';
@@ -237,24 +238,27 @@ export function Header() {
         <SessionSelector />
 
         {/* Prompt Lab button */}
-        <Tooltip content="Open Prompt Lab" shortcut="W">
-          <button
-            onClick={() => useAgentStore.getState().setShowWorkshop(true)}
-            className="px-2.5 py-1 text-xs text-purple-400 hover:text-purple-200 bg-purple-900/20 hover:bg-purple-800/30 border border-purple-700/30 rounded transition-colors"
-          >
-            Prompt Lab
-          </button>
-        </Tooltip>
+        {Features.promptLab && (
+          <Tooltip content="Open Prompt Lab" shortcut="W">
+            <button
+              onClick={() => useAgentStore.getState().setShowWorkshop(true)}
+              className="px-2.5 py-1 text-xs text-purple-400 hover:text-purple-200 bg-purple-900/20 hover:bg-purple-800/30 border border-purple-700/30 rounded transition-colors"
+            >
+              Prompt Lab
+            </button>
+          </Tooltip>
+        )}
 
-        {/* Analytics link */}
-        <Tooltip content="Open Analytics Dashboard">
-          <a
-            href="?view=analytics"
-            className="px-2.5 py-1 text-xs text-amber-400 hover:text-amber-200 bg-amber-900/20 hover:bg-amber-800/30 border border-amber-700/30 rounded transition-colors"
-          >
-            Analytics
-          </a>
-        </Tooltip>
+        {Features.analyticsDeep && (
+          <Tooltip content="Open Analytics Dashboard">
+            <a
+              href="?view=analytics"
+              className="px-2.5 py-1 text-xs text-amber-400 hover:text-amber-200 bg-amber-900/20 hover:bg-amber-800/30 border border-amber-700/30 rounded transition-colors"
+            >
+              Analytics
+            </a>
+          </Tooltip>
+        )}
 
         {/* Hook Controls */}
         <Tooltip content="Hook Controls">

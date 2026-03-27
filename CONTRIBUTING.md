@@ -34,7 +34,7 @@ pnpm dev
 **Option B** — two terminals (recommended on Windows):
 
 ```powershell
-# Terminal 1 — Backend (port 4000)
+# Terminal 1 — Backend (port 27246)
 .\start-server.ps1
 
 # Terminal 2 — Frontend (port 5173)

@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Synapse — See What Your AI Agents Are Actually Doing</title>
+<meta name="description" content="Real-time agent observability for Claude Code. Interactive node graph, cost tracking, remote approval from your phone. One command to start.">
+<meta property="og:title" content="Synapse — Real-time Agent Observability">
+<meta property="og:description" content="See what your AI agents are actually doing. Interactive node graph, cost tracking, remote approval from your phone.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://soarcer.github.io/synapse">
+<!-- <meta property="og:image" content="https://soarcer.github.io/synapse/assets/og-image.png"> -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-deep: #010409;
+    --bg-primary: #0d1117;
+    --bg-card: #161b22;
+    --bg-card-hover: #1c2129;
+    --border: #30363d;
+    --border-bright: #484f58;
+    --text-primary: #e6edf3;
+    --text-secondary: #8b949e;
+    --text-muted: #6e7681;
+    --blue: #58a6ff;
+    --blue-dim: #1f6feb;
+    --green: #3fb950;
+    --green-dim: rgba(63, 185, 80, 0.15);
+    --orange: #d29922;
+    --purple: #bc8cff;
+    --red: #f85149;
+    --cyan: #39d2c0;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Outfit', -apple-system, sans-serif;
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+
+  /* ── Grain overlay ──────────────────────────────────── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* ── Glow effects ───────────────────────────────────── */
+  .glow-blue {
+    position: absolute;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(88, 166, 255, 0.08) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .glow-green {
+    position: absolute;
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, rgba(63, 185, 80, 0.06) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Nav ─────────────────────────────────────────────── */
+  nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(1, 4, 9, 0.8);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+  }
+
+  .nav-brand {
+    font-family: 'Space Mono', monospace;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: var(--text-primary);
+    text-decoration: none;
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 32px;
+    align-items: center;
+  }
+
+  .nav-links a {
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .nav-links a:hover { color: var(--text-primary); }
+
+  .nav-cta {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    color: var(--bg-deep) !important;
+    background: var(--green);
+    padding: 8px 16px;
+    border-radius: 6px;
+    transition: all 0.2s !important;
+  }
+
+  .nav-cta:hover {
+    background: #4cc85e !important;
+    transform: translateY(-1px);
+  }
+
+  /* ── Hero ────────────────────────────────────────────── */
+  .hero {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 120px 32px 80px;
+    overflow: hidden;
+  }
+
+  .hero .glow-blue {
+    top: -200px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--green);
+    background: var(--green-dim);
+    border: 1px solid rgba(63, 185, 80, 0.3);
+    padding: 6px 14px;
+    border-radius: 20px;
+    margin-bottom: 32px;
+    animation: fadeUp 0.6s ease both;
+  }
+
+  .hero-badge .dot {
+    width: 6px;
+    height: 6px;
+    background: var(--green);
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .hero h1 {
+    font-size: clamp(48px, 7vw, 88px);
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -2px;
+    max-width: 900px;
+    margin-bottom: 24px;
+    animation: fadeUp 0.6s ease 0.1s both;
+  }
+
+  .hero h1 .accent {
+    background: linear-gradient(135deg, var(--blue), var(--cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero-sub {
+    font-size: clamp(16px, 2vw, 20px);
+    font-weight: 300;
+    color: var(--text-secondary);
+    max-width: 560px;
+    margin-bottom: 48px;
+    animation: fadeUp 0.6s ease 0.2s both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Install block ──────────────────────────────────── */
+  .install-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    animation: fadeUp 0.6s ease 0.3s both;
+  }
+
+  .install-cmd {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .install-cmd:hover { border-color: var(--border-bright); }
+
+  .install-cmd .prompt {
+    font-family: 'Space Mono', monospace;
+    font-size: 14px;
+    color: var(--text-muted);
+    padding: 14px 0 14px 20px;
+    user-select: none;
+  }
+
+  .install-cmd code {
+    font-family: 'Space Mono', monospace;
+    font-size: 14px;
+    color: var(--green);
+    padding: 14px 4px;
+  }
+
+  .install-cmd .copy-btn {
+    font-family: 'Outfit', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: transparent;
+    border: none;
+    border-left: 1px solid var(--border);
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .install-cmd .copy-btn:hover {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+  }
+
+  .install-cmd .copy-btn.copied {
+    color: var(--green);
+  }
+
+  .install-hint {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .install-hint code {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: var(--bg-card);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  /* ── Hero screenshot ────────────────────────────────── */
+  .hero-screenshot {
+    margin-top: 64px;
+    width: 100%;
+    max-width: 1100px;
+    animation: fadeUp 0.8s ease 0.5s both;
+    position: relative;
+  }
+
+  .hero-screenshot .placeholder {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 14px;
+    font-family: 'Space Mono', monospace;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero-screenshot .placeholder::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(88, 166, 255, 0.03) 0%, transparent 50%, rgba(63, 185, 80, 0.03) 100%);
+  }
+
+  /* Simulated graph nodes in placeholder */
+  .fake-node {
+    position: absolute;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    animation: floatNode 6s ease-in-out infinite;
+  }
+
+  .fake-node .status {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  .fake-node:nth-child(2) { top: 25%; left: 35%; animation-delay: 0s; }
+  .fake-node:nth-child(3) { top: 40%; left: 55%; animation-delay: 1s; }
+  .fake-node:nth-child(4) { top: 55%; left: 40%; animation-delay: 2s; }
+  .fake-node:nth-child(5) { top: 35%; left: 20%; animation-delay: 0.5s; }
+  .fake-node:nth-child(6) { top: 60%; left: 65%; animation-delay: 1.5s; }
+  .fake-node:nth-child(7) { top: 20%; left: 60%; animation-delay: 2.5s; }
+
+  @keyframes floatNode {
+    0%, 100% { transform: translateY(0); opacity: 0.6; }
+    50% { transform: translateY(-4px); opacity: 1; }
+  }
+
+  /* Simulated edges */
+  .fake-edge {
+    position: absolute;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border-bright), transparent);
+    transform-origin: left center;
+    animation: edgePulse 3s ease-in-out infinite;
+  }
+
+  .fake-edge:nth-child(8) { top: 33%; left: 30%; width: 20%; transform: rotate(15deg); animation-delay: 0.2s; }
+  .fake-edge:nth-child(9) { top: 48%; left: 45%; width: 15%; transform: rotate(-10deg); animation-delay: 0.7s; }
+  .fake-edge:nth-child(10) { top: 38%; left: 50%; width: 18%; transform: rotate(20deg); animation-delay: 1.2s; }
+
+  @keyframes edgePulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.8; }
+  }
+
+  /* ── Section layout ─────────────────────────────────── */
+  section {
+    position: relative;
+    padding: 100px 32px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .section-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--blue);
+    margin-bottom: 12px;
+  }
+
+  section h2 {
+    font-size: clamp(32px, 4vw, 48px);
+    font-weight: 700;
+    letter-spacing: -1px;
+    margin-bottom: 16px;
+  }
+
+  section .section-desc {
+    font-size: 18px;
+    font-weight: 300;
+    color: var(--text-secondary);
+    max-width: 640px;
+    margin-bottom: 56px;
+  }
+
+  /* ── Feature grid ───────────────────────────────────── */
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 16px;
+  }
+
+  .feature-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    transition: all 0.25s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .feature-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border-bright), transparent);
+    opacity: 0;
+    transition: opacity 0.25s;
+  }
+
+  .feature-card:hover {
+    border-color: var(--border-bright);
+    transform: translateY(-2px);
+  }
+
+  .feature-card:hover::before { opacity: 1; }
+
+  .feature-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    margin-bottom: 16px;
+  }
+
+  .feature-card h3 {
+    font-size: 17px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .feature-card p {
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  .feature-card .aside {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-top: 10px;
+  }
+
+  /* ── Icon backgrounds ───────────────────────────────── */
+  .icon-blue { background: rgba(88, 166, 255, 0.12); color: var(--blue); }
+  .icon-green { background: rgba(63, 185, 80, 0.12); color: var(--green); }
+  .icon-orange { background: rgba(210, 153, 34, 0.12); color: var(--orange); }
+  .icon-purple { background: rgba(188, 140, 255, 0.12); color: var(--purple); }
+  .icon-red { background: rgba(248, 81, 73, 0.12); color: var(--red); }
+  .icon-cyan { background: rgba(57, 210, 192, 0.12); color: var(--cyan); }
+
+  /* ── Screenshot section ─────────────────────────────── */
+  .screenshot-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+    margin-top: 48px;
+  }
+
+  .screenshot-item {
+    position: relative;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+  }
+
+  .screenshot-item .placeholder-sm {
+    aspect-ratio: 16 / 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+    background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-primary) 100%);
+  }
+
+  .screenshot-item .caption {
+    padding: 12px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    border-top: 1px solid var(--border);
+  }
+
+  /* ── Video section ──────────────────────────────────── */
+  .video-section {
+    text-align: center;
+  }
+
+  .video-wrapper {
+    max-width: 800px;
+    margin: 0 auto;
+    margin-top: 40px;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+  }
+
+  .video-placeholder {
+    aspect-ratio: 16 / 9;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-primary) 100%);
+  }
+
+  .play-btn {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: rgba(88, 166, 255, 0.15);
+    border: 2px solid var(--blue);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .play-btn:hover {
+    background: rgba(88, 166, 255, 0.25);
+    transform: scale(1.05);
+  }
+
+  .play-btn svg {
+    width: 24px;
+    height: 24px;
+    fill: var(--blue);
+    margin-left: 3px;
+  }
+
+  .video-placeholder span {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* ── How it works ───────────────────────────────────── */
+  .how-steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 24px;
+    margin-top: 48px;
+    counter-reset: step;
+  }
+
+  .how-step {
+    position: relative;
+    padding: 24px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    counter-increment: step;
+  }
+
+  .how-step::before {
+    content: counter(step);
+    font-family: 'Space Mono', monospace;
+    font-size: 48px;
+    font-weight: 700;
+    color: var(--border);
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    line-height: 1;
+  }
+
+  .how-step h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .how-step p {
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+
+  .how-step code {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--green);
+    background: var(--bg-primary);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  /* ── Security callout ───────────────────────────────── */
+  .security-callout {
+    margin-top: 48px;
+    padding: 28px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--orange);
+    border-radius: 0 12px 12px 0;
+  }
+
+  .security-callout h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--orange);
+  }
+
+  .security-callout p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+  }
+
+  .security-callout code {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--text-primary);
+    background: var(--bg-primary);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  /* ── CTA section ────────────────────────────────────── */
+  .cta-section {
+    text-align: center;
+    padding: 120px 32px;
+    position: relative;
+  }
+
+  .cta-section .glow-blue {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  .cta-section h2 {
+    font-size: clamp(28px, 4vw, 40px);
+    font-weight: 700;
+    letter-spacing: -1px;
+    margin-bottom: 16px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .cta-section p {
+    font-size: 16px;
+    color: var(--text-secondary);
+    margin-bottom: 40px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .cta-install {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ── Footer ─────────────────────────────────────────── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 32px;
+    text-align: center;
+  }
+
+  footer p {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  footer a {
+    color: var(--text-secondary);
+    text-decoration: none;
+  }
+
+  footer a:hover { color: var(--text-primary); }
+
+  footer .footer-sub {
+    font-size: 12px;
+    margin-top: 8px;
+    font-style: italic;
+  }
+
+  /* ── Divider ────────────────────────────────────────── */
+  .divider {
+    max-width: 1200px;
+    margin: 0 auto;
+    border: none;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ── Responsive ─────────────────────────────────────── */
+  @media (max-width: 768px) {
+    nav { padding: 12px 16px; }
+    .nav-links { gap: 16px; }
+    .nav-links a:not(.nav-cta) { display: none; }
+    section { padding: 64px 20px; }
+    .features-grid { grid-template-columns: 1fr; }
+    .screenshot-grid { grid-template-columns: 1fr; }
+    .how-steps { grid-template-columns: 1fr; }
+    .hero { padding: 100px 20px 60px; }
+    .hero h1 { letter-spacing: -1px; }
+  }
+
+  /* ── Tech stack pills ───────────────────────────────── */
+  .tech-stack {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 32px;
+    justify-content: center;
+  }
+
+  .tech-pill {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 4px 12px;
+    border-radius: 16px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════ NAV -->
+<nav>
+  <a href="#" class="nav-brand">SYNAPSE</a>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#how-it-works">How It Works</a>
+    <a href="#screenshots">Screenshots</a>
+    <a href="https://github.com/Soarcer/synapse" target="_blank">GitHub</a>
+    <a href="https://www.npmjs.com/package/@synapse-ai/cli" target="_blank" class="nav-cta">npm install</a>
+  </div>
+</nav>
+
+<!-- ════════════════════════════════════════════════════════ HERO -->
+<header class="hero">
+  <div class="glow-blue"></div>
+
+  <div class="hero-badge">
+    <span class="dot"></span>
+    825 tests passing · MIT licensed
+  </div>
+
+  <h1>See what your <span class="accent">AI agents</span> are actually doing</h1>
+
+  <p class="hero-sub">
+    Claude Code does a lot of things behind a blinking cursor. Synapse renders all of it as a live, interactive node graph. Because understanding is its own reward.
+  </p>
+
+  <div class="install-block">
+    <div class="install-cmd">
+      <span class="prompt">$&nbsp;</span>
+      <code>npm install -g @synapse-ai/cli</code>
+      <button class="copy-btn" onclick="copyInstall(this)">Copy</button>
+    </div>
+    <p class="install-hint">
+      Then: <code>synapse start</code> · Requires Node.js 20+
+    </p>
+  </div>
+
+  <div class="hero-screenshot">
+    <div class="placeholder">
+      <!-- Replace this div with: <img src="assets/hero-screenshot.png" alt="Synapse dashboard" style="width:100%; border-radius:12px;"> -->
+      <span style="z-index:1">📸 hero screenshot goes here</span>
+      <div class="fake-node" style="top:25%;left:35%"><span class="status" style="background:var(--green)"></span> agent:main</div>
+      <div class="fake-node" style="top:40%;left:55%"><span class="status" style="background:var(--blue)"></span> Read</div>
+      <div class="fake-node" style="top:55%;left:40%"><span class="status" style="background:var(--green)"></span> Edit</div>
+      <div class="fake-node" style="top:35%;left:20%"><span class="status" style="background:var(--purple)"></span> task:subagent</div>
+      <div class="fake-node" style="top:60%;left:65%"><span class="status" style="background:var(--orange)"></span> Bash</div>
+      <div class="fake-node" style="top:20%;left:60%"><span class="status" style="background:var(--green)"></span> Grep</div>
+      <div class="fake-edge"></div>
+      <div class="fake-edge"></div>
+      <div class="fake-edge"></div>
+    </div>
+  </div>
+</header>
+
+<!-- ════════════════════════════════════════════════════════ FEATURES -->
+<section id="features">
+  <div class="section-label">What You Get</div>
+  <h2>Not another dashboard. An X-ray machine.</h2>
+  <p class="section-desc">
+    Agents spawning subagents calling tools spawning more agents — all rendered in real-time so you can see what's actually happening instead of guessing.
+  </p>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon icon-blue">◉</div>
+      <h3>Live Node Graph</h3>
+      <p>Sessions, agents, subagents, and tool calls as connected nodes with animated edges. Color-coded by status. Auto-expanding as agents spawn. Custom layout algorithm that handles arbitrarily deep trees without overlapping.</p>
+      <p class="aside">We replaced dagre. Long story.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon icon-cyan">◇</div>
+      <h3>Five Analysis Lenses</h3>
+      <p>Same data, five perspectives. Tree explorer, treemap, sankey flow, compaction forensics, cost waterfall. Click a node in any lens — it highlights in the graph. Click a node in the graph — it highlights in every lens.</p>
+      <p class="aside">The sankey is the prettiest. The compaction lens is the most useful.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon icon-green">⊞</div>
+      <h3>Tool Call Grouping</h3>
+      <p>47 tool calls don't produce 47 nodes. They're grouped into composites with three display modes: pill grid, timeline swimlanes, and density heatmap. Toggle with F.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon icon-orange">$</div>
+      <h3>Cost Tracking</h3>
+      <p>Per-turn USD breakdown by input, output, and cache tokens. Cumulative waterfall so you know whether that "simple refactor" cost $0.03 or $3.00.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon icon-purple">📱</div>
+      <h3>Remote Approval</h3>
+      <p>Start a job, walk away, approve permissions from your phone. Claude Code's HTTP hooks hold the request open until you tap Approve or Deny. Cards stack with countdown timers.</p>
+      <p class="aside">Requires --lan mode. Your home Wi-Fi, not the coffee shop.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon icon-red">⚡</div>
+      <h3>Compaction Forensics</h3>
+      <p>Ever had Claude forget something you told it 10 minutes ago? The sawtooth sparkline shows exactly when the context window hit its limit, and what caused it.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- ════════════════════════════════════════════════════════ HOW IT WORKS -->
+<section id="how-it-works">
+  <div class="section-label">How It Works</div>
+  <h2>One command. Zero configuration.</h2>
+  <p class="section-desc">
+    You don't configure anything. You don't install plugins. You type one command and it just works.
+  </p>
+
+  <div class="how-steps">
+    <div class="how-step">
+      <h3>Install</h3>
+      <p><code>npm i -g @synapse-ai/cli</code></p>
+    </div>
+    <div class="how-step">
+      <h3>Start</h3>
+      <p><code>synapse start</code> in your project. Server starts, hooks configured, browser opens.</p>
+    </div>
+    <div class="how-step">
+      <h3>Use Claude</h3>
+      <p>Run Claude Code like normal. Every agent spawn, tool call, and token streams to the graph in real-time.</p>
+    </div>
+    <div class="how-step">
+      <h3>Observe</h3>
+      <p>Watch the machine think. Click nodes, drill into tool calls, switch lenses. Understanding is its own reward.</p>
+    </div>
+  </div>
+
+  <div class="security-callout">
+    <h3>A note on security</h3>
+    <p>
+      By default, Synapse binds to <code>localhost</code>. Nothing leaves your machine.
+      Pass <code>--lan</code> to enable remote approval from your phone — this opens unauthenticated endpoints on your local network.
+      Pass <code>--observe-only</code> for pure read-only monitoring with zero security surface.
+      Full details in the <a href="https://github.com/Soarcer/synapse#security-model" style="color: var(--blue);">Security Model</a>.
+    </p>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- ════════════════════════════════════════════════════════ SCREENSHOTS -->
+<section id="screenshots">
+  <div class="section-label">See It</div>
+  <h2>Screenshots</h2>
+  <p class="section-desc">
+    These are placeholders. The real screenshots are coming. But even the placeholders look nice because we care about that sort of thing.
+  </p>
+
+  <div class="screenshot-grid">
+    <div class="screenshot-item">
+      <div class="placeholder-sm">📸 Live agent graph</div>
+      <div class="caption">Agent tree expanding as Claude works</div>
+    </div>
+    <div class="screenshot-item">
+      <div class="placeholder-sm">📸 Lens views (2×3 grid)</div>
+      <div class="caption">Five analysis perspectives, bidirectionally linked</div>
+    </div>
+    <div class="screenshot-item">
+      <div class="placeholder-sm">📸 Tool grouping modes</div>
+      <div class="caption">Pill grid · Timeline · Heatmap</div>
+    </div>
+    <div class="screenshot-item">
+      <div class="placeholder-sm">📸 Mobile remote approval</div>
+      <div class="caption">Approve permissions from your phone</div>
+    </div>
+    <div class="screenshot-item">
+      <div class="placeholder-sm">📸 Cost waterfall</div>
+      <div class="caption">Per-turn USD breakdown with running total</div>
+    </div>
+    <div class="screenshot-item">
+      <div class="placeholder-sm">📸 Compaction forensics</div>
+      <div class="caption">The sawtooth pattern is your evidence</div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- ════════════════════════════════════════════════════════ VIDEO -->
+<section class="video-section">
+  <div class="section-label">Watch</div>
+  <h2>60-second demo</h2>
+  <p class="section-desc" style="margin-left:auto;margin-right:auto;">
+    From zero to full agent visibility in one minute. No narration needed — the graph speaks for itself.
+  </p>
+
+  <div class="video-wrapper">
+    <div class="video-placeholder">
+      <!-- Replace with: <iframe src="https://www.youtube.com/embed/VIDEO_ID" ... -->
+      <div class="play-btn">
+        <svg viewBox="0 0 24 24"><polygon points="8,5 20,12 8,19"/></svg>
+      </div>
+      <span>video coming soon</span>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════ CTA -->
+<div class="cta-section">
+  <div class="glow-blue"></div>
+  <h2>You should probably see what your agents are doing.</h2>
+  <p>One install. One command. All the visibility.</p>
+  <div class="cta-install">
+    <div class="install-cmd" style="display:inline-flex;">
+      <span class="prompt">$&nbsp;</span>
+      <code>npm install -g @synapse-ai/cli</code>
+      <button class="copy-btn" onclick="copyInstall(this)">Copy</button>
+    </div>
+  </div>
+
+  <div class="tech-stack">
+    <span class="tech-pill">React 19</span>
+    <span class="tech-pill">React Flow v12</span>
+    <span class="tech-pill">TypeScript</span>
+    <span class="tech-pill">Express 5</span>
+    <span class="tech-pill">sql.js</span>
+    <span class="tech-pill">Zustand 5</span>
+    <span class="tech-pill">Tailwind 4</span>
+    <span class="tech-pill">825 tests</span>
+    <span class="tech-pill">MIT</span>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════ FOOTER -->
+<footer>
+  <p>
+    <a href="https://github.com/Soarcer/synapse">GitHub</a> ·
+    <a href="https://www.npmjs.com/package/@synapse-ai/cli">npm</a> ·
+    <a href="https://github.com/Soarcer/synapse#security-model">Security</a> ·
+    MIT License
+  </p>
+  <p class="footer-sub">Built with curiosity, caffeine, and a mass amount of Claude.</p>
+</footer>
+
+<script>
+function copyInstall(btn) {
+  navigator.clipboard.writeText('npm install -g @synapse-ai/cli').then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = 'Copy';
+      btn.classList.remove('copied');
+    }, 2000);
+  });
+}
+</script>
+
+</body>
+</html>

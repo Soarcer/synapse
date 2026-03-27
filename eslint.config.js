@@ -13,17 +13,11 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      // Disable React 19 strict rules that flag valid patterns
-      'react-hooks/refs': 'off',
-      'react-hooks/purity': 'off',
-      'react-hooks/set-state-in-effect': 'off',
-      'react-hooks/immutability': 'off',
-      'react-hooks/use-memo': 'off',
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
     },
   },
   {
-    ignores: ['**/dist/', '**/out/', '**/node_modules/', '*.config.*', '*.mjs'],
+    ignores: ['**/dist/', '**/out/', '**/node_modules/', '*.config.{js,ts,mjs,cjs}', 'scripts/*.mjs'],
   },
 );

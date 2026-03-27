@@ -455,13 +455,6 @@ export function PermissionCard({
     const cardWidth = cardRef.current?.offsetWidth ?? 384;
     const threshold = cardWidth * 0.4;
     const shouldCycle = Math.abs(info.offset.x) > threshold || Math.abs(info.velocity.x) > 500;
-    console.log('[PermCard] dragEnd', {
-      id: permission.id,
-      offsetX: info.offset.x,
-      velocityX: info.velocity.x,
-      threshold,
-      shouldCycle,
-    });
     if (shouldCycle) {
       onCycle(permission.id);
     }
@@ -484,7 +477,7 @@ export function PermissionCard({
         layout
         exit={{ opacity: 0, scale: 0.8 }}
         transition={SPRING}
-        onPointerDown={(e) => e.stopPropagation()}
+        onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
       >
         <ExpiredCard id={permission.id} onDismiss={onDismiss} />
       </motion.div>
@@ -504,7 +497,7 @@ export function PermissionCard({
       animate={{ y: 0, opacity: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
       transition={SPRING}
-      onPointerDown={(e) => e.stopPropagation()}
+      onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
       className="relative h-[420px] flex flex-col bg-gray-900/90 border border-gray-700/60 rounded-lg shadow-lg backdrop-blur-sm overflow-hidden cursor-grab active:cursor-grabbing"
     >
       <CloseButton onClick={() => onDismiss(permission.id)} />

@@ -5,23 +5,71 @@ import { useState, useRef, useEffect } from 'react';
 import { useLens } from './LensContext';
 import { Tooltip } from '../ui/Tooltip';
 import { useNotificationStore } from '../../features/notifications/notificationStore'; // [notifications]
+import { Features } from '@synapse-ai/core';
 
 import type { LensTab } from './LensContext';
 
-const TABS: { key: LensTab; label: string; fullName: string; shortcut: string }[] = [
-  { key: 'treemap', label: 'TMap', fullName: 'Cost and token area treemap', shortcut: '1' },
-  { key: 'heatmap', label: 'Heat', fullName: 'Tool call frequency heatmap', shortcut: '2' },
-  { key: 'compaction', label: 'Comp', fullName: 'Context compaction timeline', shortcut: '3' },
-  { key: 'cost', label: 'Cost', fullName: 'Per-turn cost waterfall', shortcut: '4' },
-  { key: 'sankey', label: 'Flow', fullName: 'Token flow Sankey diagram', shortcut: '5' },
-  { key: 'tree', label: 'Tree', fullName: 'Hierarchical session tree', shortcut: '6' },
-  { key: 'alerts', label: 'Alerts', fullName: 'Notification alerts', shortcut: '7' }, // [notifications]
+const ALL_TABS: {
+  key: LensTab;
+  label: string;
+  fullName: string;
+  shortcut: string;
+  enabled: boolean;
+}[] = [
+  {
+    key: 'treemap',
+    label: 'TMap',
+    fullName: 'Cost and token area treemap',
+    shortcut: '1',
+    enabled: true,
+  },
+  {
+    key: 'heatmap',
+    label: 'Heat',
+    fullName: 'Tool call frequency heatmap',
+    shortcut: '2',
+    enabled: Features.lensHeatmap,
+  },
+  {
+    key: 'compaction',
+    label: 'Comp',
+    fullName: 'Context compaction timeline',
+    shortcut: '3',
+    enabled: true,
+  },
+  {
+    key: 'cost',
+    label: 'Cost',
+    fullName: 'Per-turn cost waterfall',
+    shortcut: '4',
+    enabled: Features.lensCostWaterfall,
+  },
+  {
+    key: 'sankey',
+    label: 'Flow',
+    fullName: 'Token flow Sankey diagram',
+    shortcut: '5',
+    enabled: true,
+  },
+  {
+    key: 'tree',
+    label: 'Tree',
+    fullName: 'Hierarchical session tree',
+    shortcut: '6',
+    enabled: true,
+  },
+  {
+    key: 'alerts',
+    label: 'Alerts',
+    fullName: 'Notification alerts',
+    shortcut: '7',
+    enabled: false,
+  }, // [notifications] — hidden for v0.1.0
 ];
+const TABS = ALL_TABS.filter((t) => t.enabled);
 
-// VS Code injects data-vscode-theme-kind on <html>. Absent in standalone browser.
-const isVSCode =
-  typeof document !== 'undefined' &&
-  document.documentElement.hasAttribute('data-vscode-theme-kind');
+// Detect VS Code sidebar: dashboard is loaded inside an iframe by sidebarProvider.
+const isVSCode = typeof window !== 'undefined' && window.parent !== window;
 
 function GraphOpenButton() {
   const [open, setOpen] = useState(false);

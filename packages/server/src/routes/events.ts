@@ -3,7 +3,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import { logger } from '../lib/logger.js';
-import { storeNormalized, storePreNormalized, getStoredEvents } from '../services/eventStore.js';
+import { getStoredEvents } from '../services/eventStore.js';
 import { deleteEventsBySession, deleteAllEvents, listSessions, listProjectCwds } from '../db.js';
 import type { Broadcaster } from '../services/broadcaster.js';
 import { AgentEventSchema, EventQuerySchema, normalizeCwd } from '@synapse-ai/core';
@@ -12,7 +12,7 @@ import { AdapterRegistry } from '../adapters/index.js';
 import { ClaudeAdapter } from '../adapters/claude.js';
 import { GeminiAdapter } from '../adapters/gemini.js';
 import { CodexAdapter } from '../adapters/codex.js';
-import { pending } from '../state/permissionState.js';
+import { ingestRawEvent } from '../services/eventIngestion.js';
 
 // ─── Module-level adapter registry ──────────────────────────────────
 // Register specific adapters first, catch-all Claude adapter last.
@@ -22,115 +22,21 @@ const registry = new AdapterRegistry()
   .register(new GeminiAdapter()) // Gemini-specific hooks match first
   .register(new ClaudeAdapter()); // Catch-all for remaining hook events
 
-/**
- * Auto-resolve pending permissions when there is clear evidence the tool
- * completed or the session ended — meaning the user answered locally.
- *
- * Only these event types trigger resolution:
- *   PostToolUse          → allow (tool executed successfully)
- *   PostToolUseFailure   → deny  (tool was rejected or failed)
- *   Stop                 → allow (session ended, permission is moot)
- *
- * Other events (PreToolUse, UserPromptSubmit, Notification, etc.) do NOT
- * trigger resolution — they can flow while a permission is still pending.
- */
-const RESOLVE_EVENTS = new Set(['PostToolUse', 'PostToolUseFailure', 'Stop']);
-
-function resolveIfSessionAdvanced(raw: Record<string, unknown>, broadcaster: Broadcaster): void {
-  if (pending.size === 0) return;
-
-  const hookName = raw.hook_event_name as string | undefined;
-  if (!hookName || !RESOLVE_EVENTS.has(hookName)) return;
-
-  const sessionId = raw.session_id as string | undefined;
-  if (!sessionId) return;
-
-  // Resolve ALL matching permissions for this session — multiple can exist
-  // (e.g. rapid-fire tool calls from a subagent).
-  for (const [id, entry] of pending) {
-    if (entry.event.session_id !== sessionId) continue;
-
-    const behavior = hookName === 'PostToolUseFailure' ? 'deny' : 'allow';
-    clearTimeout(entry.timer);
-    pending.delete(id);
-    // Close the held HTTP response (Claude Code already moved on)
-    try {
-      entry.res.json({
-        hookSpecificOutput: {
-          hookEventName: 'PermissionRequest',
-          decision: { behavior },
-        },
-      });
-    } catch {
-      // Response already closed
-    }
-    broadcaster.broadcastRaw({
-      type: 'permissionResolved',
-      data: { id, behavior },
-    });
-    logger.info({ id, sessionId, hookName }, 'Permission auto-resolved: session advanced');
-  }
-}
-
 export function createEventsRouter(broadcaster: Broadcaster): Router {
   const router = Router();
 
   // POST /api/events — receives raw hook JSON body
   router.post('/', validateBody(AgentEventSchema), (req: Request, res: Response) => {
-    try {
-      const raw = req.body;
-
-      // Pre-normalized events from OpenClaw plugin skip the adapter registry
-      if (raw.eventSource === 'openclaw' && raw.id && raw.type && raw.sessionId) {
-        storePreNormalized(raw, broadcaster);
-        logger.info(
-          { eventSource: 'openclaw', type: raw.type, sessionId: raw.sessionId },
-          'Event received',
-        );
-        res.status(200).json({ ok: true, eventId: raw.id });
-        return;
-      }
-
-      // All hook events go through the adapter registry
-      const result = registry.dispatch(raw);
-
-      if (!result) {
-        logger.warn({ keys: Object.keys(raw) }, 'No adapter matched payload');
+    const result = ingestRawEvent(req.body, broadcaster);
+    if (!result.ok) {
+      if (result.reason === 'no_adapter') {
         res.status(400).json({ error: 'No adapter matched payload' });
         return;
       }
-
-      const { event, adapter, isDuplicate } = result;
-
-      if (isDuplicate) {
-        res.status(200).json({ ok: true, eventId: event.id, deduplicated: true });
-        return;
-      }
-
-      storeNormalized(event, broadcaster, {
-        hookEventName: adapter.id,
-        rawPayload: raw,
-      });
-
-      logger.info(
-        {
-          adapter: adapter.id,
-          hookEvent: raw.hook_event_name || 'unknown',
-          type: event.type,
-          sessionId: event.sessionId,
-        },
-        'Event received',
-      );
-
-      // Auto-resolve pending permissions when the session advances locally.
-      // Only completion events (PostToolUse, PostToolUseFailure, Stop) trigger this.
-      resolveIfSessionAdvanced(raw, broadcaster);
-
-      res.status(200).json({ ok: true, eventId: event.id });
-    } catch (err: unknown) {
-      logger.error({ err }, 'Error processing event');
       res.status(500).json({ error: 'Internal server error' });
+      return;
     }
+    res.status(200).json({ ok: true, eventId: result.eventId, deduplicated: result.deduplicated });
   });
 
   // GET /api/events — query stored events

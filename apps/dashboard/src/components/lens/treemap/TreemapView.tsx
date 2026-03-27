@@ -109,16 +109,31 @@ function squarify(
 const LABEL_H = 14;
 const NEST_PAD = 1.5;
 
-/** Compute a node's effective value, falling back to duration when tokens=0
- *  to ensure the full hierarchy is always visible regardless of metric */
+/** Compute a node's effective value for sizing.
+ *  Uses a weighted combination of tool count and duration so prompts with
+ *  heavy tool activity are dramatically larger than quick chat prompts. */
 function effectiveValue(node: LensTreeNode, metric: ProfileMetric): number {
-  if (metric === 'count') return node.count;
-  const primary = Math.max(metric === 'tokens' ? node.tokens : node.duration, 0);
-  if (primary > 0) return primary;
-  // Fall back to duration so nodes without token data are still visible
-  if (node.duration > 0) return node.duration;
-  // Last resort: children count ensures non-empty parents are visible
-  return node.children.length > 0 ? 1 : 0;
+  // Leaf nodes: use own metric value
+  if (node.children.length === 0) {
+    if (metric === 'count') return Math.max(node.count, 1);
+    const primary = Math.max(metric === 'tokens' ? node.tokens : node.duration, 0);
+    if (primary > 0) return primary;
+    if (node.duration > 0) return node.duration;
+    return 1;
+  }
+  // Parent nodes: sum of children's effective values
+  let childSum = 0;
+  for (const child of node.children) {
+    childSum += effectiveValue(child, metric);
+  }
+  // For prompts: weight by tool count × duration to amplify contrast.
+  // A prompt with 8 tools over 30s dwarfs a 0-tool 2s chat prompt.
+  if (node.kind === 'prompt' && childSum > 0) {
+    const toolWeight = Math.max(node.children.length, 1);
+    const durationWeight = Math.max(node.duration / 1000, 1); // seconds
+    return childSum * Math.sqrt(toolWeight * durationWeight);
+  }
+  return Math.max(childSum, 1);
 }
 
 function layoutNested(
@@ -155,7 +170,7 @@ function layoutNested(
 
     const childrenWithValue = node.children.filter((c) => effectiveValue(c, metric) > 0);
 
-    if (childrenWithValue.length > 0 && rect.w > 24 && rect.h > LABEL_H + 8) {
+    if (childrenWithValue.length > 0 && rect.w > 20 && rect.h > LABEL_H + 6) {
       const innerX = rect.x + NEST_PAD;
       const innerY = rect.y + LABEL_H;
       const innerW = Math.max(rect.w - NEST_PAD * 2, 0);
@@ -259,7 +274,51 @@ export function TreemapView() {
     [profileMetric],
   );
 
-  const source = useMemo(() => (zoomNode ? zoomNode.children : treeRoots), [zoomNode, treeRoots]);
+  // Flatten prompt chains: in the graph, prompts chain (p1→p2→p3).
+  // For the treemap, all prompts should be siblings under their session.
+  const flattenedRoots = useMemo(() => {
+    function flattenPrompts(node: LensTreeNode): LensTreeNode {
+      if (node.kind === 'session') {
+        // Collect all prompts from the chain and make them direct children
+        const prompts: LensTreeNode[] = [];
+        const nonPrompts: LensTreeNode[] = [];
+
+        function extractPrompts(children: LensTreeNode[]) {
+          for (const child of children) {
+            if (child.kind === 'prompt') {
+              // Separate this prompt's own non-prompt children from chained prompts
+              const ownChildren: LensTreeNode[] = [];
+              const chainedPrompts: LensTreeNode[] = [];
+              for (const gc of child.children) {
+                if (gc.kind === 'prompt') {
+                  chainedPrompts.push(gc);
+                } else {
+                  ownChildren.push(gc);
+                }
+              }
+              // Add this prompt with only its non-prompt children
+              prompts.push({ ...child, children: ownChildren });
+              // Recurse into chained prompts
+              if (chainedPrompts.length > 0) extractPrompts(chainedPrompts);
+            } else {
+              nonPrompts.push(child);
+            }
+          }
+        }
+
+        extractPrompts(node.children);
+        return { ...node, children: [...prompts, ...nonPrompts] };
+      }
+      return node;
+    }
+
+    return treeRoots.map(flattenPrompts);
+  }, [treeRoots]);
+
+  const source = useMemo(
+    () => (zoomNode ? zoomNode.children : flattenedRoots),
+    [zoomNode, flattenedRoots],
+  );
 
   const viewW = containerSize.w;
   const viewH = containerSize.h;
@@ -286,9 +345,9 @@ export function TreemapView() {
         }
         return null;
       }
-      return find(treeRoots);
+      return find(flattenedRoots);
     },
-    [treeRoots],
+    [flattenedRoots],
   );
 
   // Recursive SVG renderer

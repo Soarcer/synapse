@@ -4,7 +4,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-import { HTTP_FALLBACK_PORT, DEV_PORT } from '@synapse-ai/core';
+import { HTTP_FALLBACK_PORT, DEV_PORT } from '@synapse-ai/core/config';
 
 // Always proxy to the HTTP fallback port (SYNAPSE_PORT + 2, default 27248).
 // This port is always plain HTTP regardless of TLS config, so the proxy

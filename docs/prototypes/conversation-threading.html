@@ -1,0 +1,1302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Synapse — Conversation Threading Prototypes</title>
+<style>
+  /* ─── Reset & Base ─── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0a0e1a;
+    color: #e2e8f0;
+    min-height: 100vh;
+  }
+
+  :root {
+    --session-bg: rgba(30, 58, 138, 0.8);
+    --session-border: rgba(59, 130, 246, 0.5);
+    --session-text: #60a5fa;
+    --prompt-bg: linear-gradient(135deg, rgba(120, 53, 15, 0.6), rgba(113, 63, 18, 0.4));
+    --prompt-border: rgba(217, 119, 6, 0.4);
+    --prompt-text: #fcd34d;
+    --response-bg: linear-gradient(135deg, rgba(30, 64, 100, 0.6), rgba(23, 37, 84, 0.4));
+    --response-border: rgba(96, 165, 250, 0.4);
+    --response-text: #93c5fd;
+    --response-dim-bg: linear-gradient(135deg, rgba(30, 64, 100, 0.3), rgba(23, 37, 84, 0.2));
+    --response-dim-border: rgba(96, 165, 250, 0.2);
+    --agent-bg: rgba(20, 83, 45, 0.6);
+    --agent-border: rgba(34, 197, 94, 0.4);
+    --agent-text: #4ade80;
+    --tool-bg: rgba(88, 28, 135, 0.6);
+    --tool-border: rgba(168, 85, 247, 0.5);
+    --tool-text: #c084fc;
+    --tool-success: rgba(20, 83, 45, 0.8);
+    --tool-success-border: rgba(34, 197, 94, 0.5);
+    --surface: #111827;
+    --surface-2: #1e293b;
+    --surface-3: #334155;
+    --border: rgba(148, 163, 184, 0.1);
+    --text-dim: #94a3b8;
+    --text-muted: #64748b;
+  }
+
+  /* ─── Tab Navigation ─── */
+  .tab-bar {
+    display: flex;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .tab {
+    padding: 14px 24px; cursor: pointer; font-size: 13px; font-weight: 600;
+    color: var(--text-dim); border-bottom: 2px solid transparent;
+    transition: all 0.2s; user-select: none;
+  }
+  .tab:hover { color: #e2e8f0; background: rgba(255,255,255,0.03); }
+  .tab.active { color: #60a5fa; border-bottom-color: #3b82f6; background: rgba(59,130,246,0.05); }
+  .tab-desc { font-weight: 400; color: var(--text-muted); margin-left: 8px; font-size: 11px; }
+  .tab-content { display: none; padding: 32px; max-width: 900px; margin: 0 auto; }
+  .tab-content.active { display: block; }
+
+  /* ─── Shared ─── */
+  .session-header {
+    background: var(--session-bg); border: 1px solid var(--session-border);
+    border-radius: 12px; padding: 16px 20px; margin-bottom: 24px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .session-badge {
+    background: rgba(59,130,246,0.2); color: var(--session-text);
+    font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 4px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .session-title { font-size: 14px; font-weight: 600; }
+  .session-meta { font-size: 11px; color: var(--text-muted); margin-left: auto; }
+  .timestamp { font-size: 10px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .token-badge {
+    display: inline-flex; align-items: center; gap: 2px; font-size: 10px;
+    font-family: 'JetBrains Mono', monospace; padding: 2px 6px; border-radius: 4px;
+    background: rgba(255,255,255,0.05);
+  }
+  .token-in { color: #67e8f9; }
+  .token-out { color: #fb923c; }
+  .tool-pill {
+    display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px;
+    border-radius: 6px; font-size: 11px; font-weight: 500;
+    background: var(--tool-bg); border: 1px solid var(--tool-border);
+    color: var(--tool-text); cursor: pointer; transition: all 0.15s;
+  }
+  .tool-pill:hover { background: rgba(88,28,135,0.8); }
+  .tool-pill.success { background: var(--tool-success); border-color: var(--tool-success-border); color: var(--agent-text); }
+  .tool-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .cost-badge { font-size: 10px; color: #fbbf24; font-family: 'JetBrains Mono', monospace; }
+  .chat-agent-badge {
+    display: inline-flex; align-items: center; gap: 4px; font-size: 10px;
+    padding: 2px 8px; border-radius: 4px;
+    background: rgba(34,197,94,0.15); color: var(--agent-text); border: 1px solid var(--agent-border);
+  }
+  .insight-box {
+    background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2);
+    border-radius: 8px; padding: 14px 18px; margin-bottom: 24px;
+    font-size: 12px; line-height: 1.6; color: var(--response-text);
+  }
+  .insight-box strong { color: #93c5fd; }
+  .insight-box .key-q {
+    display: block; margin-top: 8px; padding-left: 12px;
+    border-left: 2px solid rgba(59,130,246,0.3); color: var(--text-dim); font-style: italic;
+  }
+  .intro {
+    text-align: center; padding: 24px;
+    border-bottom: 1px solid var(--border); background: var(--surface);
+  }
+  .intro h1 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+  .intro p { font-size: 13px; color: var(--text-dim); max-width: 640px; margin: 0 auto; }
+
+  /* ─── Multi-response segments ─── */
+  .segment-group { margin-top: 4px; }
+  .segment-toggle {
+    display: flex; align-items: center; gap: 6px; padding: 6px 10px;
+    background: rgba(96,165,250,0.08); border: 1px dashed rgba(96,165,250,0.25);
+    border-radius: 6px; cursor: pointer; font-size: 11px; color: var(--response-text);
+    transition: all 0.15s; margin-top: 6px;
+  }
+  .segment-toggle:hover { background: rgba(96,165,250,0.15); }
+  .segment-toggle .arrow { transition: transform 0.2s; display: inline-block; }
+  .segment-toggle.open .arrow { transform: rotate(90deg); }
+  .segment-hidden { display: none; }
+  .segment-hidden.open { display: block; }
+  .segment-step {
+    margin-top: 6px; padding: 10px 14px;
+    border-radius: 8px; border-left: 2px solid rgba(96,165,250,0.3);
+    background: rgba(30,64,100,0.2);
+  }
+  .segment-step .seg-label {
+    font-size: 9px; font-weight: 700; text-transform: uppercase;
+    color: var(--text-muted); margin-bottom: 4px; display: flex; align-items: center; gap: 6px;
+  }
+  .segment-step .seg-label .seg-num {
+    background: rgba(96,165,250,0.2); color: var(--response-text);
+    padding: 1px 5px; border-radius: 3px; font-size: 8px;
+  }
+  .segment-step .seg-text { font-size: 12px; color: #cbd5e1; line-height: 1.5; }
+  .segment-step .seg-tools { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+
+  /* ─── Approach A: Threaded Chat Lane ─── */
+  .chat-lane { display: flex; flex-direction: column; gap: 2px; }
+  .chat-connector { width: 2px; height: 16px; background: var(--border); margin-left: 20px; }
+  .chat-bubble { border-radius: 12px; padding: 14px 18px; position: relative; }
+  .chat-bubble.prompt { background: var(--prompt-bg); border: 1px solid var(--prompt-border); margin-right: 60px; }
+  .chat-bubble.response { background: var(--response-bg); border: 1px solid var(--response-border); margin-left: 40px; }
+  .chat-bubble .label { font-size: 11px; font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
+  .chat-bubble.prompt .label { color: var(--prompt-text); }
+  .chat-bubble.response .label { color: var(--response-text); }
+  .chat-bubble .body { font-size: 13px; line-height: 1.6; color: #cbd5e1; }
+  .chat-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.06); }
+  .chat-stats { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.04); }
+  .chat-response-connector { width: 2px; height: 8px; background: rgba(96,165,250,0.3); margin-left: 56px; }
+  .noise-toggle {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 20px;
+    padding: 10px 14px; background: var(--surface-2); border-radius: 8px; border: 1px solid var(--border);
+  }
+  .noise-toggle label { font-size: 12px; color: var(--text-dim); cursor: pointer; display: flex; align-items: center; gap: 6px; }
+  .noise-toggle input[type="checkbox"] { accent-color: #3b82f6; }
+
+  /* ─── Approach B: Turn Cards ─── */
+  .turn-list { display: flex; flex-direction: column; gap: 16px; }
+  .turn-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; transition: border-color 0.2s; }
+  .turn-card:hover { border-color: rgba(148,163,184,0.2); }
+  .turn-card.expanded { border-color: rgba(59,130,246,0.3); }
+  .turn-header { display: flex; align-items: stretch; cursor: pointer; min-height: 80px; }
+  .turn-number { width: 48px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; color: var(--text-muted); background: rgba(255,255,255,0.02); border-right: 1px solid var(--border); flex-shrink: 0; }
+  .turn-prompt-col { flex: 1; padding: 14px 16px; background: var(--prompt-bg); border-right: 1px solid rgba(255,255,255,0.04); }
+  .turn-response-col { flex: 1; padding: 14px 16px; background: var(--response-bg); }
+  .turn-col-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .turn-prompt-col .turn-col-label { color: var(--prompt-text); }
+  .turn-response-col .turn-col-label { color: var(--response-text); }
+  .turn-col-text { font-size: 12px; line-height: 1.5; color: #cbd5e1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .turn-col-text.expanded-text { -webkit-line-clamp: unset; overflow: visible; }
+  .turn-detail { display: none; border-top: 1px solid var(--border); padding: 16px; background: rgba(0,0,0,0.2); }
+  .turn-card.expanded .turn-detail { display: block; }
+  .turn-detail-section h4 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 10px; }
+  .turn-tool-list { display: flex; flex-direction: column; gap: 6px; }
+  .turn-tool-row { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: rgba(255,255,255,0.03); border-radius: 6px; font-size: 12px; }
+  .turn-tool-name { color: var(--tool-text); font-weight: 600; min-width: 80px; }
+  .turn-tool-input { color: var(--text-dim); font-size: 11px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .turn-tool-status { font-size: 10px; padding: 1px 6px; border-radius: 4px; }
+  .turn-tool-status.success { background: rgba(34,197,94,0.2); color: #4ade80; }
+  .turn-meta { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-top: 1px solid var(--border); background: rgba(0,0,0,0.15); }
+  .turn-expand-hint { font-size: 10px; color: var(--text-muted); margin-left: auto; }
+
+  /* Turn card segment timeline */
+  .turn-segment-timeline { margin-top: 12px; }
+  .turn-seg-row { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-top: 1px solid rgba(255,255,255,0.04); }
+  .turn-seg-row:first-child { border-top: none; }
+  .turn-seg-marker { width: 20px; text-align: center; flex-shrink: 0; padding-top: 2px; }
+  .turn-seg-marker .seg-dot { width: 8px; height: 8px; border-radius: 50%; margin: 0 auto; }
+  .turn-seg-marker .seg-dot.text-dot { background: rgba(96,165,250,0.6); border: 1px solid rgba(96,165,250,0.8); }
+  .turn-seg-marker .seg-dot.tool-dot { background: rgba(168,85,247,0.6); border: 1px solid rgba(168,85,247,0.8); }
+  .turn-seg-content { flex: 1; font-size: 12px; color: #cbd5e1; line-height: 1.5; }
+  .turn-seg-content .seg-type { font-size: 9px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 2px; }
+
+  /* ─── Approach C: Dual Timeline ─── */
+  .timeline-container { position: relative; padding: 0 20px; }
+  .timeline-spine { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background: linear-gradient(to bottom, var(--prompt-border), var(--response-border), var(--prompt-border), var(--response-border)); transform: translateX(-50%); }
+  .timeline-row { display: grid; grid-template-columns: 1fr 40px 1fr; gap: 0; margin-bottom: 4px; align-items: start; }
+  .timeline-left { text-align: right; padding-right: 16px; }
+  .timeline-right { padding-left: 16px; }
+  .timeline-center { display: flex; justify-content: center; align-items: flex-start; padding-top: 14px; }
+  .timeline-dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid; background: var(--surface); z-index: 1; }
+  .timeline-dot.prompt-dot { border-color: #d97706; }
+  .timeline-dot.response-dot { border-color: #3b82f6; }
+  .timeline-card { border-radius: 10px; padding: 12px 16px; display: inline-block; max-width: 100%; text-align: left; }
+  .timeline-card.prompt-card { background: var(--prompt-bg); border: 1px solid var(--prompt-border); }
+  .timeline-card.response-card { background: var(--response-bg); border: 1px solid var(--response-border); }
+  .timeline-card.response-card.dim { background: var(--response-dim-bg); border-color: var(--response-dim-border); }
+  .timeline-card .card-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .timeline-card.prompt-card .card-label { color: var(--prompt-text); }
+  .timeline-card.response-card .card-label { color: var(--response-text); }
+  .timeline-card .card-body { font-size: 12px; line-height: 1.5; color: #cbd5e1; }
+
+  /* ─── Pulse animation ─── */
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(96,165,250,0.4); } 50% { box-shadow: 0 0 0 6px rgba(96,165,250,0); } }
+
+  /* ─── Multi-response counter badge ─── */
+  .multi-badge {
+    display: inline-flex; align-items: center; gap: 3px; font-size: 9px;
+    padding: 2px 6px; border-radius: 4px; font-weight: 600;
+    background: rgba(96,165,250,0.15); color: var(--response-text);
+    border: 1px solid rgba(96,165,250,0.25);
+  }
+</style>
+</head>
+<body>
+
+<div class="intro">
+  <h1>Conversation Threading Prototypes</h1>
+  <p>Four approaches to evolving Synapse from "session + disconnected prompts" to "session + threaded conversation." Now with <strong>multi-response segments</strong> — one prompt can trigger multiple response segments interleaved with tool calls.</p>
+</div>
+
+<div class="tab-bar">
+  <div class="tab active" data-tab="a">A: Chat Lane<span class="tab-desc">— vertical thread, tools inside responses</span></div>
+  <div class="tab" data-tab="b">B: Turn Cards<span class="tab-desc">— prompt + response as one unit</span></div>
+  <div class="tab" data-tab="c">C: Dual Timeline<span class="tab-desc">— prompts left, responses right</span></div>
+  <div class="tab" data-tab="d">D: Node Graph<span class="tab-desc">— extends React Flow with response nodes</span></div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- APPROACH A: Threaded Chat Lane              -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="tab-content active" id="tab-a">
+  <div class="insight-box">
+    <strong>Approach A — Threaded Chat Lane</strong><br>
+    Familiar chat UX. The <strong>hybrid multi-response</strong> pattern: the final response text is always visible. Click "3 reasoning steps" to expand the intermediate segments that led to it.
+    <span class="key-q">1 prompt → N text segments interleaved with tools → 1 final answer. Collapsed by default = low noise. Expand = full reasoning chain.</span>
+  </div>
+
+  <div class="noise-toggle">
+    <label><input type="checkbox" id="show-tools-a" checked> Show tool calls</label>
+    <label><input type="checkbox" id="show-segments-a" checked> Show response segments</label>
+  </div>
+
+  <div class="session-header">
+    <span class="session-badge">Session</span>
+    <span class="session-title">Conversation threading for Synapse</span>
+    <span class="session-meta">03:18 AM · 6b75d8c4 · Opus 4.6</span>
+  </div>
+
+  <div class="chat-lane">
+    <!-- Turn 1: simple 1:1 -->
+    <div class="chat-turn">
+      <div class="chat-bubble prompt">
+        <div class="label">You <span class="timestamp">03:18:44 AM</span></div>
+        <div class="body">Can I see the responses you give me here in Visual Studio? Is that tracked or logged anywhere?</div>
+      </div>
+    </div>
+    <div class="chat-response-connector"></div>
+    <div class="chat-turn">
+      <div class="chat-bubble response">
+        <div class="label">Claude <span class="timestamp">03:18:47 AM</span></div>
+        <div class="body">Great question. Let me check what hook events Claude Code actually emits and whether assistant responses are among them.</div>
+        <div class="chat-tools tools-container">
+          <span class="tool-pill success"><span class="dot"></span> Read <span style="color:var(--text-muted);font-size:10px">settings.json</span></span>
+          <span class="tool-pill success"><span class="dot"></span> Grep <span style="color:var(--text-muted);font-size:10px">"hook" in types</span></span>
+          <span class="tool-pill success"><span class="dot"></span> Read <span style="color:var(--text-muted);font-size:10px">agent.ts</span></span>
+        </div>
+        <div class="chat-stats">
+          <span class="token-badge"><span class="token-in">12.4k&#8595;</span></span>
+          <span class="token-badge"><span class="token-out">847&#8593;</span></span>
+          <span class="cost-badge">$0.04</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="chat-connector"></div>
+
+    <!-- Turn 2: simple 1:1, no tools -->
+    <div class="chat-turn">
+      <div class="chat-bubble prompt">
+        <div class="label">You <span class="timestamp">03:19:17 AM</span></div>
+        <div class="body">Once I restart the servers.</div>
+      </div>
+    </div>
+    <div class="chat-response-connector"></div>
+    <div class="chat-turn">
+      <div class="chat-bubble response">
+        <div class="label">Claude <span class="timestamp">03:19:18 AM</span></div>
+        <div class="body">Just the <strong>server</strong> — it needs the rebuilt code. Ctrl+C then <code>.\start-server.ps1</code>.</div>
+        <div class="chat-stats">
+          <span class="token-badge"><span class="token-in">1.2k&#8595;</span></span>
+          <span class="token-badge"><span class="token-out">312&#8593;</span></span>
+          <span class="cost-badge">$0.005</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="chat-connector"></div>
+
+    <!-- Turn 3: MULTI-RESPONSE showcase -->
+    <div class="chat-turn">
+      <div class="chat-bubble prompt">
+        <div class="label">You <span class="timestamp">03:19:43 AM</span></div>
+        <div class="body">OK services ready. Fix the hook so responses show up in the dashboard.</div>
+      </div>
+    </div>
+    <div class="chat-response-connector"></div>
+    <div class="chat-turn">
+      <div class="chat-bubble response">
+        <div class="label">
+          Claude <span class="timestamp">03:19:46 AM</span>
+          <span class="multi-badge">3 segments</span>
+        </div>
+        <!-- Final answer (always visible) -->
+        <div class="body">Done! I've added the <code>send_response.cjs</code> hook and updated the ToolLogPanel to show assistant responses as blue rows. Restart the server and check the tool log (T key).</div>
+
+        <!-- Expandable reasoning chain -->
+        <div class="segment-group segments-container">
+          <div class="segment-toggle" onclick="this.classList.toggle('open'); this.nextElementSibling.classList.toggle('open')">
+            <span class="arrow">&#9654;</span> 3 reasoning steps — click to expand
+          </div>
+          <div class="segment-hidden">
+            <div class="segment-step">
+              <div class="seg-label"><span class="seg-num">1</span> Initial response</div>
+              <div class="seg-text">Let me check the current hook configuration and figure out how to capture responses.</div>
+              <div class="seg-tools">
+                <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Read settings.local.json</span>
+                <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Read agent.ts</span>
+              </div>
+            </div>
+            <div class="segment-step">
+              <div class="seg-label"><span class="seg-num">2</span> After reading files</div>
+              <div class="seg-text">I see — the Stop hook fires after each turn. I'll create a hook script that reads the transcript and POSTs the response text. Let me also update the adapter.</div>
+              <div class="seg-tools">
+                <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Write send_response.cjs</span>
+                <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Edit claude.ts</span>
+              </div>
+            </div>
+            <div class="segment-step">
+              <div class="seg-label"><span class="seg-num">3</span> After writing hook</div>
+              <div class="seg-text">Now I need to register it in settings and update the ToolLogPanel to render assistant_response events.</div>
+              <div class="seg-tools">
+                <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Edit settings.local.json</span>
+                <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Edit ToolLogPanel.tsx</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="chat-stats">
+          <span class="chat-agent-badge">&#9679; 1 agent</span>
+          <span class="token-badge"><span class="token-in">8.7k&#8595;</span></span>
+          <span class="token-badge"><span class="token-out">1.4k&#8593;</span></span>
+          <span class="cost-badge">$0.03</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="chat-connector"></div>
+
+    <!-- Turn 4: multi-response, heavy work -->
+    <div class="chat-turn">
+      <div class="chat-bubble prompt">
+        <div class="label">You <span class="timestamp">03:21:42 AM</span></div>
+        <div class="body">This is potentially groundbreaking. How do we thread conversations? Show me 3 prototypes.</div>
+      </div>
+    </div>
+    <div class="chat-response-connector"></div>
+    <div class="chat-turn">
+      <div class="chat-bubble response">
+        <div class="label">
+          Claude <span class="timestamp">03:21:50 AM</span>
+          <span class="multi-badge">4 segments</span>
+        </div>
+        <div class="body">Done! Open <code>docs/prototypes/conversation-threading.html</code> in your browser. Four tabs with different approaches — Chat Lane, Turn Cards, Dual Timeline, and Node Graph.</div>
+
+        <div class="segment-group segments-container">
+          <div class="segment-toggle" onclick="this.classList.toggle('open'); this.nextElementSibling.classList.toggle('open')">
+            <span class="arrow">&#9654;</span> 4 reasoning steps — click to expand
+          </div>
+          <div class="segment-hidden">
+            <div class="segment-step">
+              <div class="seg-label"><span class="seg-num">1</span> Research</div>
+              <div class="seg-text">Let me explore the current visual model first — how prompts render, how nodes connect.</div>
+              <div class="seg-tools">
+                <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Agent: Explore visuals</span>
+                <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Read UserPromptNode.tsx</span>
+              </div>
+            </div>
+            <div class="segment-step">
+              <div class="seg-label"><span class="seg-num">2</span> Data gathering</div>
+              <div class="seg-text">Good — I have the full pipeline. Let me grab real event data and the color palette for authentic mockups.</div>
+              <div class="seg-tools">
+                <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Agent: Explore data shapes</span>
+              </div>
+            </div>
+            <div class="segment-step">
+              <div class="seg-label"><span class="seg-num">3</span> Building</div>
+              <div class="seg-text">Now building the 3-tab HTML prototype with the Synapse color palette and real conversation data.</div>
+              <div class="seg-tools">
+                <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Write conversation-threading.html</span>
+              </div>
+            </div>
+            <div class="segment-step">
+              <div class="seg-label"><span class="seg-num">4</span> Adding node graph approach</div>
+              <div class="seg-text">Good call from the user — adding a 4th tab that builds directly on the existing React Flow graph with response as a new node type.</div>
+              <div class="seg-tools">
+                <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Edit conversation-threading.html</span>
+                <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Edit conversation-threading.html</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="chat-stats">
+          <span class="chat-agent-badge">&#9679; 2 agents</span>
+          <span class="token-badge"><span class="token-in">75.4k&#8595;</span></span>
+          <span class="token-badge"><span class="token-out">12.1k&#8593;</span></span>
+          <span class="cost-badge">$0.28</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- APPROACH B: Turn Cards                      -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="tab-content" id="tab-b">
+  <div class="insight-box">
+    <strong>Approach B — Turn Cards with Segment Timeline</strong><br>
+    Each turn is a card. Collapsed: you see prompt summary on the left, final response on the right. Expanded: a vertical timeline showing every segment and tool call in order. The "process" becomes a playback-style timeline inside the card.
+    <span class="key-q">Multi-response pattern: the expanded detail shows a step-by-step timeline of text segments interleaved with tool calls. Each step has a dot marker — blue for text, purple for tools.</span>
+  </div>
+
+  <div class="session-header">
+    <span class="session-badge">Session</span>
+    <span class="session-title">Conversation threading for Synapse</span>
+    <span class="session-meta">03:18 AM · 6b75d8c4 · Opus 4.6 · 4 turns</span>
+  </div>
+
+  <div class="turn-list">
+    <!-- Turn 1 -->
+    <div class="turn-card" onclick="this.classList.toggle('expanded')">
+      <div class="turn-header">
+        <div class="turn-number">1</div>
+        <div class="turn-prompt-col">
+          <div class="turn-col-label">You</div>
+          <div class="turn-col-text">Can I see the responses you give me here in Visual Studio? Is that tracked or logged anywhere?</div>
+        </div>
+        <div class="turn-response-col">
+          <div class="turn-col-label">Claude</div>
+          <div class="turn-col-text">Great question. Let me check what hook events Claude Code actually emits.</div>
+        </div>
+      </div>
+      <div class="turn-detail">
+        <div class="turn-detail-section">
+          <h4>Response Segments (1 segment — simple response)</h4>
+          <div class="turn-segment-timeline">
+            <div class="turn-seg-row">
+              <div class="turn-seg-marker"><div class="seg-dot text-dot"></div></div>
+              <div class="turn-seg-content">
+                <div class="seg-type">Text</div>
+                Great question. Let me check what hook events Claude Code actually emits and whether assistant responses are among them.
+              </div>
+            </div>
+            <div class="turn-seg-row">
+              <div class="turn-seg-marker"><div class="seg-dot tool-dot"></div></div>
+              <div class="turn-seg-content">
+                <div class="seg-type">Tools (3)</div>
+                <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
+                  <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Read</span>
+                  <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Grep</span>
+                  <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Read</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="turn-meta">
+        <span class="timestamp">03:18:44 — 03:18:52</span>
+        <span class="token-badge"><span class="token-in">12.4k&#8595;</span> <span class="token-out">847&#8593;</span></span>
+        <span class="cost-badge">$0.04</span>
+        <span class="turn-expand-hint">click to expand</span>
+      </div>
+    </div>
+
+    <!-- Turn 2: no tools -->
+    <div class="turn-card" onclick="this.classList.toggle('expanded')">
+      <div class="turn-header">
+        <div class="turn-number">2</div>
+        <div class="turn-prompt-col">
+          <div class="turn-col-label">You</div>
+          <div class="turn-col-text">Once I restart the servers.</div>
+        </div>
+        <div class="turn-response-col">
+          <div class="turn-col-label">Claude</div>
+          <div class="turn-col-text">Just the server — it needs the rebuilt code. Ctrl+C then start-server.ps1.</div>
+        </div>
+      </div>
+      <div class="turn-detail">
+        <div class="turn-detail-section">
+          <h4>Response Segments (1 segment — pure conversation)</h4>
+          <div class="turn-segment-timeline">
+            <div class="turn-seg-row">
+              <div class="turn-seg-marker"><div class="seg-dot text-dot"></div></div>
+              <div class="turn-seg-content">
+                <div class="seg-type">Text</div>
+                Just the <strong>server</strong> — it needs the rebuilt code with the AssistantResponse adapter mapping. Ctrl+C in the server terminal, then <code>.\start-server.ps1</code>. The frontend should have hot-reloaded already.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="turn-meta">
+        <span class="timestamp">03:19:17 — 03:19:19</span>
+        <span class="token-badge"><span class="token-in">1.2k&#8595;</span> <span class="token-out">312&#8593;</span></span>
+        <span class="cost-badge">$0.005</span>
+        <span style="font-size:10px;color:var(--text-muted);font-style:italic">no tools</span>
+        <span class="turn-expand-hint">click to expand</span>
+      </div>
+    </div>
+
+    <!-- Turn 3: MULTI-RESPONSE -->
+    <div class="turn-card expanded" onclick="this.classList.toggle('expanded')">
+      <div class="turn-header">
+        <div class="turn-number" style="color:#60a5fa">3</div>
+        <div class="turn-prompt-col">
+          <div class="turn-col-label">You</div>
+          <div class="turn-col-text expanded-text">OK services ready. Fix the hook so responses show up in the dashboard.</div>
+        </div>
+        <div class="turn-response-col">
+          <div class="turn-col-label">Claude <span class="multi-badge" style="margin-left:6px">3 segments</span></div>
+          <div class="turn-col-text expanded-text">Done! I've added send_response.cjs hook and updated ToolLogPanel. Restart the server and check tool log (T).</div>
+        </div>
+      </div>
+      <div class="turn-detail">
+        <div class="turn-detail-section">
+          <h4>Response Timeline (3 text segments + 6 tool calls)</h4>
+          <div class="turn-segment-timeline">
+            <div class="turn-seg-row">
+              <div class="turn-seg-marker"><div class="seg-dot text-dot"></div></div>
+              <div class="turn-seg-content">
+                <div class="seg-type">Segment 1 · 03:19:46</div>
+                Let me check the current hook configuration and figure out how to capture responses.
+              </div>
+            </div>
+            <div class="turn-seg-row">
+              <div class="turn-seg-marker"><div class="seg-dot tool-dot"></div></div>
+              <div class="turn-seg-content">
+                <div class="seg-type">Tools (2)</div>
+                <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
+                  <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Read settings.local.json</span>
+                  <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Read agent.ts</span>
+                </div>
+              </div>
+            </div>
+            <div class="turn-seg-row">
+              <div class="turn-seg-marker"><div class="seg-dot text-dot"></div></div>
+              <div class="turn-seg-content">
+                <div class="seg-type">Segment 2 · 03:19:52</div>
+                I see — the Stop hook fires after each turn. I'll create a hook script that reads the transcript and POSTs the response text.
+              </div>
+            </div>
+            <div class="turn-seg-row">
+              <div class="turn-seg-marker"><div class="seg-dot tool-dot"></div></div>
+              <div class="turn-seg-content">
+                <div class="seg-type">Tools (2)</div>
+                <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
+                  <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Write send_response.cjs</span>
+                  <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Edit claude.ts</span>
+                </div>
+              </div>
+            </div>
+            <div class="turn-seg-row">
+              <div class="turn-seg-marker"><div class="seg-dot text-dot"></div></div>
+              <div class="turn-seg-content">
+                <div class="seg-type">Segment 3 · 03:20:01 (final)</div>
+                <strong>Done!</strong> I've added send_response.cjs hook and updated the ToolLogPanel to show assistant responses as blue rows. Restart the server and check the tool log (T key).
+              </div>
+            </div>
+            <div class="turn-seg-row">
+              <div class="turn-seg-marker"><div class="seg-dot tool-dot"></div></div>
+              <div class="turn-seg-content">
+                <div class="seg-type">Tools (2)</div>
+                <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
+                  <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Edit settings.local.json</span>
+                  <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Edit ToolLogPanel.tsx</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="turn-meta">
+        <span class="timestamp">03:19:43 — 03:20:12</span>
+        <span class="token-badge"><span class="token-in">8.7k&#8595;</span> <span class="token-out">1.4k&#8593;</span></span>
+        <span class="cost-badge">$0.03</span>
+        <span class="tool-pill" style="font-size:10px;padding:2px 6px">6 tools</span>
+        <span class="chat-agent-badge" style="font-size:10px;padding:2px 6px">1 agent</span>
+        <span class="turn-expand-hint">click to collapse</span>
+      </div>
+    </div>
+
+    <!-- Turn 4 -->
+    <div class="turn-card" onclick="this.classList.toggle('expanded')">
+      <div class="turn-header">
+        <div class="turn-number">4</div>
+        <div class="turn-prompt-col">
+          <div class="turn-col-label">You</div>
+          <div class="turn-col-text">This is groundbreaking. How do we thread conversations? Show me 3 prototypes.</div>
+        </div>
+        <div class="turn-response-col">
+          <div class="turn-col-label">Claude <span class="multi-badge" style="margin-left:6px">4 segments</span></div>
+          <div class="turn-col-text">Done! Open conversation-threading.html. Four tabs with different approaches.</div>
+        </div>
+      </div>
+      <div class="turn-detail">
+        <div class="turn-detail-section">
+          <h4>Response Timeline (4 text segments + 7 tool calls)</h4>
+          <div class="turn-segment-timeline">
+            <div class="turn-seg-row">
+              <div class="turn-seg-marker"><div class="seg-dot text-dot"></div></div>
+              <div class="turn-seg-content">
+                <div class="seg-type">Segment 1 · Research</div>
+                Let me explore the current visual model first — how prompts render, how nodes connect.
+              </div>
+            </div>
+            <div class="turn-seg-row">
+              <div class="turn-seg-marker"><div class="seg-dot tool-dot"></div></div>
+              <div class="turn-seg-content">
+                <div class="seg-type">Tools (2)</div>
+                <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
+                  <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Agent: Explore</span>
+                  <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Read UserPromptNode.tsx</span>
+                </div>
+              </div>
+            </div>
+            <div class="turn-seg-row">
+              <div class="turn-seg-marker"><div class="seg-dot text-dot"></div></div>
+              <div class="turn-seg-content">
+                <div class="seg-type">Segment 2 · Data gathering</div>
+                Good — I have the full pipeline. Let me grab real event data and the color palette.
+              </div>
+            </div>
+            <div class="turn-seg-row">
+              <div class="turn-seg-marker"><div class="seg-dot tool-dot"></div></div>
+              <div class="turn-seg-content">
+                <div class="seg-type">Tools (1)</div>
+                <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
+                  <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Agent: Explore data</span>
+                </div>
+              </div>
+            </div>
+            <div class="turn-seg-row">
+              <div class="turn-seg-marker"><div class="seg-dot text-dot"></div></div>
+              <div class="turn-seg-content">
+                <div class="seg-type">Segment 3 · Building</div>
+                Building the 4-tab HTML prototype with Synapse colors and real conversation data.
+              </div>
+            </div>
+            <div class="turn-seg-row">
+              <div class="turn-seg-marker"><div class="seg-dot tool-dot"></div></div>
+              <div class="turn-seg-content">
+                <div class="seg-type">Tools (2)</div>
+                <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
+                  <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Write HTML</span>
+                  <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Edit HTML</span>
+                </div>
+              </div>
+            </div>
+            <div class="turn-seg-row">
+              <div class="turn-seg-marker"><div class="seg-dot text-dot"></div></div>
+              <div class="turn-seg-content">
+                <div class="seg-type">Segment 4 · Final</div>
+                <strong>Done!</strong> Open conversation-threading.html in your browser. Four tabs with different approaches.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="turn-meta">
+        <span class="timestamp">03:21:42 — in progress</span>
+        <span class="token-badge"><span class="token-in">75.4k&#8595;</span> <span class="token-out">12.1k&#8593;</span></span>
+        <span class="cost-badge">$0.28</span>
+        <span class="tool-pill" style="font-size:10px;padding:2px 6px">7 tools</span>
+        <span class="chat-agent-badge" style="font-size:10px;padding:2px 6px">2 agents</span>
+        <span class="turn-expand-hint">click to expand</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- APPROACH C: Dual-Column Timeline            -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="tab-content" id="tab-c">
+  <div class="insight-box">
+    <strong>Approach C — Dual-Column Timeline with Multi-Response</strong><br>
+    Prompts on the left, responses on the right. When a turn has multiple response segments, they stack vertically on the right side with dimmer styling for intermediate segments and a bright final segment. Tools bridge across the center between each pair.
+    <span class="key-q">Multi-response: intermediate segments are dimmed (they're "work in progress"). The final segment is bright. Collapsible: click the dim segments to hide them.</span>
+  </div>
+
+  <div class="session-header">
+    <span class="session-badge">Session</span>
+    <span class="session-title">Conversation threading for Synapse</span>
+    <span class="session-meta">03:18 AM · 6b75d8c4 · Opus 4.6</span>
+  </div>
+
+  <div class="timeline-container">
+    <div class="timeline-spine"></div>
+
+    <!-- Turn 1: simple -->
+    <div class="timeline-row">
+      <div class="timeline-left">
+        <div class="timeline-card prompt-card">
+          <div class="card-label">You · 03:18:44</div>
+          <div class="card-body">Can I see the responses you give me here? Is that tracked or logged anywhere?</div>
+        </div>
+      </div>
+      <div class="timeline-center"><div class="timeline-dot prompt-dot"></div></div>
+      <div class="timeline-right"></div>
+    </div>
+    <div class="timeline-row">
+      <div class="timeline-left" style="display:flex;justify-content:flex-end;gap:4px;padding:4px 16px 4px 0">
+        <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Read</span>
+        <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Grep</span>
+        <span class="tool-pill success" style="font-size:10px"><span class="dot"></span> Read</span>
+      </div>
+      <div class="timeline-center"><div style="width:1px;height:40px;background:rgba(168,85,247,0.3)"></div></div>
+      <div class="timeline-right"></div>
+    </div>
+    <div class="timeline-row">
+      <div class="timeline-left"></div>
+      <div class="timeline-center"><div class="timeline-dot response-dot"></div></div>
+      <div class="timeline-right">
+        <div class="timeline-card response-card">
+          <div class="card-label">Claude · 03:18:47</div>
+          <div class="card-body">Great question. Let me check what hook events Claude Code actually emits.</div>
+          <div style="margin-top:8px;display:flex;gap:8px">
+            <span class="token-badge"><span class="token-in">12.4k&#8595;</span></span>
+            <span class="token-badge"><span class="token-out">847&#8593;</span></span>
+            <span class="cost-badge">$0.04</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:20px"></div>
+
+    <!-- Turn 2: simple, no tools -->
+    <div class="timeline-row">
+      <div class="timeline-left">
+        <div class="timeline-card prompt-card">
+          <div class="card-label">You · 03:19:17</div>
+          <div class="card-body">Once I restart the servers.</div>
+        </div>
+      </div>
+      <div class="timeline-center"><div class="timeline-dot prompt-dot"></div></div>
+      <div class="timeline-right"></div>
+    </div>
+    <div class="timeline-row">
+      <div class="timeline-left"></div>
+      <div class="timeline-center"><div style="width:1px;height:16px;background:rgba(59,130,246,0.2)"></div></div>
+      <div class="timeline-right"></div>
+    </div>
+    <div class="timeline-row">
+      <div class="timeline-left"></div>
+      <div class="timeline-center"><div class="timeline-dot response-dot"></div></div>
+      <div class="timeline-right">
+        <div class="timeline-card response-card">
+          <div class="card-label">Claude · 03:19:18</div>
+          <div class="card-body">Just the <strong>server</strong> — rebuild and restart. <code>.\start-server.ps1</code>.</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:20px"></div>
+
+    <!-- Turn 3: MULTI-RESPONSE -->
+    <div class="timeline-row">
+      <div class="timeline-left">
+        <div class="timeline-card prompt-card">
+          <div class="card-label">You · 03:19:43</div>
+          <div class="card-body">Fix the hook so responses show up in the dashboard.</div>
+        </div>
+      </div>
+      <div class="timeline-center"><div class="timeline-dot prompt-dot"></div></div>
+      <div class="timeline-right"></div>
+    </div>
+
+    <!-- Segment 1 (dim — intermediate) -->
+    <div class="timeline-row" style="opacity:0.6">
+      <div class="timeline-left" style="display:flex;justify-content:flex-end;gap:4px;padding:4px 16px 4px 0">
+        <span class="tool-pill success" style="font-size:9px"><span class="dot"></span> Read</span>
+        <span class="tool-pill success" style="font-size:9px"><span class="dot"></span> Read</span>
+      </div>
+      <div class="timeline-center"><div style="width:1px;height:30px;background:rgba(96,165,250,0.2)"></div></div>
+      <div class="timeline-right">
+        <div class="timeline-card response-card dim" style="font-size:11px">
+          <div class="card-label" style="font-size:9px">Segment 1 · 03:19:46</div>
+          <div class="card-body" style="font-size:11px;color:var(--text-muted)">Let me check the current hook configuration...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Segment 2 (dim — intermediate) -->
+    <div class="timeline-row" style="opacity:0.6">
+      <div class="timeline-left" style="display:flex;justify-content:flex-end;gap:4px;padding:4px 16px 4px 0">
+        <span class="tool-pill success" style="font-size:9px"><span class="dot"></span> Write</span>
+        <span class="tool-pill success" style="font-size:9px"><span class="dot"></span> Edit</span>
+      </div>
+      <div class="timeline-center"><div style="width:1px;height:30px;background:rgba(96,165,250,0.2)"></div></div>
+      <div class="timeline-right">
+        <div class="timeline-card response-card dim" style="font-size:11px">
+          <div class="card-label" style="font-size:9px">Segment 2 · 03:19:52</div>
+          <div class="card-body" style="font-size:11px;color:var(--text-muted)">I'll create a hook script that reads the transcript...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Segment 3 (bright — final) -->
+    <div class="timeline-row">
+      <div class="timeline-left" style="display:flex;justify-content:flex-end;gap:4px;padding:4px 16px 4px 0">
+        <span class="tool-pill success" style="font-size:9px"><span class="dot"></span> Edit</span>
+        <span class="tool-pill success" style="font-size:9px"><span class="dot"></span> Edit</span>
+      </div>
+      <div class="timeline-center"><div style="width:1px;height:30px;background:rgba(96,165,250,0.4)"></div></div>
+      <div class="timeline-right"></div>
+    </div>
+    <div class="timeline-row">
+      <div class="timeline-left"></div>
+      <div class="timeline-center"><div class="timeline-dot response-dot"></div></div>
+      <div class="timeline-right">
+        <div class="timeline-card response-card">
+          <div class="card-label">Claude · 03:20:01 (final) <span class="multi-badge" style="margin-left:6px">3 segments</span></div>
+          <div class="card-body"><strong>Done!</strong> Added send_response.cjs hook and updated ToolLogPanel. Restart the server and check tool log (T key).</div>
+          <div style="margin-top:8px;display:flex;gap:8px">
+            <span class="token-badge"><span class="token-in">8.7k&#8595;</span></span>
+            <span class="token-badge"><span class="token-out">1.4k&#8593;</span></span>
+            <span class="cost-badge">$0.03</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:20px"></div>
+
+    <!-- Turn 4: multi-response (collapsed — just final) -->
+    <div class="timeline-row">
+      <div class="timeline-left">
+        <div class="timeline-card prompt-card">
+          <div class="card-label">You · 03:21:42</div>
+          <div class="card-body">This is groundbreaking. How do we thread conversations? Show me prototypes.</div>
+        </div>
+      </div>
+      <div class="timeline-center"><div class="timeline-dot prompt-dot"></div></div>
+      <div class="timeline-right"></div>
+    </div>
+    <div class="timeline-row">
+      <div class="timeline-left" style="display:flex;justify-content:flex-end;gap:4px;padding:4px 16px 4px 0;flex-wrap:wrap">
+        <span class="chat-agent-badge" style="font-size:9px">&#9679; Explore</span>
+        <span class="chat-agent-badge" style="font-size:9px">&#9679; Explore</span>
+        <span class="tool-pill success" style="font-size:9px"><span class="dot"></span> Read</span>
+        <span class="tool-pill success" style="font-size:9px"><span class="dot"></span> Write</span>
+        <span class="tool-pill success" style="font-size:9px"><span class="dot"></span> Edit x2</span>
+      </div>
+      <div class="timeline-center"><div style="width:1px;height:50px;background:linear-gradient(rgba(34,197,94,0.3),rgba(168,85,247,0.3))"></div></div>
+      <div class="timeline-right" style="display:flex;align-items:center">
+        <span style="font-size:10px;color:var(--text-muted);cursor:pointer;text-decoration:underline dotted">+ show 3 intermediate segments</span>
+      </div>
+    </div>
+    <div class="timeline-row">
+      <div class="timeline-left"></div>
+      <div class="timeline-center"><div class="timeline-dot response-dot" style="animation:pulse 2s infinite"></div></div>
+      <div class="timeline-right">
+        <div class="timeline-card response-card" style="border-color:rgba(96,165,250,0.6)">
+          <div class="card-label">Claude · in progress <span class="multi-badge" style="margin-left:6px">4 segments</span></div>
+          <div class="card-body"><strong>Done!</strong> Open conversation-threading.html. Four tabs with different approaches.</div>
+          <div style="margin-top:8px;display:flex;gap:8px">
+            <span class="token-badge"><span class="token-in">75.4k&#8595;</span></span>
+            <span class="token-badge"><span class="token-out">12.1k&#8593;</span></span>
+            <span class="cost-badge">$0.28</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- APPROACH D: Node Graph                      -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="tab-content" id="tab-d">
+  <div class="insight-box">
+    <strong>Approach D — Node Graph with Multi-Response</strong><br>
+    Builds on the existing React Flow graph. New <strong>Response</strong> node type (blue). For multi-response turns, the response node shows the final text but has a <strong>"3 segments"</strong> badge. Click to expand into a stacked chain: Response 1 → tools → Response 2 → tools → Response 3 (final). Collapsed by default for clean graphs.
+    <span class="key-q">The graph chain becomes: Session → Prompt → Response[final] → [Tools, Agents]. Expand a multi-segment response to see: Prompt → Resp 1 → Resp 2 → Resp 3[final] → [Tools, Agents].</span>
+  </div>
+
+  <svg id="node-graph" width="100%" height="760" viewBox="0 0 880 740" style="background:transparent;border-radius:12px;border:1px solid var(--border)">
+    <defs>
+      <linearGradient id="edge-amber" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#d97706;stop-opacity:0.5"/><stop offset="100%" style="stop-color:#d97706;stop-opacity:0.2"/>
+      </linearGradient>
+      <linearGradient id="edge-blue" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:0.5"/><stop offset="100%" style="stop-color:#3b82f6;stop-opacity:0.2"/>
+      </linearGradient>
+      <linearGradient id="edge-blue-dim" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:0.25"/><stop offset="100%" style="stop-color:#3b82f6;stop-opacity:0.1"/>
+      </linearGradient>
+      <linearGradient id="edge-purple" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#a855f7;stop-opacity:0.4"/><stop offset="100%" style="stop-color:#a855f7;stop-opacity:0.15"/>
+      </linearGradient>
+      <linearGradient id="edge-green" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#22c55e;stop-opacity:0.4"/><stop offset="100%" style="stop-color:#22c55e;stop-opacity:0.15"/>
+      </linearGradient>
+      <filter id="glow-blue">
+        <feGaussianBlur stdDeviation="3" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+
+    <!-- ─── Edges ─── -->
+    <!-- Session → Prompts -->
+    <path d="M 140 100 C 170 100, 190 55, 220 55" stroke="url(#edge-amber)" stroke-width="2" fill="none"/>
+    <path d="M 140 100 C 170 100, 190 185, 220 185" stroke="url(#edge-amber)" stroke-width="2" fill="none"/>
+    <path d="M 140 100 C 170 100, 190 380, 220 380" stroke="url(#edge-amber)" stroke-width="2" fill="none"/>
+    <path d="M 140 100 C 170 100, 190 600, 220 600" stroke="url(#edge-amber)" stroke-width="2" fill="none"/>
+
+    <!-- Prompt 1 → Response 1 -->
+    <path d="M 390 55 C 420 55, 430 55, 460 55" stroke="url(#edge-blue)" stroke-width="2" fill="none"/>
+    <!-- Prompt 2 → Response 2 -->
+    <path d="M 390 185 C 420 185, 430 185, 460 185" stroke="url(#edge-blue)" stroke-width="2" fill="none"/>
+
+    <!-- Prompt 3 → Response 3a (intermediate) -->
+    <path d="M 390 380 C 420 380, 430 340, 460 340" stroke="url(#edge-blue-dim)" stroke-width="1.5" fill="none" stroke-dasharray="4 3"/>
+    <!-- Response 3a → Response 3b (intermediate) -->
+    <path d="M 600 340 C 620 340, 625 390, 640 390" stroke="url(#edge-blue-dim)" stroke-width="1.5" fill="none" stroke-dasharray="4 3"/>
+    <!-- Response 3b → Response 3c (final) -->
+    <path d="M 780 390 C 800 390, 800 440, 460 440" stroke="url(#edge-blue)" stroke-width="2" fill="none" opacity="0"/>
+    <!-- Actually: prompt → final response (collapsed view) -->
+    <path d="M 390 380 C 420 380, 430 440, 460 440" stroke="url(#edge-blue)" stroke-width="2" fill="none"/>
+
+    <!-- Response 3 final → tools -->
+    <path d="M 600 440 C 630 440, 640 420, 670 420" stroke="url(#edge-purple)" stroke-width="1.5" fill="none"/>
+    <!-- Response 3 final → agent -->
+    <path d="M 600 440 C 630 440, 640 470, 670 470" stroke="url(#edge-green)" stroke-width="1.5" fill="none"/>
+
+    <!-- Response 1 → tools -->
+    <path d="M 600 55 C 630 55, 640 40, 670 40" stroke="url(#edge-purple)" stroke-width="1.5" fill="none"/>
+
+    <!-- Prompt 4 → Response 4 (in progress) -->
+    <path d="M 390 600 C 420 600, 430 600, 460 600" stroke="url(#edge-blue)" stroke-width="2" fill="none" stroke-dasharray="6 4" filter="url(#glow-blue)">
+      <animate attributeName="stroke-dashoffset" from="20" to="0" dur="1.5s" repeatCount="indefinite"/>
+    </path>
+    <path d="M 600 600 C 630 600, 640 570, 670 570" stroke="url(#edge-green)" stroke-width="1.5" fill="none"/>
+    <path d="M 600 600 C 630 600, 640 620, 670 620" stroke="url(#edge-green)" stroke-width="1.5" fill="none"/>
+    <path d="M 600 600 C 630 600, 640 670, 670 670" stroke="url(#edge-purple)" stroke-width="1.5" fill="none"/>
+
+    <!-- ─── Session Node ─── -->
+    <g transform="translate(20, 58)">
+      <rect x="0" y="0" width="120" height="84" rx="10" fill="rgba(30,58,138,0.8)" stroke="rgba(59,130,246,0.5)" stroke-width="1.5"/>
+      <text x="10" y="18" font-size="10" font-weight="700" fill="#e2e8f0">SESSION</text>
+      <rect x="64" y="6" width="48" height="14" rx="3" fill="rgba(59,130,246,0.2)"/>
+      <text x="72" y="16" font-size="8" font-weight="700" fill="#60a5fa">ANTHROPIC</text>
+      <text x="10" y="36" font-size="9" fill="#94a3b8">03:18 AM</text>
+      <text x="10" y="52" font-size="10" fill="#cbd5e1">Conversation</text>
+      <text x="10" y="64" font-size="10" fill="#cbd5e1">threading...</text>
+      <text x="10" y="78" font-size="8" fill="#64748b">6b75d8c4</text>
+      <circle cx="120" cy="42" r="4" fill="#60a5fa" stroke="#111827" stroke-width="2"/>
+    </g>
+
+    <!-- ─── Prompt 1 ─── -->
+    <g transform="translate(220, 14)">
+      <rect x="0" y="0" width="170" height="80" rx="8" fill="rgba(120,53,15,0.6)" stroke="rgba(217,119,6,0.4)" stroke-width="1"/>
+      <circle cx="0" cy="40" r="3.5" fill="#f59e0b" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="16" font-size="10" font-weight="700" fill="#fcd34d">Prompt</text>
+      <text x="120" y="16" font-size="8" fill="#64748b">03:18:44</text>
+      <text x="10" y="34" font-size="9" fill="#cbd5e1">Can I see the responses</text>
+      <text x="10" y="46" font-size="9" fill="#cbd5e1">you give me here?</text>
+      <text x="10" y="68" font-size="8" font-family="monospace" fill="#67e8f9">12.4k&#8595;</text>
+      <text x="55" y="68" font-size="8" font-family="monospace" fill="#fb923c">847&#8593;</text>
+      <circle cx="170" cy="40" r="3.5" fill="#f59e0b" stroke="#111827" stroke-width="1.5"/>
+    </g>
+
+    <!-- ─── Response 1 ─── -->
+    <g transform="translate(460, 14)">
+      <rect x="0" y="0" width="140" height="80" rx="8" fill="rgba(30,64,100,0.6)" stroke="rgba(96,165,250,0.4)" stroke-width="1"/>
+      <circle cx="0" cy="40" r="3.5" fill="#60a5fa" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="16" font-size="10" font-weight="700" fill="#93c5fd">Response</text>
+      <text x="100" y="16" font-size="8" fill="#64748b">03:18:47</text>
+      <text x="10" y="34" font-size="9" fill="#cbd5e1">Let me check what</text>
+      <text x="10" y="46" font-size="9" fill="#cbd5e1">hook events Claude</text>
+      <text x="10" y="58" font-size="9" fill="#cbd5e1">Code emits...</text>
+      <text x="10" y="74" font-size="8" fill="#fbbf24" font-family="monospace">$0.04</text>
+      <circle cx="140" cy="40" r="3.5" fill="#60a5fa" stroke="#111827" stroke-width="1.5"/>
+    </g>
+
+    <!-- Tool group off Response 1 -->
+    <g transform="translate(670, 18)">
+      <rect x="0" y="0" width="120" height="40" rx="6" fill="rgba(88,28,135,0.4)" stroke="rgba(168,85,247,0.3)" stroke-width="1"/>
+      <circle cx="0" cy="20" r="3" fill="#a855f7" stroke="#111827" stroke-width="1.5"/>
+      <rect x="8" y="8" width="30" height="12" rx="4" fill="rgba(34,197,94,0.2)"/>
+      <text x="13" y="17" font-size="7" fill="#4ade80">Read</text>
+      <rect x="42" y="8" width="30" height="12" rx="4" fill="rgba(34,197,94,0.2)"/>
+      <text x="47" y="17" font-size="7" fill="#4ade80">Grep</text>
+      <rect x="76" y="8" width="30" height="12" rx="4" fill="rgba(34,197,94,0.2)"/>
+      <text x="81" y="17" font-size="7" fill="#4ade80">Read</text>
+      <text x="8" y="34" font-size="7" fill="#64748b">3 tools</text>
+    </g>
+
+    <!-- ─── Prompt 2 ─── -->
+    <g transform="translate(220, 145)">
+      <rect x="0" y="0" width="170" height="76" rx="8" fill="rgba(120,53,15,0.6)" stroke="rgba(217,119,6,0.4)" stroke-width="1"/>
+      <circle cx="0" cy="38" r="3.5" fill="#f59e0b" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="16" font-size="10" font-weight="700" fill="#fcd34d">Prompt</text>
+      <text x="120" y="16" font-size="8" fill="#64748b">03:19:17</text>
+      <text x="10" y="34" font-size="9" fill="#cbd5e1">Once I restart the</text>
+      <text x="10" y="46" font-size="9" fill="#cbd5e1">servers.</text>
+      <text x="10" y="66" font-size="8" font-family="monospace" fill="#67e8f9">1.2k&#8595;</text>
+      <text x="45" y="66" font-size="8" font-family="monospace" fill="#fb923c">312&#8593;</text>
+      <circle cx="170" cy="38" r="3.5" fill="#f59e0b" stroke="#111827" stroke-width="1.5"/>
+    </g>
+
+    <!-- ─── Response 2 (no tools) ─── -->
+    <g transform="translate(460, 145)">
+      <rect x="0" y="0" width="140" height="76" rx="8" fill="rgba(30,64,100,0.6)" stroke="rgba(96,165,250,0.4)" stroke-width="1"/>
+      <circle cx="0" cy="38" r="3.5" fill="#60a5fa" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="16" font-size="10" font-weight="700" fill="#93c5fd">Response</text>
+      <text x="10" y="34" font-size="9" fill="#cbd5e1">Just the server —</text>
+      <text x="10" y="46" font-size="9" fill="#cbd5e1">rebuild and restart.</text>
+      <text x="10" y="66" font-size="8" fill="#64748b" font-style="italic">no tools</text>
+    </g>
+
+    <!-- ─── Prompt 3 ─── -->
+    <g transform="translate(220, 336)">
+      <rect x="0" y="0" width="170" height="88" rx="8" fill="rgba(120,53,15,0.6)" stroke="rgba(217,119,6,0.4)" stroke-width="1"/>
+      <circle cx="0" cy="44" r="3.5" fill="#f59e0b" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="16" font-size="10" font-weight="700" fill="#fcd34d">Prompt</text>
+      <text x="120" y="16" font-size="8" fill="#64748b">03:19:43</text>
+      <text x="10" y="34" font-size="9" fill="#cbd5e1">Fix the hook so</text>
+      <text x="10" y="46" font-size="9" fill="#cbd5e1">responses show up in</text>
+      <text x="10" y="58" font-size="9" fill="#cbd5e1">the dashboard.</text>
+      <text x="10" y="78" font-size="8" font-family="monospace" fill="#67e8f9">8.7k&#8595;</text>
+      <text x="45" y="78" font-size="8" font-family="monospace" fill="#fb923c">1.4k&#8593;</text>
+      <circle cx="170" cy="44" r="3.5" fill="#f59e0b" stroke="#111827" stroke-width="1.5"/>
+    </g>
+
+    <!-- ─── Response 3a (intermediate, dimmed) ─── -->
+    <g transform="translate(460, 305)" opacity="0.5">
+      <rect x="0" y="0" width="140" height="58" rx="6" fill="rgba(30,64,100,0.3)" stroke="rgba(96,165,250,0.2)" stroke-width="1" stroke-dasharray="4 2"/>
+      <circle cx="0" cy="29" r="3" fill="#60a5fa" stroke="#111827" stroke-width="1.5" opacity="0.5"/>
+      <text x="10" y="14" font-size="8" font-weight="600" fill="#93c5fd">Seg 1</text>
+      <text x="45" y="14" font-size="7" fill="#64748b">03:19:46</text>
+      <text x="10" y="30" font-size="8" fill="#94a3b8">Let me check the hook</text>
+      <text x="10" y="42" font-size="8" fill="#94a3b8">configuration...</text>
+      <text x="10" y="54" font-size="7" fill="#c084fc">Read x2</text>
+      <circle cx="140" cy="29" r="3" fill="#60a5fa" stroke="#111827" stroke-width="1.5" opacity="0.5"/>
+    </g>
+
+    <!-- ─── Response 3b (intermediate, dimmed) ─── -->
+    <g transform="translate(640, 360)" opacity="0.5">
+      <rect x="0" y="0" width="140" height="58" rx="6" fill="rgba(30,64,100,0.3)" stroke="rgba(96,165,250,0.2)" stroke-width="1" stroke-dasharray="4 2"/>
+      <circle cx="0" cy="29" r="3" fill="#60a5fa" stroke="#111827" stroke-width="1.5" opacity="0.5"/>
+      <text x="10" y="14" font-size="8" font-weight="600" fill="#93c5fd">Seg 2</text>
+      <text x="45" y="14" font-size="7" fill="#64748b">03:19:52</text>
+      <text x="10" y="30" font-size="8" fill="#94a3b8">I'll create a hook</text>
+      <text x="10" y="42" font-size="8" fill="#94a3b8">script that reads...</text>
+      <text x="10" y="54" font-size="7" fill="#c084fc">Write + Edit</text>
+    </g>
+
+    <!-- ─── Response 3c (final, bright) ─── -->
+    <g transform="translate(460, 406)">
+      <rect x="0" y="0" width="140" height="80" rx="8" fill="rgba(30,64,100,0.6)" stroke="rgba(96,165,250,0.4)" stroke-width="1"/>
+      <circle cx="0" cy="40" r="3.5" fill="#60a5fa" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="16" font-size="10" font-weight="700" fill="#93c5fd">Response</text>
+      <!-- Multi-badge -->
+      <rect x="72" y="5" width="52" height="13" rx="3" fill="rgba(96,165,250,0.2)"/>
+      <text x="78" y="14" font-size="7" font-weight="600" fill="#93c5fd">3 segments</text>
+      <text x="10" y="34" font-size="9" fill="#cbd5e1">Done! Added the hook</text>
+      <text x="10" y="46" font-size="9" fill="#cbd5e1">and updated the panel.</text>
+      <text x="10" y="66" font-size="8" fill="#fbbf24" font-family="monospace">$0.03</text>
+      <text x="46" y="66" font-size="7" fill="#64748b">final</text>
+      <circle cx="140" cy="40" r="3.5" fill="#60a5fa" stroke="#111827" stroke-width="1.5"/>
+    </g>
+
+    <!-- Tool group off Response 3 final -->
+    <g transform="translate(670, 400)">
+      <rect x="0" y="0" width="120" height="36" rx="6" fill="rgba(88,28,135,0.4)" stroke="rgba(168,85,247,0.3)" stroke-width="1"/>
+      <circle cx="0" cy="18" r="3" fill="#a855f7" stroke="#111827" stroke-width="1.5"/>
+      <rect x="8" y="6" width="30" height="12" rx="4" fill="rgba(34,197,94,0.2)"/>
+      <text x="13" y="15" font-size="7" fill="#4ade80">Edit</text>
+      <rect x="42" y="6" width="30" height="12" rx="4" fill="rgba(34,197,94,0.2)"/>
+      <text x="47" y="15" font-size="7" fill="#4ade80">Edit</text>
+      <text x="8" y="30" font-size="7" fill="#64748b">2 tools</text>
+    </g>
+
+    <!-- Agent off Response 3 -->
+    <g transform="translate(670, 448)">
+      <rect x="0" y="0" width="120" height="36" rx="6" fill="rgba(20,83,45,0.6)" stroke="rgba(34,197,94,0.4)" stroke-width="1"/>
+      <circle cx="0" cy="18" r="3" fill="#22c55e" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="14" font-size="9" font-weight="600" fill="#4ade80">Explore</text>
+      <text x="10" y="28" font-size="8" fill="#94a3b8">prompt/node visuals</text>
+    </g>
+
+    <!-- ─── Prompt 4 ─── -->
+    <g transform="translate(220, 556)">
+      <rect x="0" y="0" width="170" height="88" rx="8" fill="rgba(120,53,15,0.6)" stroke="rgba(217,119,6,0.4)" stroke-width="1"/>
+      <circle cx="0" cy="44" r="3.5" fill="#f59e0b" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="16" font-size="10" font-weight="700" fill="#fcd34d">Prompt</text>
+      <text x="120" y="16" font-size="8" fill="#64748b">03:21:42</text>
+      <text x="10" y="34" font-size="9" fill="#cbd5e1">This is groundbreaking.</text>
+      <text x="10" y="46" font-size="9" fill="#cbd5e1">How do we thread</text>
+      <text x="10" y="58" font-size="9" fill="#cbd5e1">conversations?</text>
+      <text x="10" y="78" font-size="8" font-family="monospace" fill="#67e8f9">75.4k&#8595;</text>
+      <text x="55" y="78" font-size="8" font-family="monospace" fill="#fb923c">12.1k&#8593;</text>
+      <circle cx="170" cy="44" r="3.5" fill="#f59e0b" stroke="#111827" stroke-width="1.5"/>
+    </g>
+
+    <!-- ─── Response 4 (in progress, multi-segment) ─── -->
+    <g transform="translate(460, 556)">
+      <rect x="0" y="0" width="140" height="88" rx="8" fill="rgba(30,64,100,0.6)" stroke="rgba(96,165,250,0.6)" stroke-width="1.5">
+        <animate attributeName="stroke-opacity" values="0.6;1;0.6" dur="2s" repeatCount="indefinite"/>
+      </rect>
+      <circle cx="0" cy="44" r="3.5" fill="#60a5fa" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="16" font-size="10" font-weight="700" fill="#93c5fd">Response</text>
+      <rect x="72" y="5" width="52" height="13" rx="3" fill="rgba(96,165,250,0.2)">
+        <animate attributeName="opacity" values="1;0.5;1" dur="1.5s" repeatCount="indefinite"/>
+      </rect>
+      <text x="78" y="14" font-size="7" font-weight="600" fill="#60a5fa">4 segments</text>
+      <text x="10" y="34" font-size="9" fill="#cbd5e1">Done! Open the HTML.</text>
+      <text x="10" y="46" font-size="9" fill="#cbd5e1">Four tabs with</text>
+      <text x="10" y="58" font-size="9" fill="#cbd5e1">different approaches.</text>
+      <text x="10" y="78" font-size="8" fill="#fbbf24" font-family="monospace">$0.28</text>
+      <circle cx="140" cy="44" r="3.5" fill="#60a5fa" stroke="#111827" stroke-width="1.5"/>
+    </g>
+
+    <!-- Agents off Response 4 -->
+    <g transform="translate(670, 548)">
+      <rect x="0" y="0" width="130" height="34" rx="6" fill="rgba(20,83,45,0.6)" stroke="rgba(34,197,94,0.4)" stroke-width="1"/>
+      <circle cx="0" cy="17" r="3" fill="#22c55e" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="14" font-size="8" font-weight="600" fill="#4ade80">Explore</text>
+      <text x="52" y="14" font-size="7" fill="#94a3b8">visual model</text>
+      <text x="10" y="28" font-size="7" fill="#64748b">75k tokens</text>
+    </g>
+    <g transform="translate(670, 592)">
+      <rect x="0" y="0" width="130" height="34" rx="6" fill="rgba(20,83,45,0.6)" stroke="rgba(34,197,94,0.4)" stroke-width="1"/>
+      <circle cx="0" cy="17" r="3" fill="#22c55e" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="14" font-size="8" font-weight="600" fill="#4ade80">Explore</text>
+      <text x="52" y="14" font-size="7" fill="#94a3b8">data shapes</text>
+      <text x="10" y="28" font-size="7" fill="#64748b">41k tokens</text>
+    </g>
+    <!-- Tool group off Response 4 -->
+    <g transform="translate(670, 644)">
+      <rect x="0" y="0" width="130" height="40" rx="6" fill="rgba(88,28,135,0.4)" stroke="rgba(168,85,247,0.3)" stroke-width="1"/>
+      <circle cx="0" cy="20" r="3" fill="#a855f7" stroke="#111827" stroke-width="1.5"/>
+      <rect x="8" y="6" width="30" height="12" rx="4" fill="rgba(34,197,94,0.2)"/>
+      <text x="13" y="15" font-size="7" fill="#4ade80">Read</text>
+      <rect x="42" y="6" width="36" height="12" rx="4" fill="rgba(34,197,94,0.2)"/>
+      <text x="47" y="15" font-size="7" fill="#4ade80">Write</text>
+      <rect x="82" y="6" width="36" height="12" rx="4" fill="rgba(34,197,94,0.2)"/>
+      <text x="87" y="15" font-size="7" fill="#4ade80">Edit x2</text>
+      <text x="8" y="34" font-size="7" fill="#64748b">4 tools</text>
+    </g>
+
+    <!-- ─── Legend ─── -->
+    <g transform="translate(20, 705)">
+      <rect x="0" y="0" width="840" height="28" rx="6" fill="rgba(255,255,255,0.02)"/>
+      <rect x="12" y="8" width="10" height="10" rx="3" fill="rgba(30,58,138,0.8)" stroke="rgba(59,130,246,0.5)" stroke-width="1"/>
+      <text x="26" y="17" font-size="8" fill="#94a3b8">Session</text>
+      <rect x="72" y="8" width="10" height="10" rx="3" fill="rgba(120,53,15,0.6)" stroke="rgba(217,119,6,0.4)" stroke-width="1"/>
+      <text x="86" y="17" font-size="8" fill="#94a3b8">Prompt</text>
+      <rect x="130" y="8" width="10" height="10" rx="3" fill="rgba(30,64,100,0.6)" stroke="rgba(96,165,250,0.4)" stroke-width="1"/>
+      <text x="144" y="17" font-size="8" fill="#93c5fd" font-weight="600">Response</text>
+      <rect x="200" y="8" width="10" height="10" rx="3" fill="rgba(30,64,100,0.3)" stroke="rgba(96,165,250,0.2)" stroke-width="1" stroke-dasharray="2 1"/>
+      <text x="214" y="17" font-size="8" fill="#64748b">Intermediate seg</text>
+      <rect x="300" y="8" width="10" height="10" rx="3" fill="rgba(20,83,45,0.6)" stroke="rgba(34,197,94,0.4)" stroke-width="1"/>
+      <text x="314" y="17" font-size="8" fill="#94a3b8">Agent</text>
+      <rect x="355" y="8" width="10" height="10" rx="3" fill="rgba(88,28,135,0.4)" stroke="rgba(168,85,247,0.3)" stroke-width="1"/>
+      <text x="369" y="17" font-size="8" fill="#94a3b8">Tools</text>
+      <text x="420" y="17" font-size="8" fill="#64748b">Flow: Session &#8594; Prompt &#8594; Response [&#8594; Seg 1 &#8594; Seg 2 &#8594; Final] &#8594; [Tools, Agents]</text>
+    </g>
+  </svg>
+
+  <div style="margin-top:16px;padding:14px 18px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;font-size:12px;line-height:1.6;color:var(--text-dim)">
+    <strong style="color:#e2e8f0">Multi-response in the graph (Turn 3 above):</strong><br>
+    &#8226; <strong>Collapsed</strong> (default): Prompt &#8594; Response (final text, "3 segments" badge) &#8594; Tools/Agents<br>
+    &#8226; <strong>Expanded</strong>: Prompt &#8594; <span style="opacity:0.5">Seg 1 (dim, dashed)</span> &#8594; <span style="opacity:0.5">Seg 2 (dim, dashed)</span> &#8594; Response (final, bright) &#8594; Tools/Agents<br>
+    &#8226; Intermediate segments are dashed-border, dimmed nodes — clearly "work in progress"<br>
+    &#8226; Each intermediate segment shows its tool calls inline as small text<br>
+    &#8226; Click the "3 segments" badge on the final response to toggle expansion
+  </div>
+</div>
+
+<!-- ─── Comparison Footer ─── -->
+<div style="max-width:900px;margin:40px auto;padding:0 32px 60px">
+  <h2 style="font-size:16px;margin-bottom:16px;color:#e2e8f0">Trade-offs at a Glance</h2>
+  <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead>
+      <tr style="border-bottom:1px solid var(--border)">
+        <th style="text-align:left;padding:10px 8px;color:var(--text-muted);font-weight:600;width:120px"></th>
+        <th style="text-align:left;padding:10px 8px;color:var(--prompt-text);font-weight:600">A: Chat Lane</th>
+        <th style="text-align:left;padding:10px 8px;color:var(--response-text);font-weight:600">B: Turn Cards</th>
+        <th style="text-align:left;padding:10px 8px;color:var(--agent-text);font-weight:600">C: Timeline</th>
+        <th style="text-align:left;padding:10px 8px;color:var(--session-text);font-weight:600">D: Node Graph</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px;color:var(--text-dim);font-weight:600">Mental model</td>
+        <td style="padding:8px">Chat thread</td>
+        <td style="padding:8px">Numbered turns</td>
+        <td style="padding:8px">Timeline lanes</td>
+        <td style="padding:8px">Extended graph</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px;color:var(--text-dim);font-weight:600">Multi-response</td>
+        <td style="padding:8px">Expand toggle inside response bubble</td>
+        <td style="padding:8px">Step timeline in detail panel</td>
+        <td style="padding:8px">Stacked dim/bright cards on right column</td>
+        <td style="padding:8px">Dim dashed segment nodes, expand from badge</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px;color:var(--text-dim);font-weight:600">Tools belong to</td>
+        <td style="padding:8px">Response bubble</td>
+        <td style="padding:8px">Segment markers</td>
+        <td style="padding:8px">Bridge cards</td>
+        <td style="padding:8px">Response node children</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px;color:var(--text-dim);font-weight:600">Noise control</td>
+        <td style="padding:8px">Toggle checkboxes + collapse segments</td>
+        <td style="padding:8px">Card collapse + segment timeline</td>
+        <td style="padding:8px">"show N segments" link</td>
+        <td style="padding:8px">Badge click to expand segments</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px;color:var(--text-dim);font-weight:600">Fits React Flow?</td>
+        <td style="padding:8px;color:#fbbf24">New panel</td>
+        <td style="padding:8px;color:#fbbf24">New panel</td>
+        <td style="padding:8px;color:#fbbf24">New panel</td>
+        <td style="padding:8px;color:var(--agent-text)"><strong>Native fit</strong></td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px;color:var(--text-dim);font-weight:600">Best for</td>
+        <td style="padding:8px">Reading conversation</td>
+        <td style="padding:8px">Quick scan + drill-down</td>
+        <td style="padding:8px">Seeing causal flow</td>
+        <td style="padding:8px">Extending existing UX</td>
+      </tr>
+      <tr>
+        <td style="padding:8px;color:var(--text-dim);font-weight:600">Weakness</td>
+        <td style="padding:8px">Long sessions scroll</td>
+        <td style="padding:8px">Less conversational feel</td>
+        <td style="padding:8px">Complex to implement</td>
+        <td style="padding:8px">Graph gets wider</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+  // Tab switching
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    });
+  });
+
+  // Noise toggles (Approach A)
+  document.getElementById('show-tools-a')?.addEventListener('change', (e) => {
+    document.querySelectorAll('#tab-a .chat-tools').forEach(el => el.style.display = e.target.checked ? '' : 'none');
+  });
+  document.getElementById('show-segments-a')?.addEventListener('change', (e) => {
+    document.querySelectorAll('#tab-a .segments-container').forEach(el => el.style.display = e.target.checked ? '' : 'none');
+  });
+</script>
+</body>
+</html>

@@ -10,6 +10,7 @@ import { MobileLensView } from './MobileLensView';
 import { MobileSettingsButton } from './MobileSettingsButton';
 import { RemoteDevChat } from './RemoteDevChat';
 import { useRemoteDevStore } from '../../store/remoteDevStore';
+import { Features } from '@synapse-ai/core';
 import { PermissionStack } from '../permissions/PermissionStack';
 import { wsClient } from '../../store/wsClient';
 
@@ -41,9 +42,10 @@ export default function MobileView() {
   const [activeTab, setActiveTab] = useState<MobileTab>('graph');
   const remoteDevStatus = useRemoteDevStore((s) => s.status);
 
-  // Auto-switch to Dev tab when a remote-dev question arrives
+  // Auto-switch to Dev tab when a remote-dev question arrives (only when feature is enabled)
   useEffect(() => {
-    if (remoteDevStatus === 'waiting') setActiveTab('dev');
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing UI tab with external state
+    if (Features.remoteDevChat && remoteDevStatus === 'waiting') setActiveTab('dev');
   }, [remoteDevStatus]);
 
   // Lock body scrolling so the page feels like an app, not a website.
@@ -109,7 +111,7 @@ export default function MobileView() {
             <MobileAnalyticsView />
           </Suspense>
         )}
-        {activeTab === 'dev' && <RemoteDevChat />}
+        {Features.remoteDevChat && activeTab === 'dev' && <RemoteDevChat />}
       </div>
 
       <MobileBottomSheet />

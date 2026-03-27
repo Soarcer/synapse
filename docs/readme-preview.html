@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S Y N A P S E — README</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg-primary: #0d1117;
+    --bg-secondary: #161b22;
+    --bg-tertiary: #1c2128;
+    --bg-card: #21262d;
+    --bg-hover: #292e36;
+    --border: #30363d;
+    --border-accent: #3d444d;
+    --text-primary: #e6edf3;
+    --text-secondary: #8b949e;
+    --text-muted: #6e7681;
+    --accent-blue: #58a6ff;
+    --accent-green: #3fb950;
+    --accent-purple: #bc8cff;
+    --accent-orange: #d29922;
+    --accent-red: #f85149;
+    --accent-pink: #f778ba;
+    --accent-cyan: #39d2c0;
+    --code-bg: #1a1f27;
+    --link: #58a6ff;
+    --gradient-start: #58a6ff;
+    --gradient-end: #bc8cff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html {
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) var(--bg-primary);
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.7;
+    font-size: 16px;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: var(--bg-primary); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border-accent); }
+
+  /* Layout */
+  .container {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  /* Hero */
+  .hero {
+    text-align: center;
+    padding: 80px 24px 48px;
+    position: relative;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 400px;
+    background: radial-gradient(ellipse 60% 50% at 50% 0%, rgba(88, 166, 255, 0.08), transparent);
+    pointer-events: none;
+  }
+
+  .hero-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 2rem;
+    letter-spacing: 0.5em;
+    color: var(--text-primary);
+    background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 16px;
+    font-weight: 600;
+  }
+
+  .hero-subtitle {
+    font-size: 1.15rem;
+    color: var(--text-primary);
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .hero-tagline {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    font-style: italic;
+    margin-bottom: 32px;
+  }
+
+  .hero-nav {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 32px;
+  }
+
+  .hero-nav a {
+    color: var(--accent-blue);
+    text-decoration: none;
+    font-size: 0.9rem;
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    transition: all 0.2s;
+    font-weight: 500;
+  }
+
+  .hero-nav a:hover {
+    border-color: var(--accent-blue);
+    background: rgba(88, 166, 255, 0.08);
+  }
+
+  .badges {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .badge-mit { background: rgba(210, 153, 34, 0.15); color: var(--accent-orange); border: 1px solid rgba(210, 153, 34, 0.3); }
+  .badge-tests { background: rgba(63, 185, 80, 0.15); color: var(--accent-green); border: 1px solid rgba(63, 185, 80, 0.3); }
+  .badge-vsix { background: rgba(88, 166, 255, 0.15); color: var(--accent-blue); border: 1px solid rgba(88, 166, 255, 0.3); }
+  .badge-vscode { background: rgba(188, 140, 255, 0.15); color: var(--accent-purple); border: 1px solid rgba(188, 140, 255, 0.3); }
+
+  /* Divider */
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 48px 0;
+  }
+
+  /* Headings */
+  h2 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--border);
+    background: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  h3 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-top: 36px;
+    margin-bottom: 14px;
+    color: var(--text-primary);
+  }
+
+  /* Innovation items */
+  .innovation {
+    margin-bottom: 40px;
+    padding: 24px;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s;
+  }
+
+  .innovation:hover {
+    border-color: var(--border-accent);
+  }
+
+  .innovation::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 3px;
+    height: 100%;
+  }
+
+  .innovation:nth-child(odd)::before { background: var(--accent-blue); }
+  .innovation:nth-child(even)::before { background: var(--accent-purple); }
+  .innovation:nth-child(3n)::before { background: var(--accent-cyan); }
+  .innovation:nth-child(4n)::before { background: var(--accent-orange); }
+  .innovation:nth-child(5n)::before { background: var(--accent-green); }
+
+  .innovation h3 {
+    margin-top: 0;
+    font-size: 1.15rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .innovation h3 .number {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    background: var(--bg-tertiary);
+    padding: 2px 8px;
+    border-radius: 6px;
+    min-width: 28px;
+    text-align: center;
+  }
+
+  .innovation h3 .emoji {
+    font-size: 1.3rem;
+  }
+
+  .innovation p {
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    line-height: 1.75;
+  }
+
+  .innovation p:last-child {
+    margin-bottom: 0;
+  }
+
+  /* Screenshot placeholder */
+  .screenshot-placeholder {
+    margin-top: 16px;
+    padding: 32px 24px;
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-style: italic;
+    background: var(--bg-tertiary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .screenshot-placeholder .icon {
+    font-size: 2rem;
+    opacity: 0.5;
+  }
+
+  .screenshot-placeholder .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    opacity: 0.7;
+  }
+
+  /* Paragraphs */
+  p {
+    margin-bottom: 16px;
+    color: var(--text-secondary);
+  }
+
+  strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  em {
+    color: var(--text-secondary);
+    font-style: italic;
+  }
+
+  a {
+    color: var(--link);
+    text-decoration: none;
+    transition: opacity 0.2s;
+  }
+
+  a:hover {
+    text-decoration: underline;
+    opacity: 0.85;
+  }
+
+  /* Blockquote */
+  blockquote {
+    border-left: 3px solid var(--accent-blue);
+    padding: 12px 20px;
+    margin: 20px 0;
+    background: rgba(88, 166, 255, 0.05);
+    border-radius: 0 8px 8px 0;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+  }
+
+  blockquote strong {
+    color: var(--accent-blue);
+  }
+
+  /* Lists */
+  ul, ol {
+    margin: 12px 0;
+    padding-left: 24px;
+  }
+
+  li {
+    margin-bottom: 8px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+  }
+
+  li strong {
+    color: var(--text-primary);
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 0.9rem;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  thead {
+    background: var(--bg-tertiary);
+  }
+
+  th {
+    text-align: left;
+    padding: 12px 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    border-bottom: 2px solid var(--border);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  td {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+
+  tr:hover td {
+    background: rgba(88, 166, 255, 0.03);
+  }
+
+  /* Status badges in roadmap */
+  .status-done { color: var(--accent-green); }
+  .status-progress { color: var(--accent-orange); }
+  .status-planned { color: var(--text-muted); }
+
+  /* Code blocks */
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85em;
+    background: var(--code-bg);
+    padding: 2px 7px;
+    border-radius: 4px;
+    color: var(--accent-cyan);
+    border: 1px solid var(--border);
+  }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    overflow-x: auto;
+    margin: 16px 0;
+    position: relative;
+  }
+
+  pre code {
+    background: none;
+    padding: 0;
+    border: none;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  pre .lang-label {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  /* Architecture diagram */
+  .architecture-diagram {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    overflow-x: auto;
+    margin: 16px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    white-space: pre;
+  }
+
+  /* Keyboard shortcut table */
+  .shortcuts-table td:first-child {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+  }
+
+  kbd {
+    display: inline-block;
+    padding: 3px 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8em;
+    font-weight: 600;
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-accent);
+    border-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  }
+
+  /* Feature cards */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 20px 0;
+  }
+
+  @media (max-width: 640px) {
+    .feature-grid { grid-template-columns: 1fr; }
+  }
+
+  .feature-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px;
+  }
+
+  .feature-card h4 {
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+
+  .feature-card ul {
+    padding-left: 16px;
+    margin: 0;
+  }
+
+  .feature-card li {
+    font-size: 0.88rem;
+    margin-bottom: 4px;
+  }
+
+  /* Section containers */
+  section {
+    margin-bottom: 24px;
+  }
+
+  /* The story */
+  .story {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    margin: 20px 0;
+    position: relative;
+  }
+
+  .story::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple), var(--accent-cyan));
+    border-radius: 12px 12px 0 0;
+  }
+
+  .story p {
+    font-size: 0.95rem;
+    line-height: 1.85;
+  }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    padding: 48px 24px 64px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+  }
+
+  .footer em { color: var(--text-muted); }
+
+  /* TOC sidebar */
+  .toc {
+    position: fixed;
+    top: 50%;
+    right: 24px;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 100;
+  }
+
+  .toc a {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: all 0.3s;
+    display: block;
+  }
+
+  .toc a:hover,
+  .toc a.active {
+    background: var(--accent-blue);
+    transform: scale(1.5);
+  }
+
+  @media (max-width: 1100px) {
+    .toc { display: none; }
+  }
+
+  /* Smooth entry animations */
+  .fade-in {
+    opacity: 0;
+    transform: translateY(16px);
+    animation: fadeIn 0.5s ease forwards;
+  }
+
+  @keyframes fadeIn {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .innovation:nth-child(1) { animation-delay: 0.05s; }
+  .innovation:nth-child(2) { animation-delay: 0.1s; }
+  .innovation:nth-child(3) { animation-delay: 0.15s; }
+  .innovation:nth-child(4) { animation-delay: 0.2s; }
+  .innovation:nth-child(5) { animation-delay: 0.25s; }
+
+  /* Responsive */
+  @media (max-width: 640px) {
+    .hero { padding: 48px 16px 32px; }
+    .hero-title { font-size: 1.5rem; letter-spacing: 0.3em; }
+    .container { padding: 0 16px; }
+    h2 { font-size: 1.3rem; }
+    .innovation { padding: 18px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Dot navigation -->
+<nav class="toc" id="toc"></nav>
+
+<!-- Hero -->
+<header class="hero">
+  <div class="hero-title">S Y N A P S E</div>
+  <div class="hero-subtitle">Real-time agent observability for Claude Code</div>
+  <div class="hero-tagline">Because your AI is doing a lot of things. You should probably see what.</div>
+
+  <nav class="hero-nav">
+    <a href="#the-graph">The Graph</a>
+    <a href="#six-lenses">Six Lenses</a>
+    <a href="#prompt-lab">Prompt Lab</a>
+    <a href="#mobile-remote-approval">Mobile</a>
+    <a href="#running-it">Running It</a>
+    <a href="#quick-start">Quick Start</a>
+  </nav>
+
+  <div class="badges">
+    <span class="badge badge-mit">MIT License</span>
+    <span class="badge badge-tests">591 tests passing</span>
+    <span class="badge badge-vsix">.vsix 1.5 MB</span>
+    <span class="badge badge-vscode">VS Code + Cursor</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <hr>
+
+  <!-- What Is This -->
+  <section id="what-is-this">
+    <h2>What Is This?</h2>
+    <p>Claude Code spawns subagents. Those subagents call tools. Those tools spawn <em>more</em> agents &mdash; and the whole tree of computation happens behind a blinking cursor in your terminal. I wanted to see what was actually going on in there.</p>
+    <p>So I built Synapse. It started as a weekend hack to visualize hook events and turned into... this.</p>
+    <p><strong>Synapse is a real-time visual dashboard</strong> that renders your entire Claude Code session as an interactive node graph. Every agent spawn, every tool call, every token &mdash; captured, visualized, and explorable. It runs as a <strong>VS Code extension</strong> with an embedded server, as a <strong>standalone CLI</strong> (<code>pnpm dev</code>) for console-only workflows, or as a <strong>mobile PWA</strong> you can pin to your phone and approve permissions from while making coffee. All three modes connect to the same backend &mdash; use whichever fits how you work.</p>
+
+    <div class="screenshot-placeholder">
+      <div class="icon"></div>
+      <div>HERO SCREENSHOT</div>
+      <div class="label">Full dashboard &mdash; agent tree with animated edges, lens panel, detail panel</div>
+    </div>
+
+    <blockquote><strong>Status:</strong> Prototype with opinions. 591 tests. 10 completed development phases. Some edges are load-bearing. I'm proud of it anyway.</blockquote>
+  </section>
+
+  <hr>
+
+  <!-- 15 Innovations -->
+  <section id="innovations">
+    <h2>11 Things That Might Be Interesting</h2>
+    <p>I'm not sure which of these are genuinely novel and which are "obvious in retrospect," but here's what I think is worth looking at:</p>
+
+    <!-- 1 -->
+    <div class="innovation fade-in" id="the-graph">
+      <h3><span class="number">01</span> Live Node Graph with Animated Data Flow</h3>
+      <p>The core visualization &mdash; and the first thing you see. Sessions, agents, subagents, and tool calls rendered as connected nodes with animated smooth-step edges showing data flowing through the agent tree. New nodes animate into position as agents spawn. Color-coded by status &mdash; green running, red error, purple task agent, orange context compaction. Custom tree layout algorithm (we replaced dagre &mdash; long story) that handles arbitrarily deep hierarchies without overlapping.</p>
+      <div class="screenshot-placeholder">
+        <div class="icon"></div>
+        <div>ANIMATED GIF</div>
+        <div class="label">Agent tree expanding in real-time &mdash; nodes appearing, edges animating, status colors changing</div>
+      </div>
+    </div>
+
+    <!-- 2 -->
+    <div class="innovation fade-in">
+      <h3><span class="number">02</span> Deep Node Drill-Down</h3>
+      <p>Click any node in the graph. The detail panel shows everything: streaming text output, full tool call history with inputs and outputs, token counts, elapsed time, cost estimate, agent hierarchy path, and status timeline. For tool groups, expand to see individual calls with duration bars. For sessions, see the full prompt history with complexity scoring.</p>
+      <div class="screenshot-placeholder">
+        <div class="icon"></div>
+        <div>ANIMATED GIF</div>
+        <div class="label">Clicking a node, detail panel sliding open, expanding tool history, drilling into a specific tool call</div>
+      </div>
+    </div>
+
+    <!-- 3 -->
+    <div class="innovation fade-in" id="six-lenses">
+      <h3><span class="number">03</span> Six Bidirectionally-Linked Lens Views</h3>
+      <p>Same data. Six perspectives. Click a node in any lens, it highlights in the graph. Click a node in the graph, it highlights in every lens. All derived from the same tree structure &mdash; one source of truth.</p>
+      <table>
+        <thead><tr><th>Lens</th><th>What It Shows</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Tree</strong></td><td>Hierarchical explorer. Sessions &rarr; Prompts &rarr; Agents &rarr; Tools. Consecutive identical calls auto-grouped (<code>Read x14</code>).</td></tr>
+          <tr><td><strong>Heatmap</strong></td><td>Activity density. Tools on Y-axis, time on X-axis, color intensity = call count or token usage.</td></tr>
+          <tr><td><strong>Treemap</strong></td><td>Proportional resource usage. Rectangle area = tokens, duration, or count. Drill into any agent.</td></tr>
+          <tr><td><strong>Sankey</strong></td><td>Flow diagram. Four layers showing how resources flow through the agent tree. Prettiest lens. Least functional. We keep it anyway.</td></tr>
+          <tr><td><strong>Compaction</strong></td><td>Context window forensics. Sawtooth sparkline showing when Claude forgot what you said, and why.</td></tr>
+          <tr><td><strong>Cost</strong></td><td>Per-turn USD waterfall. Input, output, cache tokens, model used, latency, running total.</td></tr>
+        </tbody>
+      </table>
+      <div class="screenshot-placeholder">
+        <div class="icon"></div>
+        <div>SCREENSHOT GRID (2&times;3)</div>
+        <div class="label">All six lens views with the same session data</div>
+      </div>
+    </div>
+
+    <!-- 4 -->
+    <div class="innovation fade-in">
+      <h3><span class="number">04</span> Tool Call Grouping (Three Visualization Modes)</h3>
+      <p>An agent that calls 47 tools used to produce 47 nodes. Now they're grouped into composite nodes with three display modes:</p>
+      <table>
+        <thead><tr><th>Mode</th><th>Shows</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Pill Grid</strong></td><td>Color-coded pills &mdash; tool name, count badge, status dot. Compact overview.</td></tr>
+          <tr><td><strong>Timeline</strong></td><td>Chronological swimlanes &mdash; which tools ran when, how long each took.</td></tr>
+          <tr><td><strong>Heatmap</strong></td><td>Density grid &mdash; color intensity = call frequency. Spot the hot tools at a glance.</td></tr>
+        </tbody>
+      </table>
+      <p>Toggle between collapsed chips and expanded detail with <kbd>F</kbd>. The underlying data stays the same &mdash; individual tools in the store, composite nodes rendered at display time. (And if you happen to try a few classic input sequences while hovering over a tool group&hellip; well, we can neither confirm nor deny.)</p>
+      <div class="screenshot-placeholder">
+        <div class="icon"></div>
+        <div>ANIMATED GIF</div>
+        <div class="label">Toggling between the three tool group modes on the same node</div>
+      </div>
+    </div>
+
+    <!-- 5 -->
+    <div class="innovation fade-in" id="prompt-lab">
+      <h3><span class="number">05</span> Prompt Lab &mdash; Save Tokens, Save Money</h3>
+      <p>Press <kbd>W</kbd> to open the Prompt Lab. Write a draft prompt, pick a model (Haiku/Sonnet/Opus), choose analysis mode (Developer for technical feedback, Vibe for casual coaching), and get real-time scoring with rewrite suggestions. When you're happy with it, relay the improved prompt directly to your Claude Code terminal.</p>
+      <p>The idea is simple: a better prompt means fewer wasted tokens, fewer confused agent loops, and less money burned on round-trips that could've been one shot. Draft it, refine it, send it &mdash; without context-switching out of the dashboard.</p>
+      <blockquote><strong>Note:</strong> AI-powered prompt analysis requires an Anthropic API key configured in settings. We're investigating whether the Prompt Lab can piggyback on an existing Claude Max/Pro subscription instead &mdash; stay tuned.</blockquote>
+      <div class="screenshot-placeholder">
+        <div class="icon"></div>
+        <div>SCREENSHOT</div>
+        <div class="label">Prompt Lab modal with scored prompt, rewrite suggestion, and "Send to Terminal" button</div>
+      </div>
+    </div>
+
+    <!-- 6 -->
+    <div class="innovation fade-in">
+      <h3><span class="number">06</span> Compaction Forensics</h3>
+      <p>Ever had Claude forget something you told it 10 minutes ago? The Compaction lens shows exactly when the context window hit its limit, with a sparkline of cumulative input tokens over time. Red dashed lines mark compaction events. The sawtooth pattern is your forensic evidence. Per-turn breakdown table shows which prompt triggered each compaction and what it cost.</p>
+      <div class="screenshot-placeholder">
+        <div class="icon"></div>
+        <div>SCREENSHOT</div>
+        <div class="label">Compaction lens showing sawtooth pattern with compaction markers</div>
+      </div>
+    </div>
+
+    <!-- 7 -->
+    <div class="innovation fade-in">
+      <h3><span class="number">07</span> Cost Tracking Per Turn</h3>
+      <p>Every turn gets a cost estimate broken down by input, output, cache read, and cache creation tokens. Cumulative waterfall so you know whether that "simple refactor" cost $0.03 or $3.00. Model badges show which Claude model handled each turn. The Cost lens is your "am I spending what I think I'm spending" view.</p>
+      <div class="screenshot-placeholder">
+        <div class="icon"></div>
+        <div>SCREENSHOT</div>
+        <div class="label">Cost lens showing per-turn waterfall with model badges and running total</div>
+      </div>
+    </div>
+
+    <!-- 8 -->
+    <div class="innovation fade-in" id="mobile-remote-approval">
+      <h3><span class="number">08</span> Mobile + Remote Approval</h3>
+      <p>The dashboard is a full Progressive Web App &mdash; pin it to your home screen and it works like a native app. Auto-detects phones and switches to a mobile-optimized layout with 13 purpose-built components: bottom tab bar, swipe-up detail sheets, pinch-zoom graph, session selector.</p>
+      <p>But the real reason for mobile: <strong>remote approval</strong>. Start a big job on your laptop, walk away, and your phone buzzes when Claude is blocked on a permission. Swipe to approve. Job continues. You never opened your laptop. Claude Code's HTTP hooks hold the response open until you tap Approve or Deny from any device. Cards stack with countdown timers, and you can swipe-cycle through multiple pending requests.</p>
+      <p>And you don't even need the dashboard open &mdash; Synapse registers a Service Worker and sends <strong>native push notifications</strong> when Claude is blocked. On Android you get Approve/Deny action buttons right in the notification. On iOS you tap to open. Works with the app completely closed.</p>
+      <div class="screenshot-placeholder">
+        <div class="icon"></div>
+        <div>ANIMATED GIF</div>
+        <div class="label">Phone showing permission card with countdown, user tapping Approve, graph resuming</div>
+      </div>
+    </div>
+
+    <!-- 9 -->
+    <div class="innovation fade-in">
+      <h3><span class="number">09</span> Multi-Vendor Support (In Progress)</h3>
+      <p>The adapter architecture is built and Claude Code is fully working. Gemini CLI and Codex CLI adapters are in progress &mdash; the plumbing is there (adapter interface, registry, vendor detection, session namespacing) but they haven't been battle-tested yet. The goal: monitor any AI coding agent from one dashboard, regardless of vendor.</p>
+    </div>
+
+    <!-- 10 -->
+    <div class="innovation fade-in">
+      <h3><span class="number">10</span> Guided Tour</h3>
+      <p>First-time visitors get an interactive onboarding walkthrough &mdash; spotlight highlights, narration cards, step-by-step through the graph, lenses, panels, and settings. Six chapters, 18+ steps.</p>
+    </div>
+
+    <!-- 11 -->
+    <div class="innovation fade-in" id="running-it">
+      <h3><span class="number">11</span> Two Ways to Run It</h3>
+      <p>Synapse works as a <strong>VS Code extension</strong> or as a <strong>standalone CLI</strong> &mdash; and they complement each other.</p>
+      <p><strong>VS Code extension:</strong> The full stack &mdash; server, dashboard, hook scripts, SQLite &mdash; bundles into a <code>.vsix</code> with zero native dependencies. Auto-starts when you open a Claude project, auto-stops when VS Code closes. Split layout (lens sidebar + graph editor) or single panel. Works identically in Cursor.</p>
+      <p><strong>CLI:</strong> <code>synapse start</code> boots the server, auto-configures your hooks, and opens the dashboard in your browser. Background daemon mode (<code>--bg</code>) keeps it running across terminal sessions. <code>synapse stop</code> shuts it down. Good for Claude Code console users, multi-monitor setups, or when you want the graph on a separate screen.</p>
+      <p>Both modes connect to the same backend. Use the extension for integrated development, the CLI for flexibility, or both at once.</p>
+      <div class="screenshot-placeholder">
+        <div class="icon"></div>
+        <div>SCREENSHOT</div>
+        <div class="label">VS Code with Synapse split layout &mdash; lens sidebar on left, graph in editor panel</div>
+      </div>
+    </div>
+
+  </section>
+
+  <hr>
+
+  <!-- How It Works -->
+  <section id="how-it-works">
+    <h2>How It Works</h2>
+    <div class="architecture-diagram">&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+&#9474;                  FRONTEND (React + Vite)                 &#9474;
+&#9474;                                                         &#9474;
+&#9474;   &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;  &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;  &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;  &#9474;
+&#9474;   &#9474;  React Flow   &#9474;  &#9474;  Detail   &#9474;  &#9474;  Tool Log       &#9474;  &#9474;
+&#9474;   &#9474;  Node Graph   &#9474;  &#9474;  Panels   &#9474;  &#9474;  Timeline       &#9474;  &#9474;
+&#9474;   &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;  &#9492;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;  &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;  &#9474;
+&#9474;          &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9524;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;           &#9474;
+&#9474;                          &#9474; WebSocket                     &#9474;
+&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9524;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+                           &#9474;
+&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9524;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+&#9474;                  BACKEND (Express + SQLite)               &#9474;
+&#9474;                                                          &#9474;
+&#9474;   &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;  &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;  &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;  &#9474;
+&#9474;   &#9474; Hook Receiver &#9474;  &#9474; Permission   &#9474;  &#9474;  WebSocket   &#9474;  &#9474;
+&#9474;   &#9474; POST /events  &#9474;  &#9474; Server :27247&#9474;  &#9474;  Broadcaster &#9474;  &#9474;
+&#9474;   &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;  &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;  &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9516;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;  &#9474;
+&#9474;          &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9524;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;          &#9474;
+&#9474;                     Event Store (sql.js)                  &#9474;
+&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+         &#9650;                    &#9650;               &#9474;
+         &#9474; HTTP POST          &#9474; HTTP Hook     &#9474; Agent SDK
+         &#9474;                    &#9474; (waits)       &#9660;
+&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9524;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;  &#9484;&#9472;&#9472;&#9472;&#9472;&#9524;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;  &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+&#9474;  Claude Code Hooks  &#9474;  &#9474;  Permission   &#9474;  &#9474;  Spawned     &#9474;
+&#9474;  (your sessions)    &#9474;  &#9474;  Requests     &#9474;  &#9474;  Agents      &#9474;
+&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;  &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;  &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;</div>
+
+    <p><strong>The short version:</strong></p>
+    <ol>
+      <li>You run Claude Code like normal. Hook scripts silently capture events and POST them to Synapse.</li>
+      <li>The backend normalizes, stores (SQLite), and broadcasts over WebSocket.</li>
+      <li>The frontend renders everything as an interactive node graph in real-time.</li>
+      <li>When Claude needs permission, a separate HTTP hook holds the request open until you approve from any device.</li>
+    </ol>
+  </section>
+
+  <hr>
+
+  <!-- Features At a Glance -->
+  <section id="features">
+    <h2>Features At a Glance</h2>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <h4>The Graph</h4>
+        <ul>
+          <li><strong>Interactive node graph</strong> with animated edges</li>
+          <li><strong>Custom tree layout</strong> &mdash; no overlap at any depth</li>
+          <li><strong>Color-coded status</strong> &mdash; running, done, error, compaction</li>
+          <li><strong>Auto-expanding</strong> as agents spawn</li>
+          <li><strong>Streaming preview</strong> on hover</li>
+        </ul>
+      </div>
+
+      <div class="feature-card">
+        <h4>Remote Approval</h4>
+        <ul>
+          <li><strong>Permission cards</strong> with countdown timers</li>
+          <li><strong>Multi-question forms</strong> with tab bar</li>
+          <li><strong>Deny with message</strong> &mdash; context for Claude</li>
+          <li><strong>Web Push</strong> &mdash; app closed notifications</li>
+          <li><strong>Decision analytics</strong> &mdash; rates, latency</li>
+        </ul>
+      </div>
+
+      <div class="feature-card">
+        <h4>Observability</h4>
+        <ul>
+          <li><strong>Real-time streaming</strong> &mdash; WebSocket, not polling</li>
+          <li><strong>Full event history</strong> &mdash; persisted to SQLite</li>
+          <li><strong>Token tracking</strong> per agent, session, turn</li>
+          <li><strong>Tool call timeline</strong> with duration + I/O</li>
+          <li><strong>Session snapshots</strong> &mdash; export/import JSON</li>
+        </ul>
+      </div>
+
+      <div class="feature-card">
+        <h4>Control + Mobile PWA</h4>
+        <ul>
+          <li><strong>Spawn agents</strong> from the dashboard</li>
+          <li><strong>Pause/resume</strong> the live stream</li>
+          <li><strong>Progressive Web App</strong> &mdash; pin to home screen</li>
+          <li><strong>Mobile auto-detect</strong> (13 components)</li>
+          <li><strong>QR code</strong> to connect your phone</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>Analytics (Work in Progress)</h3>
+    <table>
+      <thead><tr><th>Tab</th><th>What It Does</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Prompts</strong></td><td>Complexity scoring, cost scatter plots, AI-powered scoring with rewrite suggestions</td></tr>
+        <tr><td><strong>Insights</strong></td><td>Usage patterns, tool distribution, session trends. More tabs coming.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <hr>
+
+  <!-- Keyboard Shortcuts -->
+  <section id="shortcuts">
+    <h2>Keyboard Shortcuts</h2>
+    <table class="shortcuts-table">
+      <thead><tr><th>Key</th><th>Action</th></tr></thead>
+      <tbody>
+        <tr><td><kbd>Space</kbd></td><td>Pause/resume live updates</td></tr>
+        <tr><td><kbd>T</kbd></td><td>Toggle tool log panel</td></tr>
+        <tr><td><kbd>N</kbd></td><td>Open spawn agent dialog</td></tr>
+        <tr><td><kbd>W</kbd></td><td>Open Prompt Lab</td></tr>
+        <tr><td><kbd>V</kbd></td><td>Lock viewport</td></tr>
+        <tr><td><kbd>F</kbd></td><td>Toggle tool expansion</td></tr>
+        <tr><td><kbd>H</kbd></td><td>Toggle hook events</td></tr>
+        <tr><td><kbd>C</kbd></td><td>Auto-collapse prompts</td></tr>
+        <tr><td><kbd>A</kbd></td><td>Toggle notifications</td></tr>
+        <tr><td><kbd>E</kbd></td><td>Export snapshot</td></tr>
+        <tr><td><kbd>I</kbd></td><td>Import snapshot</td></tr>
+        <tr><td><kbd>/</kbd></td><td>Focus graph search</td></tr>
+        <tr><td><kbd>L</kbd></td><td>Toggle lens panel</td></tr>
+        <tr><td><kbd>1</kbd>&ndash;<kbd>6</kbd></td><td>Switch lens tab</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Close panels and dialogs</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <hr>
+
+  <!-- Getting Started -->
+  <section id="quick-start">
+    <h2>Getting Started</h2>
+    <p>Three ways to run Synapse, from simplest to most involved:</p>
+
+    <h3>1. CLI (Quickest)</h3>
+    <pre><code>npm install -g @synapse-ai/cli
+synapse start          # starts server, configures hooks, opens dashboard</code><span class="lang-label">bash</span></pre>
+    <p>That's it. Synapse auto-detects your project, wires up the hooks, starts the server, and opens your browser. Run <code>synapse stop</code> when you're done, or <code>synapse status</code> to check on it. Background mode with <code>synapse start --bg</code> for daemon operation.</p>
+    <blockquote><strong>Note:</strong> Not yet published to npm &mdash; coming soon. For now, build from source (option 3) or use the VS Code extension.</blockquote>
+
+    <h3>2. VS Code Extension</h3>
+    <pre><code>code --install-extension synapse-vscode-0.2.0.vsix</code><span class="lang-label">bash</span></pre>
+    <p>Or install from the <a href="https://marketplace.visualstudio.com/items?itemName=Soarcer.synapse-vscode">VS Code Marketplace</a>. The full stack &mdash; server, dashboard, hook scripts, SQLite &mdash; bundled into a <code>.vsix</code> with zero native dependencies. Also works in Cursor.</p>
+    <ul>
+      <li><strong>Auto-start</strong> &mdash; Opens when you open a Claude project. Stops when VS Code closes.</li>
+      <li><strong>Split layout</strong> &mdash; Lens sidebar + graph editor panel. Or single panel mode.</li>
+      <li><strong>11 commands</strong> &mdash; Dashboard, Server, Hooks, Lens, Reconnect, Settings, Terminal relay, Clear/Reload</li>
+      <li><strong>QR code panel</strong> &mdash; Scan to connect your phone</li>
+      <li><strong>Explorer tree</strong> &mdash; Session &rarr; Agent &rarr; Tool hierarchy</li>
+      <li><strong>Status bar</strong> &mdash; Connection dot, agent count, tool count</li>
+    </ul>
+
+    <h3>3. From Source</h3>
+    <pre><code>git clone https://github.com/anthropics/synapse.git
+cd synapse
+pnpm install
+pnpm dev  # starts backend (port 27246) + frontend (port 5173)</code><span class="lang-label">bash</span></pre>
+    <p>Open <strong>http://localhost:5173</strong>. Requires Node.js >= 20 and pnpm >= 9.</p>
+
+    <h3>Try It Without Claude</h3>
+    <pre><code># Basic simulation &mdash; 8 events
+npx tsx scripts/simulate_session.ts
+
+# Full demo &mdash; 31 events covering every node type
+npx tsx scripts/simulate_all_nodes.ts</code><span class="lang-label">bash</span></pre>
+  </section>
+
+  <hr>
+
+  <!-- Tech Stack -->
+  <section id="tech-stack">
+    <h2>Tech Stack</h2>
+    <table>
+      <thead><tr><th>Layer</th><th>Technology</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Frontend</strong></td><td>React 19, React Flow v12, Zustand 5, Tailwind CSS 4, Vite 6</td></tr>
+        <tr><td><strong>Backend</strong></td><td>Express 5, WebSocket (ws 8), sql.js (pure JS SQLite), Node 20+</td></tr>
+        <tr><td><strong>Agent SDK</strong></td><td>@anthropic-ai/claude-agent-sdk</td></tr>
+        <tr><td><strong>Language</strong></td><td>TypeScript 5.7 throughout</td></tr>
+        <tr><td><strong>Testing</strong></td><td>Vitest 4 &mdash; 591 tests</td></tr>
+        <tr><td><strong>Monorepo</strong></td><td>pnpm workspaces (@synapse-ai/*)</td></tr>
+        <tr><td><strong>Linting</strong></td><td>ESLint 9, Prettier 3, Husky + lint-staged</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <hr>
+
+  <!-- Project Structure -->
+  <section>
+    <h2>Project Structure</h2>
+    <pre><code>Synapse/
+├── packages/
+│   ├── core/             # @synapse-ai/core &mdash; types, Zod schemas, format utils
+│   └── server/           # @synapse-ai/server &mdash; Express + sql.js + WebSocket
+├── apps/
+│   ├── dashboard/        # React 19 + React Flow v12 frontend
+│   └── vscode/           # VS Code extension (embedded dashboard)
+├── hooks/                # Claude Code hook scripts (zero dependencies)
+├── scripts/              # Build, simulation, and utility scripts
+└── docs/                 # Architecture, plans, and specs</code></pre>
+  </section>
+
+  <hr>
+
+  <!-- API -->
+  <section id="api">
+    <h2>API</h2>
+
+    <h3>Events</h3>
+    <pre><code>POST /api/events                         # Receive hook events
+GET  /api/events?sessionId=X&limit=100   # Query history</code></pre>
+
+    <h3>Agents</h3>
+    <pre><code>GET    /api/agents                  # List active agents
+POST   /api/agents/spawn            # Spawn new agent
+POST   /api/agents/:id/message      # Send message
+DELETE /api/agents/:id              # Stop agent
+GET    /api/agents/:id/transcript   # Get transcript</code></pre>
+
+    <h3>Permissions</h3>
+    <pre><code>GET  /api/permissions               # List pending permissions
+GET  /api/permissions/:id           # Get full permission detail
+POST /api/permissions/:id/respond   # Approve or deny</code></pre>
+
+    <h3>Analytics</h3>
+    <pre><code>GET /api/analytics/overview         # KPI summary
+GET /api/analytics/sessions         # Session breakdown
+GET /api/analytics/tools            # Tool usage stats
+GET /api/analytics/models           # Model comparison
+GET /api/analytics/turns            # Per-turn detail
+GET /api/analytics/velocity         # Tokens/min, cost/min
+GET /api/analytics/budget           # Budget tracking</code></pre>
+
+    <h3>WebSocket</h3>
+    <pre><code>WS /ws                              # Real-time event stream</code></pre>
+  </section>
+
+  <hr>
+
+  <!-- Configuration -->
+  <section>
+    <h2>Configuration</h2>
+    <table>
+      <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>ANTHROPIC_API_KEY</code></td><td>&mdash;</td><td>Spawning agents + Prompt Lab AI analysis</td></tr>
+        <tr><td><code>PORT</code></td><td><code>27246</code></td><td>Main server port</td></tr>
+        <tr><td><code>SYNAPSE_MAX_EVENTS</code></td><td>unlimited</td><td>Cap stored events</td></tr>
+      </tbody>
+    </table>
+    <p>The database lives at <code>packages/server/synapse.db</code> (auto-created, gitignored). Delete it to start fresh.</p>
+  </section>
+
+  <hr>
+
+  <!-- Known Limitations -->
+  <section>
+    <h2>Known Limitations</h2>
+    <p>Let's be honest with each other:</p>
+    <ul>
+      <li><strong>No authentication</strong> &mdash; Localhost only. Don't port-forward this unless you enjoy surprise visitors.</li>
+      <li><strong>WebSocket reconnect is loyal</strong> &mdash; If the server goes down, the client will try to reconnect. Forever. With exponential backoff. But also forever.</li>
+      <li><strong>Memory at scale</strong> &mdash; Long sessions with thousands of events accumulate in the Zustand store. If your agent tree looks like a fractal, refresh.</li>
+      <li><strong>Windows-first</strong> &mdash; Built on Windows, start scripts are PowerShell. <code>pnpm dev</code> works everywhere.</li>
+      <li><strong>AI features need an API key</strong> &mdash; Prompt Lab analysis and rewrite suggestions call the Anthropic API. Without a key, those degrade gracefully to rule-based analysis. We're exploring whether existing Claude subscriptions can be used instead.</li>
+    </ul>
+  </section>
+
+  <hr>
+
+  <!-- Roadmap -->
+  <section id="roadmap">
+    <h2>Roadmap</h2>
+    <p>What's done and what's next:</p>
+    <table>
+      <thead><tr><th>Phase</th><th>Status</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>Hardening</td><td class="status-done">&#10003;</td><td>Error boundaries, rate limiting, agent limits</td></tr>
+        <tr><td>Developer Experience</td><td class="status-done">&#10003;</td><td>ESLint, Prettier, Vitest, Husky, CI/CD</td></tr>
+        <tr><td>Monorepo</td><td class="status-done">&#10003;</td><td>5 packages, pnpm workspaces, @synapse-ai/*</td></tr>
+        <tr><td>Performance + UX</td><td class="status-done">&#10003;</td><td>Async I/O, react-virtuoso, URL deep linking</td></tr>
+        <tr><td>Mobile Responsive</td><td class="status-done">&#10003;</td><td>13 components, auto-detect, pinch zoom</td></tr>
+        <tr><td>Notifications</td><td class="status-done">&#10003;</td><td>Toast tray, push subscriptions, Service Worker</td></tr>
+        <tr><td>Guided Tour</td><td class="status-done">&#10003;</td><td>Auto-play demo + spotlight walkthrough</td></tr>
+        <tr><td>VS Code Extension</td><td class="status-done">&#10003;</td><td>v0.9.0 &mdash; 11 commands, split layout, embedded server</td></tr>
+        <tr><td>Analytics + Cost</td><td class="status-progress">WIP</td><td>Prompts + Insights tabs. More coming</td></tr>
+        <tr><td>Multi-Vendor</td><td class="status-progress">WIP</td><td>Claude working. Gemini + Codex adapters in progress</td></tr>
+        <tr><td>Remote Approval</td><td class="status-done">&#10003;</td><td>HTTP hooks, permission cards, web push</td></tr>
+        <tr><td>Standalone CLI</td><td class="status-planned">Planned</td><td><code>npx synapse</code> &mdash; zero-config, daemon mode</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <hr>
+
+  <!-- The Story -->
+  <section id="story">
+    <h2>The Story</h2>
+    <div class="story">
+      <p>I built this because I was curious. Claude Code does a <em>lot</em> of things when you're not looking &mdash; spawning subagents, calling tools, reading files, making decisions &mdash; and all you see is a blinking cursor. I wanted to see the machine think.</p>
+      <p>It started as a script that logged hook events to a terminal. Then I added a web UI. Then a node graph. Then I wanted to see the graph on my phone. Then I wanted to approve permissions from my phone. Then I wanted coaching on my prompts. Then I added arcade games because why not.</p>
+      <p>Ten development phases later, here we are. It's a prototype. It has rough edges. Some of those edges turned out to be features. I've been using it every day while building it &mdash; which means it's been tested in production &mdash; where "production" is defined as "my laptop at 2 AM."</p>
+      <p>If you're the kind of person who reads this far in a README, you're probably also the kind of person who wants to understand the machine. Not because you don't trust it, but because understanding is its own reward.</p>
+      <p>Also, it looks really cool. Let's not pretend that wasn't a factor.</p>
+    </div>
+  </section>
+
+  <hr>
+
+  <!-- License -->
+  <section>
+    <h2>License</h2>
+    <p>MIT &mdash; see <a href="./LICENSE">LICENSE</a></p>
+  </section>
+
+</div>
+
+<!-- Footer -->
+<footer class="footer">
+  <p>Built with curiosity, caffeine, and a mass amount of Claude.</p>
+  <p><em>If you're reading this, an AI agent might be watching you read this. Check the graph.</em></p>
+</footer>
+
+<script>
+  // Intersection Observer for fade-in animations
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.style.animationPlayState = 'running';
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.fade-in').forEach(el => {
+    el.style.animationPlayState = 'paused';
+    observer.observe(el);
+  });
+
+  // Build dot navigation from sections with ids
+  const toc = document.getElementById('toc');
+  const sections = document.querySelectorAll('section[id], .innovation[id]');
+  sections.forEach(sec => {
+    const dot = document.createElement('a');
+    dot.href = '#' + sec.id;
+    dot.title = sec.id.replace(/-/g, ' ');
+    toc.appendChild(dot);
+  });
+</script>
+
+</body>
+</html>

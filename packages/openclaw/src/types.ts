@@ -3,9 +3,10 @@
 
 // ─── OpenClaw Plugin Types ──────────────────────────────────────────
 
-/** Configuration validated by TypeBox schema */
+/** Plugin configuration (validated by JSON Schema in openclaw.plugin.json) */
 export interface SynapseConfig {
   port: number;
+  serverPath?: string;
   dbPath?: string;
   layers: {
     transcriptWatcher: boolean;
@@ -16,31 +17,11 @@ export interface SynapseConfig {
   watchPaths: string[];
 }
 
-/** OpenClaw plugin dependency injection */
-export interface PluginDeps {
-  logger: PluginLogger;
-  configDir: string;
-  workspaceDir: string;
-  rpc: unknown;
-}
-
 export interface PluginLogger {
   info(msg: string, ...args: unknown[]): void;
   warn(msg: string, ...args: unknown[]): void;
   error(msg: string, ...args: unknown[]): void;
   debug(msg: string, ...args: unknown[]): void;
-}
-
-/** OpenClaw tool definition returned from plugin init */
-export interface OpenClawTool {
-  name: string;
-  description: string;
-  parameters: {
-    type: 'object';
-    properties: Record<string, unknown>;
-    required?: string[];
-  };
-  execute: (params: Record<string, unknown>) => Promise<unknown>;
 }
 
 /** OpenClaw JSONL transcript line (approximate schema) */
@@ -69,7 +50,7 @@ export interface TranscriptContentBlock {
   tool_use_id?: string;
 }
 
-/** Model pricing per 1M tokens */
+/** Model pricing shape (used by ProviderWrapper) */
 export interface ModelPricing {
   input: number;
   output: number;

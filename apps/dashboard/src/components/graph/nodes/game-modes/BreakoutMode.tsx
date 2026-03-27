@@ -340,6 +340,7 @@ export function BreakoutMode({ tools, selectedNodeId, selectNode }: GameModeProp
 
           // Breakable only if success status
           if (brick.status === 'success') {
+            // eslint-disable-next-line react-hooks/immutability -- game loop: mutating ref-owned brick array
             brick.alive = false;
             // Spawn burst particles
             particlesRef.current.push(
@@ -396,6 +397,7 @@ export function BreakoutMode({ tools, selectedNodeId, selectNode }: GameModeProp
       // Particles
       drawParticles(ctx, particlesRef.current);
 
+      // eslint-disable-next-line react-hooks/immutability -- game loop: recursive rAF is standard pattern
       rafRef.current = requestAnimationFrame(tick);
     },
     [drawBrick],
@@ -495,6 +497,8 @@ export function BreakoutMode({ tools, selectedNodeId, selectNode }: GameModeProp
           width={CANVAS_W}
           height={CANVAS_H}
           className="cursor-pointer rounded"
+          role="img"
+          aria-label="Tool call breakout game"
           onClick={handleClick}
           onMouseMove={handleMove}
           onMouseLeave={handleLeave}

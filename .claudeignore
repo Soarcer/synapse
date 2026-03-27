@@ -1,0 +1,28 @@
+# Build artifacts
+dist/
+apps/dashboard/dist/
+apps/vscode/out/
+apps/vscode/resources/synapse-server/server.mjs
+apps/vscode/resources/synapse-server/dashboard/
+
+# VS Code extension packages
+*.vsix
+
+# Binary/media files
+*.psd
+*.zip
+
+# Logs and temp files
+*.log
+hook_debug.log
+hook_response_debug.log
+c:WorkspaceCodingPrototypesSynapsetmp_events.json
+
+# Old artifacts
+distribution/
+
+# Release builds
+release/
+
+# Dependencies
+node_modules/

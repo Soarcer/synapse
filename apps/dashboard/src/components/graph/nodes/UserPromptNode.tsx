@@ -81,15 +81,36 @@ function UserPromptNodeComponent({ data }: NodeProps) {
 
   // Merge: prefer transcript data, fall back to hook-derived responses
   const displayResponseText = transcriptGroup?.responseText ?? responses[0]?.text ?? null;
-  const displayResponseCount = transcriptGroup?.turns.length ?? responses.length;
+  const displayResponseCount = Math.max(transcriptGroup?.turns.length ?? 0, responses.length);
   const isExpanded = useAgentStore((s) => s.expandedTurns.has(nodeId));
   const toggleTurnExpanded = useAgentStore((s) => s.toggleTurnExpanded);
+  const selectNode = useAgentStore((s) => s.selectNode);
   const handleToggleExpand = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
       toggleTurnExpanded(nodeId);
     },
     [toggleTurnExpanded, nodeId],
+  );
+
+  // Expand turn + zoom to response node
+  const handleResponseClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (lastResponse) {
+        // Ensure the turn is expanded so the response node gets created
+        if (!isExpanded) {
+          toggleTurnExpanded(nodeId);
+        }
+        // Delay zoom to let the graph create the response node
+        setTimeout(() => {
+          selectNode(`response-${lastResponse.id}`, 'lens');
+        }, 150);
+      } else {
+        toggleTurnExpanded(nodeId);
+      }
+    },
+    [lastResponse, isExpanded, selectNode, toggleTurnExpanded, nodeId],
   );
 
   const { inputTokens, outputTokens, agentCount, toolCount } = useMemo(() => {
@@ -194,12 +215,20 @@ function UserPromptNodeComponent({ data }: NodeProps) {
 
       {/* Assistant response section — always visible, chevron toggles expand/collapse */}
       {displayResponseText && (
-        <Tooltip content={isExpanded ? 'Click to collapse' : 'Click to expand response chain'}>
+        <Tooltip
+          content={
+            lastResponse
+              ? 'Click to zoom to response'
+              : isExpanded
+                ? 'Click to collapse'
+                : 'Click to expand response chain'
+          }
+        >
           <div
             className={`relative mt-1.5 pt-1.5 border-t border-blue-500/30 -mx-3 -mb-2 px-3 pb-2 rounded-b-lg cursor-pointer hover:brightness-125 transition-[filter] ${
               isExpanded ? 'bg-blue-900/30' : 'bg-blue-900/20'
             }`}
-            onClick={handleToggleExpand}
+            onClick={handleResponseClick}
           >
             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-blue-300/50 text-[11px] font-bold pointer-events-none">
               {isExpanded ? '\u25BE' : '>'}

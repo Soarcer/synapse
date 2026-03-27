@@ -1,0 +1,58 @@
+{
+  "id": "synapse-monitor",
+  "name": "Synapse — AI Monitor",
+  "description": "Real-time AI agent monitoring dashboard for OpenClaw",
+  "version": "0.2.0",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "port": {
+        "type": "number",
+        "default": 27246,
+        "description": "Dashboard server port"
+      },
+      "serverPath": {
+        "type": "string",
+        "description": "Path to pre-built server .mjs (default: bundled dist/synapse-server.mjs)"
+      },
+      "dbPath": {
+        "type": "string",
+        "description": "SQLite database path (default: plugin data dir)"
+      },
+      "layers": {
+        "type": "object",
+        "properties": {
+          "transcriptWatcher": {
+            "type": "boolean",
+            "default": true,
+            "description": "Watch JSONL transcripts for events"
+          },
+          "agentTools": {
+            "type": "boolean",
+            "default": true,
+            "description": "Register synapse_query/metrics/dashboard tools"
+          },
+          "providerWrapper": {
+            "type": "boolean",
+            "default": false,
+            "description": "Wrap providers for deep monitoring"
+          }
+        },
+        "additionalProperties": false
+      },
+      "wrappedProviders": {
+        "type": "array",
+        "items": { "type": "string" },
+        "default": [],
+        "description": "Provider IDs to wrap when providerWrapper is true"
+      },
+      "watchPaths": {
+        "type": "array",
+        "items": { "type": "string" },
+        "default": [],
+        "description": "Additional directories to watch for JSONL transcripts"
+      }
+    },
+    "additionalProperties": false
+  }
+}

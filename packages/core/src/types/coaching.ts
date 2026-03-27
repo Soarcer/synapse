@@ -92,6 +92,11 @@ export interface NudgeCandidate {
 
 // ─── Session Accumulator ─────────────────────────────────────────
 
+/**
+ * In-memory runtime accumulator — NOT safe for JSON serialization.
+ * Map and Set fields are silently dropped by JSON.stringify().
+ * Do not persist this type directly; build a serializable summary instead.
+ */
 export interface SessionAccumulator {
   sessionId: string;
   startTime: number;

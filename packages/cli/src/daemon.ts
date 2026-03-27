@@ -6,8 +6,9 @@
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import http from 'http';
-import { SYNAPSE_PORT } from '@synapse-ai/core';
+import { SYNAPSE_PORT } from '@synapse-ai/core/config';
 import {
   SYNAPSE_HOME,
   GLOBAL_PID_FILE,
@@ -37,6 +38,23 @@ function cleanupFiles(): void {
     fs.unlinkSync(GLOBAL_PID_FILE);
   } catch {
     /* ok */
+  }
+}
+
+/** Remove relay file, offset file, and circuit breaker from $TEMP. */
+function cleanupRelayFiles(port: number): void {
+  const tmpDir = os.tmpdir();
+  const files = [
+    path.join(tmpDir, `synapse_relay_${port}.jsonl`),
+    path.join(tmpDir, `synapse_relay_offset_${port}.json`),
+    path.join(tmpDir, `synapse_cb_${port}.json`),
+  ];
+  for (const f of files) {
+    try {
+      fs.unlinkSync(f);
+    } catch {
+      /* ok — may not exist */
+    }
   }
 }
 
@@ -92,17 +110,27 @@ export interface StartOptions {
   port?: number;
   background?: boolean;
   open?: boolean;
+  lan?: boolean;
 }
 
 export async function start(opts: StartOptions = {}): Promise<number> {
   const preferredPort = opts.port ?? 27246;
 
-  // Check if already running
+  // Check if already running (PID file or health check on the port)
   const current = await status();
   if (current.running && current.port) {
     console.log(`\nSynapse already running  →  http://localhost:${current.port}`);
     console.log(`Run "synapse open" to open the dashboard.\n`);
     return current.port;
+  }
+
+  // No PID file, but port might be held by a dev server or another instance.
+  // Health-check the port directly — if a Synapse server is there, just reuse it.
+  const portAlive = await healthCheck(preferredPort);
+  if (portAlive) {
+    console.log(`\nSynapse server detected on port ${preferredPort} (not started by CLI)`);
+    console.log(`Hooking this project to the existing server.\n`);
+    return preferredPort;
   }
 
   // Clean up stale state
@@ -114,9 +142,11 @@ export async function start(opts: StartOptions = {}): Promise<number> {
     process.exit(1);
   }
 
+  const host = opts.lan ? '0.0.0.0' : '127.0.0.1';
+
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
-    HOST: 'localhost',
+    HOST: host,
     SYNAPSE_PORT: String(preferredPort),
     NODE_ENV: 'production',
     SYNAPSE_DB_PATH: GLOBAL_DB_PATH,
@@ -149,6 +179,9 @@ export async function start(opts: StartOptions = {}): Promise<number> {
     const actualPort = await waitForServer(preferredPort, 10_000);
 
     console.log(`\nSynapse started (PID ${child.pid})`);
+    if (opts.lan) {
+      console.log(`  Network: LAN-accessible (0.0.0.0) — other devices can reach this server`);
+    }
     console.log(`Logs: ${path.join(SYNAPSE_HOME, 'server.log')}\n`);
     return actualPort;
   } else {
@@ -185,6 +218,9 @@ export async function start(opts: StartOptions = {}): Promise<number> {
     const actualPort = await waitForServer(preferredPort, 10_000);
 
     console.log(`Synapse running on http://localhost:${actualPort}`);
+    if (opts.lan) {
+      console.log(`  Network: LAN-accessible (0.0.0.0) — other devices can reach this server`);
+    }
     return actualPort;
   }
 }
@@ -201,6 +237,7 @@ export async function stop(): Promise<void> {
   if (!isProcessAlive(pid)) {
     console.log('Stale PID file — cleaning up');
     cleanupFiles();
+    cleanupRelayFiles(SYNAPSE_PORT);
     return;
   }
 
@@ -211,6 +248,7 @@ export async function stop(): Promise<void> {
   } catch {
     console.error(`Could not stop process ${pid}`);
     cleanupFiles();
+    cleanupRelayFiles(SYNAPSE_PORT);
     return;
   }
 
@@ -219,18 +257,25 @@ export async function stop(): Promise<void> {
     await new Promise((r) => setTimeout(r, 500));
     if (!isProcessAlive(pid)) {
       cleanupFiles();
+      cleanupRelayFiles(SYNAPSE_PORT);
       console.log('Synapse stopped');
       return;
     }
   }
 
-  // Force kill
+  // Force kill — use taskkill on Windows where SIGKILL is a no-op
   try {
-    process.kill(pid, 'SIGKILL');
+    if (process.platform === 'win32') {
+      const { spawnSync } = await import('child_process');
+      spawnSync('taskkill', ['/F', '/T', '/PID', String(pid)], { stdio: 'ignore' });
+    } else {
+      process.kill(pid, 'SIGKILL');
+    }
   } catch {
     /* already gone */
   }
   cleanupFiles();
+  cleanupRelayFiles(SYNAPSE_PORT);
   console.log('Synapse force-stopped');
 }
 

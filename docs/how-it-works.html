@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How Synapse Works — Under the Hood</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg-primary: #0d1117;
+    --bg-secondary: #161b22;
+    --bg-tertiary: #1c2128;
+    --bg-card: #21262d;
+    --border: #30363d;
+    --border-accent: #3d444d;
+    --text-primary: #e6edf3;
+    --text-secondary: #8b949e;
+    --text-muted: #6e7681;
+    --accent-blue: #58a6ff;
+    --accent-green: #3fb950;
+    --accent-purple: #bc8cff;
+    --accent-orange: #d29922;
+    --accent-red: #f85149;
+    --accent-cyan: #39d2c0;
+    --code-bg: #1a1f27;
+    --link: #58a6ff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; scrollbar-width: thin; scrollbar-color: var(--border) var(--bg-primary); }
+  body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg-primary); color: var(--text-primary); line-height: 1.75; font-size: 16px; }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: var(--bg-primary); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .container { max-width: 780px; margin: 0 auto; padding: 0 24px; }
+
+  /* Header */
+  .page-header {
+    text-align: center;
+    padding: 64px 24px 32px;
+    position: relative;
+  }
+  .page-header::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 300px;
+    background: radial-gradient(ellipse 60% 50% at 50% 0%, rgba(88, 166, 255, 0.06), transparent);
+    pointer-events: none;
+  }
+  .page-header h1 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .page-header .subtitle {
+    font-size: 1rem;
+    color: var(--text-secondary);
+  }
+  .page-header .back-link {
+    display: inline-block;
+    margin-top: 16px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    text-decoration: none;
+  }
+  .page-header .back-link:hover { color: var(--accent-blue); }
+
+  hr { border: none; border-top: 1px solid var(--border); margin: 48px 0; }
+
+  h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--border);
+    color: var(--text-primary);
+  }
+
+  h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-top: 32px;
+    margin-bottom: 12px;
+    color: var(--accent-blue);
+  }
+
+  p { margin-bottom: 16px; color: var(--text-secondary); }
+  strong { color: var(--text-primary); font-weight: 600; }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.84em;
+    background: var(--code-bg);
+    padding: 2px 7px;
+    border-radius: 4px;
+    color: var(--accent-cyan);
+    border: 1px solid var(--border);
+  }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+    overflow-x: auto;
+    margin: 16px 0;
+    position: relative;
+  }
+  pre code {
+    background: none; padding: 0; border: none;
+    font-size: 0.82rem; color: var(--text-secondary); line-height: 1.6;
+  }
+  pre .lang-label {
+    position: absolute; top: 8px; right: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.1em;
+  }
+
+  /* Diagram blocks */
+  .diagram {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 28px 24px;
+    margin: 24px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    line-height: 1.55;
+    color: var(--text-secondary);
+    white-space: pre;
+    overflow-x: auto;
+    position: relative;
+  }
+  .diagram-label {
+    position: absolute; top: 10px; right: 14px;
+    font-size: 0.65rem; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.1em;
+  }
+
+  /* Callout boxes */
+  .callout {
+    border-left: 3px solid var(--accent-blue);
+    padding: 14px 20px;
+    margin: 20px 0;
+    background: rgba(88, 166, 255, 0.04);
+    border-radius: 0 8px 8px 0;
+    font-size: 0.92rem;
+  }
+  .callout.warn { border-left-color: var(--accent-orange); background: rgba(210, 153, 34, 0.04); }
+  .callout.good { border-left-color: var(--accent-green); background: rgba(63, 185, 80, 0.04); }
+  .callout strong { color: var(--accent-blue); }
+  .callout.warn strong { color: var(--accent-orange); }
+  .callout.good strong { color: var(--accent-green); }
+
+  /* Info table */
+  table {
+    width: 100%; border-collapse: collapse; margin: 16px 0;
+    font-size: 0.88rem; border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+  }
+  thead { background: var(--bg-tertiary); }
+  th {
+    text-align: left; padding: 10px 14px; font-weight: 600;
+    color: var(--text-primary); border-bottom: 2px solid var(--border);
+    font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  td { padding: 9px 14px; border-bottom: 1px solid var(--border); color: var(--text-secondary); }
+  tr:last-child td { border-bottom: none; }
+
+  /* Section card */
+  .section-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    margin: 24px 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .section-card::before {
+    content: ''; position: absolute; top: 0; left: 0;
+    width: 3px; height: 100%; background: var(--accent-blue);
+  }
+  .section-card:nth-child(even)::before { background: var(--accent-purple); }
+  .section-card:nth-child(3n)::before { background: var(--accent-cyan); }
+  .section-card h3 { margin-top: 0; }
+  .section-card p:last-child { margin-bottom: 0; }
+
+  ul, ol { margin: 12px 0; padding-left: 24px; }
+  li { margin-bottom: 6px; color: var(--text-secondary); line-height: 1.7; }
+  li strong { color: var(--text-primary); }
+
+  /* Port badge */
+  .port {
+    display: inline-block; padding: 1px 8px; border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.82em; font-weight: 600;
+    background: rgba(88, 166, 255, 0.12); color: var(--accent-blue);
+    border: 1px solid rgba(88, 166, 255, 0.25);
+  }
+
+  .footer {
+    text-align: center; padding: 48px 24px 64px;
+    color: var(--text-muted); font-size: 0.85rem;
+  }
+
+  @media (max-width: 640px) {
+    .page-header { padding: 40px 16px 24px; }
+    .page-header h1 { font-size: 1.4rem; }
+    .container { padding: 0 16px; }
+    .section-card { padding: 20px; }
+    .diagram { font-size: 0.68rem; padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="page-header">
+  <h1>How Synapse Works</h1>
+  <div class="subtitle">Hooks, servers, ports, and the glue between them</div>
+  <a href="./readme-preview.html" class="back-link">&larr; Back to README</a>
+</header>
+
+<div class="container">
+
+  <hr>
+
+  <!-- THE BIG PICTURE -->
+  <section>
+    <h2>The Big Picture</h2>
+
+    <p>Synapse is a parasite. A friendly one. It attaches to your Claude Code session via <strong>hook scripts</strong>, silently captures every event, and pipes them to a local server that your browser connects to. Claude Code doesn't know Synapse exists. It just thinks it's running hooks.</p>
+
+    <p>Three moving parts. That's it.</p>
+
+    <div class="diagram"><span class="diagram-label">architecture</span>
+┌──────────────────┐     stdin (JSON)      ┌──────────────────┐
+│                  │ ───────────────────▶  │                  │
+│   Claude Code    │                       │   Hook Script    │
+│   (your session) │  HTTP hook (blocks)   │   send_event.cjs │
+│                  │ ◀─────────────────── │                  │
+└──────────────────┘                       └────────┬─────────┘
+                                                    │
+                                              POST /api/events
+                                              (fire &amp; forget)
+                                                    │
+                                                    ▼
+┌───────────────────────────────────────────────────────────────┐
+│                    Synapse Server :27246                       │
+│                                                               │
+│   ┌─────────────┐   ┌──────────────┐   ┌──────────────────┐  │
+│   │ Event Router │──▶│ SQLite Store  │──▶│ WS Broadcaster   │  │
+│   │ + Adapters   │   │ (sql.js)     │   │ (real-time push) │  │
+│   └─────────────┘   └──────────────┘   └────────┬─────────┘  │
+│                                                  │            │
+│   ┌──────────────────────────────────────────┐   │            │
+│   │ Permission Server :27247                 │   │            │
+│   │ (holds HTTP response until user decides) │   │            │
+│   └──────────────────────────────────────────┘   │            │
+└──────────────────────────────────────────────────┼────────────┘
+                                                   │
+                                              WebSocket
+                                                   │
+                              ┌─────────────────────┼──────────────────┐
+                              ▼                     ▼                  ▼
+                     ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+                     │  VS Code     │    │  Browser     │    │  Phone       │
+                     │  WebView     │    │  localhost    │    │  PWA         │
+                     └──────────────┘    └──────────────┘    └──────────────┘</div>
+
+    <p><strong>The flow:</strong> Claude Code fires a hook &rarr; hook script reads JSON from stdin &rarr; POSTs it to the server &rarr; server normalizes, stores, broadcasts &rarr; dashboard renders it as a node in the graph. Total latency: under 50ms.</p>
+  </section>
+
+  <hr>
+
+  <!-- HOOKS -->
+  <section>
+    <h2>Part 1: The Hooks</h2>
+
+    <p>Claude Code has a <a href="https://docs.anthropic.com/en/docs/claude-code/hooks">hooks system</a>. You register scripts in <code>.claude/settings.local.json</code>, and Claude Code runs them at specific lifecycle moments &mdash; session start, tool calls, permission requests, context compaction, etc.</p>
+
+    <p>Synapse registers <strong>two types of hooks</strong> per event:</p>
+
+    <div class="section-card">
+      <h3>Command Hooks (fire-and-forget)</h3>
+      <p>Claude Code pipes the event as JSON to <strong>stdin</strong>. The hook script reads it and POSTs to the Synapse server. Three-second timeout. Always exits 0. If the server is down, the event is silently dropped &mdash; Claude Code never notices.</p>
+      <pre><code>// hooks/send_event.cjs — the entire logic
+const data = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf8'));
+const url = discoverPort();  // .synapse-port → ~/.synapse/port → default
+http.request(url, { method: 'POST', timeout: 3000 }, () =&gt; {}).end(JSON.stringify(data));</code></pre>
+      <p>Zero dependencies. Pure Node.js. Runs in the same process as Claude Code's hook executor.</p>
+    </div>
+
+    <div class="section-card">
+      <h3>HTTP Hooks (bidirectional &mdash; permissions only)</h3>
+      <p>This is the clever part. For <code>PermissionRequest</code> events, Claude Code supports <strong>HTTP hooks</strong> &mdash; it POSTs to a URL and <em>waits for the response</em>. Synapse holds that response open until you approve or deny from the dashboard. Claude Code just... sits there, blocking, until you decide.</p>
+      <pre><code>// In .claude/settings.local.json
+"PermissionRequest": [{
+  "hooks": [
+    { "type": "command", "command": "node hooks/send_event.cjs" },
+    { "type": "http", "url": "http://localhost:27247/api/hooks/permission", "timeout": 1800 }
+  ]
+}]</code></pre>
+      <p>The command hook captures the event for the dashboard. The HTTP hook blocks Claude Code until you respond. Two hooks, one event, two different purposes.</p>
+    </div>
+
+    <h3>What Gets Hooked</h3>
+
+    <table>
+      <thead><tr><th>Event</th><th>When It Fires</th><th>Type</th></tr></thead>
+      <tbody>
+        <tr><td><code>SessionStart</code></td><td>Claude Code session begins</td><td>command</td></tr>
+        <tr><td><code>SessionEnd</code></td><td>Session closes</td><td>command</td></tr>
+        <tr><td><code>UserPromptSubmit</code></td><td>You send a prompt</td><td>command</td></tr>
+        <tr><td><code>SubagentStart</code></td><td>A subagent spawns</td><td>command</td></tr>
+        <tr><td><code>SubagentStop</code></td><td>A subagent finishes</td><td>command</td></tr>
+        <tr><td><code>PreToolUse</code></td><td>Before a tool runs</td><td>command (async)</td></tr>
+        <tr><td><code>PostToolUse</code></td><td>After a tool succeeds</td><td>command (async)</td></tr>
+        <tr><td><code>PostToolUseFailure</code></td><td>After a tool fails</td><td>command (async)</td></tr>
+        <tr><td><code>PermissionRequest</code></td><td>Claude needs approval</td><td>command + HTTP</td></tr>
+        <tr><td><code>Notification</code></td><td>Claude sends a notification</td><td>command (async)</td></tr>
+        <tr><td><code>PreCompact</code></td><td>Context window compaction</td><td>command (async)</td></tr>
+        <tr><td><code>Stop</code></td><td>Session interrupted</td><td>command</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>Why <code>settings.local.json</code>?</strong> Because it's gitignored. Your Synapse hooks are local to your machine &mdash; they don't pollute the shared <code>settings.json</code> that your team checks in.
+    </div>
+  </section>
+
+  <hr>
+
+  <!-- THE SERVER -->
+  <section>
+    <h2>Part 2: The Server</h2>
+
+    <p>One Node.js process. Two HTTP servers. One WebSocket. One SQLite database. No external services.</p>
+
+    <h3>Main Server &mdash; <span class="port">:27246</span></h3>
+
+    <p>Express 5. Handles everything except permission blocking:</p>
+
+    <ul>
+      <li><strong><code>POST /api/events</code></strong> &mdash; Hook scripts send events here. The server runs them through an <strong>adapter registry</strong> (Claude, Gemini, or Codex adapter), deduplicates within a 2-second window, persists to SQLite, and broadcasts to all connected dashboards via WebSocket.</li>
+      <li><strong><code>GET /api/events</code></strong> &mdash; Query stored events. Filter by session, agent, type, time range, project directory.</li>
+      <li><strong><code>/api/agents/*</code></strong> &mdash; Spawn, message, stop, and inspect agents via the Claude Agent SDK.</li>
+      <li><strong><code>/api/permissions/*</code></strong> &mdash; List pending permissions, submit approve/deny decisions.</li>
+      <li><strong><code>/api/analytics/*</code></strong> &mdash; Aggregated stats &mdash; KPIs, session breakdowns, tool usage, cost tracking.</li>
+      <li><strong><code>WS /ws</code></strong> &mdash; Real-time event stream to the dashboard. Heartbeat every 30s. Backpressure detection &mdash; if a client falls behind (>64KB buffered), it gets a <code>stale</code> signal to trigger a full reload.</li>
+    </ul>
+
+    <h3>Permission Server &mdash; <span class="port">:27247</span></h3>
+
+    <p>Separate HTTP server, single endpoint. This is the one that makes remote approval work.</p>
+
+    <div class="diagram"><span class="diagram-label">permission flow</span>
+Claude Code                  Hook Server :27247              Dashboard
+    │                              │                            │
+    │  POST /api/hooks/permission  │                            │
+    │ ────────────────────────────▶│                            │
+    │                              │  WS: pendingPermission     │
+    │      (HTTP response held     │ ──────────────────────────▶│
+    │       open... waiting...)    │                            │
+    │                              │                            │  User taps
+    │                              │  POST /api/permissions/    │  "Approve"
+    │                              │  {id}/respond              │
+    │                              │ ◀──────────────────────────│
+    │  200 OK { decision: allow }  │                            │
+    │ ◀────────────────────────────│                            │
+    │                              │                            │
+    │  (Claude Code resumes)       │                            │</div>
+
+    <p>The response shape matters. Claude Code expects a specific format:</p>
+
+    <pre><code>{
+  "hookSpecificOutput": {
+    "hookEventName": "PermissionRequest",
+    "decision": {
+      "behavior": "allow"    // or "deny"
+      "message": "..."       // optional context for deny
+    }
+  }
+}</code></pre>
+
+    <div class="callout warn">
+      <strong>30-minute timeout.</strong> If nobody responds, the permission auto-denies. Rate-limited to 60 requests/minute to prevent runaway agent loops from flooding the queue.
+    </div>
+
+    <h3>SQLite &mdash; Pure JavaScript</h3>
+
+    <p>We use <code>sql.js</code> instead of <code>better-sqlite3</code>. No C bindings. No WASM file. No native compilation step. It's slower, but it installs on every platform without a compiler, which matters when you're shipping a VS Code extension to people who may not have build tools.</p>
+
+    <p>The database lives at <code>packages/server/synapse.db</code> (or <code>~/.synapse/synapse.db</code> in daemon mode). Delete it to start fresh. Persistence is debounced &mdash; after each write, the in-memory database exports to disk on a 500ms delay.</p>
+
+    <h3>Adapter Registry</h3>
+
+    <p>Not all hook events look the same. Claude Code, Gemini CLI, and Codex CLI each have their own event format. The adapter registry normalizes them:</p>
+
+    <table>
+      <thead><tr><th>Adapter</th><th>Detects By</th><th>Input Format</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Codex</strong></td><td><code>codex_source</code> field</td><td>JSON from CLI arg (not stdin)</td></tr>
+        <tr><td><strong>Gemini</strong></td><td>Gemini-specific hook fields</td><td>JSON from stdin</td></tr>
+        <tr><td><strong>Claude</strong></td><td><code>hook_event_name</code> (catch-all)</td><td>JSON from stdin</td></tr>
+      </tbody>
+    </table>
+
+    <p>First match wins. Every adapter outputs the same <code>AgentEvent</code> type, so the rest of the pipeline &mdash; storage, broadcasting, rendering &mdash; doesn't care which vendor generated the event.</p>
+  </section>
+
+  <hr>
+
+  <!-- PORT DISCOVERY -->
+  <section>
+    <h2>Part 3: Finding the Server</h2>
+
+    <p>The hook scripts need to know where to POST events. The server might be on port 27246, or 27247, or 27266 because 20 other things were already running. So Synapse uses a <strong>port file</strong> system:</p>
+
+    <div class="section-card">
+      <h3>Port Discovery Chain</h3>
+      <p>When a hook script fires, it checks these locations in order:</p>
+      <ol>
+        <li><strong><code>SYNAPSE_URL</code></strong> env var &mdash; full URL override (rare)</li>
+        <li><strong><code>.claude/.synapse-port</code></strong> &mdash; project-local file, written by CLI or VS Code extension when it starts</li>
+        <li><strong><code>~/.synapse/port</code></strong> &mdash; global daemon port, written by <code>synapse start</code> or VS Code</li>
+        <li><strong>Default</strong> &mdash; <code>http://localhost:4000/api/events</code> (fallback, rarely hit)</li>
+      </ol>
+    </div>
+
+    <p>When the server starts, it tries port 27246. If that's busy, it increments and tries up to 20 ports. Whatever port it lands on gets written to the port files. The hook scripts read it at runtime. No hardcoded ports anywhere in the hook configuration.</p>
+
+    <div class="callout good">
+      <strong>This means you can run multiple instances.</strong> VS Code with one project on :27246, CLI daemon for another on :27247. Each project's <code>.synapse-port</code> file points to the right server. Hook scripts just read the file and POST.
+    </div>
+  </section>
+
+  <hr>
+
+  <!-- TWO MODES -->
+  <section>
+    <h2>Part 4: VS Code vs. CLI</h2>
+
+    <p>Same server. Same dashboard. Different packaging.</p>
+
+    <div class="section-card">
+      <h3>VS Code Extension</h3>
+      <p>The extension bundles the server as a single <code>server.mjs</code> file (esbuild, ESM). On activation:</p>
+      <ol>
+        <li>Check if a daemon is already running (<code>~/.synapse/port</code> + health check)</li>
+        <li>If yes &rarr; attach to it. Don't start a new one, don't stop it on deactivate.</li>
+        <li>If no &rarr; spawn <code>node resources/synapse-server/server.mjs</code> as a child process</li>
+        <li>Read <code>SYNAPSE_PORT=NNNN</code> from stdout to learn the actual port</li>
+        <li>Write port to <code>.claude/.synapse-port</code> and <code>~/.synapse/port</code></li>
+        <li>Configure hooks in <code>.claude/settings.local.json</code> (absolute paths to bundled hook scripts)</li>
+        <li>Open dashboard in a webview panel</li>
+      </ol>
+      <p>When VS Code closes, the child process dies with it. No orphaned servers.</p>
+    </div>
+
+    <div class="section-card">
+      <h3>CLI (<code>synapse start</code>)</h3>
+      <p>The CLI builds into a standalone npm package with the server, dashboard assets, and hook scripts bundled in.</p>
+      <ol>
+        <li><code>synapse start</code> &mdash; start server, auto-scan for free port, configure hooks for current project</li>
+        <li><code>synapse start --bg</code> &mdash; detach as background daemon. PID written to <code>~/.synapse/pid</code></li>
+        <li><code>synapse stop</code> &mdash; graceful SIGTERM with 10-second force-kill fallback</li>
+        <li><code>synapse status</code> &mdash; check if running, print dashboard URL</li>
+        <li><code>synapse hook</code> / <code>synapse unhook</code> &mdash; add or remove hooks for any project directory</li>
+      </ol>
+      <p>One daemon can serve multiple projects. Each project gets its own hook config pointing to the shared server. Events are tagged with <code>cwd</code> so the dashboard can filter by project.</p>
+    </div>
+
+    <p>Both modes write to the same port files. If you start the CLI daemon first, then open VS Code, the extension will detect the daemon and attach to it instead of spawning its own server. One server, however many clients you want.</p>
+  </section>
+
+  <hr>
+
+  <!-- WEBSOCKET -->
+  <section>
+    <h2>Part 5: The Dashboard Connection</h2>
+
+    <p>The dashboard connects via WebSocket to <code>ws://localhost:{port}/ws</code>. On connect:</p>
+
+    <ol>
+      <li>Server sends a <code>connected</code> message with the list of active agents</li>
+      <li>Dashboard fetches recent events via <code>GET /api/events?limit=2000</code> to hydrate the graph</li>
+      <li>From then on, new events arrive as WebSocket messages in real-time</li>
+    </ol>
+
+    <h3>Message Types</h3>
+
+    <table>
+      <thead><tr><th>Type</th><th>Direction</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>connected</code></td><td>server &rarr; client</td><td>Initial handshake, active agents list</td></tr>
+        <tr><td><code>event</code></td><td>server &rarr; client</td><td>Normalized <code>AgentEvent</code> (the main data)</td></tr>
+        <tr><td><code>pendingPermission</code></td><td>server &rarr; client</td><td>Permission card should appear</td></tr>
+        <tr><td><code>permissionResolved</code></td><td>server &rarr; client</td><td>Permission was approved/denied</td></tr>
+        <tr><td><code>agent_text</code></td><td>server &rarr; client</td><td>Streamed agent output (spawned agents)</td></tr>
+        <tr><td><code>stale</code></td><td>server &rarr; client</td><td>Client fell behind &mdash; reload everything</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      <strong>Backpressure.</strong> If a client's WebSocket buffer exceeds 64KB (slow network, big burst of events), the server stops sending and marks it stale. When the buffer drains, it sends a <code>stale</code> signal. The dashboard responds by fetching all events fresh from the HTTP API. No lost events, just a brief pause.
+    </div>
+
+    <p>Heartbeat pings every 30 seconds. If a client doesn't respond, it gets disconnected. On mobile (iOS Safari is particularly aggressive about killing background WebSockets), the dashboard auto-reconnects with exponential backoff. If it was stale, it rehydrates. The user sees a brief "reconnecting..." indicator and then everything's back.</p>
+  </section>
+
+  <hr>
+
+  <!-- PUTTING IT ALL TOGETHER -->
+  <section>
+    <h2>Putting It All Together</h2>
+
+    <p>Here's what happens when you type a prompt in Claude Code and an agent calls a tool:</p>
+
+    <div class="diagram"><span class="diagram-label">event lifecycle</span>
+ You type "refactor the auth module"
+  │
+  ▼
+ Claude Code fires UserPromptSubmit hook
+  │
+  ├─▶ send_event.cjs reads stdin JSON
+  │   └─▶ POST localhost:27246/api/events
+  │       └─▶ ClaudeAdapter.normalize() → AgentEvent
+  │           └─▶ SQLite INSERT + WS broadcast
+  │               └─▶ Dashboard: new "prompt" node appears
+  │
+  ▼
+ Claude spawns a subagent → SubagentStart hook
+  │   └─▶ (same flow) → Dashboard: new "agent" node, edge animates in
+  │
+  ▼
+ Agent calls Read tool → PreToolUse hook (async)
+  │   └─▶ Dashboard: tool node appears in "running" state
+  │
+  ▼
+ Read succeeds → PostToolUse hook (async)
+  │   └─▶ Dashboard: tool node turns green, duration badge updates
+  │
+  ▼
+ Agent needs to write a file → PermissionRequest hook
+  │
+  ├─▶ send_event.cjs → event captured for dashboard
+  │
+  └─▶ HTTP hook → POST localhost:27247/api/hooks/permission
+      │   (Claude Code blocks here)
+      │
+      └─▶ Server holds response, broadcasts pendingPermission
+          └─▶ Dashboard: permission card appears
+              Phone: push notification fires
+              │
+              ▼
+          You tap "Approve" on your phone
+              │
+              └─▶ POST /api/permissions/{id}/respond
+                  └─▶ Server resolves held HTTP response
+                      └─▶ Claude Code resumes writing the file</div>
+
+    <p>Every step produces an event. Every event becomes a node or updates a node. The graph is a real-time mirror of what Claude is actually doing.</p>
+  </section>
+
+  <hr>
+
+  <!-- PORT REFERENCE -->
+  <section>
+    <h2>Quick Reference</h2>
+
+    <table>
+      <thead><tr><th>Component</th><th>Default Port</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>Synapse Server</td><td><span class="port">:27246</span></td><td>Events, agents, analytics, WebSocket, dashboard</td></tr>
+        <tr><td>Permission Server</td><td><span class="port">:27247</span></td><td>Bidirectional HTTP hooks (holds response open)</td></tr>
+        <tr><td>Vite Dev Server</td><td><span class="port">:5173</span></td><td>Dashboard frontend (dev mode only)</td></tr>
+      </tbody>
+    </table>
+
+    <table>
+      <thead><tr><th>File</th><th>Location</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>.synapse-port</code></td><td><code>.claude/</code> (per-project)</td><td>Hook scripts read this to find the server</td></tr>
+        <tr><td><code>port</code></td><td><code>~/.synapse/</code></td><td>Global daemon port (CLI or VS Code)</td></tr>
+        <tr><td><code>pid</code></td><td><code>~/.synapse/</code></td><td>Daemon process ID (CLI background mode)</td></tr>
+        <tr><td><code>synapse.db</code></td><td><code>~/.synapse/</code> or <code>packages/server/</code></td><td>SQLite event store</td></tr>
+        <tr><td><code>settings.local.json</code></td><td><code>.claude/</code> (per-project)</td><td>Hook configuration (gitignored)</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+</div>
+
+<footer class="footer">
+  <p>Part of the <a href="./readme-preview.html">Synapse</a> documentation.</p>
+  <p><em>Now you know where the sausage gets made.</em></p>
+</footer>
+
+</body>
+</html>

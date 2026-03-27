@@ -259,9 +259,13 @@ function findPrefixMatch(prices: PricePoint[], normalizedModel: string): PricePo
   let best: PricePoint | undefined;
   for (const p of prices) {
     const key = p.model.toLowerCase();
-    if (normalizedModel.startsWith(key) && (!best || key.length > best.model.length)) {
-      best = p;
-    }
+    if (!normalizedModel.startsWith(key)) continue;
+    const suffix = normalizedModel.slice(key.length);
+    // Require suffix to be empty, start with a digit, or start with '-' followed by a digit.
+    // This prevents 'o1' from matching 'o1-preview' (suffix '-preview' fails) while
+    // allowing 'claude-haiku-4-5' to match 'claude-haiku-4-5-20260601' (suffix '-2...' passes).
+    if (suffix.length > 0 && !/^-?\d/.test(suffix)) continue;
+    if (!best || key.length > best.model.length) best = p;
   }
   return best;
 }

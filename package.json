@@ -4,6 +4,12 @@
   "description": "Synapse — Interactive Agent Orchestration Dashboard (monorepo)",
   "private": true,
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Soarcer/synapse.git"
+  },
+  "homepage": "https://github.com/Soarcer/synapse",
+  "bugs": "https://github.com/Soarcer/synapse/issues",
   "type": "module",
   "scripts": {
     "dev": "concurrently \"pnpm --filter @synapse-ai/server dev\" \"pnpm --filter @synapse-ai/dashboard dev\"",
@@ -14,7 +20,7 @@
     "build:server": "pnpm --filter @synapse-ai/server build",
     "build:dashboard": "pnpm --filter @synapse-ai/dashboard build",
     "start": "pnpm --filter @synapse-ai/server start",
-    "test": "vitest run",
+    "test": "pnpm --filter @synapse-ai/core build && vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint packages/ apps/",

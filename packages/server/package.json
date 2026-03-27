@@ -23,7 +23,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.32",
+    "@anthropic-ai/claude-agent-sdk": "~0.2.32",
     "@synapse-ai/core": "workspace:*",
     "express": "^5.1.0",
     "express-rate-limit": "^8.2.1",

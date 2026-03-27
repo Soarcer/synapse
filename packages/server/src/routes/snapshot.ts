@@ -167,15 +167,19 @@ export function createSnapshotRouter(): Router {
         logger.info({ skippedEvents }, 'Import skipped duplicate events');
       }
 
+      // Re-query imported events from DB rather than echoing raw user input
+      const importedSessionIds = snapshot.sessions.map((s) => s.sessionId);
+      const groupedRows = getEventsBySessionIds(importedSessionIds);
+      const allEvents = [...groupedRows.values()].flat().map(rowToAgentEvent);
+
       res.json({
         imported: true,
         sessions: importedSessions,
         events: importedEvents,
         skipped: skippedEvents,
-        // Return the event data so the frontend can replay it
-        allEvents: snapshot.sessions.flatMap((s) => s.events),
+        allEvents,
         transcripts: snapshot.sessions
-          .filter((s) => s.transcript)
+          .filter((s) => s.transcript && typeof s.transcript === 'object')
           .map((s) => ({ sessionId: s.sessionId, transcript: s.transcript })),
       });
     } catch (err: unknown) {

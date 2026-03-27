@@ -7,6 +7,17 @@ import * as path from 'path';
 import * as http from 'http';
 import * as fs from 'fs';
 
+/** Force-kill a child process, using taskkill on Windows where SIGKILL is a no-op. */
+function forceKill(proc: ChildProcess): void {
+  if (!proc.pid) return;
+  if (process.platform === 'win32') {
+    // /T kills the entire process tree; /F forces termination
+    spawn('taskkill', ['/F', '/T', '/PID', String(proc.pid)], { stdio: 'ignore' });
+  } else {
+    proc.kill('SIGKILL');
+  }
+}
+
 export class ServerManager {
   private process: ChildProcess | null = null;
   private _host: string;
@@ -20,6 +31,8 @@ export class ServerManager {
   private _mode: 'owned' | null = null;
 
   private _startTime: number | null = null;
+
+  private _waitForReadyCancelled = false;
 
   private _onStarted = new vscode.EventEmitter<void>();
   private _onStopped = new vscode.EventEmitter<void>();
@@ -52,6 +65,10 @@ export class ServerManager {
 
   get isRunning(): boolean {
     return this.process !== null && !this.process.killed;
+  }
+
+  get isExternalServer(): boolean {
+    return false;
   }
 
   get uptime(): number {
@@ -156,6 +173,7 @@ export class ServerManager {
     });
 
     // Wait for server to be ready — rejects on timeout
+    this._waitForReadyCancelled = false;
     try {
       await this.waitForReady(10000);
       this._startTime = Date.now();
@@ -169,6 +187,7 @@ export class ServerManager {
   }
 
   stop(): void {
+    this._waitForReadyCancelled = true;
     // mode === 'owned' (or null): stop the server we started
     if (this.killTimer) {
       clearTimeout(this.killTimer);
@@ -177,10 +196,10 @@ export class ServerManager {
     if (this.process && !this.process.killed) {
       this.outputChannel.appendLine('Stopping Synapse...');
       this.process.kill('SIGTERM');
-      // Force kill after 10 seconds
+      // Force kill after 10 seconds — uses taskkill on Windows where SIGKILL is a no-op
       this.killTimer = setTimeout(() => {
         if (this.process && !this.process.killed) {
-          this.process.kill('SIGKILL');
+          forceKill(this.process);
         }
         this.killTimer = null;
       }, 10_000);
@@ -238,6 +257,10 @@ export class ServerManager {
     return new Promise((resolve, reject) => {
       const start = Date.now();
       const check = () => {
+        if (this._waitForReadyCancelled) {
+          reject(new Error('Server startup cancelled'));
+          return;
+        }
         if (Date.now() - start > timeoutMs) {
           reject(new Error(`Server failed to start within ${timeoutMs}ms`));
           return;

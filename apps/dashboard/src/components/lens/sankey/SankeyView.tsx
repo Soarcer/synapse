@@ -143,7 +143,7 @@ export function SankeyView() {
     const { nodes, links } = sankeyData;
     if (nodes.length === 0) return { layoutNodes: [], layoutLinks: [], viewW: 300, viewH: 200 };
 
-    const W = 280;
+    const W = 360;
     const layerCount = Math.max(...nodes.map((n) => n.layer)) + 1;
     const layerGap = layerCount > 1 ? (W - NODE_WIDTH) / (layerCount - 1) : 0;
 
@@ -162,8 +162,10 @@ export function SankeyView() {
     const layerTotals = layers.map((l) => l.reduce((s, n) => s + n.value, 0));
     const maxTotal = Math.max(...layerTotals, 1);
 
-    // Scale factor: map maxTotal to available height
-    const maxH = 350;
+    // Scale height: ensure the densest layer has enough room for labels (min 18px per node)
+    const maxNodesInLayer = Math.max(...layers.map((l) => l.length), 1);
+    const minH = maxNodesInLayer * (18 + VERTICAL_GAP);
+    const maxH = Math.max(350, minH);
     const scale = maxH / maxTotal;
 
     // Position nodes
@@ -174,7 +176,7 @@ export function SankeyView() {
       const x = li * layerGap;
       let y = 20; // top padding for layer label
       for (const node of layers[li]) {
-        const h = Math.max(4, node.value * scale);
+        const h = Math.max(12, node.value * scale);
         positioned.set(node.id, { ...node, x, y, h });
         y += h + VERTICAL_GAP;
       }
@@ -219,7 +221,7 @@ export function SankeyView() {
     return {
       layoutNodes: [...positioned.values()],
       layoutLinks: lLinks,
-      viewW: W + 20,
+      viewW: W + 40,
       viewH: Math.max(globalMaxY + 20, 100),
     };
   }, [sankeyData]);
@@ -377,7 +379,7 @@ export function SankeyView() {
                   />
                 )}
                 {/* Label to the right for layers 0-2, left for layer 3 */}
-                {node.h >= 10 && (
+                {node.h >= 8 && (
                   <text
                     x={node.layer < 3 ? node.x + NODE_WIDTH + 3 : node.x - 3}
                     y={node.y + node.h / 2 + 3}

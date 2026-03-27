@@ -14,10 +14,16 @@ export class SynapseSidebarProvider implements vscode.WebviewViewProvider {
   private _cwd: string | undefined;
   private _onSelectionChanged: SelectionHandler | undefined;
   private _onIframeReady: VoidHandler | undefined;
+  private _onViewResolved: VoidHandler | undefined;
 
   constructor(port: number, cwd?: string) {
     this._port = port;
     this._cwd = cwd;
+  }
+
+  /** Register a callback for when the sidebar view is first resolved (user opened it). */
+  onViewResolved(handler: VoidHandler): void {
+    this._onViewResolved = handler;
   }
 
   resolveWebviewView(
@@ -26,6 +32,8 @@ export class SynapseSidebarProvider implements vscode.WebviewViewProvider {
     _token: vscode.CancellationToken,
   ): void {
     this._view = webviewView;
+    // Notify extension that the sidebar was opened — triggers lazy server start
+    if (this._onViewResolved) this._onViewResolved();
 
     webviewView.webview.options = {
       enableScripts: true,
@@ -140,13 +148,16 @@ export class SynapseSidebarProvider implements vscode.WebviewViewProvider {
       vscodeApi.postMessage({ type: 'iframeReady' });
     };
 
-    // Retry on load failure
+    // Retry on load failure with exponential backoff (1s, 2s, 4s, 8s, 16s)
     let retries = 0;
+    const MAX_RETRIES = 5;
     iframe.onerror = () => {
-      if (retries++ < 10) {
-        setTimeout(() => { iframe.src = '${url}'; }, 1000);
+      if (retries < MAX_RETRIES) {
+        const delay = Math.min(1000 * Math.pow(2, retries), 16000);
+        retries++;
+        setTimeout(() => { iframe.src = '${url}'; }, delay);
       } else {
-        loading.textContent = 'Failed to connect to Synapse on port ${this._port}';
+        loading.textContent = 'Could not connect to Synapse on port ${this._port}. Try reloading the window.';
       }
     };
 
@@ -162,7 +173,7 @@ export class SynapseSidebarProvider implements vscode.WebviewViewProvider {
       if (!message || typeof message !== 'object') return;
       // Forward extension → iframe
       if ((['switchLens', 'selectNode', 'synapseEvent', 'hydrateEvents'].includes(message.type)) && iframe.contentWindow) {
-        iframe.contentWindow.postMessage(message, '*');
+        iframe.contentWindow.postMessage(message, 'http://localhost:${this._port}');
       }
       // Forward iframe → extension (selection changes, commands, clipboard)
       if (message.type === 'selectionChanged' || message.type === 'openGraphPanel' || message.type === 'openGraphInBrowser' || message.type === 'clipboardWrite') {

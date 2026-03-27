@@ -1,7 +1,7 @@
 {
   "name": "@synapse-ai/cli",
   "version": "0.1.0",
-  "description": "Synapse CLI — monitor AI coding agents from the terminal",
+  "description": "Monitor AI coding agents in real-time. Works with Claude Code, Gemini CLI, and Codex CLI.",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -11,12 +11,26 @@
     "bin/",
     "dist/"
   ],
+  "keywords": [
+    "claude",
+    "claude-code",
+    "gemini",
+    "codex",
+    "ai-agent",
+    "monitoring",
+    "dashboard",
+    "hooks"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Soarcer/synapse.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/Soarcer/synapse",
   "scripts": {
     "build": "node scripts/build.mjs",
+    "prepublishOnly": "node scripts/build.mjs",
     "dev": "npx tsx src/cli.ts"
-  },
-  "dependencies": {
-    "@synapse-ai/core": "workspace:*"
   },
   "devDependencies": {
     "esbuild": "^0.25.0"

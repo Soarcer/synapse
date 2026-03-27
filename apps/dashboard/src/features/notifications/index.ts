@@ -46,16 +46,18 @@ export function initNotifications(): void {
     for (const event of state.events) {
       if (seenIds.has(event.id)) break; // already processed everything after this
       if (event.type === 'notification') {
+        // Skip permission toasts — the PermissionStack card handles these
+        if (event.notificationType === 'permission_prompt') {
+          seenIds.add(event.id);
+          continue;
+        }
+
         useNotificationStore.getState().addNotification(event);
 
         // Fire toast if enabled
         if (useNotificationStore.getState().showToasts) {
           const typeLabel =
-            event.notificationType === 'permission_prompt'
-              ? 'Permission needed'
-              : event.notificationType === 'elicitation_dialog'
-                ? 'Question for you'
-                : 'Notification';
+            event.notificationType === 'elicitation_dialog' ? 'Question for you' : 'Notification';
           const preview = (event.text ?? '').slice(0, 80);
           toast(`${typeLabel}: ${preview}`, 'warning', targetNodeId(event));
         }

@@ -25,6 +25,7 @@ import { formatRewrite } from '../shared/formatMarkdown';
 import { formatCostDisplay } from '../shared/costFormat';
 import { copyToClipboard } from '../../../utils/clipboard';
 import { useAgentStore } from '../../../store/agentStore';
+import { apiUrl } from '../../../utils/api';
 import type { MockData } from '../mockData';
 
 const AI_ANALYSIS_STORAGE_KEY = 'synapse-ai-analyses';
@@ -103,10 +104,13 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
   // Fetch AI session summary when session changes
   useEffect(() => {
     if (!selectedSession) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- resetting on session change
       setAiSummary(null);
       return;
     }
+
     setAiSummaryLoading(true);
+
     setAiSummary(null);
     const now = Date.now();
     fetch(`/api/analytics/ai-summary?from=${now - 30 * 86_400_000}&to=${now}`)
@@ -165,9 +169,8 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
             }
           : undefined;
 
-      console.log('[PromptAnalyzer] analyzeWithAi called', { key, skipCache, mode: analysisMode });
       setAiAnalyzing((prev) => ({ ...prev, [key]: true }));
-      fetch('/api/analytics/ai-analyze-prompt', {
+      fetch(apiUrl('/api/analytics/ai-analyze-prompt'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -178,15 +181,11 @@ export function PromptAnalyzer({ data, analysisMode }: PromptAnalyzerProps) {
           conversationContext,
         }),
       })
-        .then((r) => {
-          console.log('[PromptAnalyzer] fetch response', r.status);
-          return r.json();
-        })
+        .then((r) => r.json())
         .then((d) => {
-          console.log('[PromptAnalyzer] response data', d);
           if (d.data) setAiAnalysis((prev) => ({ ...prev, [key]: d.data }));
         })
-        .catch((err) => console.error('[PromptAnalyzer] fetch error', err))
+        .catch(() => {})
         .finally(() => setAiAnalyzing((prev) => ({ ...prev, [key]: false })));
     },
     [analysisMode, data.turns],

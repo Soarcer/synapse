@@ -62,7 +62,7 @@ function AgentGraphInner() {
   const lockViewport = useAgentStore((s) => s.lockViewport);
   const pendingFitView = useAgentStore((s) => s.pendingFitView);
   const sessions = useAgentStore(selectSessions);
-  const { fitView, getViewport, setViewport } = useReactFlow();
+  const { fitView, getViewport, setViewport, getNodes } = useReactFlow();
 
   // Prompt-turn groups from transcripts (shared via context to all prompt nodes)
   const sessionIds = useMemo(() => [...sessions.keys()], [sessions]);
@@ -148,24 +148,35 @@ function AgentGraphInner() {
 
     const parentOf = buildParentMap(visibleEdges);
 
+    // Add direct children — skip chained prompt→prompt edges
+    for (const edge of visibleEdges) {
+      if (edge.source === selectedNodeId) {
+        if (edge.target.startsWith('prompt-')) continue; // don't highlight next prompt in chain
+        ids.add(edge.target);
+      }
+    }
+
+    // For individual tool pills, also add the toolGroup
     if (selectedNodeId.startsWith('tool-')) {
-      // Selected a tool inside a group (from clicking a pill) — highlight the toolGroup + ancestors
       for (const edge of rawEdges) {
         if (edge.target === selectedNodeId) {
-          const toolGroupId = `toolgroup-${edge.source}`;
-          ids.add(toolGroupId);
+          ids.add(`toolgroup-${edge.source}`);
           ids.add(edge.source);
-          collectAncestors(edge.source, parentOf, ids);
           break;
         }
       }
-    } else {
-      // Add direct children
-      for (const edge of visibleEdges) {
-        if (edge.source === selectedNodeId) ids.add(edge.target);
+    }
+
+    // Walk up ancestors — but only for non-prompt nodes.
+    // Prompts highlight only themselves + direct children (agents/toolgroups).
+    // Agents/tools walk up to their parent prompt only, then stop.
+    if (!selectedNodeId.startsWith('prompt-')) {
+      let current = selectedNodeId;
+      while (parentOf.has(current)) {
+        current = parentOf.get(current)!;
+        ids.add(current);
+        if (current.startsWith('prompt-')) break; // stop at parent prompt
       }
-      // Walk up ancestors
-      collectAncestors(selectedNodeId, parentOf, ids);
     }
 
     // Return previous ref if contents are identical
@@ -323,30 +334,79 @@ function AgentGraphInner() {
   );
 
   // Zoom to newest node when nodes are added (unless viewport is locked or a node is selected).
-  // Must resolve raw node IDs to visible IDs because tool nodes are replaced
-  // by synthetic toolgroup nodes — fitView on a non-existent ID causes React
-  // Flow to compute empty bounds at (0,0) and zoom to the canvas origin.
-  const prevNodeIdsRef = useRef<Set<string>>(new Set(rawNodes.map((n) => n.id)));
+  // Uses local prevCount + prevIds to detect new nodes (can't rely on prev state
+  // because event handlers mutate the nodes array in place).
   useEffect(() => {
-    if (rawNodes.length > prevNodeCountRef.current && !lockViewport && !selectedNodeId) {
-      const prevIds = prevNodeIdsRef.current;
-      const newNodes = rawNodes.filter((n) => !prevIds.has(n.id));
-      const target = newNodes[newNodes.length - 1];
-      if (target) {
-        const visibleId = resolveVisibleId(target.id);
-        if (visibleId) {
-          scheduleFitView({ nodes: [{ id: visibleId }], duration: 300, padding: 1 });
-        } else {
-          // Toolgroup may not exist in visibleNodes yet — fit all nodes instead
-          scheduleFitView({ padding: 0.2, duration: 300 });
-        }
-      } else {
-        scheduleFitView({ padding: 0.2, duration: 300 });
+    let prevCount = useAgentStore.getState().nodes.length;
+    let prevIds = new Set(useAgentStore.getState().nodes.map((n) => n.id));
+    let activePoll: ReturnType<typeof setInterval> | null = null;
+
+    const unsub = useAgentStore.subscribe((state) => {
+      const currentCount = state.nodes.length;
+      if (currentCount <= prevCount) {
+        // Always track the count — if nodes were cleared, prevCount must follow
+        prevCount = currentCount;
+        prevIds = new Set(state.nodes.map((n) => n.id));
+        return;
       }
-    }
-    prevNodeCountRef.current = rawNodes.length;
-    prevNodeIdsRef.current = new Set(rawNodes.map((n) => n.id));
-  }, [rawNodes, lockViewport, selectedNodeId, resolveVisibleId, scheduleFitView]);
+      if (state.lockViewport || state.selectedNodeId) {
+        prevCount = currentCount;
+        prevIds = new Set(state.nodes.map((n) => n.id));
+        return;
+      }
+
+      const newNodes = state.nodes.filter((n) => !prevIds.has(n.id));
+      prevCount = currentCount;
+      prevIds = new Set(state.nodes.map((n) => n.id));
+
+      const target = newNodes[newNodes.length - 1];
+      if (!target) return;
+
+      // Resolve to visible ID (tool → toolgroup)
+      let targetId = target.id;
+      if (target.id.startsWith('tool-')) {
+        for (const edge of state.edges) {
+          if (edge.target === target.id) {
+            targetId = `toolgroup-${edge.source}`;
+            break;
+          }
+        }
+      }
+
+      // Cancel any previous poll — only track the latest node
+      if (activePoll) clearInterval(activePoll);
+
+      // Poll until node exists in React Flow, then zoom via setViewport
+      let attempts = 0;
+      activePoll = setInterval(() => {
+        attempts++;
+        const rfNodes = getNodesRef.current();
+        const node = rfNodes.find((n) => n.id === targetId);
+        if (node || attempts > 20) {
+          clearInterval(activePoll!);
+          activePoll = null;
+          if (node) {
+            const w = node.measured?.width ?? node.width ?? 200;
+            const h = node.measured?.height ?? node.height ?? 100;
+            const cx = node.position.x + w / 2;
+            const cy = node.position.y + h / 2;
+            const container = document.querySelector('.react-flow') as HTMLElement | null;
+            const cw = container?.clientWidth ?? 800;
+            const ch = container?.clientHeight ?? 600;
+            const zoom = Math.min(cw / (w + 200), ch / (h + 200), 1.5);
+            setViewportRef.current(
+              { x: cw / 2 - cx * zoom, y: ch / 2 - cy * zoom, zoom },
+              { duration: 300 },
+            );
+          }
+        }
+      }, 50);
+    });
+    return () => {
+      unsub();
+      if (activePoll) clearInterval(activePoll);
+    };
+  }, []);
 
   // Fit-to-view after time range change so the user doesn't see empty canvas
   useEffect(() => {
@@ -392,16 +452,65 @@ function AgentGraphInner() {
     scheduleFitView({ padding: 0.2, duration: 300 });
   }, [toolGroupMode, showAllTools, selectedNodeId, resolveVisibleId, scheduleFitView]);
 
-  // Center on node when selected from lens panel
+  // Center on node when selected from lens panel.
+  // Zoom to node when pendingZoomNodeId is set (from lens panel click).
+  // Zoom to node from lens panel (treemap/sankey click).
+  // Uses store subscription (outside React render cycle) + setViewport (direct coordinates).
+  const getNodesRef = useRef(getNodes);
+  const rawEdgesRef = useRef(rawEdges);
+  const setViewportRef = useRef(setViewport);
+  getNodesRef.current = getNodes;
+  rawEdgesRef.current = rawEdges;
+  setViewportRef.current = setViewport;
+
   useEffect(() => {
-    if (selectSource === 'lens' && selectedNodeId) {
-      const zoomTarget = resolveVisibleId(selectedNodeId);
-      if (zoomTarget) {
-        scheduleFitView({ nodes: [{ id: zoomTarget }], duration: 300, padding: 1 });
+    const unsub = useAgentStore.subscribe((state, prev) => {
+      const nodeId = state.pendingZoomNodeId;
+      if (!nodeId || nodeId === prev.pendingZoomNodeId) return;
+      useAgentStore.setState({ pendingZoomNodeId: null });
+
+      // Resolve target ID (direct or tool→toolgroup fallback)
+      let targetId = nodeId;
+      if (nodeId.startsWith('tool-')) {
+        for (const edge of rawEdgesRef.current) {
+          if (edge.target === nodeId) {
+            targetId = `toolgroup-${edge.source}`;
+            break;
+          }
+        }
       }
-      useAgentStore.setState({ selectSource: null });
-    }
-  }, [selectSource, selectedNodeId, visibleNodes, resolveVisibleId, scheduleFitView]);
+
+      // Poll until the node exists in React Flow, then zoom via setViewport.
+      // No suppression of other effects — setViewport is the final word.
+      let attempts = 0;
+      const poll = setInterval(() => {
+        attempts++;
+        const rfNodes = getNodesRef.current();
+        const node = rfNodes.find((n) => n.id === targetId);
+
+        if (node || attempts > 20) {
+          clearInterval(poll);
+          if (node) {
+            const w = node.measured?.width ?? node.width ?? 200;
+            const h = node.measured?.height ?? node.height ?? 100;
+            const cx = node.position.x + w / 2;
+            const cy = node.position.y + h / 2;
+
+            const container = document.querySelector('.react-flow') as HTMLElement | null;
+            const cw = container?.clientWidth ?? 800;
+            const ch = container?.clientHeight ?? 600;
+            const zoom = Math.min(cw / (w + 200), ch / (h + 200), 1.5);
+
+            setViewportRef.current(
+              { x: cw / 2 - cx * zoom, y: ch / 2 - cy * zoom, zoom },
+              { duration: 400 },
+            );
+          }
+        }
+      }, 50);
+    });
+    return unsub;
+  }, []);
 
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: { id: string }) => {
@@ -546,7 +655,7 @@ function AgentGraphInner() {
   }, [selectNode]);
 
   const showHookEvents = useAgentStore((s) => s.showHookEvents);
-  const events = useAgentStore((s) => s.events);
+  const hasEvents = useAgentStore((s) => s.events.length > 0);
   const isLoading = useAgentStore((s) => s.isLoading);
   const loadError = useAgentStore((s) => s.loadError);
 
@@ -630,7 +739,7 @@ function AgentGraphInner() {
             </div>
           </div>
         )}
-        {!hasContentNodes && !isLoading && !loadError && events.length === 0 && (
+        {!hasContentNodes && !isLoading && !loadError && !hasEvents && (
           <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
             <div className="pointer-events-auto bg-gray-900/90 rounded-lg p-8 border border-gray-800 text-center max-w-sm backdrop-blur-sm">
               <div className="text-3xl mb-3 text-gray-600">&#x2B22;</div>
@@ -642,7 +751,7 @@ function AgentGraphInner() {
             </div>
           </div>
         )}
-        {!hasContentNodes && events.length > 0 && !showHookEvents && (
+        {!hasContentNodes && hasEvents && !showHookEvents && (
           <div className="absolute top-14 left-1/2 -translate-x-1/2 z-10 px-4 py-2 bg-amber-900/70 border border-amber-600/40 rounded-lg text-xs text-amber-200 backdrop-blur-sm text-center">
             Hook events are hidden — press{' '}
             <kbd className="px-1.5 py-0.5 bg-amber-800/60 rounded text-amber-100 font-mono mx-0.5">
@@ -664,7 +773,7 @@ function AgentGraphInner() {
           defaultEdgeOptions={{ zIndex: 0 }}
           nodesDraggable={false}
           edgesFocusable={false}
-          fitView
+          fitView={!selectedNodeId}
           fitViewOptions={{ padding: 0.2 }}
           minZoom={0.1}
           maxZoom={2}

@@ -5,9 +5,15 @@
 // Normalizes Claude Code hook events into AgentEvent.
 // Extracted from eventStore.ts — zero behavioral change.
 
+import { createHash } from 'node:crypto';
 import { nanoid } from 'nanoid';
 import type { AgentEvent, AgentEventType } from '@synapse-ai/core';
 import type { Adapter } from './types.js';
+
+/** Fast, short hash for dedupe fingerprints. */
+function shortHash(text: string): string {
+  return createHash('sha256').update(text).digest('hex').slice(0, 16);
+}
 
 // ─── Hook Event Name → AgentEventType Mapping ──────────────────────
 
@@ -161,14 +167,17 @@ export class ClaudeAdapter implements Adapter {
     const hookName = raw.hook_event_name ?? '';
     const toolUseId = raw.tool_use_id ?? '';
     const agentId = raw.agent_id ?? '';
-    // Include text content for prompts and responses to avoid false dedup
+    // Include hash of full text content to avoid false dedup on long prompts
     let textKey = '';
     if (hookName === 'UserPromptSubmit') {
-      textKey = String(typeof raw.prompt === 'string' ? raw.prompt : '').slice(0, 200);
+      const fullText = String(typeof raw.prompt === 'string' ? raw.prompt : '');
+      textKey = fullText ? shortHash(fullText) : '';
     } else if (hookName === 'AssistantResponse') {
-      textKey = String(raw.assistant_text ?? '').slice(0, 200);
+      const fullText = String(raw.assistant_text ?? '');
+      textKey = fullText ? shortHash(fullText) : '';
     } else if (hookName === 'Stop' && raw.last_assistant_message) {
-      textKey = String(raw.last_assistant_message).slice(0, 200);
+      const fullText = String(raw.last_assistant_message);
+      textKey = fullText ? shortHash(fullText) : '';
     }
     return `${sessionId}:${hookName}:${toolUseId}:${agentId}:${textKey}`;
   }

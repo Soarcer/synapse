@@ -5,14 +5,14 @@
 // Synapse CLI — monitor AI coding agents from the terminal.
 //
 // Usage:
-//   synapse start [--port N] [--background] [--no-open] [--no-hook]
+//   synapse start [--port N] [--background] [--no-open] [--no-hook] [--observe-only] [--lan]
 //   synapse stop
 //   synapse status
 //   synapse open           — open the dashboard in browser (any terminal, any time)
 //   synapse hook           — configure hooks for current project
 //   synapse unhook         — remove hooks from current project
 
-import { start, stop, status, readPort } from './daemon.js';
+import { start, stop, status } from './daemon.js';
 import { configureHooks, removeHooks, isHooked } from './hookSetup.js';
 
 const args = process.argv.slice(2);
@@ -50,16 +50,17 @@ async function main() {
       const background = flag('background') || flag('bg') || args.includes('-d');
       const noOpen = flag('no-open');
       const noHook = flag('no-hook');
+      const observeOnly = flag('observe-only');
+      const lan = flag('lan');
       const cwd = process.cwd();
 
-      const actualPort = await start({ port, background });
+      const actualPort = await start({ port, background, lan });
 
       // Configure hooks for current project (unless --no-hook)
       if (!noHook) {
-        configureHooks(cwd, actualPort);
+        configureHooks(cwd, actualPort, { observeOnly });
       }
 
-      // Always print the project-filtered URL so the user knows where to go
       const cwdParam = encodeURIComponent(cwd);
       const dashboardUrl = `http://localhost:${actualPort}?cwd=${cwdParam}`;
       console.log(`  Dashboard  →  ${dashboardUrl}`);
@@ -107,17 +108,17 @@ async function main() {
       const cwdParam = encodeURIComponent(process.cwd());
       const url = `http://localhost:${info.port}?cwd=${cwdParam}`;
       await openBrowser(url);
-      console.log(`Opening ${url} (${process.cwd().split(/[/\\]/).pop()})`);
+      console.log(`Opening ${url}`);
       break;
     }
 
     case 'hook': {
-      const port = readPort();
+      const { port } = await status();
       if (!port) {
         console.error('Synapse is not running. Start it first: synapse start');
         process.exit(1);
       }
-      configureHooks(process.cwd(), port);
+      configureHooks(process.cwd(), port, { observeOnly: flag('observe-only') });
       break;
     }
 
@@ -137,7 +138,7 @@ Usage:
   synapse stop                Stop the running server
   synapse status              Show URL, PID, and hook status
   synapse open                Open the dashboard in your browser
-  synapse hook                Hook current project to the running server
+  synapse hook [options]      Hook current project to the running server
   synapse unhook              Remove hooks from current project
 
 Start options:
@@ -145,10 +146,18 @@ Start options:
   --background     Run as background daemon (alias: --bg, -d)
   --no-open        Don't open browser
   --no-hook        Don't configure hooks for current project
+  --observe-only   Skip remote approval hook (observe events only, no blocking)
+  --lan            Bind to 0.0.0.0 (LAN-accessible — required for mobile/remote approval)
+
+By default the server binds to localhost (127.0.0.1) and is only reachable from
+your machine. Use --lan to make it accessible from other devices on your network
+(e.g. approving permissions from your phone). See README for security details.
 
 Examples:
-  synapse start -d            Start daemon, hook current project
-  synapse status              See the dashboard URL (even if port shifted)
+  synapse start -d            Start daemon, localhost only
+  synapse start -d --lan      Start daemon, LAN-accessible (mobile approval)
+  synapse start --observe-only  Monitor only — no permission interception
+  synapse status              See the dashboard URL
   synapse open                Reopen dashboard from any terminal
   cd ~/other-project && synapse hook    Hook another project to the running daemon
 `);

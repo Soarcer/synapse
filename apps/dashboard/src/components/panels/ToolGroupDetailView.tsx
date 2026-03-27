@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Bernhard
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import type { ToolCallSummary, AgentNodeData } from '@synapse-ai/core';
 import { formatDuration, getToolIcon } from '@synapse-ai/core';
 import { PanelShell, Detail, Stat, Divider, StatusBadge } from './AgentDetailPanel';
@@ -45,6 +45,8 @@ export function ToolGroupDetailView({
   const agentId = parentNodeId.startsWith('agent-') ? parentNodeId.slice(6) : null;
   const parentAgent = agentId ? agents.get(agentId) : null;
 
+  // eslint-disable-next-line react-hooks/purity -- monitoring dashboard: fallback for running tools
+  const nowRef = useRef(Date.now());
   // Compute all stats in a single pass
   const stats = useMemo(() => {
     let ok = 0;
@@ -68,7 +70,7 @@ export function ToolGroupDetailView({
       totalDuration += dur;
 
       if (t.startTime < minStart) minStart = t.startTime;
-      const end = t.endTime ?? (t.status === 'running' ? Date.now() : t.startTime);
+      const end = t.endTime ?? (t.status === 'running' ? nowRef.current : t.startTime);
       if (end > maxEnd) maxEnd = end;
 
       if (!slowest || dur > (slowest.duration ?? 0)) slowest = t;
@@ -95,7 +97,7 @@ export function ToolGroupDetailView({
     for (const t of leafTools) {
       events.push({ time: t.startTime, delta: 1 });
       events.push({
-        time: t.endTime ?? (t.status === 'running' ? Date.now() : t.startTime),
+        time: t.endTime ?? (t.status === 'running' ? nowRef.current : t.startTime),
         delta: -1,
       });
     }
@@ -378,9 +380,9 @@ function InsightsSection({
             Errors ({stats.errorTools.length})
           </span>
           <div className="space-y-1 max-h-32 overflow-auto">
-            {stats.errorTools.map((tc) => (
+            {stats.errorTools.map((tc, i) => (
               <button
-                key={tc.toolUseId}
+                key={tc.toolUseId ?? `err-${i}`}
                 onClick={() => selectNode(`tool-${tc.toolUseId}`, 'graph')}
                 className="w-full text-left flex items-center justify-between bg-red-900/20 hover:bg-red-900/30 border border-red-800/30 rounded px-2 py-1 text-xs text-red-300 transition-colors"
               >
@@ -408,12 +410,15 @@ function TimelineMinimap({
   stats: { wallClock: number; minStart: number };
   selectNode: (id: string | null, source?: 'graph' | 'lens') => void;
 }) {
+  // eslint-disable-next-line react-hooks/purity -- monitoring dashboard: fallback for running tools
+  const nowRef = useRef(Date.now());
   const segments = useMemo(() => {
     if (stats.wallClock === 0) return [];
     return tools.map((tc) => {
       const start = (tc.startTime - stats.minStart) / stats.wallClock;
       const end =
-        ((tc.endTime ?? (tc.status === 'running' ? Date.now() : tc.startTime)) - stats.minStart) /
+        ((tc.endTime ?? (tc.status === 'running' ? nowRef.current : tc.startTime)) -
+          stats.minStart) /
         stats.wallClock;
       const width = Math.max(end - start, 0.02);
       return { tc, left: start, width };
@@ -426,9 +431,9 @@ function TimelineMinimap({
     <div>
       <span className="text-gray-500 text-xs block mb-1.5">Timeline</span>
       <div className="relative h-6 bg-gray-900 rounded overflow-hidden border border-gray-800">
-        {segments.map(({ tc, left, width }) => (
+        {segments.map(({ tc, left, width }, i) => (
           <button
-            key={tc.toolUseId}
+            key={tc.toolUseId ?? `seg-${i}`}
             onClick={() => selectNode(`tool-${tc.toolUseId}`, 'graph')}
             title={`${tc.toolName} — ${tc.duration != null ? formatDuration(tc.duration) : '?'}`}
             className="absolute top-0.5 bottom-0.5 rounded-sm cursor-pointer hover:brightness-125 transition-all"

@@ -136,16 +136,20 @@ export class Broadcaster {
 
   private startHeartbeat(): void {
     this.heartbeatTimer = setInterval(() => {
+      const stale: WebSocket[] = [];
       for (const client of this.clients) {
         if (!this.alive.get(client)) {
-          client.terminate();
-          this.clients.delete(client);
+          stale.push(client);
           continue;
         }
         this.alive.set(client, false);
         if (client.readyState === WebSocket.OPEN) {
           client.ping();
         }
+      }
+      for (const client of stale) {
+        client.terminate();
+        this.clients.delete(client);
       }
     }, HEARTBEAT_INTERVAL_MS);
 

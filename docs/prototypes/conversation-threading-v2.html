@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Synapse — Conversation Threading v2 Finalists</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0a0e1a; color: #e2e8f0; min-height: 100vh;
+  }
+  :root {
+    --session-bg: rgba(30, 58, 138, 0.8);
+    --session-border: rgba(59, 130, 246, 0.5);
+    --session-text: #60a5fa;
+    --prompt-bg: rgba(120, 53, 15, 0.6);
+    --prompt-bg2: rgba(113, 63, 18, 0.4);
+    --prompt-border: rgba(217, 119, 6, 0.4);
+    --prompt-text: #fcd34d;
+    --response-bg: rgba(30, 64, 100, 0.6);
+    --response-bg2: rgba(23, 37, 84, 0.4);
+    --response-border: rgba(96, 165, 250, 0.4);
+    --response-text: #93c5fd;
+    --agent-bg: rgba(20, 83, 45, 0.6);
+    --agent-border: rgba(34, 197, 94, 0.4);
+    --agent-text: #4ade80;
+    --tool-bg: rgba(88, 28, 135, 0.6);
+    --tool-border: rgba(168, 85, 247, 0.5);
+    --tool-text: #c084fc;
+    --tool-success-bg: rgba(20, 83, 45, 0.8);
+    --tool-success-border: rgba(34, 197, 94, 0.5);
+    --surface: #111827;
+    --surface-2: #1e293b;
+    --border: rgba(148, 163, 184, 0.1);
+    --text-dim: #94a3b8;
+    --text-muted: #64748b;
+  }
+
+  /* Tabs */
+  .tab-bar { display: flex; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
+  .tab { padding: 16px 28px; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--text-dim); border-bottom: 3px solid transparent; transition: all 0.2s; user-select: none; }
+  .tab:hover { color: #e2e8f0; background: rgba(255,255,255,0.03); }
+  .tab.active { color: #60a5fa; border-bottom-color: #3b82f6; background: rgba(59,130,246,0.05); }
+  .tab .tab-sub { font-weight: 400; color: var(--text-muted); font-size: 11px; display: block; margin-top: 2px; }
+  .tab-content { display: none; padding: 32px; }
+  .tab-content.active { display: block; }
+
+  .intro { text-align: center; padding: 28px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .intro h1 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+  .intro p { font-size: 13px; color: var(--text-dim); max-width: 640px; margin: 0 auto; line-height: 1.6; }
+
+  .insight { background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2); border-radius: 10px; padding: 16px 20px; margin: 0 auto 28px; max-width: 1100px; font-size: 12px; line-height: 1.7; color: var(--response-text); }
+  .insight strong { color: #93c5fd; }
+  .insight .q { display: block; margin-top: 8px; padding-left: 12px; border-left: 2px solid rgba(59,130,246,0.3); color: var(--text-dim); font-style: italic; }
+
+  /* Shared badges */
+  .badge { display: inline-flex; align-items: center; gap: 3px; font-size: 9px; padding: 2px 7px; border-radius: 4px; font-weight: 600; }
+  .badge-blue { background: rgba(96,165,250,0.15); color: var(--response-text); border: 1px solid rgba(96,165,250,0.25); }
+  .badge-green { background: rgba(34,197,94,0.15); color: var(--agent-text); border: 1px solid rgba(34,197,94,0.25); }
+  .badge-purple { background: rgba(168,85,247,0.15); color: var(--tool-text); border: 1px solid rgba(168,85,247,0.25); }
+  .badge-amber { background: rgba(217,119,6,0.15); color: var(--prompt-text); border: 1px solid rgba(217,119,6,0.25); }
+
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(96,165,250,0.4); } 50% { box-shadow: 0 0 0 6px rgba(96,165,250,0); } }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+</style>
+</head>
+<body>
+
+<div class="intro">
+  <h1>Conversation Threading — v2 Finalists</h1>
+  <p>Three approaches based on feedback. All use the same data model (prompt → responses → tools/agents). G is the hybrid — E's compact merged nodes with F's explicit response chain on expand.</p>
+</div>
+
+<div class="tab-bar">
+  <div class="tab active" data-tab="e">
+    E: Conversation Nodes
+    <span class="tab-sub">Prompt+Response merged into one expandable node</span>
+  </div>
+  <div class="tab" data-tab="f">
+    F: Prompt Chain
+    <span class="tab-sub">Your diagram — prompts chain, responses branch right</span>
+  </div>
+  <div class="tab" data-tab="g">
+    G: Hybrid
+    <span class="tab-sub">E collapsed + F expanded — best of both</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- E: Conversation Nodes                           -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="tab-content active" id="tab-e">
+  <div class="insight">
+    <strong>Approach E — Conversation Nodes</strong><br>
+    Each prompt node in the graph contains <em>both</em> the user's prompt and Claude's response. Collapsed: compact two-line summary. Expanded: full text + response segments + tools. The graph stays clean — fewer nodes — but carries the full conversation.
+    <span class="q">Key idea: The "turn" is the atomic unit. One node = one conversational turn. Tools/agents fan out when expanded.</span>
+  </div>
+
+  <svg width="100%" height="620" viewBox="0 0 1060 600" style="display:block;margin:0 auto;max-width:1060px;border-radius:12px;border:1px solid var(--border)">
+    <defs>
+      <linearGradient id="e-edge-1" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:0.5"/><stop offset="100%" style="stop-color:#3b82f6;stop-opacity:0.2"/>
+      </linearGradient>
+      <linearGradient id="e-edge-thread" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" style="stop-color:#475569;stop-opacity:0.5"/><stop offset="100%" style="stop-color:#475569;stop-opacity:0.2"/>
+      </linearGradient>
+      <linearGradient id="e-edge-purple" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#a855f7;stop-opacity:0.4"/><stop offset="100%" style="stop-color:#a855f7;stop-opacity:0.15"/>
+      </linearGradient>
+      <linearGradient id="e-edge-green" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#22c55e;stop-opacity:0.4"/><stop offset="100%" style="stop-color:#22c55e;stop-opacity:0.15"/>
+      </linearGradient>
+    </defs>
+
+    <!-- Session → Turn 1 -->
+    <path d="M 140 80 C 165 80, 175 80, 200 80" stroke="url(#e-edge-1)" stroke-width="2" fill="none"/>
+    <!-- Turn 1 → Turn 2 (thread) -->
+    <path d="M 340 120 L 340 155" stroke="url(#e-edge-thread)" stroke-width="1.5" fill="none"/>
+    <!-- Turn 2 → Turn 3 (thread) -->
+    <path d="M 340 235 L 340 270" stroke="url(#e-edge-thread)" stroke-width="1.5" fill="none"/>
+    <!-- Turn 3 → Turn 4 (thread) -->
+    <path d="M 340 470 L 340 505" stroke="url(#e-edge-thread)" stroke-width="1.5" fill="none"/>
+
+    <!-- Turn 1 → tools (collapsed = hidden) -->
+    <path d="M 480 80 C 510 80, 520 60, 540 60" stroke="url(#e-edge-purple)" stroke-width="1.5" fill="none" opacity="0.4"/>
+    <!-- Turn 3 expanded → tools -->
+    <path d="M 480 370 C 510 370, 520 310, 540 310" stroke="url(#e-edge-purple)" stroke-width="1.5" fill="none"/>
+    <path d="M 480 370 C 510 370, 520 360, 540 360" stroke="url(#e-edge-purple)" stroke-width="1.5" fill="none"/>
+    <path d="M 480 370 C 510 370, 520 410, 540 410" stroke="url(#e-edge-green)" stroke-width="1.5" fill="none"/>
+
+    <!-- Turn 4 → agents -->
+    <path d="M 480 555 C 510 555, 520 535, 540 535" stroke="url(#e-edge-green)" stroke-width="1.5" fill="none"/>
+    <path d="M 480 555 C 510 555, 520 575, 540 575" stroke="url(#e-edge-purple)" stroke-width="1.5" fill="none"/>
+
+    <!-- ─── Session ─── -->
+    <g transform="translate(20, 42)">
+      <rect width="120" height="76" rx="10" fill="rgba(30,58,138,0.8)" stroke="rgba(59,130,246,0.5)" stroke-width="1.5"/>
+      <text x="10" y="18" font-size="10" font-weight="700" fill="#e2e8f0">SESSION</text>
+      <rect x="62" y="6" width="48" height="14" rx="3" fill="rgba(59,130,246,0.2)"/>
+      <text x="70" y="16" font-size="8" font-weight="700" fill="#60a5fa">ANTHROPIC</text>
+      <text x="10" y="36" font-size="9" fill="#94a3b8">03:18 AM · Opus 4.6</text>
+      <text x="10" y="52" font-size="10" fill="#cbd5e1">Conversation</text>
+      <text x="10" y="64" font-size="10" fill="#cbd5e1">threading...</text>
+      <circle cx="120" cy="38" r="4" fill="#60a5fa" stroke="#111827" stroke-width="2"/>
+    </g>
+
+    <!-- ═══ Turn 1 (collapsed) ═══ -->
+    <g transform="translate(200, 34)">
+      <rect width="280" height="92" rx="10" fill="rgba(30,40,60,0.8)" stroke="rgba(148,163,184,0.15)" stroke-width="1"/>
+      <!-- Prompt section -->
+      <rect x="0" y="0" width="280" height="42" rx="10" fill="none"/>
+      <rect x="1" y="1" width="278" height="40" rx="9" fill="rgba(120,53,15,0.4)"/>
+      <circle cx="0" cy="46" r="3.5" fill="#f59e0b" stroke="#111827" stroke-width="1.5"/>
+      <text x="12" y="16" font-size="9" font-weight="700" fill="#fcd34d">You</text>
+      <text x="35" y="16" font-size="8" fill="#64748b">03:18:44</text>
+      <text x="12" y="32" font-size="10" fill="#cbd5e1">Can I see the responses you give me here?</text>
+      <!-- Response section -->
+      <rect x="1" y="42" width="278" height="49" rx="0" fill="rgba(30,64,100,0.3)"/>
+      <rect x="1" y="82" width="278" height="9" rx="0 0 9 9" fill="rgba(30,64,100,0.3)"/>
+      <text x="12" y="58" font-size="9" font-weight="700" fill="#93c5fd">Claude</text>
+      <text x="48" y="58" font-size="8" fill="#64748b">03:18:47</text>
+      <text x="12" y="74" font-size="10" fill="#94a3b8">Let me check what hook events Claude Code emits...</text>
+      <!-- Stats bar -->
+      <text x="12" y="88" font-size="8" font-family="monospace" fill="#67e8f9">12.4k&#8595;</text>
+      <text x="50" y="88" font-size="8" font-family="monospace" fill="#fb923c">847&#8593;</text>
+      <rect x="85" y="80" width="32" height="12" rx="3" fill="rgba(168,85,247,0.15)"/>
+      <text x="90" y="89" font-size="7" fill="#c084fc">3 tools</text>
+      <text x="230" y="88" font-size="8" fill="#fbbf24" font-family="monospace">$0.04</text>
+      <circle cx="280" cy="46" r="3.5" fill="#60a5fa" stroke="#111827" stroke-width="1.5" opacity="0.4"/>
+    </g>
+
+    <!-- Tool group (dimmed — collapsed state) -->
+    <g transform="translate(540, 40)" opacity="0.35">
+      <rect width="110" height="36" rx="6" fill="rgba(88,28,135,0.4)" stroke="rgba(168,85,247,0.3)" stroke-width="1"/>
+      <text x="8" y="14" font-size="7" fill="#c084fc">Read · Grep · Read</text>
+      <text x="8" y="28" font-size="7" fill="#64748b">3 tools · all success</text>
+    </g>
+
+    <!-- ═══ Turn 2 (collapsed, no tools) ═══ -->
+    <g transform="translate(200, 155)">
+      <rect width="280" height="80" rx="10" fill="rgba(30,40,60,0.8)" stroke="rgba(148,163,184,0.15)" stroke-width="1"/>
+      <rect x="1" y="1" width="278" height="36" rx="9" fill="rgba(120,53,15,0.4)"/>
+      <circle cx="0" cy="40" r="3.5" fill="#f59e0b" stroke="#111827" stroke-width="1.5"/>
+      <text x="12" y="16" font-size="9" font-weight="700" fill="#fcd34d">You</text>
+      <text x="35" y="16" font-size="8" fill="#64748b">03:19:17</text>
+      <text x="12" y="30" font-size="10" fill="#cbd5e1">Once I restart the servers.</text>
+      <rect x="1" y="38" width="278" height="41" rx="0" fill="rgba(30,64,100,0.3)"/>
+      <text x="12" y="54" font-size="9" font-weight="700" fill="#93c5fd">Claude</text>
+      <text x="12" y="70" font-size="10" fill="#94a3b8">Just the server — rebuild and restart.</text>
+      <text x="210" y="70" font-size="8" fill="#64748b" font-style="italic">no tools</text>
+    </g>
+
+    <!-- ═══ Turn 3 (EXPANDED — multi-response) ═══ -->
+    <g transform="translate(200, 270)">
+      <!-- Outer card -->
+      <rect width="280" height="200" rx="10" fill="rgba(30,40,60,0.9)" stroke="rgba(59,130,246,0.3)" stroke-width="1.5"/>
+      <circle cx="0" cy="100" r="3.5" fill="#f59e0b" stroke="#111827" stroke-width="1.5"/>
+
+      <!-- Prompt section -->
+      <rect x="1" y="1" width="278" height="36" rx="9" fill="rgba(120,53,15,0.4)"/>
+      <text x="12" y="16" font-size="9" font-weight="700" fill="#fcd34d">You</text>
+      <text x="35" y="16" font-size="8" fill="#64748b">03:19:43</text>
+      <text x="12" y="30" font-size="10" fill="#cbd5e1">Fix the hook so responses show up.</text>
+
+      <!-- Response segment 1 -->
+      <rect x="1" y="38" width="278" height="36" fill="rgba(30,64,100,0.2)"/>
+      <text x="12" y="52" font-size="8" font-weight="600" fill="#93c5fd">Seg 1</text>
+      <text x="42" y="52" font-size="8" fill="#64748b">03:19:46</text>
+      <rect x="100" y="44" width="26" height="11" rx="3" fill="rgba(168,85,247,0.15)"/>
+      <text x="104" y="52" font-size="7" fill="#c084fc">Read</text>
+      <rect x="130" y="44" width="26" height="11" rx="3" fill="rgba(168,85,247,0.15)"/>
+      <text x="134" y="52" font-size="7" fill="#c084fc">Read</text>
+      <text x="12" y="68" font-size="9" fill="#94a3b8">Let me check the hook config...</text>
+
+      <!-- Response segment 2 -->
+      <rect x="1" y="76" width="278" height="36" fill="rgba(30,64,100,0.25)"/>
+      <text x="12" y="90" font-size="8" font-weight="600" fill="#93c5fd">Seg 2</text>
+      <text x="42" y="90" font-size="8" fill="#64748b">03:19:52</text>
+      <rect x="100" y="82" width="30" height="11" rx="3" fill="rgba(168,85,247,0.15)"/>
+      <text x="104" y="90" font-size="7" fill="#c084fc">Write</text>
+      <rect x="134" y="82" width="24" height="11" rx="3" fill="rgba(168,85,247,0.15)"/>
+      <text x="138" y="90" font-size="7" fill="#c084fc">Edit</text>
+      <text x="12" y="106" font-size="9" fill="#94a3b8">I'll create a hook script...</text>
+
+      <!-- Response segment 3 (final — brighter) -->
+      <rect x="1" y="114" width="278" height="52" fill="rgba(30,64,100,0.4)"/>
+      <text x="12" y="128" font-size="8" font-weight="700" fill="#93c5fd">Final</text>
+      <text x="42" y="128" font-size="8" fill="#64748b">03:20:01</text>
+      <rect x="100" y="120" width="24" height="11" rx="3" fill="rgba(168,85,247,0.15)"/>
+      <text x="104" y="128" font-size="7" fill="#c084fc">Edit</text>
+      <rect x="128" y="120" width="24" height="11" rx="3" fill="rgba(168,85,247,0.15)"/>
+      <text x="132" y="128" font-size="7" fill="#c084fc">Edit</text>
+      <text x="12" y="146" font-size="10" fill="#cbd5e1">Done! Added send_response.cjs and</text>
+      <text x="12" y="160" font-size="10" fill="#cbd5e1">updated ToolLogPanel.</text>
+
+      <!-- Stats bar -->
+      <rect x="1" y="168" width="278" height="31" rx="0 0 9 9" fill="rgba(0,0,0,0.2)"/>
+      <text x="12" y="186" font-size="8" font-family="monospace" fill="#67e8f9">8.7k&#8595;</text>
+      <text x="46" y="186" font-size="8" font-family="monospace" fill="#fb923c">1.4k&#8593;</text>
+      <rect x="82" y="178" width="48" height="12" rx="3" fill="rgba(96,165,250,0.15)"/>
+      <text x="87" y="187" font-size="7" font-weight="600" fill="#93c5fd">3 segments</text>
+      <rect x="134" y="178" width="32" height="12" rx="3" fill="rgba(168,85,247,0.15)"/>
+      <text x="139" y="187" font-size="7" fill="#c084fc">6 tools</text>
+      <rect x="170" y="178" width="36" height="12" rx="3" fill="rgba(34,197,94,0.15)"/>
+      <text x="175" y="187" font-size="7" fill="#4ade80">1 agent</text>
+      <text x="230" y="186" font-size="8" fill="#fbbf24" font-family="monospace">$0.03</text>
+
+      <circle cx="280" cy="100" r="3.5" fill="#60a5fa" stroke="#111827" stroke-width="1.5"/>
+    </g>
+
+    <!-- Tools/Agents fanning out from expanded Turn 3 -->
+    <g transform="translate(540, 292)">
+      <rect width="130" height="36" rx="6" fill="rgba(88,28,135,0.4)" stroke="rgba(168,85,247,0.3)" stroke-width="1"/>
+      <circle cx="0" cy="18" r="3" fill="#a855f7" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="14" font-size="8" fill="#c084fc">Read x2</text>
+      <text x="10" y="28" font-size="7" fill="#64748b">Seg 1 tools</text>
+    </g>
+    <g transform="translate(540, 340)">
+      <rect width="130" height="36" rx="6" fill="rgba(88,28,135,0.4)" stroke="rgba(168,85,247,0.3)" stroke-width="1"/>
+      <circle cx="0" cy="18" r="3" fill="#a855f7" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="14" font-size="8" fill="#c084fc">Write + Edit</text>
+      <text x="10" y="28" font-size="7" fill="#64748b">Seg 2 tools</text>
+    </g>
+    <g transform="translate(540, 392)">
+      <rect width="130" height="36" rx="6" fill="rgba(20,83,45,0.6)" stroke="rgba(34,197,94,0.4)" stroke-width="1"/>
+      <circle cx="0" cy="18" r="3" fill="#22c55e" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="14" font-size="9" font-weight="600" fill="#4ade80">Explore</text>
+      <text x="10" y="28" font-size="7" fill="#94a3b8">prompt/node visuals</text>
+    </g>
+
+    <!-- ═══ Turn 4 (collapsed) ═══ -->
+    <g transform="translate(200, 505)">
+      <rect width="280" height="92" rx="10" fill="rgba(30,40,60,0.8)" stroke="rgba(59,130,246,0.3)" stroke-width="1">
+        <animate attributeName="stroke-opacity" values="0.3;0.6;0.3" dur="2s" repeatCount="indefinite"/>
+      </rect>
+      <rect x="1" y="1" width="278" height="36" rx="9" fill="rgba(120,53,15,0.4)"/>
+      <circle cx="0" cy="46" r="3.5" fill="#f59e0b" stroke="#111827" stroke-width="1.5"/>
+      <text x="12" y="16" font-size="9" font-weight="700" fill="#fcd34d">You</text>
+      <text x="35" y="16" font-size="8" fill="#64748b">03:21:42</text>
+      <text x="12" y="30" font-size="10" fill="#cbd5e1">How do we thread conversations? Show me 3 proto...</text>
+      <rect x="1" y="38" width="278" height="53" rx="0" fill="rgba(30,64,100,0.3)"/>
+      <text x="12" y="54" font-size="9" font-weight="700" fill="#93c5fd">Claude</text>
+      <rect x="48" y="45" width="48" height="13" rx="3" fill="rgba(96,165,250,0.15)">
+        <animate attributeName="opacity" values="1;0.5;1" dur="1.5s" repeatCount="indefinite"/>
+      </rect>
+      <text x="54" y="55" font-size="7" font-weight="600" fill="#60a5fa">4 segments</text>
+      <text x="12" y="72" font-size="10" fill="#94a3b8">Done! Open conversation-threading.html...</text>
+      <text x="12" y="88" font-size="8" font-family="monospace" fill="#67e8f9">75.4k&#8595;</text>
+      <text x="50" y="88" font-size="8" font-family="monospace" fill="#fb923c">12.1k&#8593;</text>
+      <rect x="90" y="80" width="40" height="12" rx="3" fill="rgba(34,197,94,0.15)"/>
+      <text x="95" y="89" font-size="7" fill="#4ade80">2 agents</text>
+      <text x="230" y="88" font-size="8" fill="#fbbf24" font-family="monospace">$0.28</text>
+      <circle cx="280" cy="46" r="3.5" fill="#60a5fa" stroke="#111827" stroke-width="1.5"/>
+    </g>
+
+    <!-- Agents from Turn 4 -->
+    <g transform="translate(540, 515)">
+      <rect width="120" height="34" rx="6" fill="rgba(20,83,45,0.6)" stroke="rgba(34,197,94,0.4)" stroke-width="1"/>
+      <circle cx="0" cy="17" r="3" fill="#22c55e" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="14" font-size="8" font-weight="600" fill="#4ade80">Explore</text>
+      <text x="50" y="14" font-size="7" fill="#94a3b8">visual model</text>
+      <text x="10" y="28" font-size="7" fill="#64748b">75k tokens</text>
+    </g>
+    <g transform="translate(540, 558)">
+      <rect width="120" height="34" rx="6" fill="rgba(88,28,135,0.4)" stroke="rgba(168,85,247,0.3)" stroke-width="1"/>
+      <circle cx="0" cy="17" r="3" fill="#a855f7" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="14" font-size="8" fill="#c084fc">Read · Write · Edit x2</text>
+      <text x="10" y="28" font-size="7" fill="#64748b">4 tools</text>
+    </g>
+
+    <!-- Thread line label -->
+    <g transform="translate(345, 138)">
+      <text font-size="8" fill="#64748b" transform="rotate(90)">thread</text>
+    </g>
+    <g transform="translate(345, 252)">
+      <text font-size="8" fill="#64748b" transform="rotate(90)">thread</text>
+    </g>
+
+    <!-- Legend -->
+    <g transform="translate(700, 30)">
+      <rect width="340" height="140" rx="10" fill="rgba(0,0,0,0.3)" stroke="var(--border)" stroke-width="1"/>
+      <text x="16" y="22" font-size="11" font-weight="700" fill="#e2e8f0">Approach E — Conversation Nodes</text>
+      <text x="16" y="42" font-size="9" fill="var(--text-dim)">Each node = 1 turn (prompt + response)</text>
+      <text x="16" y="58" font-size="9" fill="var(--text-dim)">Collapsed: 2-line summary of Q and A</text>
+      <text x="16" y="74" font-size="9" fill="var(--text-dim)">Expanded: full text + response segments</text>
+      <text x="16" y="90" font-size="9" fill="var(--text-dim)">Tools/agents fan out when expanded</text>
+      <text x="16" y="106" font-size="9" fill="var(--text-dim)">Thread: vertical chain between turns</text>
+      <rect x="16" y="116" width="50" height="3" rx="1" fill="rgba(59,130,246,0.3)"/>
+      <text x="72" y="122" font-size="8" fill="#64748b">= thread edge (vertical)</text>
+    </g>
+  </svg>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- F: Prompt Chain (User's Diagram)                -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="tab-content" id="tab-f">
+  <div class="insight">
+    <strong>Approach F — Prompt Chain (Your Design)</strong><br>
+    Directly from your diagram. Session → Prompt 1 only. Prompts chain vertically (Prompt 1 → Prompt 2). Each prompt connects to its <em>first</em> response, then responses chain to each other (Response 1 → Response 2 → ...). Each response can branch right to tools/agents. The conversation IS the vertical chain of prompts.
+    <span class="q">Multi-response: responses chain off each other, not fan from the prompt. Prompt → Response 1 → Response 2 → ... The "conversation" flows down (prompts), the "reasoning" flows right then down (response chain).</span>
+  </div>
+
+  <svg width="100%" height="740" viewBox="0 0 1060 720" style="display:block;margin:0 auto;max-width:1060px;border-radius:12px;border:1px solid var(--border)">
+    <defs>
+      <linearGradient id="f-edge-amber" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#d97706;stop-opacity:0.5"/><stop offset="100%" style="stop-color:#d97706;stop-opacity:0.2"/>
+      </linearGradient>
+      <linearGradient id="f-edge-blue" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:0.5"/><stop offset="100%" style="stop-color:#3b82f6;stop-opacity:0.2"/>
+      </linearGradient>
+      <linearGradient id="f-edge-purple" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#a855f7;stop-opacity:0.4"/><stop offset="100%" style="stop-color:#a855f7;stop-opacity:0.15"/>
+      </linearGradient>
+      <linearGradient id="f-edge-green" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#22c55e;stop-opacity:0.4"/><stop offset="100%" style="stop-color:#22c55e;stop-opacity:0.15"/>
+      </linearGradient>
+      <linearGradient id="f-thread" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:0.4"/><stop offset="100%" style="stop-color:#3b82f6;stop-opacity:0.15"/>
+      </linearGradient>
+    </defs>
+
+    <!-- ─── Edges ─── -->
+    <!-- Session → Prompt 1 -->
+    <path d="M 150 90 C 180 90, 190 90, 220 90" stroke="url(#f-edge-amber)" stroke-width="2" fill="none"/>
+
+    <!-- Prompt 1 → Response 1a (first response only) -->
+    <path d="M 400 70 C 430 70, 440 50, 470 50" stroke="url(#f-edge-blue)" stroke-width="1.5" fill="none"/>
+    <!-- Response 1a ──down──→ Response 1b (chained) -->
+    <path d="M 555 76 L 555 94" stroke="url(#f-edge-blue)" stroke-width="1.5" fill="none"/>
+
+    <!-- Response 1a → Toolgroup (branches right) -->
+    <path d="M 640 50 C 660 50, 670 50, 690 50" stroke="url(#f-edge-purple)" stroke-width="1.5" fill="none"/>
+    <!-- Response 1b → Agent (branches right) -->
+    <path d="M 640 120 C 660 120, 670 120, 690 120" stroke="url(#f-edge-green)" stroke-width="1.5" fill="none"/>
+
+    <!-- Prompt 1 ──thread──→ Prompt 2 -->
+    <path d="M 310 140 L 310 200" stroke="url(#f-thread)" stroke-width="2" fill="none"/>
+    <circle cx="310" cy="170" r="2" fill="rgba(59,130,246,0.3)"/>
+
+    <!-- Prompt 2 → Response 2a -->
+    <path d="M 400 240 C 430 240, 440 220, 470 220" stroke="url(#f-edge-blue)" stroke-width="1.5" fill="none"/>
+
+    <!-- Prompt 2 ──thread──→ Prompt 3 -->
+    <path d="M 310 310 L 310 370" stroke="url(#f-thread)" stroke-width="2" fill="none"/>
+    <circle cx="310" cy="340" r="2" fill="rgba(59,130,246,0.3)"/>
+
+    <!-- Prompt 3 → Response 3a (first response only) -->
+    <path d="M 400 410 C 430 410, 440 380, 470 380" stroke="url(#f-edge-blue)" stroke-width="1.5" fill="none" opacity="0.5" stroke-dasharray="4 3"/>
+    <!-- Response 3a ──down──→ Response 3b (chained) -->
+    <path d="M 555 398 L 555 418" stroke="url(#f-edge-blue)" stroke-width="1.5" fill="none" opacity="0.5" stroke-dasharray="4 3"/>
+    <!-- Response 3b ──down──→ Response 3c (chained to final) -->
+    <path d="M 555 458 L 555 476" stroke="url(#f-edge-blue)" stroke-width="1.5" fill="none"/>
+
+    <!-- Response 3c → tools -->
+    <path d="M 640 490 C 660 490, 670 480, 690 480" stroke="url(#f-edge-purple)" stroke-width="1.5" fill="none"/>
+    <!-- Response 3c → agent -->
+    <path d="M 640 510 C 660 510, 670 530, 690 530" stroke="url(#f-edge-green)" stroke-width="1.5" fill="none"/>
+
+    <!-- Prompt 3 ──thread──→ Prompt 4 -->
+    <path d="M 310 500 L 310 560" stroke="url(#f-thread)" stroke-width="2" fill="none"/>
+    <circle cx="310" cy="530" r="2" fill="rgba(59,130,246,0.3)"/>
+
+    <!-- Prompt 4 → Response 4a (in progress) -->
+    <path d="M 400 610 C 430 610, 440 610, 470 610" stroke="url(#f-edge-blue)" stroke-width="2" fill="none" stroke-dasharray="6 4">
+      <animate attributeName="stroke-dashoffset" from="20" to="0" dur="1.5s" repeatCount="indefinite"/>
+    </path>
+    <!-- Response 4 → agents -->
+    <path d="M 640 600 C 660 600, 670 590, 690 590" stroke="url(#f-edge-green)" stroke-width="1.5" fill="none"/>
+    <path d="M 640 620 C 660 620, 670 640, 690 640" stroke="url(#f-edge-green)" stroke-width="1.5" fill="none"/>
+    <path d="M 640 630 C 660 630, 670 680, 690 680" stroke="url(#f-edge-purple)" stroke-width="1.5" fill="none"/>
+
+    <!-- ─── Session ─── -->
+    <g transform="translate(20, 48)">
+      <rect width="130" height="84" rx="10" fill="rgba(30,58,138,0.8)" stroke="rgba(59,130,246,0.5)" stroke-width="1.5"/>
+      <text x="10" y="18" font-size="10" font-weight="700" fill="#e2e8f0">SESSION</text>
+      <rect x="64" y="6" width="56" height="14" rx="3" fill="rgba(59,130,246,0.2)"/>
+      <text x="70" y="16" font-size="8" font-weight="700" fill="#60a5fa">ANTHROPIC</text>
+      <text x="10" y="36" font-size="9" fill="#94a3b8">03:18 AM · Opus 4.6</text>
+      <text x="10" y="52" font-size="10" fill="#cbd5e1">Conversation</text>
+      <text x="10" y="64" font-size="10" fill="#cbd5e1">threading...</text>
+      <text x="10" y="78" font-size="8" fill="#64748b">6b75d8c4</text>
+      <circle cx="130" cy="42" r="4" fill="#60a5fa" stroke="#111827" stroke-width="2"/>
+    </g>
+
+    <!-- ─── Prompt 1 ─── -->
+    <g transform="translate(220, 48)">
+      <rect width="180" height="92" rx="10" fill="rgba(120,53,15,0.6)" stroke="rgba(217,119,6,0.5)" stroke-width="1.5"/>
+      <circle cx="0" cy="42" r="4" fill="#f59e0b" stroke="#111827" stroke-width="2"/>
+      <text x="12" y="18" font-size="11" font-weight="700" fill="#fcd34d">Prompt</text>
+      <circle cx="155" cy="12" r="10" fill="rgba(59,130,246,0.6)" stroke="rgba(59,130,246,0.8)" stroke-width="1"/>
+      <text x="152" y="16" font-size="9" font-weight="700" fill="#fff" text-anchor="middle">1</text>
+      <text x="12" y="36" font-size="8" fill="#64748b">03:18:44</text>
+      <text x="12" y="54" font-size="10" fill="#cbd5e1">Can I see the responses</text>
+      <text x="12" y="68" font-size="10" fill="#cbd5e1">you give me here?</text>
+      <text x="12" y="86" font-size="8" font-family="monospace" fill="#67e8f9">12.4k&#8595;</text>
+      <text x="55" y="86" font-size="8" font-family="monospace" fill="#fb923c">847&#8593;</text>
+      <text x="130" y="86" font-size="8" fill="#fbbf24" font-family="monospace">$0.04</text>
+      <!-- Single right handle → first response -->
+      <circle cx="180" cy="42" r="3.5" fill="#60a5fa" stroke="#111827" stroke-width="1.5"/>
+      <!-- Bottom handle for thread -->
+      <circle cx="90" cy="92" r="3.5" fill="#3b82f6" stroke="#111827" stroke-width="1.5"/>
+    </g>
+
+    <!-- Response 1a -->
+    <g transform="translate(470, 24)">
+      <rect width="170" height="52" rx="8" fill="rgba(30,64,100,0.6)" stroke="rgba(96,165,250,0.4)" stroke-width="1"/>
+      <circle cx="0" cy="26" r="3" fill="#60a5fa" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="16" font-size="9" font-weight="700" fill="#93c5fd">Response</text>
+      <text x="10" y="34" font-size="9" fill="#cbd5e1">Let me check what hooks</text>
+      <text x="10" y="46" font-size="9" fill="#cbd5e1">Claude Code emits...</text>
+      <!-- Right handle → toolgroup -->
+      <circle cx="170" cy="26" r="3" fill="#a855f7" stroke="#111827" stroke-width="1.5"/>
+      <!-- Bottom handle → next response -->
+      <circle cx="85" cy="52" r="3" fill="#60a5fa" stroke="#111827" stroke-width="1.5"/>
+    </g>
+
+    <!-- Response 1b -->
+    <g transform="translate(470, 94)">
+      <rect width="170" height="52" rx="8" fill="rgba(30,64,100,0.6)" stroke="rgba(96,165,250,0.4)" stroke-width="1"/>
+      <!-- Top handle → from previous response -->
+      <circle cx="85" cy="0" r="3" fill="#60a5fa" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="16" font-size="9" font-weight="700" fill="#93c5fd">Response</text>
+      <text x="10" y="34" font-size="9" fill="#cbd5e1">Here's what I found in</text>
+      <text x="10" y="46" font-size="9" fill="#cbd5e1">the settings and types.</text>
+      <!-- Right handle → agent -->
+      <circle cx="170" cy="26" r="3" fill="#22c55e" stroke="#111827" stroke-width="1.5"/>
+    </g>
+
+    <!-- Toolgroup off 1a -->
+    <g transform="translate(690, 28)">
+      <rect width="120" height="40" rx="6" fill="rgba(88,28,135,0.5)" stroke="rgba(168,85,247,0.4)" stroke-width="1"/>
+      <circle cx="0" cy="20" r="3" fill="#a855f7" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="16" font-size="9" font-weight="600" fill="#c084fc">Toolgroup</text>
+      <text x="10" y="32" font-size="8" fill="#94a3b8">Read · Grep · Read</text>
+    </g>
+
+    <!-- Agent off 1b -->
+    <g transform="translate(690, 98)">
+      <rect width="120" height="40" rx="6" fill="rgba(20,83,45,0.7)" stroke="rgba(34,197,94,0.5)" stroke-width="1"/>
+      <circle cx="0" cy="20" r="3" fill="#22c55e" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="16" font-size="9" font-weight="600" fill="#4ade80">Agent</text>
+      <text x="10" y="32" font-size="8" fill="#94a3b8">Explore hooks</text>
+    </g>
+
+    <!-- ─── Prompt 2 ─── -->
+    <g transform="translate(220, 200)">
+      <rect width="180" height="110" rx="10" fill="rgba(120,53,15,0.6)" stroke="rgba(217,119,6,0.5)" stroke-width="1.5"/>
+      <circle cx="0" cy="55" r="4" fill="#f59e0b" stroke="#111827" stroke-width="2"/>
+      <!-- Top handle for thread from P1 -->
+      <circle cx="90" cy="0" r="3.5" fill="#3b82f6" stroke="#111827" stroke-width="1.5"/>
+      <text x="12" y="18" font-size="11" font-weight="700" fill="#fcd34d">Prompt</text>
+      <circle cx="155" cy="12" r="10" fill="rgba(59,130,246,0.6)" stroke="rgba(59,130,246,0.8)" stroke-width="1"/>
+      <text x="152" y="16" font-size="9" font-weight="700" fill="#fff" text-anchor="middle">2</text>
+      <text x="12" y="36" font-size="8" fill="#64748b">03:19:17</text>
+      <text x="12" y="54" font-size="10" fill="#cbd5e1">Once I restart the</text>
+      <text x="12" y="68" font-size="10" fill="#cbd5e1">servers.</text>
+      <text x="12" y="86" font-size="8" fill="#64748b" font-style="italic">1 response · no tools</text>
+      <text x="12" y="102" font-size="8" font-family="monospace" fill="#67e8f9">1.2k&#8595;</text>
+      <text x="45" y="102" font-size="8" font-family="monospace" fill="#fb923c">312&#8593;</text>
+      <text x="130" y="102" font-size="8" fill="#fbbf24" font-family="monospace">$0.005</text>
+      <circle cx="180" cy="40" r="3.5" fill="#60a5fa" stroke="#111827" stroke-width="1.5"/>
+      <circle cx="90" cy="110" r="3.5" fill="#3b82f6" stroke="#111827" stroke-width="1.5"/>
+    </g>
+
+    <!-- Response 2a (simple) -->
+    <g transform="translate(470, 194)">
+      <rect width="170" height="52" rx="8" fill="rgba(30,64,100,0.6)" stroke="rgba(96,165,250,0.4)" stroke-width="1"/>
+      <circle cx="0" cy="26" r="3" fill="#60a5fa" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="16" font-size="9" font-weight="700" fill="#93c5fd">Response</text>
+      <text x="10" y="34" font-size="9" fill="#cbd5e1">Just the server — rebuild</text>
+      <text x="10" y="46" font-size="9" fill="#cbd5e1">and restart.</text>
+    </g>
+
+    <!-- ─── Prompt 3 (multi-response showcase) ─── -->
+    <g transform="translate(220, 370)">
+      <rect width="180" height="130" rx="10" fill="rgba(120,53,15,0.6)" stroke="rgba(217,119,6,0.5)" stroke-width="1.5"/>
+      <circle cx="0" cy="65" r="4" fill="#f59e0b" stroke="#111827" stroke-width="2"/>
+      <circle cx="90" cy="0" r="3.5" fill="#3b82f6" stroke="#111827" stroke-width="1.5"/>
+      <text x="12" y="18" font-size="11" font-weight="700" fill="#fcd34d">Prompt</text>
+      <circle cx="155" cy="12" r="10" fill="rgba(59,130,246,0.6)" stroke="rgba(59,130,246,0.8)" stroke-width="1"/>
+      <text x="152" y="16" font-size="9" font-weight="700" fill="#fff" text-anchor="middle">3</text>
+      <text x="12" y="36" font-size="8" fill="#64748b">03:19:43</text>
+      <text x="12" y="54" font-size="10" fill="#cbd5e1">Fix the hook so</text>
+      <text x="12" y="68" font-size="10" fill="#cbd5e1">responses show up</text>
+      <text x="12" y="82" font-size="10" fill="#cbd5e1">in the dashboard.</text>
+      <rect x="12" y="92" width="60" height="14" rx="4" fill="rgba(96,165,250,0.15)" stroke="rgba(96,165,250,0.25)" stroke-width="0.5"/>
+      <text x="18" y="102" font-size="8" font-weight="600" fill="#93c5fd">3 responses</text>
+      <text x="12" y="122" font-size="8" font-family="monospace" fill="#67e8f9">8.7k&#8595;</text>
+      <text x="45" y="122" font-size="8" font-family="monospace" fill="#fb923c">1.4k&#8593;</text>
+      <text x="130" y="122" font-size="8" fill="#fbbf24" font-family="monospace">$0.03</text>
+      <!-- Single right handle → first response only -->
+      <circle cx="180" cy="55" r="3.5" fill="#60a5fa" stroke="#111827" stroke-width="1.5"/>
+      <circle cx="90" cy="130" r="3.5" fill="#3b82f6" stroke="#111827" stroke-width="1.5"/>
+    </g>
+
+    <!-- Response 3a (intermediate — dim, dashed) -->
+    <g transform="translate(470, 358)" opacity="0.5">
+      <rect width="170" height="40" rx="6" fill="rgba(30,64,100,0.3)" stroke="rgba(96,165,250,0.2)" stroke-width="1" stroke-dasharray="4 2"/>
+      <circle cx="0" cy="20" r="3" fill="#60a5fa" stroke="#111827" stroke-width="1.5" opacity="0.5"/>
+      <text x="10" y="14" font-size="8" font-weight="600" fill="#93c5fd">Seg 1</text>
+      <text x="40" y="14" font-size="7" fill="#64748b">03:19:46</text>
+      <text x="10" y="30" font-size="8" fill="#94a3b8">Let me check the config...</text>
+      <text x="128" y="14" font-size="7" fill="#c084fc">Read x2</text>
+      <!-- Bottom handle → chain to next response -->
+      <circle cx="85" cy="40" r="2.5" fill="#60a5fa" stroke="#111827" stroke-width="1" opacity="0.5"/>
+    </g>
+
+    <!-- Response 3b (intermediate — dim, dashed) -->
+    <g transform="translate(470, 418)" opacity="0.5">
+      <rect width="170" height="40" rx="6" fill="rgba(30,64,100,0.3)" stroke="rgba(96,165,250,0.2)" stroke-width="1" stroke-dasharray="4 2"/>
+      <!-- Top handle → from previous response -->
+      <circle cx="85" cy="0" r="2.5" fill="#60a5fa" stroke="#111827" stroke-width="1" opacity="0.5"/>
+      <text x="10" y="14" font-size="8" font-weight="600" fill="#93c5fd">Seg 2</text>
+      <text x="40" y="14" font-size="7" fill="#64748b">03:19:52</text>
+      <text x="10" y="30" font-size="8" fill="#94a3b8">I'll create a hook script...</text>
+      <text x="120" y="14" font-size="7" fill="#c084fc">Write+Edit</text>
+      <!-- Bottom handle → chain to final response -->
+      <circle cx="85" cy="40" r="2.5" fill="#60a5fa" stroke="#111827" stroke-width="1" opacity="0.5"/>
+    </g>
+
+    <!-- Response 3c (FINAL — bright, solid) -->
+    <g transform="translate(470, 476)">
+      <rect width="170" height="56" rx="8" fill="rgba(30,64,100,0.6)" stroke="rgba(96,165,250,0.5)" stroke-width="1.5"/>
+      <circle cx="0" cy="28" r="3.5" fill="#60a5fa" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="16" font-size="9" font-weight="700" fill="#93c5fd">Response</text>
+      <text x="72" y="16" font-size="7" fill="#64748b">final · 03:20:01</text>
+      <text x="10" y="34" font-size="9" fill="#cbd5e1">Done! Added the hook and</text>
+      <text x="10" y="48" font-size="9" fill="#cbd5e1">updated ToolLogPanel.</text>
+      <circle cx="170" cy="18" r="3" fill="#a855f7" stroke="#111827" stroke-width="1.5"/>
+      <circle cx="170" cy="40" r="3" fill="#22c55e" stroke="#111827" stroke-width="1.5"/>
+    </g>
+
+    <!-- Toolgroup off final response -->
+    <g transform="translate(690, 460)">
+      <rect width="130" height="36" rx="6" fill="rgba(88,28,135,0.5)" stroke="rgba(168,85,247,0.4)" stroke-width="1"/>
+      <circle cx="0" cy="18" r="3" fill="#a855f7" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="14" font-size="9" font-weight="600" fill="#c084fc">Toolgroup</text>
+      <text x="10" y="28" font-size="8" fill="#94a3b8">Edit x2 · settings + panel</text>
+    </g>
+
+    <!-- Agent off final response -->
+    <g transform="translate(690, 510)">
+      <rect width="130" height="40" rx="6" fill="rgba(20,83,45,0.7)" stroke="rgba(34,197,94,0.5)" stroke-width="1"/>
+      <circle cx="0" cy="20" r="3" fill="#22c55e" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="16" font-size="9" font-weight="600" fill="#4ade80">Agent</text>
+      <text x="10" y="32" font-size="8" fill="#94a3b8">Explore prompt/node visuals</text>
+    </g>
+
+    <!-- ─── Prompt 4 ─── -->
+    <g transform="translate(220, 560)">
+      <rect width="180" height="110" rx="10" fill="rgba(120,53,15,0.6)" stroke="rgba(217,119,6,0.5)" stroke-width="1.5"/>
+      <circle cx="0" cy="55" r="4" fill="#f59e0b" stroke="#111827" stroke-width="2"/>
+      <circle cx="90" cy="0" r="3.5" fill="#3b82f6" stroke="#111827" stroke-width="1.5"/>
+      <text x="12" y="18" font-size="11" font-weight="700" fill="#fcd34d">Prompt</text>
+      <circle cx="155" cy="12" r="10" fill="rgba(59,130,246,0.6)" stroke="rgba(59,130,246,0.8)" stroke-width="1"/>
+      <text x="152" y="16" font-size="9" font-weight="700" fill="#fff" text-anchor="middle">4</text>
+      <text x="12" y="36" font-size="8" fill="#64748b">03:21:42</text>
+      <text x="12" y="54" font-size="10" fill="#cbd5e1">How do we thread</text>
+      <text x="12" y="68" font-size="10" fill="#cbd5e1">conversations? Show</text>
+      <text x="12" y="82" font-size="10" fill="#cbd5e1">me 3 prototypes.</text>
+      <rect x="12" y="92" width="60" height="14" rx="4" fill="rgba(96,165,250,0.15)" stroke="rgba(96,165,250,0.25)" stroke-width="0.5">
+        <animate attributeName="opacity" values="1;0.5;1" dur="1.5s" repeatCount="indefinite"/>
+      </rect>
+      <text x="18" y="102" font-size="8" font-weight="600" fill="#60a5fa">4 segments</text>
+      <circle cx="180" cy="60" r="3.5" fill="#60a5fa" stroke="#111827" stroke-width="1.5"/>
+    </g>
+
+    <!-- Response 4 (in progress) -->
+    <g transform="translate(470, 580)">
+      <rect width="170" height="60" rx="8" fill="rgba(30,64,100,0.6)" stroke="rgba(96,165,250,0.6)" stroke-width="1.5">
+        <animate attributeName="stroke-opacity" values="0.6;1;0.6" dur="2s" repeatCount="indefinite"/>
+      </rect>
+      <circle cx="0" cy="30" r="3.5" fill="#60a5fa" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="16" font-size="9" font-weight="700" fill="#93c5fd">Response</text>
+      <rect x="68" y="5" width="46" height="13" rx="3" fill="rgba(96,165,250,0.2)">
+        <animate attributeName="opacity" values="1;0.5;1" dur="1.5s" repeatCount="indefinite"/>
+      </rect>
+      <text x="74" y="15" font-size="7" font-weight="600" fill="#60a5fa">streaming</text>
+      <text x="10" y="34" font-size="9" fill="#cbd5e1">Done! Open the HTML.</text>
+      <text x="10" y="48" font-size="9" fill="#cbd5e1">Four tabs with approaches.</text>
+      <text x="130" y="48" font-size="8" fill="#fbbf24" font-family="monospace">$0.28</text>
+      <circle cx="170" cy="20" r="3" fill="#22c55e" stroke="#111827" stroke-width="1.5"/>
+      <circle cx="170" cy="42" r="3" fill="#22c55e" stroke="#111827" stroke-width="1.5"/>
+      <circle cx="170" cy="55" r="3" fill="#a855f7" stroke="#111827" stroke-width="1.5"/>
+    </g>
+
+    <!-- Agents off Response 4 -->
+    <g transform="translate(690, 570)">
+      <rect width="130" height="34" rx="6" fill="rgba(20,83,45,0.7)" stroke="rgba(34,197,94,0.5)" stroke-width="1"/>
+      <circle cx="0" cy="17" r="3" fill="#22c55e" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="14" font-size="8" font-weight="600" fill="#4ade80">Explore</text>
+      <text x="52" y="14" font-size="7" fill="#94a3b8">visual model</text>
+      <text x="10" y="28" font-size="7" fill="#64748b">75k tokens</text>
+    </g>
+    <g transform="translate(690, 616)">
+      <rect width="130" height="34" rx="6" fill="rgba(20,83,45,0.7)" stroke="rgba(34,197,94,0.5)" stroke-width="1"/>
+      <circle cx="0" cy="17" r="3" fill="#22c55e" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="14" font-size="8" font-weight="600" fill="#4ade80">Explore</text>
+      <text x="52" y="14" font-size="7" fill="#94a3b8">data shapes</text>
+      <text x="10" y="28" font-size="7" fill="#64748b">41k tokens</text>
+    </g>
+    <g transform="translate(690, 662)">
+      <rect width="130" height="34" rx="6" fill="rgba(88,28,135,0.5)" stroke="rgba(168,85,247,0.4)" stroke-width="1"/>
+      <circle cx="0" cy="17" r="3" fill="#a855f7" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="14" font-size="8" fill="#c084fc">Read · Write · Edit x2</text>
+      <text x="10" y="28" font-size="7" fill="#64748b">4 tools</text>
+    </g>
+
+    <!-- ─── Legend ─── -->
+    <g transform="translate(830, 30)">
+      <rect width="210" height="200" rx="10" fill="rgba(0,0,0,0.3)" stroke="var(--border)" stroke-width="1"/>
+      <text x="14" y="22" font-size="11" font-weight="700" fill="#e2e8f0">F: Prompt Chain</text>
+      <text x="14" y="42" font-size="9" fill="#fcd34d">&#9632; Prompt</text>
+      <text x="60" y="42" font-size="8" fill="var(--text-dim)">— user message</text>
+      <text x="14" y="58" font-size="9" fill="#93c5fd">&#9632; Response</text>
+      <text x="68" y="58" font-size="8" fill="var(--text-dim)">— Claude reply</text>
+      <text x="14" y="74" font-size="9" fill="#93c5fd" opacity="0.5">&#9633; Segment</text>
+      <text x="68" y="74" font-size="8" fill="var(--text-dim)">— intermediate</text>
+      <text x="14" y="90" font-size="9" fill="#4ade80">&#9632; Agent</text>
+      <text x="56" y="90" font-size="8" fill="var(--text-dim)">— subagent</text>
+      <text x="14" y="106" font-size="9" fill="#c084fc">&#9632; Toolgroup</text>
+      <text x="76" y="106" font-size="8" fill="var(--text-dim)">— tools</text>
+      <line x1="14" y1="118" x2="196" y2="118" stroke="var(--border)" stroke-width="1"/>
+      <text x="14" y="136" font-size="9" fill="var(--text-dim)">Conversation flows &#8595;</text>
+      <text x="14" y="152" font-size="9" fill="var(--text-dim)">Work branches &#8594;</text>
+      <line x1="14" y1="164" x2="196" y2="164" stroke="var(--border)" stroke-width="1"/>
+      <text x="14" y="180" font-size="8" fill="var(--text-dim)">Thread: Prompt &#8594; Prompt</text>
+      <text x="14" y="194" font-size="8" fill="var(--text-dim)">Chain: Prompt &#8594; Resp &#8594; Resp &#8594; Tools</text>
+    </g>
+  </svg>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- G: Hybrid (E collapsed + F expanded)           -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="tab-content" id="tab-g">
+  <div class="insight">
+    <strong>Approach G — Hybrid (E + F Combined)</strong><br>
+    Two states. <strong>Collapsed</strong> (default) = today's graph + response text inside the prompt node. Tools, agents, toolgroups are direct children of the turn — exactly like now. <strong>Expanded</strong> (click) = response nodes appear between the turn and its tools, showing which response triggered which work.
+    <span class="q">Collapsed = what happened. Expanded = why it happened. Same children, just re-parented through response nodes to show causality.</span>
+  </div>
+
+  <svg width="100%" height="980" viewBox="0 0 1100 960" style="display:block;margin:0 auto;max-width:1100px;border-radius:12px;border:1px solid var(--border)">
+    <defs>
+      <linearGradient id="g-edge-amber" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#d97706;stop-opacity:0.5"/><stop offset="100%" style="stop-color:#d97706;stop-opacity:0.2"/>
+      </linearGradient>
+      <linearGradient id="g-edge-blue" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:0.5"/><stop offset="100%" style="stop-color:#3b82f6;stop-opacity:0.2"/>
+      </linearGradient>
+      <linearGradient id="g-edge-purple" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#a855f7;stop-opacity:0.4"/><stop offset="100%" style="stop-color:#a855f7;stop-opacity:0.15"/>
+      </linearGradient>
+      <linearGradient id="g-edge-green" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#22c55e;stop-opacity:0.4"/><stop offset="100%" style="stop-color:#22c55e;stop-opacity:0.15"/>
+      </linearGradient>
+      <linearGradient id="g-thread" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:0.4"/><stop offset="100%" style="stop-color:#3b82f6;stop-opacity:0.15"/>
+      </linearGradient>
+    </defs>
+
+    <!-- ════════════════════════════════════════ -->
+    <!-- COLLAPSED — Today's graph + response     -->
+    <!-- ════════════════════════════════════════ -->
+    <g transform="translate(20, 20)">
+      <rect width="440" height="26" rx="6" fill="rgba(59,130,246,0.12)" stroke="rgba(59,130,246,0.25)" stroke-width="1"/>
+      <text x="10" y="17" font-size="11" font-weight="700" fill="#93c5fd">COLLAPSED — Today's graph + response text. Tools are direct children.</text>
+    </g>
+
+    <!-- Session → Turn 1 -->
+    <path d="M 170 105 C 200 105, 210 95, 240 95" stroke="url(#g-edge-amber)" stroke-width="2" fill="none"/>
+    <!-- Turn 1 → Toolgroup (direct child) -->
+    <path d="M 460 80 C 490 80, 500 80, 530 80" stroke="url(#g-edge-purple)" stroke-width="1.5" fill="none"/>
+    <!-- Turn 1 → Agent (direct child) -->
+    <path d="M 460 110 C 490 110, 500 130, 530 130" stroke="url(#g-edge-green)" stroke-width="1.5" fill="none"/>
+    <!-- Turn 1 thread → Turn 2 -->
+    <path d="M 350 160 L 350 195" stroke="url(#g-thread)" stroke-width="2" fill="none"/>
+    <circle cx="350" cy="178" r="2" fill="rgba(59,130,246,0.3)"/>
+
+    <!-- Turn 2 thread → Turn 3 -->
+    <path d="M 350 275 L 350 310" stroke="url(#g-thread)" stroke-width="2" fill="none"/>
+    <circle cx="350" cy="293" r="2" fill="rgba(59,130,246,0.3)"/>
+
+    <!-- Turn 3 → Toolgroup (direct child) -->
+    <path d="M 460 340 C 490 340, 500 330, 530 330" stroke="url(#g-edge-purple)" stroke-width="1.5" fill="none"/>
+    <!-- Turn 3 → Agent (direct child) -->
+    <path d="M 460 365 C 490 365, 500 380, 530 380" stroke="url(#g-edge-green)" stroke-width="1.5" fill="none"/>
+    <!-- Agent → Toolgroup -->
+    <path d="M 650 380 C 670 380, 680 380, 700 380" stroke="url(#g-edge-purple)" stroke-width="1.5" fill="none"/>
+
+    <!-- Session -->
+    <g transform="translate(30, 66)">
+      <rect width="140" height="74" rx="10" fill="rgba(30,58,138,0.8)" stroke="rgba(59,130,246,0.5)" stroke-width="1.5"/>
+      <text x="10" y="18" font-size="10" font-weight="700" fill="#e2e8f0">SESSION</text>
+      <rect x="64" y="6" width="56" height="14" rx="3" fill="rgba(59,130,246,0.2)"/>
+      <text x="70" y="16" font-size="8" font-weight="700" fill="#60a5fa">ANTHROPIC</text>
+      <text x="10" y="36" font-size="9" fill="#94a3b8">03:18 AM · Opus 4.6</text>
+      <text x="10" y="52" font-size="10" fill="#cbd5e1">Conversation...</text>
+      <text x="10" y="66" font-size="8" fill="#64748b">6b75d8c4</text>
+      <circle cx="140" cy="38" r="4" fill="#60a5fa" stroke="#111827" stroke-width="2"/>
+    </g>
+
+    <!-- ─── Turn 1 (collapsed — prompt + blue response + children) ─── -->
+    <g transform="translate(240, 58)">
+      <rect width="220" height="100" rx="10" fill="rgba(120,53,15,0.6)" stroke="rgba(217,119,6,0.5)" stroke-width="1.5"/>
+      <circle cx="0" cy="38" r="4" fill="#f59e0b" stroke="#111827" stroke-width="2"/>
+      <text x="12" y="18" font-size="11" font-weight="700" fill="#fcd34d">Turn 1</text>
+      <text x="12" y="34" font-size="8" fill="#64748b">03:18:44 · 2 responses</text>
+      <!-- Prompt (amber) -->
+      <rect x="12" y="42" width="196" height="22" rx="4" fill="rgba(217,119,6,0.15)" stroke="rgba(217,119,6,0.2)" stroke-width="0.5"/>
+      <text x="16" y="52" font-size="8" font-weight="600" fill="#fbbf24">You:</text>
+      <text x="36" y="52" font-size="8" fill="#cbd5e1">Can I see the responses you give me?</text>
+      <text x="16" y="60" font-size="7" fill="#64748b">847 tokens</text>
+      <!-- Response (blue) -->
+      <rect x="12" y="68" width="196" height="22" rx="4" fill="rgba(96,165,250,0.1)" stroke="rgba(96,165,250,0.2)" stroke-width="0.5"/>
+      <text x="16" y="78" font-size="8" font-weight="600" fill="#93c5fd">Claude:</text>
+      <text x="50" y="78" font-size="8" fill="#94a3b8">Here's what I found in settings...</text>
+      <text x="16" y="86" font-size="7" fill="#64748b">12.4k tokens · $0.04</text>
+      <!-- Expand hint -->
+      <text x="190" y="96" font-size="8" fill="#64748b">&#9654;</text>
+      <!-- Right handles → direct children -->
+      <circle cx="220" cy="22" r="3" fill="#a855f7" stroke="#111827" stroke-width="1.5"/>
+      <circle cx="220" cy="52" r="3" fill="#22c55e" stroke="#111827" stroke-width="1.5"/>
+      <!-- Bottom thread -->
+      <circle cx="110" cy="100" r="3.5" fill="#3b82f6" stroke="#111827" stroke-width="1.5"/>
+    </g>
+
+    <!-- Toolgroup (direct child of Turn 1) -->
+    <g transform="translate(530, 60)">
+      <rect width="130" height="40" rx="6" fill="rgba(88,28,135,0.5)" stroke="rgba(168,85,247,0.4)" stroke-width="1"/>
+      <circle cx="0" cy="20" r="3" fill="#a855f7" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="16" font-size="9" font-weight="600" fill="#c084fc">Toolgroup</text>
+      <text x="10" y="32" font-size="8" fill="#94a3b8">Read · Grep · Read</text>
+    </g>
+
+    <!-- Agent (direct child of Turn 1) -->
+    <g transform="translate(530, 110)">
+      <rect width="120" height="40" rx="6" fill="rgba(20,83,45,0.7)" stroke="rgba(34,197,94,0.5)" stroke-width="1"/>
+      <circle cx="0" cy="20" r="3" fill="#22c55e" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="16" font-size="9" font-weight="600" fill="#4ade80">Agent</text>
+      <text x="10" y="32" font-size="8" fill="#94a3b8">Explore hooks</text>
+    </g>
+
+    <!-- ─── Turn 2 (collapsed — simple, no children) ─── -->
+    <g transform="translate(240, 195)">
+      <rect width="220" height="80" rx="10" fill="rgba(120,53,15,0.6)" stroke="rgba(217,119,6,0.5)" stroke-width="1.5"/>
+      <circle cx="110" cy="0" r="3.5" fill="#3b82f6" stroke="#111827" stroke-width="1.5"/>
+      <text x="12" y="18" font-size="11" font-weight="700" fill="#fcd34d">Turn 2</text>
+      <text x="12" y="34" font-size="8" fill="#64748b">03:19:17 · 1 response</text>
+      <rect x="12" y="40" width="196" height="14" rx="3" fill="rgba(217,119,6,0.15)" stroke="rgba(217,119,6,0.2)" stroke-width="0.5"/>
+      <text x="16" y="50" font-size="8" font-weight="600" fill="#fbbf24">You:</text>
+      <text x="36" y="50" font-size="8" fill="#cbd5e1">Once I restart the servers.</text>
+      <rect x="12" y="58" width="196" height="14" rx="3" fill="rgba(96,165,250,0.1)" stroke="rgba(96,165,250,0.2)" stroke-width="0.5"/>
+      <text x="16" y="68" font-size="8" font-weight="600" fill="#93c5fd">Claude:</text>
+      <text x="50" y="68" font-size="8" fill="#94a3b8">Just the server — restart it.</text>
+      <text x="190" y="77" font-size="8" fill="#64748b">&#9654;</text>
+      <circle cx="110" cy="80" r="3.5" fill="#3b82f6" stroke="#111827" stroke-width="1.5"/>
+    </g>
+
+    <!-- ─── Turn 3 (collapsed — 3 responses, has children) ─── -->
+    <g transform="translate(240, 310)">
+      <rect width="220" height="80" rx="10" fill="rgba(120,53,15,0.6)" stroke="rgba(217,119,6,0.5)" stroke-width="1.5"/>
+      <circle cx="110" cy="0" r="3.5" fill="#3b82f6" stroke="#111827" stroke-width="1.5"/>
+      <text x="12" y="18" font-size="11" font-weight="700" fill="#fcd34d">Turn 3</text>
+      <text x="12" y="34" font-size="8" fill="#64748b">03:19:43 · 3 responses</text>
+      <rect x="12" y="40" width="196" height="14" rx="3" fill="rgba(217,119,6,0.15)" stroke="rgba(217,119,6,0.2)" stroke-width="0.5"/>
+      <text x="16" y="50" font-size="8" font-weight="600" fill="#fbbf24">You:</text>
+      <text x="36" y="50" font-size="8" fill="#cbd5e1">OK services ready. Let's try.</text>
+      <rect x="12" y="58" width="196" height="14" rx="3" fill="rgba(96,165,250,0.1)" stroke="rgba(96,165,250,0.2)" stroke-width="0.5"/>
+      <text x="16" y="68" font-size="8" font-weight="600" fill="#93c5fd">Claude:</text>
+      <text x="50" y="68" font-size="8" fill="#94a3b8">Done! The hook is working now.</text>
+      <text x="190" y="77" font-size="8" fill="#64748b">&#9654;</text>
+      <!-- Right handles → direct children (flat) -->
+      <circle cx="220" cy="20" r="3" fill="#a855f7" stroke="#111827" stroke-width="1.5"/>
+      <circle cx="220" cy="55" r="3" fill="#22c55e" stroke="#111827" stroke-width="1.5"/>
+    </g>
+
+    <!-- Toolgroup (direct child of Turn 3) -->
+    <g transform="translate(530, 310)">
+      <rect width="130" height="40" rx="6" fill="rgba(88,28,135,0.5)" stroke="rgba(168,85,247,0.4)" stroke-width="1"/>
+      <circle cx="0" cy="20" r="3" fill="#a855f7" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="16" font-size="9" font-weight="600" fill="#c084fc">Toolgroup</text>
+      <text x="10" y="32" font-size="8" fill="#94a3b8">Read · Read</text>
+    </g>
+
+    <!-- Agent (direct child of Turn 3) -->
+    <g transform="translate(530, 360)">
+      <rect width="120" height="40" rx="6" fill="rgba(20,83,45,0.7)" stroke="rgba(34,197,94,0.5)" stroke-width="1"/>
+      <circle cx="0" cy="20" r="3" fill="#22c55e" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="16" font-size="9" font-weight="600" fill="#4ade80">Explore</text>
+      <text x="10" y="32" font-size="8" fill="#94a3b8">visual model</text>
+      <circle cx="120" cy="20" r="3" fill="#a855f7" stroke="#111827" stroke-width="1.5"/>
+    </g>
+
+    <!-- Toolgroup off Agent -->
+    <g transform="translate(700, 360)">
+      <rect width="130" height="40" rx="6" fill="rgba(88,28,135,0.5)" stroke="rgba(168,85,247,0.4)" stroke-width="1"/>
+      <circle cx="0" cy="20" r="3" fill="#a855f7" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="16" font-size="9" font-weight="600" fill="#c084fc">Toolgroup</text>
+      <text x="10" y="32" font-size="8" fill="#94a3b8">Write · Edit x2</text>
+    </g>
+
+    <!-- ════════════════════════════════════════════════════ -->
+    <!-- EXPANDED — Turn 3 clicked, responses appear between -->
+    <!-- ════════════════════════════════════════════════════ -->
+    <g transform="translate(20, 440)">
+      <rect width="510" height="26" rx="6" fill="rgba(34,197,94,0.12)" stroke="rgba(34,197,94,0.25)" stroke-width="1"/>
+      <text x="10" y="17" font-size="11" font-weight="700" fill="#4ade80">EXPANDED — Click Turn 3: response nodes appear BETWEEN turn and tools</text>
+    </g>
+
+    <!-- Edges -->
+    <!-- Session → Turn 1 -->
+    <path d="M 170 530 C 200 530, 210 520, 240 520" stroke="url(#g-edge-amber)" stroke-width="2" fill="none"/>
+    <!-- Turn 1 → children (flat, same as collapsed) -->
+    <path d="M 460 505 C 490 505, 500 505, 530 505" stroke="url(#g-edge-purple)" stroke-width="1.5" fill="none" opacity="0.5"/>
+    <path d="M 460 535 C 490 535, 500 555, 530 555" stroke="url(#g-edge-green)" stroke-width="1.5" fill="none" opacity="0.5"/>
+    <!-- Turn 1 thread → Turn 2 -->
+    <path d="M 350 582 L 350 615" stroke="url(#g-thread)" stroke-width="2" fill="none"/>
+    <circle cx="350" cy="598" r="2" fill="rgba(59,130,246,0.3)"/>
+    <!-- Turn 2 thread → Turn 3 -->
+    <path d="M 350 695 L 350 730" stroke="url(#g-thread)" stroke-width="2" fill="none"/>
+    <circle cx="350" cy="712" r="2" fill="rgba(59,130,246,0.3)"/>
+
+    <!-- Turn 3 (expanded) → Response 1 -->
+    <path d="M 460 770 C 490 770, 500 710, 530 710" stroke="url(#g-edge-blue)" stroke-width="1.5" fill="none"/>
+    <!-- Response 1 chain → Response 2 -->
+    <path d="M 615 740 L 615 764" stroke="url(#g-edge-blue)" stroke-width="1.5" fill="none" opacity="0.5" stroke-dasharray="4 3"/>
+    <!-- Response 2 chain → Response 3 -->
+    <path d="M 615 804 L 615 828" stroke="url(#g-edge-blue)" stroke-width="1.5" fill="none"/>
+    <!-- Response 1 → Toolgroup (now parented through response) -->
+    <path d="M 700 710 C 720 710, 730 710, 750 710" stroke="url(#g-edge-purple)" stroke-width="1.5" fill="none" opacity="0.6"/>
+    <!-- Response 3 → Agent (now parented through response) -->
+    <path d="M 700 848 C 720 848, 730 848, 750 848" stroke="url(#g-edge-green)" stroke-width="1.5" fill="none"/>
+    <!-- Agent → Toolgroup -->
+    <path d="M 870 848 C 890 848, 900 848, 920 848" stroke="url(#g-edge-purple)" stroke-width="1.5" fill="none"/>
+
+    <!-- Session (compact) -->
+    <g transform="translate(30, 490)">
+      <rect width="140" height="74" rx="10" fill="rgba(30,58,138,0.8)" stroke="rgba(59,130,246,0.5)" stroke-width="1.5"/>
+      <text x="10" y="18" font-size="10" font-weight="700" fill="#e2e8f0">SESSION</text>
+      <rect x="64" y="6" width="56" height="14" rx="3" fill="rgba(59,130,246,0.2)"/>
+      <text x="70" y="16" font-size="8" font-weight="700" fill="#60a5fa">ANTHROPIC</text>
+      <text x="10" y="36" font-size="9" fill="#94a3b8">03:18 AM · Opus 4.6</text>
+      <text x="10" y="52" font-size="10" fill="#cbd5e1">Conversation...</text>
+      <text x="10" y="66" font-size="8" fill="#64748b">6b75d8c4</text>
+      <circle cx="140" cy="38" r="4" fill="#60a5fa" stroke="#111827" stroke-width="2"/>
+    </g>
+
+    <!-- Turn 1 (collapsed, dim) -->
+    <g transform="translate(240, 480)" opacity="0.5">
+      <rect width="220" height="100" rx="10" fill="rgba(120,53,15,0.5)" stroke="rgba(217,119,6,0.35)" stroke-width="1"/>
+      <circle cx="0" cy="38" r="4" fill="#f59e0b" stroke="#111827" stroke-width="2"/>
+      <text x="12" y="18" font-size="11" font-weight="700" fill="#fcd34d">Turn 1</text>
+      <text x="12" y="34" font-size="8" fill="#64748b">03:18:44 · 2 responses</text>
+      <rect x="12" y="42" width="196" height="22" rx="4" fill="rgba(217,119,6,0.15)"/>
+      <text x="16" y="52" font-size="8" font-weight="600" fill="#fbbf24">You:</text>
+      <text x="36" y="52" font-size="8" fill="#cbd5e1">Can I see the responses?</text>
+      <rect x="12" y="68" width="196" height="22" rx="4" fill="rgba(96,165,250,0.1)"/>
+      <text x="16" y="78" font-size="8" font-weight="600" fill="#93c5fd">Claude:</text>
+      <text x="50" y="78" font-size="8" fill="#94a3b8">Here's what I found...</text>
+      <circle cx="220" cy="25" r="3" fill="#a855f7" stroke="#111827" stroke-width="1"/>
+      <circle cx="220" cy="55" r="3" fill="#22c55e" stroke="#111827" stroke-width="1"/>
+      <circle cx="110" cy="100" r="3.5" fill="#3b82f6" stroke="#111827" stroke-width="1.5"/>
+    </g>
+
+    <!-- Turn 1's flat children (dim) -->
+    <g transform="translate(530, 485)" opacity="0.4">
+      <rect width="110" height="34" rx="6" fill="rgba(88,28,135,0.4)" stroke="rgba(168,85,247,0.3)" stroke-width="1"/>
+      <circle cx="0" cy="17" r="3" fill="#a855f7" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="14" font-size="8" fill="#c084fc">Toolgroup</text>
+      <text x="10" y="28" font-size="7" fill="#94a3b8">Read · Grep</text>
+    </g>
+    <g transform="translate(530, 535)" opacity="0.4">
+      <rect width="110" height="34" rx="6" fill="rgba(20,83,45,0.5)" stroke="rgba(34,197,94,0.3)" stroke-width="1"/>
+      <circle cx="0" cy="17" r="3" fill="#22c55e" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="14" font-size="8" fill="#4ade80">Agent</text>
+      <text x="10" y="28" font-size="7" fill="#94a3b8">Explore</text>
+    </g>
+
+    <!-- Turn 2 (collapsed, dim) -->
+    <g transform="translate(240, 615)" opacity="0.5">
+      <rect width="220" height="80" rx="10" fill="rgba(120,53,15,0.5)" stroke="rgba(217,119,6,0.35)" stroke-width="1"/>
+      <circle cx="110" cy="0" r="3.5" fill="#3b82f6" stroke="#111827" stroke-width="1.5"/>
+      <text x="12" y="18" font-size="11" font-weight="700" fill="#fcd34d">Turn 2</text>
+      <text x="12" y="34" font-size="8" fill="#64748b">03:19:17 · 1 response</text>
+      <rect x="12" y="40" width="196" height="14" rx="3" fill="rgba(217,119,6,0.15)"/>
+      <text x="16" y="50" font-size="8" font-weight="600" fill="#fbbf24">You:</text>
+      <text x="36" y="50" font-size="8" fill="#cbd5e1">Once I restart the servers.</text>
+      <rect x="12" y="58" width="196" height="14" rx="3" fill="rgba(96,165,250,0.1)"/>
+      <text x="16" y="68" font-size="8" font-weight="600" fill="#93c5fd">Claude:</text>
+      <text x="50" y="68" font-size="8" fill="#94a3b8">Just the server — restart it.</text>
+      <circle cx="110" cy="80" r="3.5" fill="#3b82f6" stroke="#111827" stroke-width="1.5"/>
+    </g>
+
+    <!-- ─── Turn 3 EXPANDED (glowing) ─── -->
+    <g transform="translate(240, 730)">
+      <rect width="220" height="170" rx="10" fill="rgba(120,53,15,0.7)" stroke="#f59e0b" stroke-width="2.5">
+        <animate attributeName="stroke-opacity" values="1;0.5;1" dur="2s" repeatCount="indefinite"/>
+      </rect>
+      <circle cx="110" cy="0" r="3.5" fill="#3b82f6" stroke="#111827" stroke-width="1.5"/>
+      <circle cx="0" cy="60" r="4" fill="#f59e0b" stroke="#111827" stroke-width="2"/>
+      <text x="12" y="18" font-size="11" font-weight="700" fill="#fcd34d">Turn 3</text>
+      <rect x="52" y="6" width="52" height="14" rx="3" fill="rgba(34,197,94,0.2)"/>
+      <text x="58" y="16" font-size="8" font-weight="700" fill="#4ade80">EXPANDED</text>
+      <text x="12" y="38" font-size="8" fill="#64748b">03:19:43 · 3 responses</text>
+      <!-- Full prompt -->
+      <rect x="12" y="46" width="196" height="50" rx="4" fill="rgba(217,119,6,0.15)" stroke="rgba(217,119,6,0.2)" stroke-width="0.5"/>
+      <text x="16" y="58" font-size="8" font-weight="600" fill="#fbbf24">You:</text>
+      <text x="36" y="58" font-size="8" fill="#cbd5e1">OK services ready. I'm asking</text>
+      <text x="16" y="70" font-size="8" fill="#cbd5e1">you something. Let's pretend</text>
+      <text x="16" y="82" font-size="8" fill="#cbd5e1">this is something.</text>
+      <text x="16" y="92" font-size="7" fill="#64748b">320 tokens</text>
+      <!-- Stats -->
+      <text x="12" y="118" font-size="8" font-family="monospace" fill="#67e8f9">8.7k&#8595;</text>
+      <text x="45" y="118" font-size="8" font-family="monospace" fill="#fb923c">1.4k&#8593;</text>
+      <text x="130" y="118" font-size="8" fill="#fbbf24" font-family="monospace">$0.03</text>
+      <text x="12" y="160" font-size="8" fill="#64748b">&#9660; click to collapse</text>
+      <!-- Right → first response -->
+      <circle cx="220" cy="40" r="3.5" fill="#60a5fa" stroke="#111827" stroke-width="1.5"/>
+    </g>
+
+    <!-- ─── Response 1 (intermediate) ─── -->
+    <g transform="translate(530, 688)" opacity="0.6">
+      <rect width="170" height="52" rx="8" fill="rgba(30,64,100,0.4)" stroke="rgba(96,165,250,0.25)" stroke-width="1" stroke-dasharray="4 2"/>
+      <circle cx="0" cy="22" r="3" fill="#60a5fa" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="14" font-size="8" font-weight="700" fill="#93c5fd">Seg 1</text>
+      <text x="42" y="14" font-size="7" fill="#64748b">03:19:46</text>
+      <text x="10" y="30" font-size="8" fill="#94a3b8">Let me check the config...</text>
+      <text x="10" y="44" font-size="7" fill="#c084fc">Read x2</text>
+      <circle cx="170" cy="22" r="3" fill="#a855f7" stroke="#111827" stroke-width="1.5"/>
+      <circle cx="85" cy="52" r="3" fill="#60a5fa" stroke="#111827" stroke-width="1"/>
+    </g>
+
+    <!-- ─── Response 2 (intermediate) ─── -->
+    <g transform="translate(530, 764)" opacity="0.6">
+      <rect width="170" height="40" rx="8" fill="rgba(30,64,100,0.4)" stroke="rgba(96,165,250,0.25)" stroke-width="1" stroke-dasharray="4 2"/>
+      <circle cx="85" cy="0" r="3" fill="#60a5fa" stroke="#111827" stroke-width="1"/>
+      <text x="10" y="14" font-size="8" font-weight="700" fill="#93c5fd">Seg 2</text>
+      <text x="42" y="14" font-size="7" fill="#64748b">03:19:52</text>
+      <text x="10" y="30" font-size="8" fill="#94a3b8">I'll create a hook script...</text>
+      <circle cx="85" cy="40" r="3" fill="#60a5fa" stroke="#111827" stroke-width="1"/>
+    </g>
+
+    <!-- ─── Response 3 (FINAL) ─── -->
+    <g transform="translate(530, 828)">
+      <rect width="170" height="54" rx="8" fill="rgba(30,64,100,0.6)" stroke="rgba(96,165,250,0.4)" stroke-width="1.5"/>
+      <circle cx="85" cy="0" r="3" fill="#60a5fa" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="16" font-size="9" font-weight="700" fill="#93c5fd">Response 3</text>
+      <rect x="96" y="5" width="40" height="14" rx="3" fill="rgba(34,197,94,0.15)"/>
+      <text x="102" y="15" font-size="7" font-weight="600" fill="#4ade80">FINAL</text>
+      <text x="10" y="32" font-size="8" fill="#cbd5e1">Done! The hook is working</text>
+      <text x="10" y="44" font-size="8" fill="#cbd5e1">now. Check the tool log.</text>
+      <circle cx="170" cy="20" r="3" fill="#22c55e" stroke="#111827" stroke-width="1.5"/>
+    </g>
+
+    <!-- Toolgroup (now child of Response 1, not Turn 3) -->
+    <g transform="translate(750, 690)" opacity="0.6">
+      <rect width="130" height="40" rx="6" fill="rgba(88,28,135,0.4)" stroke="rgba(168,85,247,0.3)" stroke-width="1"/>
+      <circle cx="0" cy="20" r="3" fill="#a855f7" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="16" font-size="9" font-weight="600" fill="#c084fc">Toolgroup</text>
+      <text x="10" y="32" font-size="8" fill="#94a3b8">Read · Read</text>
+    </g>
+
+    <!-- Agent (now child of Response 3, not Turn 3) -->
+    <g transform="translate(750, 828)">
+      <rect width="120" height="40" rx="6" fill="rgba(20,83,45,0.7)" stroke="rgba(34,197,94,0.5)" stroke-width="1"/>
+      <circle cx="0" cy="20" r="3" fill="#22c55e" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="16" font-size="9" font-weight="600" fill="#4ade80">Explore</text>
+      <text x="10" y="32" font-size="8" fill="#94a3b8">visual model</text>
+      <circle cx="120" cy="20" r="3" fill="#a855f7" stroke="#111827" stroke-width="1.5"/>
+    </g>
+
+    <!-- Toolgroup off Agent -->
+    <g transform="translate(920, 828)">
+      <rect width="130" height="40" rx="6" fill="rgba(88,28,135,0.5)" stroke="rgba(168,85,247,0.4)" stroke-width="1"/>
+      <circle cx="0" cy="20" r="3" fill="#a855f7" stroke="#111827" stroke-width="1.5"/>
+      <text x="10" y="16" font-size="9" font-weight="600" fill="#c084fc">Toolgroup</text>
+      <text x="10" y="32" font-size="8" fill="#94a3b8">Write · Edit x2</text>
+    </g>
+
+    <!-- ─── Legend ─── -->
+    <g transform="translate(770, 20)">
+      <rect width="310" height="240" rx="10" fill="rgba(0,0,0,0.3)" stroke="var(--border)" stroke-width="1"/>
+      <text x="14" y="22" font-size="11" font-weight="700" fill="#e2e8f0">G: Hybrid (E + F)</text>
+      <line x1="14" y1="32" x2="296" y2="32" stroke="var(--border)" stroke-width="1"/>
+      <text x="14" y="52" font-size="9" font-weight="600" fill="#93c5fd">Collapsed (default)</text>
+      <text x="14" y="68" font-size="8" fill="var(--text-dim)">Today's graph + response text in node</text>
+      <text x="14" y="82" font-size="8" fill="var(--text-dim)">Tools, agents = direct children of turn</text>
+      <text x="14" y="96" font-size="8" fill="var(--text-dim)">You see WHAT happened</text>
+      <line x1="14" y1="108" x2="296" y2="108" stroke="var(--border)" stroke-width="1"/>
+      <text x="14" y="128" font-size="9" font-weight="600" fill="#4ade80">Expanded (click turn)</text>
+      <text x="14" y="144" font-size="8" fill="var(--text-dim)">Response nodes appear BETWEEN</text>
+      <text x="14" y="158" font-size="8" fill="var(--text-dim)">turn and tools. Same children,</text>
+      <text x="14" y="172" font-size="8" fill="var(--text-dim)">re-parented through responses.</text>
+      <text x="14" y="186" font-size="8" fill="var(--text-dim)">You see WHICH response → WHICH tool</text>
+      <line x1="14" y1="198" x2="296" y2="198" stroke="var(--border)" stroke-width="1"/>
+      <text x="14" y="216" font-size="8" fill="var(--text-dim)">Intermediate responses = dashed, dim</text>
+      <text x="14" y="230" font-size="8" fill="var(--text-dim)">Final response = solid + FINAL badge</text>
+    </g>
+
+    <!-- Transition arrow -->
+    <g transform="translate(530, 420)">
+      <rect width="220" height="24" rx="6" fill="rgba(34,197,94,0.08)" stroke="rgba(34,197,94,0.2)" stroke-width="1"/>
+      <text x="8" y="16" font-size="9" fill="#4ade80">&#8595; Click Turn 3 → responses appear between</text>
+    </g>
+  </svg>
+</div>
+
+<!-- ─── Comparison ─── -->
+<div style="max-width:1100px;margin:40px auto;padding:0 32px 60px">
+  <h2 style="font-size:16px;margin-bottom:16px;color:#e2e8f0">E vs F vs G — Head to Head</h2>
+  <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead>
+      <tr style="border-bottom:1px solid var(--border)">
+        <th style="text-align:left;padding:10px 8px;color:var(--text-muted);width:140px"></th>
+        <th style="text-align:left;padding:10px 8px;color:var(--response-text);font-weight:600">E: Conversation Nodes</th>
+        <th style="text-align:left;padding:10px 8px;color:var(--prompt-text);font-weight:600">F: Prompt Chain</th>
+        <th style="text-align:left;padding:10px 8px;color:var(--agent-text);font-weight:600">G: Hybrid</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px;color:var(--text-dim);font-weight:600">Node count (4 turns)</td>
+        <td style="padding:8px">4 turn nodes + children</td>
+        <td style="padding:8px">4 prompts + 7 responses + children</td>
+        <td style="padding:8px;color:var(--agent-text)">4 turns collapsed, expands on demand</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px;color:var(--text-dim);font-weight:600">Multi-response</td>
+        <td style="padding:8px">Segments inside expanded node</td>
+        <td style="padding:8px">Chained response nodes</td>
+        <td style="padding:8px;color:var(--agent-text)">Collapsed: count badge. Expanded: F-style chain</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px;color:var(--text-dim);font-weight:600">Graph compactness</td>
+        <td style="padding:8px;color:var(--agent-text)">Very compact</td>
+        <td style="padding:8px;color:var(--prompt-text)">Wide (always expanded)</td>
+        <td style="padding:8px;color:var(--agent-text)">Compact by default, wide on demand</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px;color:var(--text-dim);font-weight:600">Information density</td>
+        <td style="padding:8px">High per node (Q+A merged)</td>
+        <td style="padding:8px">Spread across nodes</td>
+        <td style="padding:8px;color:var(--agent-text)">High collapsed, full detail expanded</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px;color:var(--text-dim);font-weight:600">Conversation flow</td>
+        <td style="padding:8px">Vertical thread</td>
+        <td style="padding:8px">Vertical prompt chain</td>
+        <td style="padding:8px">Vertical turn chain (same as E)</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px;color:var(--text-dim);font-weight:600">Work visibility</td>
+        <td style="padding:8px">Hidden until expand</td>
+        <td style="padding:8px;color:var(--agent-text)">Always visible</td>
+        <td style="padding:8px">Progressive: overview → detail on click</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px;color:var(--text-dim);font-weight:600">Breaking changes</td>
+        <td style="padding:8px;color:var(--prompt-text)">Replaces userPrompt node</td>
+        <td style="padding:8px;color:var(--agent-text)">Adds response, keeps prompt</td>
+        <td style="padding:8px">Evolves userPrompt → turn node</td>
+      </tr>
+      <tr>
+        <td style="padding:8px;color:var(--text-dim);font-weight:600">Best when</td>
+        <td style="padding:8px">Reading the conversation</td>
+        <td style="padding:8px">Seeing architecture of work</td>
+        <td style="padding:8px;color:var(--agent-text)">Both — scan fast, drill when needed</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>

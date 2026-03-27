@@ -244,6 +244,9 @@ export function rowToAgentEvent(row: EventRow): AgentEvent {
     if (raw.permission_mode) event.permissionMode = raw.permission_mode;
     const promptText = extractPromptText(raw.prompt);
     if (promptText) event.text = promptText;
+    if (raw.assistant_text && event.type === 'assistant_response') event.text = raw.assistant_text;
+    if (raw.last_assistant_message && event.type === 'assistant_response')
+      event.text = raw.last_assistant_message;
     if (raw.message && event.type === 'notification') event.text = raw.message;
     if (raw.notification_type) event.notificationType = raw.notification_type;
     if (raw.trigger) event.compactTrigger = raw.trigger;

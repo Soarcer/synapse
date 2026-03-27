@@ -20,7 +20,7 @@ export interface PendingSummary {
 }
 
 export interface ResolvedPermission extends PendingSummary {
-  behavior: 'allow' | 'deny';
+  behavior: 'allow' | 'deny' | 'auto-dismissed';
   resolvedAt: number;
 }
 
@@ -61,7 +61,7 @@ interface PermissionStore {
   dismissedIds: Set<string>;
 
   addPending: (item: PendingSummary) => void;
-  resolvePending: (id: string, behavior: 'allow' | 'deny') => void;
+  resolvePending: (id: string, behavior: 'allow' | 'deny' | 'auto-dismissed') => void;
   dismiss: (id: string) => void;
   cycleToBottom: (id: string) => void;
   clearAllDismissed: () => void;

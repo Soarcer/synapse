@@ -3,6 +3,7 @@
 
 import { useAgentStore } from '../../store/agentStore';
 import { useRemoteDevStore } from '../../store/remoteDevStore';
+import { Features } from '@synapse-ai/core';
 
 export type MobileTab = 'graph' | 'lenses' | 'analytics' | 'dev';
 
@@ -11,18 +12,21 @@ interface MobileTabBarProps {
   onTabChange: (tab: MobileTab) => void;
 }
 
-const TABS: Array<{ id: MobileTab; label: string; icon: string }> = [
-  { id: 'graph', label: 'Graph', icon: '\u2B21' },
-  { id: 'lenses', label: 'Lenses', icon: '\u25D1' },
-  { id: 'analytics', label: 'Stats', icon: '\u2261' },
-  { id: 'dev', label: 'Dev', icon: '\u2318' },
+const ALL_TABS: Array<{ id: MobileTab; label: string; icon: string; enabled: boolean }> = [
+  { id: 'graph', label: 'Graph', icon: '\u2B21', enabled: true },
+  { id: 'lenses', label: 'Lenses', icon: '\u25D1', enabled: true },
+  { id: 'analytics', label: 'Stats', icon: '\u2261', enabled: true },
+  { id: 'dev', label: 'Dev', icon: '\u2318', enabled: Features.remoteDevChat },
 ];
+const TABS = ALL_TABS.filter((t) => t.enabled);
 
 export function MobileTabBar({ activeTab, onTabChange }: MobileTabBarProps) {
   const connectionStatus = useAgentStore((s) => s.connectionStatus);
-  const agents = useAgentStore((s) => s.agents);
-
-  const runningCount = [...agents.values()].filter((a) => a.status === 'running').length;
+  const runningCount = useAgentStore((s) => {
+    let count = 0;
+    for (const a of s.agents.values()) if (a.status === 'running') count++;
+    return count;
+  });
   const remoteDevStatus = useRemoteDevStore((s) => s.status);
 
   return (

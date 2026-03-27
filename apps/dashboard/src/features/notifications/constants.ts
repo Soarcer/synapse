@@ -49,8 +49,8 @@ export interface NotificationSettings {
 }
 
 export const DEFAULT_SETTINGS: NotificationSettings = {
-  enabled: true,
-  showToasts: true,
+  enabled: false, // alerts hidden for v0.1.0
+  showToasts: false, // toast popups hidden for v0.1.0
   showPulse: true,
 };
 

@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Synapse — Remote Answer Relay Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-base: #0f0f0f; --bg-card: #1a1a1a; --bg-card-hover: #222222; --bg-elevated: #151515;
+  --border: #2a2a2a; --text-primary: #f5f5f5; --text-secondary: #a0a0a0; --text-muted: #666666;
+  --coral: #ff6b35; --coral-dim: rgba(255,107,53,0.15);
+  --blue: #3b82f6; --blue-dim: rgba(59,130,246,0.15);
+  --green: #22c55e; --green-dim: rgba(34,197,94,0.15);
+  --gold: #ffc857; --gold-dim: rgba(255,200,87,0.15);
+  --cyan: #00d4ff; --cyan-dim: rgba(0,212,255,0.15);
+  --red: #ef4444; --red-dim: rgba(239,68,68,0.15);
+  --purple: #8b5cf6; --purple-dim: rgba(139,92,246,0.15);
+  --shadow: 0 2px 12px rgba(0,0,0,0.4); --shadow-hover: 0 8px 24px rgba(0,0,0,0.5);
+  --radius: 16px; --radius-sm: 12px; --radius-xs: 8px;
+}
+[data-theme="light"] {
+  --bg-base: #f5f5f5; --bg-card: #ffffff; --bg-card-hover: #fafafa; --bg-elevated: #f0f0f0;
+  --border: #e5e5e5; --text-primary: #1a1a1a; --text-secondary: #555555; --text-muted: #999999;
+  --coral-dim: rgba(255,107,53,0.1); --blue-dim: rgba(59,130,246,0.1);
+  --green-dim: rgba(34,197,94,0.1); --gold-dim: rgba(255,200,87,0.1);
+  --cyan-dim: rgba(0,212,255,0.1); --red-dim: rgba(239,68,68,0.1);
+  --purple-dim: rgba(139,92,246,0.1);
+  --shadow: 0 2px 12px rgba(0,0,0,0.08); --shadow-hover: 0 8px 24px rgba(0,0,0,0.12);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(--text-primary); -webkit-font-smoothing: antialiased; scroll-behavior: smooth; }
+body { min-height: 100vh; transition: background-color 0.3s, color 0.3s; }
+a { color: var(--coral); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+.serif { font-family: 'Instrument Serif', serif; }
+.mono { font-family: 'Space Mono', monospace; }
+.container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+
+/* Hero */
+.hero { text-align: center; padding: 80px 24px 48px; position: relative; overflow: hidden; }
+.hero::before { content: ''; position: absolute; top: -50%; left: 50%; transform: translateX(-50%); width: 600px; height: 600px; background: radial-gradient(circle, var(--green-dim) 0%, transparent 70%); pointer-events: none; z-index: 0; }
+.hero > * { position: relative; z-index: 1; }
+.hero h1 { font-family: 'Instrument Serif', serif; font-size: clamp(2.2rem, 5vw, 3.5rem); font-weight: 400; line-height: 1.15; margin-bottom: 16px; }
+.hero h1 em { font-style: italic; color: var(--green); }
+.hero .subtitle { font-size: 1.1rem; color: var(--text-secondary); max-width: 700px; margin: 0 auto 32px; line-height: 1.6; }
+.hero .date-chip { display: inline-flex; align-items: center; gap: 6px; font-family: 'Space Mono', monospace; font-size: 0.75rem; color: var(--text-muted); background: var(--bg-card); border: 1px solid var(--border); padding: 5px 14px; border-radius: 999px; margin-bottom: 20px; }
+.hero .date-chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+
+/* Theme toggle */
+.theme-toggle { position: fixed; top: 16px; right: 16px; z-index: 100; width: 40px; height: 40px; border-radius: 50%; background: var(--bg-card); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 18px; box-shadow: var(--shadow); transition: background 0.2s; }
+.theme-toggle:hover { background: var(--bg-card-hover); }
+
+/* Nav tabs */
+.nav-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); padding: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; position: sticky; top: 0; background: var(--bg-base); z-index: 50; }
+.nav-tabs .container { display: flex; gap: 4px; }
+.nav-tabs button { padding: 12px 20px; font-size: 0.82rem; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid transparent; white-space: nowrap; transition: color 0.2s, border-color 0.2s; }
+.nav-tabs button.active { color: var(--green); border-bottom-color: var(--green); }
+.nav-tabs button:hover:not(.active) { color: var(--text-secondary); }
+.tab-panel { display: none; padding: 40px 0 80px; }
+.tab-panel.active { display: block; }
+
+/* Cards */
+.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 16px; transition: background 0.2s, box-shadow 0.2s, transform 0.2s; }
+.card:hover { background: var(--bg-card-hover); box-shadow: var(--shadow-hover); }
+.card h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
+.card p { color: var(--text-secondary); font-size: 0.88rem; line-height: 1.6; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+
+/* Stat boxes */
+.stat-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; margin-bottom: 32px; }
+.stat-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 20px; text-align: center; }
+.stat-box .stat-value { font-family: 'Space Mono', monospace; font-size: 1.8rem; font-weight: 700; line-height: 1; margin-bottom: 4px; }
+.stat-box .stat-label { font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* Chips */
+.chip { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; }
+.chip-coral { background: var(--coral-dim); color: var(--coral); }
+.chip-blue { background: var(--blue-dim); color: var(--blue); }
+.chip-green { background: var(--green-dim); color: var(--green); }
+.chip-gold { background: var(--gold-dim); color: var(--gold); }
+.chip-purple { background: var(--purple-dim); color: var(--purple); }
+.chip-red { background: var(--red-dim); color: var(--red); }
+.chip-cyan { background: var(--cyan-dim); color: var(--cyan); }
+
+/* Section headers */
+.section-header { margin-bottom: 32px; }
+.section-header h2 { font-family: 'Instrument Serif', serif; font-size: 2rem; font-weight: 400; margin-bottom: 8px; }
+.section-header p { color: var(--text-secondary); font-size: 0.95rem; line-height: 1.6; }
+
+/* Code blocks */
+.code-block { background: #0d0d0d; border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 16px 20px; overflow-x: auto; margin: 16px 0; font-family: 'Space Mono', monospace; font-size: 0.78rem; line-height: 1.7; color: #e0e0e0; position: relative; }
+[data-theme="light"] .code-block { background: #f8f8f8; color: #333; }
+.code-block .lang-label { position: absolute; top: 8px; right: 12px; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+.code-block .kw { color: var(--purple); }
+.code-block .str { color: var(--green); }
+.code-block .cm { color: var(--text-muted); font-style: italic; }
+.code-block .fn { color: var(--blue); }
+.code-block .num { color: var(--gold); }
+.code-block .type { color: var(--cyan); }
+
+/* Flow diagram */
+.flow-diagram { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; margin: 24px 0; overflow-x: auto; }
+.flow-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center; margin-bottom: 16px; }
+.flow-box { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 12px 20px; text-align: center; min-width: 140px; transition: transform 0.2s, box-shadow 0.2s; }
+.flow-box:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+.flow-box .flow-label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.flow-box .flow-value { font-size: 0.85rem; font-weight: 600; }
+.flow-arrow { color: var(--text-muted); font-size: 1.2rem; flex-shrink: 0; }
+.flow-arrow-down { text-align: center; color: var(--text-muted); font-size: 1.2rem; margin: 8px 0; }
+
+/* Timeline */
+.timeline { position: relative; padding-left: 32px; margin: 24px 0; }
+.timeline::before { content: ''; position: absolute; left: 11px; top: 0; bottom: 0; width: 2px; background: var(--border); }
+.timeline-item { position: relative; margin-bottom: 24px; }
+.timeline-item::before { content: ''; position: absolute; left: -25px; top: 4px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--green); background: var(--bg-base); }
+.timeline-item.highlight::before { background: var(--green); box-shadow: 0 0 12px var(--green); }
+.timeline-item .tl-header { font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; }
+.timeline-item .tl-body { color: var(--text-secondary); font-size: 0.85rem; line-height: 1.6; }
+
+/* Table */
+.data-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.85rem; }
+.data-table th { text-align: left; padding: 10px 14px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); border-bottom: 2px solid var(--border); }
+.data-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text-secondary); vertical-align: top; }
+.data-table tr:hover td { background: var(--bg-card-hover); }
+
+/* Interactive demo card */
+.demo-card { background: #111318; border: 1px solid #2a3040; border-radius: var(--radius); overflow: hidden; margin: 24px 0; max-width: 380px; }
+[data-theme="light"] .demo-card { background: #f0f2f5; border-color: #d0d5dd; }
+.demo-card-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px 10px; }
+.demo-card-header .dcl { font-size: 0.88rem; font-weight: 500; color: #93c5fd; }
+[data-theme="light"] .demo-card-header .dcl { color: #2563eb; }
+.demo-card-header .dct { font-family: 'Space Mono', monospace; font-size: 0.75rem; color: var(--text-muted); }
+.demo-card-question { padding: 0 18px 12px; font-size: 0.82rem; color: var(--text-primary); font-weight: 500; }
+.demo-card-options { padding: 0 18px 14px; display: flex; flex-direction: column; gap: 8px; }
+.demo-option { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border-radius: var(--radius-xs); border: 1px solid #2a3040; background: rgba(0,0,0,0.2); cursor: pointer; transition: all 0.15s; user-select: none; }
+[data-theme="light"] .demo-option { border-color: #d0d5dd; background: #fff; }
+.demo-option:hover { border-color: #4a5568; }
+.demo-option.selected { background: rgba(59,130,246,0.1); border-color: rgba(59,130,246,0.5); }
+.demo-option .radio { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #4a5568; flex-shrink: 0; margin-top: 1px; display: flex; align-items: center; justify-content: center; transition: border-color 0.15s; }
+.demo-option.selected .radio { border-color: #60a5fa; }
+.demo-option.selected .radio::after { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #60a5fa; }
+.demo-option .opt-label { font-size: 0.8rem; font-weight: 500; color: var(--text-primary); }
+.demo-option .opt-desc { font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; }
+.demo-card-actions { display: flex; align-items: center; gap: 8px; padding: 0 18px 14px; }
+.demo-btn { padding: 7px 16px; border-radius: 6px; font-size: 0.78rem; font-weight: 600; transition: all 0.15s; }
+.demo-btn-deny { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+.demo-btn-deny:hover { background: rgba(239,68,68,0.25); }
+.demo-btn-send { background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.3); margin-left: auto; }
+.demo-btn-send:hover { background: rgba(34,197,94,0.25); }
+.demo-btn-send:disabled { opacity: 0.3; cursor: not-allowed; }
+.demo-btn-send:disabled:hover { background: rgba(34,197,94,0.15); }
+[data-theme="light"] .demo-btn-deny { color: #dc2626; }
+[data-theme="light"] .demo-btn-send { color: #16a34a; }
+
+/* Celebration result */
+.result-toast { background: var(--green-dim); border: 1px solid rgba(34,197,94,0.3); border-radius: var(--radius-xs); padding: 12px 16px; margin-top: 12px; display: none; animation: slideUp 0.3s ease-out; }
+.result-toast.visible { display: block; }
+@keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.result-toast .rt-header { font-size: 0.8rem; font-weight: 600; color: var(--green); margin-bottom: 4px; }
+.result-toast .rt-body { font-family: 'Space Mono', monospace; font-size: 0.75rem; color: var(--text-secondary); white-space: pre-wrap; }
+
+/* Competitive matrix */
+.matrix-scroll { overflow-x: auto; margin: 16px 0; }
+.matrix-table { min-width: 700px; }
+.matrix-table th:first-child { min-width: 180px; }
+.matrix-table .check { color: var(--green); font-weight: 700; }
+.matrix-table .cross { color: var(--red); }
+.matrix-table .partial { color: var(--gold); }
+.matrix-table .highlight-col { background: rgba(34,197,94,0.05); }
+
+/* Accordion / expandable */
+.expandable { border: 1px solid var(--border); border-radius: var(--radius-xs); margin-bottom: 8px; overflow: hidden; }
+.expandable-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; cursor: pointer; font-weight: 600; font-size: 0.88rem; transition: background 0.15s; }
+.expandable-header:hover { background: var(--bg-card-hover); }
+.expandable-header .expand-icon { transition: transform 0.2s; font-size: 0.8rem; color: var(--text-muted); }
+.expandable.open .expand-icon { transform: rotate(180deg); }
+.expandable-body { padding: 0 18px 16px; display: none; }
+.expandable.open .expandable-body { display: block; }
+
+/* Wire format animation */
+.wire-step { opacity: 0.3; transition: opacity 0.3s, transform 0.3s; transform: translateX(-4px); }
+.wire-step.active { opacity: 1; transform: translateX(0); }
+
+/* Footer */
+.footer { text-align: center; padding: 48px 24px; color: var(--text-muted); font-size: 0.8rem; border-top: 1px solid var(--border); }
+.footer a { color: var(--green); }
+
+/* Mobile */
+@media (max-width: 640px) {
+  .hero { padding: 60px 16px 32px; }
+  .hero h1 { font-size: 1.8rem; }
+  .stat-row { grid-template-columns: repeat(2, 1fr); }
+  .card-grid { grid-template-columns: 1fr; }
+  .demo-card { max-width: 100%; }
+  .nav-tabs button { padding: 10px 14px; font-size: 0.75rem; }
+}
+</style>
+</head>
+<body>
+
+<button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme" id="themeBtn">&#127769;</button>
+
+<!-- ═══════════════════════ HERO ═══════════════════════ -->
+<div class="hero">
+  <div class="container">
+    <div class="date-chip"><span class="dot"></span> 2026-03-12 &middot; VALIDATED</div>
+    <h1 class="serif">Remote Answer Relay &mdash;<br><em>Control Claude from Your Phone</em></h1>
+    <p class="subtitle">
+      How Synapse intercepts Claude Code's AskUserQuestion prompts, renders interactive cards
+      on any device, and relays your answers back through a clever <strong>deny&thinsp;+&thinsp;message</strong> protocol trick.
+    </p>
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+      <span class="chip chip-green">Phase A</span>
+      <span class="chip chip-blue">Hooks API</span>
+      <span class="chip chip-purple">Live Tested</span>
+      <span class="chip chip-gold">First of its kind</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ TABS ═══════════════════════ -->
+<div class="nav-tabs">
+  <div class="container">
+    <button class="active" onclick="switchTab('overview',this)">Overview</button>
+    <button onclick="switchTab('protocol',this)">Protocol</button>
+    <button onclick="switchTab('architecture',this)">Architecture</button>
+    <button onclick="switchTab('demo',this)">Live Demo</button>
+    <button onclick="switchTab('tests',this)">Test Results</button>
+    <button onclick="switchTab('landscape',this)">Landscape</button>
+    <button onclick="switchTab('files',this)">Files</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════ TAB: OVERVIEW ═══════════════════════ -->
+<div id="tab-overview" class="tab-panel active">
+  <div class="container">
+
+    <div class="stat-row">
+      <div class="stat-box">
+        <div class="stat-value" style="color:var(--green)">3/3</div>
+        <div class="stat-label">Tests Passed</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" style="color:var(--blue)">3</div>
+        <div class="stat-label">Questions / Card</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" style="color:var(--gold)">30m</div>
+        <div class="stat-label">Timeout Window</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" style="color:var(--purple)">0</div>
+        <div class="stat-label">Cloud Dependencies</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" style="color:var(--coral)">1st</div>
+        <div class="stat-label">Hooks-based Q&A relay</div>
+      </div>
+    </div>
+
+    <div class="section-header">
+      <h2 class="serif">The Problem</h2>
+    </div>
+    <div class="card">
+      <p>When Claude Code invokes <code>AskUserQuestion</code>, it <strong>blocks</strong> waiting for terminal input.
+      If you're away from your desk &mdash; cooking, on the couch, walking around &mdash; the agent sits idle.
+      Default timeout: <strong>30 minutes</strong> of wasted time.</p>
+      <p style="margin-top:12px">What if you could answer from your <strong>phone</strong>?</p>
+    </div>
+
+    <div class="section-header" style="margin-top:40px">
+      <h2 class="serif">The Solution</h2>
+      <p>Synapse intercepts permission requests via Claude Code Hooks, renders interactive question cards
+      on a web dashboard accessible from any device on the LAN, and relays answers back through
+      the <strong>deny&thinsp;+&thinsp;message</strong> protocol.</p>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div style="margin-bottom:8px"><span class="chip chip-green">Step 1</span></div>
+        <h3>Intercept</h3>
+        <p>Claude Code's <code>PermissionRequest</code> hook POSTs to Synapse's hook server.
+        The HTTP response is <strong>held open</strong> &mdash; Claude blocks until we respond.</p>
+      </div>
+      <div class="card">
+        <div style="margin-bottom:8px"><span class="chip chip-blue">Step 2</span></div>
+        <h3>Broadcast</h3>
+        <p>The server broadcasts the question via WebSocket to all connected dashboards.
+        The raw <code>tool_input</code> (with questions, options, multiSelect) is included for rich rendering.</p>
+      </div>
+      <div class="card">
+        <div style="margin-bottom:8px"><span class="chip chip-purple">Step 3</span></div>
+        <h3>Interact</h3>
+        <p>The dashboard renders an interactive card with tappable options, radio/checkbox selection,
+        tab navigation for multi-question prompts, and a live countdown timer.</p>
+      </div>
+      <div class="card">
+        <div style="margin-bottom:8px"><span class="chip chip-coral">Step 4</span></div>
+        <h3>Relay</h3>
+        <p>User taps "Send Answer". The server wraps answers as <code>deny + message</code>
+        and resolves the held HTTP response. Claude receives the answers and continues.</p>
+      </div>
+    </div>
+
+    <div class="section-header" style="margin-top:48px">
+      <h2 class="serif">Why This Matters</h2>
+    </div>
+    <div class="card">
+      <p style="font-size:1rem;line-height:1.7;">
+        This is the first hooks-based solution that relays <strong>structured answers</strong> back to Claude &mdash;
+        not just allow/deny, but actual user selections from multi-option questions.
+        Combined with ngrok, this works from <em>anywhere in the world</em>, not just your LAN.
+      </p>
+      <p style="margin-top:12px;color:var(--text-muted);font-style:italic">
+        "How does it feel to approve Claude from your phone while walking around the house?"<br>
+        &mdash; Answer: <strong>All of the above.</strong>
+      </p>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════ TAB: PROTOCOL ═══════════════════════ -->
+<div id="tab-protocol" class="tab-panel">
+  <div class="container">
+
+    <div class="section-header">
+      <h2 class="serif">The Deny + Message Trick</h2>
+      <p>Claude Code's PermissionRequest hook has a critical asymmetry that makes this whole system possible.</p>
+    </div>
+
+    <div class="card" style="border-color:rgba(239,68,68,0.3)">
+      <h3 style="color:var(--red)">The Asymmetry</h3>
+      <table class="data-table" style="margin-top:12px">
+        <thead>
+          <tr><th>Field</th><th>On <code>"allow"</code></th><th>On <code>"deny"</code></th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>decision.behavior</code></td>
+            <td>Tool proceeds normally</td>
+            <td>Tool is blocked</td>
+          </tr>
+          <tr>
+            <td><code>decision.message</code></td>
+            <td style="color:var(--red);font-weight:600">IGNORED &mdash; not forwarded</td>
+            <td style="color:var(--green);font-weight:600">FORWARDED to Claude as context</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin-top:16px">
+        The <strong>only way</strong> to pass information back to Claude through the hook system is to
+        <strong>deny</strong> the tool call with a message. Claude receives the denial, reads the message
+        containing the user's answers, and continues without re-asking.
+      </p>
+    </div>
+
+    <div class="section-header" style="margin-top:40px">
+      <h2 class="serif">Wire Format</h2>
+      <p>Click each step to see the exact JSON payloads.</p>
+    </div>
+
+    <div class="expandable open" onclick="toggleExpand(this)">
+      <div class="expandable-header">
+        <span><span class="chip chip-green" style="margin-right:8px">1</span> Claude &rarr; Hook Server (PermissionRequest)</span>
+        <span class="expand-icon">&#9660;</span>
+      </div>
+      <div class="expandable-body">
+        <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px">
+          Claude Code POSTs to <code>/api/hooks/permission</code> and <strong>blocks</strong>.
+        </p>
+        <div class="code-block">
+          <span class="lang-label">json</span>
+<span class="cm">// POST /api/hooks/permission</span>
+{
+  <span class="str">"tool_name"</span>: <span class="str">"AskUserQuestion"</span>,
+  <span class="str">"tool_input"</span>: {
+    <span class="str">"questions"</span>: [
+      {
+        <span class="str">"question"</span>: <span class="str">"Pick your favorite color:"</span>,
+        <span class="str">"header"</span>: <span class="str">"Color"</span>,
+        <span class="str">"options"</span>: [
+          { <span class="str">"label"</span>: <span class="str">"Blue"</span>, <span class="str">"description"</span>: <span class="str">"Cool and calm"</span> },
+          { <span class="str">"label"</span>: <span class="str">"Green"</span>, <span class="str">"description"</span>: <span class="str">"Fresh and natural"</span> },
+          { <span class="str">"label"</span>: <span class="str">"Orange"</span>, <span class="str">"description"</span>: <span class="str">"Warm and energetic"</span> }
+        ],
+        <span class="str">"multiSelect"</span>: <span class="kw">false</span>
+      }
+    ]
+  },
+  <span class="str">"session_id"</span>: <span class="str">"abc-123"</span>
+}
+        </div>
+      </div>
+    </div>
+
+    <div class="expandable" onclick="toggleExpand(this)">
+      <div class="expandable-header">
+        <span><span class="chip chip-blue" style="margin-right:8px">2</span> Server &rarr; Dashboard (WebSocket broadcast)</span>
+        <span class="expand-icon">&#9660;</span>
+      </div>
+      <div class="expandable-body">
+        <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px">
+          Server broadcasts to all connected dashboard clients, including the raw tool_input for rich rendering.
+        </p>
+        <div class="code-block">
+          <span class="lang-label">json</span>
+{
+  <span class="str">"type"</span>: <span class="str">"pendingPermission"</span>,
+  <span class="str">"data"</span>: {
+    <span class="str">"id"</span>: <span class="str">"a1b2c3d4-..."</span>,
+    <span class="str">"tool_name"</span>: <span class="str">"AskUserQuestion"</span>,
+    <span class="str">"tool_input_preview"</span>: <span class="str">"{\"questions\":[{\"question\":\"Pick..."</span>,
+    <span class="str">"tool_input_raw"</span>: { <span class="cm">/* full questions object */</span> },
+    <span class="str">"createdAt"</span>: <span class="num">1741795200000</span>,
+    <span class="str">"expiresAt"</span>: <span class="num">1741797000000</span>
+  }
+}
+        </div>
+      </div>
+    </div>
+
+    <div class="expandable" onclick="toggleExpand(this)">
+      <div class="expandable-header">
+        <span><span class="chip chip-purple" style="margin-right:8px">3</span> Dashboard &rarr; Server (PUT decision + answers)</span>
+        <span class="expand-icon">&#9660;</span>
+      </div>
+      <div class="expandable-body">
+        <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px">
+          Dashboard sends the user's selections. Note <code>behavior: "allow"</code> &mdash; the server overrides this to <code>"deny"</code>.
+        </p>
+        <div class="code-block">
+          <span class="lang-label">json</span>
+<span class="cm">// PUT /api/permissions/:id/decision</span>
+{
+  <span class="str">"behavior"</span>: <span class="str">"allow"</span>,
+  <span class="str">"answers"</span>: {
+    <span class="str">"Pick your favorite color:"</span>: <span class="str">"Green"</span>
+  }
+}
+        </div>
+      </div>
+    </div>
+
+    <div class="expandable" onclick="toggleExpand(this)">
+      <div class="expandable-header">
+        <span><span class="chip chip-coral" style="margin-right:8px">4</span> Server &rarr; Claude Code (hook response &mdash; the trick)</span>
+        <span class="expand-icon">&#9660;</span>
+      </div>
+      <div class="expandable-body">
+        <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px">
+          Server resolves the held HTTP response with <code>deny + message</code>. Claude sees the message.
+        </p>
+        <div class="code-block">
+          <span class="lang-label">json</span>
+{
+  <span class="str">"hookSpecificOutput"</span>: {
+    <span class="str">"hookEventName"</span>: <span class="str">"PermissionRequest"</span>,
+    <span class="str">"decision"</span>: {
+      <span class="str">"behavior"</span>: <span class="str">"deny"</span>,  <span class="cm">// overridden from "allow"!</span>
+      <span class="str">"message"</span>: <span class="str">"The user answered this question remotely
+via the Synapse dashboard. Do NOT re-ask this
+question. Use these answers and continue:
+
+Q: Pick your favorite color:
+A: Green"</span>
+    }
+  }
+}
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:24px;border-color:rgba(34,197,94,0.3)">
+      <h3 style="color:var(--green)">Result</h3>
+      <p>Claude receives the denial message, sees "Green" was selected, and <strong>continues without re-asking</strong>.
+      The deny+message instruction explicitly tells Claude to treat the answers as user input.</p>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════ TAB: ARCHITECTURE ═══════════════════════ -->
+<div id="tab-architecture" class="tab-panel">
+  <div class="container">
+
+    <div class="section-header">
+      <h2 class="serif">System Architecture</h2>
+      <p>Two servers, one WebSocket, one clever HTTP hold.</p>
+    </div>
+
+    <div class="flow-diagram">
+      <div style="text-align:center;margin-bottom:24px;font-family:'Space Mono',monospace;font-size:0.7rem;color:var(--text-muted)">DATA FLOW &mdash; REMOTE ANSWER RELAY</div>
+
+      <div class="flow-row">
+        <div class="flow-box" style="border-color:rgba(139,92,246,0.4)">
+          <div class="flow-label">Agent</div>
+          <div class="flow-value" style="color:var(--purple)">Claude Code</div>
+        </div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box" style="border-color:rgba(255,107,53,0.4)">
+          <div class="flow-label">POST &amp; Block</div>
+          <div class="flow-value" style="color:var(--coral)">/api/hooks/permission</div>
+        </div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box" style="border-color:rgba(34,197,94,0.4)">
+          <div class="flow-label">Port 27247</div>
+          <div class="flow-value" style="color:var(--green)">Hook Server</div>
+        </div>
+      </div>
+
+      <div class="flow-arrow-down">&#8595;</div>
+      <div style="text-align:center;font-size:0.75rem;color:var(--text-muted);margin-bottom:8px">WebSocket broadcast</div>
+      <div class="flow-arrow-down">&#8595;</div>
+
+      <div class="flow-row">
+        <div class="flow-box" style="border-color:rgba(59,130,246,0.4)">
+          <div class="flow-label">Port 27246</div>
+          <div class="flow-value" style="color:var(--blue)">Main Server + WS</div>
+        </div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box" style="border-color:rgba(0,212,255,0.4)">
+          <div class="flow-label">Desktop</div>
+          <div class="flow-value" style="color:var(--cyan)">Dashboard</div>
+        </div>
+        <div class="flow-arrow">&amp;</div>
+        <div class="flow-box" style="border-color:rgba(255,200,87,0.4)">
+          <div class="flow-label">Mobile (LAN)</div>
+          <div class="flow-value" style="color:var(--gold)">Phone / Tablet</div>
+        </div>
+      </div>
+
+      <div class="flow-arrow-down">&#8595;</div>
+      <div style="text-align:center;font-size:0.75rem;color:var(--text-muted);margin-bottom:8px">User taps option &rarr; PUT /api/permissions/:id/decision</div>
+      <div class="flow-arrow-down">&#8595;</div>
+
+      <div class="flow-row">
+        <div class="flow-box" style="border-color:rgba(34,197,94,0.4)">
+          <div class="flow-label">Resolves held response</div>
+          <div class="flow-value" style="color:var(--green)">deny + message</div>
+        </div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box" style="border-color:rgba(139,92,246,0.4)">
+          <div class="flow-label">Unblocked</div>
+          <div class="flow-value" style="color:var(--purple)">Claude continues</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-header" style="margin-top:40px">
+      <h2 class="serif">Card State Machine</h2>
+    </div>
+
+    <div class="card-grid">
+      <div class="card" style="border-left:3px solid var(--blue)">
+        <h3>PENDING</h3>
+        <p>Live countdown, interactive options. User can tap radio/checkbox buttons to select answers.
+        "Send Answer" is disabled until all questions have at least one selection.</p>
+      </div>
+      <div class="card" style="border-left:3px solid var(--green)">
+        <h3>RESOLVED</h3>
+        <p>User tapped "Send Answer" (answers relayed) or "Deny" (plain deny).
+        Card is removed from pending, added to resolved history (max 50).</p>
+      </div>
+      <div class="card" style="border-left:3px solid var(--gold)">
+        <h3>EXPIRED</h3>
+        <p>Timer hit 0:00. Server auto-denies with timeout message.
+        Card shows amber state with "Dismiss" button.</p>
+      </div>
+    </div>
+
+    <div class="section-header" style="margin-top:40px">
+      <h2 class="serif">iOS Safari Fix</h2>
+      <p>Mobile permission cards were invisible due to CSS containment issues.</p>
+    </div>
+
+    <div class="card">
+      <h3>The Bug</h3>
+      <p>iOS Safari creates a containing block when <code>html/body</code> have <code>position: fixed</code> +
+      <code>overflow: hidden</code>. This traps all <code>position: fixed</code> children inside the viewport frame,
+      making permission cards invisible when they overflow.</p>
+      <h3 style="margin-top:16px">The Fix</h3>
+      <p><code>createPortal()</code> renders <code>PermissionPanel</code> directly into <code>document.body</code>,
+      escaping all clipping ancestors.</p>
+      <div class="code-block">
+        <span class="lang-label">tsx</span>
+<span class="kw">function</span> <span class="fn">MobilePermissionPortal</span>() {
+  <span class="kw">return</span> <span class="fn">createPortal</span>(&lt;<span class="type">PermissionPanel</span> mobile /&gt;, document.body);
+}
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════ TAB: DEMO ═══════════════════════ -->
+<div id="tab-demo" class="tab-panel">
+  <div class="container">
+
+    <div class="section-header">
+      <h2 class="serif">Interactive Demo</h2>
+      <p>This is a working replica of the actual AskUserQuestion card. Select options and press "Send Answer" to see the relay output.</p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;" id="demo-grid">
+
+      <div>
+        <div class="demo-card" id="demo-card-1">
+          <div class="demo-card-header">
+            <span class="dcl">Claude is asking you</span>
+            <span class="dct" id="demo-timer">30:00</span>
+          </div>
+          <div class="demo-card-question">How does it feel to approve Claude from your phone while walking around the house?</div>
+          <div class="demo-card-options" id="demo-options-1">
+            <div class="demo-option" onclick="selectOption(this, 'demo-options-1')">
+              <div class="radio"></div>
+              <div>
+                <div class="opt-label">Like a supervillain</div>
+                <div class="opt-desc">Controlling AI from a pocket device. World domination vibes.</div>
+              </div>
+            </div>
+            <div class="demo-option" onclick="selectOption(this, 'demo-options-1')">
+              <div class="radio"></div>
+              <div>
+                <div class="opt-label">Like Tony Stark</div>
+                <div class="opt-desc">Casually managing AI agents from a glass slab</div>
+              </div>
+            </div>
+            <div class="demo-option" onclick="selectOption(this, 'demo-options-1')">
+              <div class="radio"></div>
+              <div>
+                <div class="opt-label">Like the future</div>
+                <div class="opt-desc">This is genuinely how dev tools should work</div>
+              </div>
+            </div>
+            <div class="demo-option" onclick="selectOption(this, 'demo-options-1')">
+              <div class="radio"></div>
+              <div>
+                <div class="opt-label">All of the above</div>
+                <div class="opt-desc">Because why pick just one power fantasy</div>
+              </div>
+            </div>
+          </div>
+          <div class="demo-card-actions">
+            <button class="demo-btn demo-btn-deny" onclick="denyDemo()">Deny</button>
+            <button class="demo-btn demo-btn-send" id="demo-send-btn" disabled onclick="sendDemo()">Send Answer</button>
+          </div>
+        </div>
+
+        <div class="result-toast" id="demo-result">
+          <div class="rt-header">&#10003; Answer relayed to Claude</div>
+          <div class="rt-body" id="demo-result-body"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card" style="border-color:rgba(139,92,246,0.3)">
+          <h3 style="color:var(--purple);font-size:0.9rem;margin-bottom:12px">What Claude Receives</h3>
+          <div class="code-block" id="demo-claude-output" style="min-height:160px;margin:0">
+            <span class="cm">// Select an option and press "Send Answer"</span>
+            <span class="cm">// to see what Claude would receive</span>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <h3 style="font-size:0.9rem;margin-bottom:8px">How it works</h3>
+          <div class="timeline">
+            <div class="timeline-item" id="tl-1">
+              <div class="tl-header">1. Claude invokes AskUserQuestion</div>
+              <div class="tl-body">PermissionRequest hook fires, HTTP response held open</div>
+            </div>
+            <div class="timeline-item" id="tl-2">
+              <div class="tl-header">2. Card appears on dashboard</div>
+              <div class="tl-body">WebSocket broadcasts question to all connected clients</div>
+            </div>
+            <div class="timeline-item" id="tl-3">
+              <div class="tl-header">3. User selects option</div>
+              <div class="tl-body">Tap to select, "Send Answer" enables</div>
+            </div>
+            <div class="timeline-item" id="tl-4">
+              <div class="tl-header">4. Answer relayed as deny+message</div>
+              <div class="tl-body">Server overrides behavior, Claude sees the answer text</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════ TAB: TESTS ═══════════════════════ -->
+<div id="tab-tests" class="tab-panel">
+  <div class="container">
+
+    <div class="section-header">
+      <h2 class="serif">Live Test Results</h2>
+      <p>All tests performed on 2026-03-12 with Claude Opus 4.6, Synapse server on Windows 11, dashboard on desktop Chrome and iOS Safari over LAN.</p>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-box">
+        <div class="stat-value" style="color:var(--green)">&#10003;</div>
+        <div class="stat-label">Single question</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" style="color:var(--green)">&#10003;</div>
+        <div class="stat-label">Multi-question</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" style="color:var(--green)">&#10003;</div>
+        <div class="stat-label">Plain deny</div>
+      </div>
+    </div>
+
+    <!-- Test 1 -->
+    <div class="card" style="border-left:3px solid var(--green)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <span class="chip chip-green">PASS</span>
+        <h3 style="margin:0">Test 1: Single Question</h3>
+      </div>
+      <p>Claude asked: <em>"Pick your favorite color for testing the answer relay"</em></p>
+      <p style="margin-top:8px">User selected <strong style="color:var(--green)">Green</strong> from the dashboard.</p>
+      <div class="code-block" style="margin-top:12px">
+<span class="cm">// Claude received:</span>
+Q: Pick your favorite color for testing the answer relay:
+A: <span class="str">Green</span>
+
+<span class="cm">// Result: Claude acknowledged "Green" and continued.</span>
+      </div>
+    </div>
+
+    <!-- Test 2 -->
+    <div class="card" style="border-left:3px solid var(--green)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <span class="chip chip-green">PASS</span>
+        <h3 style="margin:0">Test 2: Multi-Question Celebration</h3>
+      </div>
+      <p>Claude sent <strong>3 questions simultaneously</strong> in a single AskUserQuestion card:</p>
+      <table class="data-table" style="margin-top:12px">
+        <thead>
+          <tr><th>#</th><th>Question</th><th>Header</th><th>Answer</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td>How does it feel to approve Claude from your phone while walking around the house?</td>
+            <td><span class="chip chip-blue">Vibe check</span></td>
+            <td style="color:var(--green);font-weight:600">All of the above</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>What's the most ridiculous place you'd approve a permission request from?</td>
+            <td><span class="chip chip-purple">Location</span></td>
+            <td style="color:var(--green);font-weight:600">The toilet</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>Rate Synapse's remote approval feature:</td>
+            <td><span class="chip chip-gold">Rating</span></td>
+            <td style="color:var(--green);font-weight:600">Mind = blown</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="code-block" style="margin-top:12px">
+<span class="cm">// Claude received all 3 answers in a single message:</span>
+
+Q: How does it feel to approve Claude from your phone
+   while walking around the house?
+A: <span class="str">All of the above</span>
+
+Q: What's the most ridiculous place you'd approve a
+   permission request from?
+A: <span class="str">The toilet</span>
+
+Q: Rate Synapse's remote approval feature:
+A: <span class="str">Mind = blown</span>
+      </div>
+    </div>
+
+    <!-- Test 3 -->
+    <div class="card" style="border-left:3px solid var(--green)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <span class="chip chip-green">PASS</span>
+        <h3 style="margin:0">Test 3: Plain Deny</h3>
+      </div>
+      <p>User pressed "Deny" (not "Send Answer"). Claude received a standard denial with no message. The tool was blocked and Claude fell back to alternative approaches.</p>
+    </div>
+
+    <div class="card" style="margin-top:24px;background:var(--green-dim);border-color:rgba(34,197,94,0.3)">
+      <p style="text-align:center;font-size:1.1rem;font-weight:600;color:var(--green)">
+        Full round-trip confirmed: Phone &rarr; Dashboard &rarr; Server &rarr; Claude &rarr; Continues
+      </p>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════ TAB: LANDSCAPE ═══════════════════════ -->
+<div id="tab-landscape" class="tab-panel">
+  <div class="container">
+
+    <div class="section-header">
+      <h2 class="serif">Competitive Landscape</h2>
+      <p>The remote AI approval space exploded in Feb-Mar 2026. Here's where Synapse stands.</p>
+    </div>
+
+    <div class="matrix-scroll">
+      <table class="data-table matrix-table">
+        <thead>
+          <tr>
+            <th>Capability</th>
+            <th class="highlight-col" style="color:var(--green)">Synapse</th>
+            <th>Remote Control (Anthropic)</th>
+            <th>claude-remote-approver</th>
+            <th>AgentDeck / CCPocket</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Remote approve/deny</td>
+            <td class="highlight-col"><span class="check">&#10003;</span> hooks</td>
+            <td><span class="check">&#10003;</span> native</td>
+            <td><span class="check">&#10003;</span> ntfy push</td>
+            <td><span class="check">&#10003;</span> SDK</td>
+          </tr>
+          <tr>
+            <td><strong>AskUserQuestion relay</strong></td>
+            <td class="highlight-col"><span class="check">&#10003;</span> <strong>deny+msg</strong></td>
+            <td><span class="check">&#10003;</span> native</td>
+            <td><span class="cross">&#10007;</span></td>
+            <td><span class="check">&#10003;</span> SDK/stdio</td>
+          </tr>
+          <tr>
+            <td>Visual node graph</td>
+            <td class="highlight-col"><span class="check">&#10003;</span> React Flow</td>
+            <td><span class="cross">&#10007;</span></td>
+            <td><span class="cross">&#10007;</span></td>
+            <td><span class="cross">&#10007;</span></td>
+          </tr>
+          <tr>
+            <td>Multi-session monitoring</td>
+            <td class="highlight-col"><span class="check">&#10003;</span></td>
+            <td><span class="cross">&#10007;</span> (1 session)</td>
+            <td><span class="cross">&#10007;</span></td>
+            <td><span class="partial">~</span> partial</td>
+          </tr>
+          <tr>
+            <td>Self-hosted / LAN-only</td>
+            <td class="highlight-col"><span class="check">&#10003;</span></td>
+            <td><span class="cross">&#10007;</span> Anthropic cloud</td>
+            <td><span class="cross">&#10007;</span> ntfy.sh cloud</td>
+            <td><span class="cross">&#10007;</span> Cloudflare</td>
+          </tr>
+          <tr>
+            <td>No paid plan required</td>
+            <td class="highlight-col"><span class="check">&#10003;</span></td>
+            <td><span class="cross">&#10007;</span> Max $100+/mo</td>
+            <td><span class="check">&#10003;</span></td>
+            <td><span class="check">&#10003;</span></td>
+          </tr>
+          <tr>
+            <td>Works via hooks (no SDK)</td>
+            <td class="highlight-col"><span class="check">&#10003;</span></td>
+            <td><span class="cross">&#10007;</span></td>
+            <td><span class="check">&#10003;</span></td>
+            <td><span class="cross">&#10007;</span></td>
+          </tr>
+          <tr>
+            <td>VS Code extension</td>
+            <td class="highlight-col"><span class="check">&#10003;</span></td>
+            <td><span class="cross">&#10007;</span></td>
+            <td><span class="cross">&#10007;</span></td>
+            <td><span class="cross">&#10007;</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section-header" style="margin-top:40px">
+      <h2 class="serif">The Landscape</h2>
+    </div>
+
+    <div class="card-grid">
+      <div class="card" style="border-top:3px solid var(--purple)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span class="chip chip-purple">Official</span>
+        </div>
+        <h3>Anthropic Remote Control</h3>
+        <p>Official solution via <code>claude remote-control</code>. Routes through Anthropic's cloud.
+        Full bidirectional control but requires Max plan ($100-200/mo), single session only, no visualization.</p>
+      </div>
+
+      <div class="card" style="border-top:3px solid var(--coral)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span class="chip chip-coral">Community</span>
+        </div>
+        <h3>claude-remote-approver</h3>
+        <p>60 lines of bash + ntfy.sh push notifications. Approve/deny only. No web UI, no dashboard,
+        no AskUserQuestion relay. Simple but limited.</p>
+      </div>
+
+      <div class="card" style="border-top:3px solid var(--blue)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span class="chip chip-blue">SDK-based</span>
+        </div>
+        <h3>AgentDeck</h3>
+        <p>Cloudflare tunnel + xterm.js terminal on phone. One-command setup. Uses Claude Code SDK (not hooks).
+        Live terminal, push notifications, but no node graph or analytics.</p>
+      </div>
+
+      <div class="card" style="border-top:3px solid var(--cyan)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span class="chip chip-cyan">Native App</span>
+        </div>
+        <h3>CCPocket</h3>
+        <p>Native mobile app for Claude Code + Codex. WebSocket bridge. Batch approval, syntax-highlighted diffs,
+        push notifications. Uses SDK/stdio, not hooks.</p>
+      </div>
+
+      <div class="card" style="border-top:3px solid var(--gold)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span class="chip chip-gold">Monitoring</span>
+        </div>
+        <h3>claude-code-dashboard / Agent Monitor</h3>
+        <p>Monitoring-only dashboards. Track sessions, tool usage, costs, subagents. No permission approval,
+        no answer relay. Hooks-based observability.</p>
+      </div>
+
+      <div class="card" style="border-top:3px solid var(--green)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span class="chip chip-green">Unique</span>
+        </div>
+        <h3>Synapse</h3>
+        <p><strong>Only hooks-based tool that relays structured answers back to Claude.</strong>
+        Combines visual node graph + permission approval + monitoring in one tool.
+        LAN-only, zero cloud deps, VS Code extension, free.</p>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:24px;border-color:rgba(255,200,87,0.3)">
+      <h3 style="color:var(--gold)">Key Insight</h3>
+      <p>GitHub Issue <a href="#">#15400</a> reports that <code>AskUserQuestion</code> unexpectedly triggers <code>PermissionRequest</code> hooks &mdash;
+      which is exactly the behavior Synapse exploits. No other hooks-based project has leveraged this for bidirectional Q&A.
+      There's even a separate Issue <a href="#">#12605</a> requesting dedicated AskUserQuestion hook support &mdash; Synapse already solves this.</p>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════ TAB: FILES ═══════════════════════ -->
+<div id="tab-files" class="tab-panel">
+  <div class="container">
+
+    <div class="section-header">
+      <h2 class="serif">File Map</h2>
+      <p>Every file involved in the remote answer relay system.</p>
+    </div>
+
+    <div class="expandable open" onclick="toggleExpand(this)">
+      <div class="expandable-header">
+        <span style="color:var(--coral)">Server</span>
+        <span class="expand-icon">&#9660;</span>
+      </div>
+      <div class="expandable-body">
+        <table class="data-table">
+          <thead><tr><th>File</th><th>Role</th></tr></thead>
+          <tbody>
+            <tr><td><code>packages/server/src/hookServer.ts</code></td><td>Hook HTTP server (port 27247). Holds permission responses open until decision or timeout.</td></tr>
+            <tr><td><code>packages/server/src/routes/permissions.ts</code></td><td>Decision endpoint. Constructs deny+message for answer relay. Analytics storage.</td></tr>
+            <tr><td><code>packages/server/src/state/permissionState.ts</code></td><td>In-memory pending/decision maps. PendingEntry, DecisionEntry types. Timeout config.</td></tr>
+            <tr><td><code>packages/server/src/services/broadcaster.ts</code></td><td>WebSocket broadcast service. Sends pendingPermission and permissionResolved messages.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="expandable open" onclick="toggleExpand(this)">
+      <div class="expandable-header">
+        <span style="color:var(--blue)">Dashboard</span>
+        <span class="expand-icon">&#9660;</span>
+      </div>
+      <div class="expandable-body">
+        <table class="data-table">
+          <thead><tr><th>File</th><th>Role</th></tr></thead>
+          <tbody>
+            <tr><td><code>apps/dashboard/src/store/permissionStore.ts</code></td><td>Zustand store. Pending/resolved arrays, approve/deny actions with answer passthrough, WS handler, hydration.</td></tr>
+            <tr><td><code>apps/dashboard/src/components/permissions/PermissionApprovalCard.tsx</code></td><td>Card UI. AskUserQuestionCard (interactive options, tabs, countdown) and GenericPermissionCard.</td></tr>
+            <tr><td><code>apps/dashboard/src/components/permissions/PermissionPanel.tsx</code></td><td>Positioning layer. Fixed (desktop) or absolute (mobile) positioning.</td></tr>
+            <tr><td><code>apps/dashboard/src/components/mobile/MobileView.tsx</code></td><td>Portal rendering for iOS Safari. createPortal into document.body.</td></tr>
+            <tr><td><code>apps/dashboard/src/components/mobile/MobileStatusBar.tsx</code></td><td>Amber "X perm" indicator showing pending permission count.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="expandable" onclick="toggleExpand(this)">
+      <div class="expandable-header">
+        <span style="color:var(--purple)">Configuration</span>
+        <span class="expand-icon">&#9660;</span>
+      </div>
+      <div class="expandable-body">
+        <table class="data-table">
+          <thead><tr><th>File</th><th>Role</th></tr></thead>
+          <tbody>
+            <tr><td><code>.claude/settings.local.json</code></td><td>PermissionRequest hook config. Routes to send_event.cjs for WS broadcast.</td></tr>
+            <tr><td><code>hooks/send_event.cjs</code></td><td>Plain Node.js hook script. Reads stdin JSON, POSTs to hook server.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════ FOOTER ═══════════════════════ -->
+<div class="footer">
+  <p><strong>Synapse</strong> &mdash; Remote Answer Relay Design Document</p>
+  <p style="margin-top:4px">Built 2026-03-12 &middot; Phase A &middot; <a href="#">View source on GitHub</a></p>
+  <p style="margin-top:12px;font-style:italic;color:var(--text-muted)">
+    "What's the most ridiculous place you'd approve a permission request from?"<br>
+    &mdash; The toilet. And it <span style="color:var(--green)">worked</span>.
+  </p>
+</div>
+
+<!-- ═══════════════════════ SCRIPTS ═══════════════════════ -->
+<script>
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tabs button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  btn.classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function toggleTheme() {
+  const html = document.documentElement;
+  const btn = document.getElementById('themeBtn');
+  if (html.dataset.theme === 'dark') {
+    html.dataset.theme = 'light';
+    btn.innerHTML = '&#9728;&#65039;';
+  } else {
+    html.dataset.theme = 'dark';
+    btn.innerHTML = '&#127769;';
+  }
+}
+
+function toggleExpand(el) {
+  el.classList.toggle('open');
+}
+
+// Demo card interaction
+let selectedOption = null;
+
+function selectOption(el, groupId) {
+  const group = document.getElementById(groupId);
+  group.querySelectorAll('.demo-option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedOption = el.querySelector('.opt-label').textContent;
+  document.getElementById('demo-send-btn').disabled = false;
+
+  // Highlight timeline step 3
+  document.querySelectorAll('.timeline-item').forEach(t => t.classList.remove('highlight'));
+  document.getElementById('tl-3').classList.add('highlight');
+}
+
+function sendDemo() {
+  if (!selectedOption) return;
+
+  const question = 'How does it feel to approve Claude from your phone while walking around the house?';
+
+  // Show result toast
+  const toast = document.getElementById('demo-result');
+  const body = document.getElementById('demo-result-body');
+  body.textContent = `Q: ${question}\nA: ${selectedOption}`;
+  toast.classList.add('visible');
+
+  // Show Claude output
+  const output = document.getElementById('demo-claude-output');
+  output.innerHTML = `<span class="cm">// hookSpecificOutput.decision:</span>
+{
+  <span class="str">"behavior"</span>: <span class="str">"deny"</span>,
+  <span class="str">"message"</span>: <span class="str">"The user answered this question
+remotely via the Synapse dashboard.
+Do NOT re-ask this question.
+Use these answers and continue:
+
+Q: ${question}
+A: ${selectedOption}"</span>
+}`;
+
+  // Highlight timeline step 4
+  document.querySelectorAll('.timeline-item').forEach(t => t.classList.remove('highlight'));
+  document.getElementById('tl-4').classList.add('highlight');
+
+  // Animate card out
+  const card = document.getElementById('demo-card-1');
+  card.style.opacity = '0.3';
+  card.style.transform = 'scale(0.98)';
+  card.style.transition = 'all 0.3s ease';
+
+  // Reset after 3 seconds
+  setTimeout(() => {
+    card.style.opacity = '1';
+    card.style.transform = 'scale(1)';
+    toast.classList.remove('visible');
+    document.getElementById('demo-options-1').querySelectorAll('.demo-option').forEach(o => o.classList.remove('selected'));
+    document.getElementById('demo-send-btn').disabled = true;
+    selectedOption = null;
+    output.innerHTML = `<span class="cm">// Select an option and press "Send Answer"</span>
+<span class="cm">// to see what Claude would receive</span>`;
+    document.querySelectorAll('.timeline-item').forEach(t => t.classList.remove('highlight'));
+  }, 4000);
+}
+
+function denyDemo() {
+  const output = document.getElementById('demo-claude-output');
+  output.innerHTML = `<span class="cm">// hookSpecificOutput.decision:</span>
+{
+  <span class="str">"behavior"</span>: <span class="str">"deny"</span>
+  <span class="cm">// No message — plain denial</span>
+}`;
+
+  const card = document.getElementById('demo-card-1');
+  card.style.opacity = '0.3';
+  card.style.transform = 'scale(0.98)';
+  card.style.transition = 'all 0.3s ease';
+
+  setTimeout(() => {
+    card.style.opacity = '1';
+    card.style.transform = 'scale(1)';
+    document.getElementById('demo-options-1').querySelectorAll('.demo-option').forEach(o => o.classList.remove('selected'));
+    document.getElementById('demo-send-btn').disabled = true;
+    selectedOption = null;
+    output.innerHTML = `<span class="cm">// Select an option and press "Send Answer"</span>
+<span class="cm">// to see what Claude would receive</span>`;
+  }, 3000);
+}
+
+// Simulated countdown timer for demo
+let demoSeconds = 1800;
+setInterval(() => {
+  if (demoSeconds <= 0) return;
+  demoSeconds--;
+  const m = Math.floor(demoSeconds / 60);
+  const s = demoSeconds % 60;
+  const el = document.getElementById('demo-timer');
+  if (el) el.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+}, 1000);
+
+// Responsive demo grid
+function checkDemoGrid() {
+  const grid = document.getElementById('demo-grid');
+  if (grid && window.innerWidth < 768) {
+    grid.style.gridTemplateColumns = '1fr';
+  } else if (grid) {
+    grid.style.gridTemplateColumns = '1fr 1fr';
+  }
+}
+window.addEventListener('resize', checkDemoGrid);
+checkDemoGrid();
+</script>
+
+</body>
+</html>

@@ -10,6 +10,10 @@ export class ExtensionWsClient implements vscode.Disposable {
   private maxRetries = 5;
   private disposed = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private heartbeatTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Server sends pings every 30s; if we hear nothing for 45s the connection is stalled.
+  private static readonly HEARTBEAT_TIMEOUT_MS = 45_000;
 
   private _onEvent = new vscode.EventEmitter<Record<string, unknown>>();
   readonly onEvent = this._onEvent.event;
@@ -34,10 +38,18 @@ export class ExtensionWsClient implements vscode.Disposable {
 
     this.ws.on('open', () => {
       this.retries = 0;
+      this.resetHeartbeat();
       this._onConnected.fire();
     });
 
+    this.ws.on('ping', () => {
+      // Server heartbeat ping received — reset watchdog
+      this.resetHeartbeat();
+    });
+
     this.ws.on('message', (data: WebSocket.Data) => {
+      // Any message counts as proof the connection is alive
+      this.resetHeartbeat();
       try {
         const message = JSON.parse(data.toString());
         // The server sends { type: 'event', data: AgentEvent }
@@ -66,6 +78,7 @@ export class ExtensionWsClient implements vscode.Disposable {
     });
 
     this.ws.on('close', () => {
+      this.clearHeartbeat();
       this._onDisconnected.fire();
       this.reconnect();
     });
@@ -73,6 +86,24 @@ export class ExtensionWsClient implements vscode.Disposable {
     this.ws.on('error', () => {
       // Error will be followed by close event which triggers reconnect
     });
+  }
+
+  /** Reset the heartbeat watchdog timer. If no activity within timeout, force-close and reconnect. */
+  private resetHeartbeat(): void {
+    this.clearHeartbeat();
+    this.heartbeatTimer = setTimeout(() => {
+      // Connection stalled — no data or pings received
+      if (this.ws && !this.disposed) {
+        this.ws.terminate(); // triggers 'close' → reconnect
+      }
+    }, ExtensionWsClient.HEARTBEAT_TIMEOUT_MS);
+  }
+
+  private clearHeartbeat(): void {
+    if (this.heartbeatTimer) {
+      clearTimeout(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
   }
 
   private reconnect(): void {
@@ -96,6 +127,7 @@ export class ExtensionWsClient implements vscode.Disposable {
   }
 
   private cleanup(): void {
+    this.clearHeartbeat();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;

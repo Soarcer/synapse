@@ -127,13 +127,4 @@ export type { ColorPalette } from './utils/format.js';
 // Feature flags
 export { Features, type FeatureName } from './features.js';
 
-// Network configuration (server-side only — do NOT import in browser code)
-export {
-  SYNAPSE_PORT,
-  HOOK_PORT,
-  HTTP_FALLBACK_PORT,
-  DEV_PORT,
-  USE_TLS,
-  PROTOCOL,
-  WS_PROTOCOL,
-} from './config.js';
+// Network configuration is server-side only — import from '@synapse-ai/core/config'

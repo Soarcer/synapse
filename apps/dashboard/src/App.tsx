@@ -7,6 +7,7 @@ import { GraphLayout } from './components/layout/GraphLayout';
 import { LensAdapter } from './components/lens/LensAdapter';
 import { useBreakpoint } from './hooks/useBreakpoint';
 import { useUrlSync } from './hooks/useUrlSync';
+import { Features } from '@synapse-ai/core';
 
 const AnalyticsPage = lazy(() => import('./components/analytics/AnalyticsPageLazy'));
 const MobileView = lazy(() => import('./components/mobile/MobileView'));
@@ -15,7 +16,12 @@ import { PermissionStack } from './components/permissions/PermissionStack';
 import { usePermissionStore, createAdaptiveSync } from './store/permissionStore';
 import { WorkshopModal } from './components/WorkshopModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { useAgentStore, reloadAllEvents } from './store/agentStore';
+import {
+  useAgentStore,
+  reloadAllEvents,
+  SLIDING_REFRESH_MS,
+  slidingRefreshTick,
+} from './store/agentStore';
 import { wsClient } from './store/wsClient';
 import { initNotifications, useNotificationStore } from './features/notifications'; // [notifications]
 import { initTour, TourOverlay, TourLauncher } from './features/tour'; // [tour]
@@ -104,10 +110,14 @@ export default function App() {
       }
     });
 
+    // Sliding time window refresh (was module-level setInterval — now with cleanup)
+    const slidingTimer = setInterval(slidingRefreshTick, SLIDING_REFRESH_MS);
+
     return () => {
       wsClient.disconnect();
       adaptiveSync.stop();
       unsub();
+      clearInterval(slidingTimer);
     };
   }, [viewMode]);
 
@@ -230,9 +240,17 @@ export default function App() {
         useAgentStore.getState().setShowWorkshop(false);
       }
 
-      // Number keys switch lens tabs (all modes)
+      // Number keys switch lens tabs (all modes) — heatmap excluded when feature is off
       if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-        const tabKeys = ['treemap', 'heatmap', 'compaction', 'cost', 'sankey', 'tree', 'alerts']; // [notifications]
+        const tabKeys = [
+          'treemap',
+          ...(Features.lensHeatmap ? ['heatmap'] : []),
+          'compaction',
+          'cost',
+          'sankey',
+          'tree',
+          'alerts', // [notifications]
+        ];
         const tabIdx = parseInt(e.key, 10) - 1;
         if (tabIdx >= 0 && tabIdx < tabKeys.length) {
           useAgentStore.getState().setActiveLensTab(tabKeys[tabIdx]);
@@ -272,11 +290,10 @@ export default function App() {
         e.preventDefault();
         store.setPaused(!store.paused);
       }
-      // TODO v0.2.0: Spawn Agent — deferred, needs output panel + conversation model
-      // if (e.key === 'n' && !e.ctrlKey && !e.metaKey) {
-      //   useAgentStore.getState().setShowSpawnDialog(true);
-      // }
-      if (e.key === 'w' && !e.ctrlKey && !e.metaKey) {
+      if (Features.spawnAgent && e.key === 'n' && !e.ctrlKey && !e.metaKey) {
+        useAgentStore.getState().setShowSpawnDialog(true);
+      }
+      if (Features.promptLab && e.key === 'w' && !e.ctrlKey && !e.metaKey) {
         useAgentStore.getState().setShowWorkshop(true);
       }
       if (e.key === 'v' && !e.ctrlKey && !e.metaKey) {
@@ -314,7 +331,7 @@ export default function App() {
         e.preventDefault();
         document.getElementById('graph-search-input')?.focus();
       }
-      if (e.key === '$') {
+      if (Features.costDisplayMode && e.key === '$') {
         useAgentStore.getState().toggleCostDisplayMode();
       }
     };
@@ -366,7 +383,7 @@ export default function App() {
         </ErrorBoundary>
 
         <GraphLayout />
-        <WorkshopModal />
+        {Features.promptLab && <WorkshopModal />}
         <ToastContainer />
       </div>
     );

@@ -6,18 +6,36 @@
 
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { projectClaudeDir, projectSettingsFile, HOOKS_DIR } from './paths.js';
 
-const SYNC_EVENTS = [
+/**
+ * Safety guard: refuse to write hooks to the global ~/.claude/ directory.
+ * Hooks must always be project-scoped. Global hooks affect every Claude Code
+ * session on the machine and cause hangs when the Synapse server isn't running.
+ */
+function assertNotGlobal(cwd: string): void {
+  const home = os.homedir();
+  const resolved = path.resolve(cwd);
+  // Block writing to home dir or ~/.claude itself
+  if (resolved === home || resolved === path.join(home, '.claude')) {
+    console.error(
+      `ERROR: Refusing to write hooks to ${resolved}\n` +
+        'Synapse hooks must be project-scoped, not global.\n' +
+        'Run "synapse hook" from inside a project directory instead.',
+    );
+    process.exit(1);
+  }
+}
+
+/** All hook events — every command hook uses async: true to avoid blocking Claude. */
+const ALL_EVENTS = [
   'SessionStart',
   'UserPromptSubmit',
   'SubagentStart',
   'SubagentStop',
   'Stop',
   'SessionEnd',
-];
-
-const ASYNC_EVENTS = [
   'PreToolUse',
   'PostToolUse',
   'PostToolUseFailure',
@@ -26,7 +44,12 @@ const ASYNC_EVENTS = [
   'PreCompact',
 ];
 
-export function configureHooks(cwd: string, port: number): void {
+export function configureHooks(
+  cwd: string,
+  port: number,
+  options?: { observeOnly?: boolean },
+): void {
+  assertNotGlobal(cwd);
   const claudeDir = projectClaudeDir(cwd);
   const settingsFile = projectSettingsFile(cwd);
 
@@ -42,13 +65,22 @@ export function configureHooks(cwd: string, port: number): void {
 
   fs.mkdirSync(claudeDir, { recursive: true });
 
-  // Build hooks config
+  // Build hooks config — all async to never block Claude sessions
+  const hookPort = port + 1; // Hook server runs on SYNAPSE_PORT + 1 (e.g. 27247)
   const hooks: Record<string, unknown[]> = {};
-  for (const event of SYNC_EVENTS) {
-    hooks[event] = [{ hooks: [{ type: 'command', command: hookCmd }] }];
-  }
-  for (const event of ASYNC_EVENTS) {
-    hooks[event] = [{ hooks: [{ type: 'command', command: hookCmd, async: true }] }];
+  for (const event of ALL_EVENTS) {
+    const inner: Array<Record<string, unknown>> = [
+      { type: 'command', command: hookCmd, async: true },
+    ];
+    // PermissionRequest gets an additional sync HTTP hook for remote approval
+    if (event === 'PermissionRequest' && !options?.observeOnly) {
+      inner.push({
+        type: 'http',
+        url: `http://localhost:${hookPort}/api/hooks/permission`,
+        timeout: 1800,
+      });
+    }
+    hooks[event] = [{ hooks: inner }];
   }
 
   // Merge with existing settings (preserve non-Synapse entries)
@@ -63,7 +95,7 @@ export function configureHooks(cwd: string, port: number): void {
 
   // Remove old Synapse hooks, add new ones
   const existingHooks = (settings.hooks as Record<string, unknown>) || {};
-  for (const event of [...SYNC_EVENTS, ...ASYNC_EVENTS]) {
+  for (const event of ALL_EVENTS) {
     delete existingHooks[event];
   }
   settings.hooks = { ...existingHooks, ...hooks };
@@ -82,7 +114,7 @@ export function removeHooks(cwd: string): void {
   try {
     const settings = JSON.parse(fs.readFileSync(settingsFile, 'utf-8'));
     if (settings.hooks) {
-      for (const event of [...SYNC_EVENTS, ...ASYNC_EVENTS]) {
+      for (const event of ALL_EVENTS) {
         delete settings.hooks[event];
       }
       if (Object.keys(settings.hooks).length === 0) delete settings.hooks;

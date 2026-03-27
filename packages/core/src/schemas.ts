@@ -73,7 +73,7 @@ export const SnapshotImportSchema = z.object({
     z.object({
       sessionId: z.string(),
       events: z.array(z.unknown()),
-      transcript: z.unknown().nullable(),
+      transcript: z.record(z.string(), z.unknown()).nullable(),
     }),
   ),
 });
@@ -85,7 +85,13 @@ export const CoachingQuerySchema = z.object({
 
 /** Validates coaching multi-session queries (GET /api/analytics/coaching/report-card/multi). */
 export const CoachingMultiQuerySchema = z.object({
-  sessionIds: z.string().min(1),
+  sessionIds: z
+    .string()
+    .min(1)
+    .refine(
+      (s) => s.split(',').every((id) => id.trim().length > 0),
+      'Each sessionId must be non-empty',
+    ),
 });
 
 /** Validates POST /api/analytics/coaching/playbooks. */

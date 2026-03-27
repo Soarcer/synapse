@@ -1,5 +1,6 @@
 import { build } from 'esbuild';
 
+// 1. Plugin entry point
 await build({
   entryPoints: ['src/plugin.ts'],
   bundle: true,
@@ -10,10 +11,20 @@ await build({
   sourcemap: true,
   external: [
     'openclaw',
-    'better-sqlite3',
-    'express',
-    'ws',
+    'openclaw/plugin-sdk/core',
   ],
 });
 
-console.log('  Plugin built: dist/plugin.js');
+// 2. Bundled Synapse server (eliminates tsx runtime dependency)
+await build({
+  entryPoints: ['../server/src/index.ts'],
+  bundle: true,
+  outfile: 'dist/synapse-server.mjs',
+  format: 'esm',
+  platform: 'node',
+  target: 'node20',
+  sourcemap: true,
+  external: ['better-sqlite3'],
+});
+
+console.log('  Plugin built: dist/plugin.js + dist/synapse-server.mjs');

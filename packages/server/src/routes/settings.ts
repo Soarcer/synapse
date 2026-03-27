@@ -8,6 +8,7 @@ import {
   setSettingValue,
   removeSettingValue,
   SETTINGS_KEYS,
+  resolveApiKey,
 } from '../services/settingsService.js';
 import { getStatus } from '../services/aiCoachService.js';
 
@@ -78,11 +79,16 @@ export function createSettingsRouter(): Router {
       }
 
       // Try a minimal API call to verify the key works
+      const { key: realKey } = resolveApiKey();
+      if (!realKey) {
+        res.json({ ok: false, error: 'No API key available for test' });
+        return;
+      }
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': status.maskedKey.includes('...') ? '' : '', // We need the real key
+          'x-api-key': realKey,
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({

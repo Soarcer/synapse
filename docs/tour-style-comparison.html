@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Synapse Tour Style Comparison</title>
+<style>
+  /* ─── Reset & Base ─── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0a0a0f;
+    color: #e0e0e8;
+    overflow: hidden;
+    height: 100vh;
+  }
+
+  /* ─── Mode Selector (top bar) ─── */
+  .mode-bar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 10000;
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #12121a 0%, #1a1a2e 100%);
+    border-bottom: 1px solid rgba(139, 92, 246, 0.3);
+    backdrop-filter: blur(12px);
+  }
+  .mode-bar h1 {
+    font-size: 14px; font-weight: 600; color: #a78bfa;
+    letter-spacing: 0.5px; text-transform: uppercase;
+    margin-right: 16px;
+  }
+  .mode-btn {
+    padding: 8px 18px; border-radius: 8px; border: 1px solid rgba(139, 92, 246, 0.2);
+    background: rgba(139, 92, 246, 0.08); color: #c4b5fd;
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .mode-btn:hover { background: rgba(139, 92, 246, 0.15); border-color: rgba(139, 92, 246, 0.4); }
+  .mode-btn.active {
+    background: rgba(139, 92, 246, 0.25); border-color: #8b5cf6;
+    color: #fff; box-shadow: 0 0 12px rgba(139, 92, 246, 0.2);
+  }
+  .mode-desc {
+    margin-left: auto; font-size: 12px; color: #6b6b80;
+    max-width: 400px; text-align: right;
+  }
+
+  /* ─── Fake Dashboard ─── */
+  .dashboard {
+    position: fixed; top: 52px; left: 0; right: 0; bottom: 0;
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    grid-template-rows: 48px 1fr;
+    grid-template-areas:
+      "header header"
+      "lens   graph";
+  }
+
+  /* Header */
+  .dash-header {
+    grid-area: header;
+    display: flex; align-items: center; gap: 16px;
+    padding: 0 20px;
+    background: #111118;
+    border-bottom: 1px solid #222235;
+  }
+  .dash-logo { font-size: 15px; font-weight: 700; color: #8b5cf6; }
+  .dash-session {
+    padding: 4px 12px; border-radius: 6px;
+    background: rgba(59, 130, 246, 0.12); color: #60a5fa;
+    font-size: 12px; border: 1px solid rgba(59, 130, 246, 0.2);
+  }
+  .dash-spacer { flex: 1; }
+  .dash-btn {
+    padding: 4px 10px; border-radius: 6px; border: 1px solid #333345;
+    background: transparent; color: #888; font-size: 12px; cursor: default;
+  }
+  .dash-shortcuts {
+    width: 24px; height: 24px; border-radius: 50%;
+    border: 1px solid #333345; background: transparent;
+    color: #666; font-size: 12px; display: grid; place-items: center;
+    cursor: default;
+  }
+
+  /* Lens Panel */
+  .dash-lens {
+    grid-area: lens;
+    background: #0e0e16;
+    border-right: 1px solid #222235;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .lens-tabs {
+    display: flex; gap: 2px; padding: 8px 8px 0;
+    border-bottom: 1px solid #222235;
+  }
+  .lens-tab {
+    padding: 6px 10px; border-radius: 6px 6px 0 0;
+    font-size: 11px; color: #555; cursor: default;
+    background: transparent; border: 1px solid transparent;
+    border-bottom: none;
+  }
+  .lens-tab.active {
+    background: #16162a; color: #8b5cf6;
+    border-color: #222235;
+  }
+  .lens-content {
+    flex: 1; padding: 12px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .lens-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px; border-radius: 6px;
+    background: rgba(139, 92, 246, 0.04);
+    border: 1px solid rgba(139, 92, 246, 0.06);
+    font-size: 12px; color: #888;
+  }
+  .lens-row .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+  }
+  .lens-row .dot.session { background: #3b82f6; }
+  .lens-row .dot.agent { background: #8b5cf6; }
+  .lens-row .dot.tool { background: #10b981; }
+  .lens-row .dot.prompt { background: #f59e0b; }
+  .lens-row .label { flex: 1; }
+  .lens-row .cost { color: #555; font-size: 11px; }
+
+  /* Graph Canvas */
+  .dash-graph {
+    grid-area: graph;
+    background: #0c0c14;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* ─── Fake Graph Nodes ─── */
+  .graph-node {
+    position: absolute;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 12px;
+    display: flex; align-items: center; gap: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    cursor: default;
+    transition: box-shadow 0.3s;
+  }
+  .graph-node .icon { font-size: 14px; }
+
+  .node-session {
+    left: 60px; top: 40px; width: 200px;
+    background: linear-gradient(135deg, #1a2744 0%, #162040 100%);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    color: #93c5fd;
+  }
+  .node-prompt1 {
+    left: 40px; top: 130px; width: 220px;
+    background: linear-gradient(135deg, #2d2410 0%, #332a0e 100%);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    color: #fcd34d;
+  }
+  .node-agent1 {
+    left: 300px; top: 130px; width: 180px;
+    background: linear-gradient(135deg, #231640 0%, #2a1a4e 100%);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    color: #c4b5fd;
+  }
+  .node-toolgroup {
+    left: 20px; top: 230px; width: 240px; min-height: 60px;
+    background: linear-gradient(135deg, #0f1f1a 0%, #122620 100%);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    color: #6ee7b7;
+    flex-wrap: wrap; gap: 4px; padding: 8px;
+  }
+  .tool-pill {
+    padding: 3px 8px; border-radius: 4px;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    font-size: 10px; color: #6ee7b7;
+  }
+  .node-agent2 {
+    left: 300px; top: 250px; width: 170px;
+    background: linear-gradient(135deg, #231640 0%, #2a1a4e 100%);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    color: #c4b5fd;
+  }
+  .node-prompt2 {
+    left: 40px; top: 340px; width: 220px;
+    background: linear-gradient(135deg, #2d2410 0%, #332a0e 100%);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    color: #fcd34d;
+  }
+  .node-spawn {
+    left: 510px; top: 180px; width: 40px; height: 40px;
+    background: rgba(139, 92, 246, 0.08);
+    border: 1px dashed rgba(139, 92, 246, 0.3);
+    color: #8b5cf6;
+    display: grid; place-items: center;
+    font-size: 18px; padding: 0;
+  }
+
+  /* Graph edges (SVG) */
+  .graph-edges {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none;
+  }
+  .graph-edges line {
+    stroke: rgba(139, 92, 246, 0.15);
+    stroke-width: 1.5;
+    stroke-dasharray: 4 4;
+  }
+
+  /* ─── Settings gear area ─── */
+  .dash-settings {
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  /* ═══════════════════════════════════════
+     STYLE A: Spotlight Cutout + Floating Card
+     ═══════════════════════════════════════ */
+  .overlay-a {
+    display: none;
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 5000;
+  }
+  .overlay-a .dimmer {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    transition: clip-path 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .overlay-a .spotlight-ring {
+    position: absolute;
+    border: 2px solid rgba(139, 92, 246, 0.6);
+    border-radius: 14px;
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.3), inset 0 0 20px rgba(139, 92, 246, 0.1);
+    pointer-events: none;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .overlay-a .card {
+    position: absolute;
+    width: 320px;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16162a 100%);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(139, 92, 246, 0.1);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .overlay-a .card-title {
+    font-size: 15px; font-weight: 600; color: #e0e0ff;
+    margin-bottom: 8px;
+  }
+  .overlay-a .card-body {
+    font-size: 13px; color: #9999b0; line-height: 1.5;
+    margin-bottom: 16px;
+  }
+  .overlay-a .card-footer {
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .overlay-a .card-progress {
+    display: flex; gap: 4px;
+  }
+  .overlay-a .card-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: rgba(139, 92, 246, 0.2);
+    transition: background 0.2s;
+  }
+  .overlay-a .card-dot.active { background: #8b5cf6; }
+  .overlay-a .card-dot.done { background: rgba(139, 92, 246, 0.5); }
+  .overlay-a .card-actions { display: flex; gap: 8px; }
+  .overlay-a .btn-skip {
+    padding: 6px 14px; border-radius: 6px; border: none;
+    background: transparent; color: #666; font-size: 12px;
+    cursor: pointer;
+  }
+  .overlay-a .btn-skip:hover { color: #999; }
+  .overlay-a .btn-next {
+    padding: 6px 18px; border-radius: 6px; border: none;
+    background: #8b5cf6; color: #fff; font-size: 12px;
+    font-weight: 600; cursor: pointer;
+    transition: background 0.2s;
+  }
+  .overlay-a .btn-next:hover { background: #7c3aed; }
+  .overlay-a .btn-back {
+    padding: 6px 14px; border-radius: 6px; border: 1px solid #333;
+    background: transparent; color: #888; font-size: 12px;
+    cursor: pointer;
+  }
+  .overlay-a .btn-back:hover { border-color: #555; color: #bbb; }
+
+  /* ═══════════════════════════════════════
+     STYLE B: Side Panel Narrator
+     ═══════════════════════════════════════ */
+  .overlay-b {
+    display: none;
+    position: fixed; top: 52px; right: 0; bottom: 0;
+    width: 340px; z-index: 5000;
+    background: linear-gradient(180deg, #12121e 0%, #0e0e18 100%);
+    border-left: 1px solid rgba(139, 92, 246, 0.2);
+    box-shadow: -4px 0 24px rgba(0, 0, 0, 0.4);
+    display: none; flex-direction: column;
+  }
+  .overlay-b .narrator-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(139, 92, 246, 0.1);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .overlay-b .narrator-title {
+    font-size: 14px; font-weight: 600; color: #a78bfa;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .overlay-b .narrator-close {
+    width: 28px; height: 28px; border-radius: 6px; border: 1px solid #333;
+    background: transparent; color: #666; cursor: pointer;
+    display: grid; place-items: center; font-size: 14px;
+  }
+  .overlay-b .narrator-close:hover { border-color: #555; color: #999; }
+  .overlay-b .narrator-progress-bar {
+    height: 3px; background: rgba(139, 92, 246, 0.1);
+  }
+  .overlay-b .narrator-progress-fill {
+    height: 100%; background: #8b5cf6;
+    transition: width 0.4s ease;
+  }
+  .overlay-b .narrator-steps {
+    flex: 1; overflow-y: auto; padding: 16px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .overlay-b .narrator-step {
+    padding: 14px 16px; border-radius: 10px;
+    border: 1px solid rgba(139, 92, 246, 0.06);
+    background: rgba(139, 92, 246, 0.03);
+    transition: all 0.3s ease;
+  }
+  .overlay-b .narrator-step.active {
+    border-color: rgba(139, 92, 246, 0.2);
+    background: rgba(139, 92, 246, 0.08);
+  }
+  .overlay-b .narrator-step.done {
+    opacity: 0.5;
+  }
+  .overlay-b .narrator-step-num {
+    font-size: 10px; font-weight: 700; color: #8b5cf6;
+    text-transform: uppercase; letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+  .overlay-b .narrator-step-title {
+    font-size: 14px; font-weight: 600; color: #d0d0e8;
+    margin-bottom: 4px;
+  }
+  .overlay-b .narrator-step-body {
+    font-size: 12px; color: #7777a0; line-height: 1.5;
+  }
+  .overlay-b .narrator-step .check {
+    display: inline-block; margin-right: 6px; color: #10b981;
+  }
+  .overlay-b .narrator-footer {
+    padding: 16px 20px;
+    border-top: 1px solid rgba(139, 92, 246, 0.1);
+    display: flex; gap: 8px;
+  }
+  .overlay-b .narrator-footer button {
+    flex: 1; padding: 8px; border-radius: 8px; border: none;
+    font-size: 12px; font-weight: 500; cursor: pointer;
+  }
+  .overlay-b .btn-b-back {
+    background: rgba(139, 92, 246, 0.08); color: #8b5cf6;
+    border: 1px solid rgba(139, 92, 246, 0.15) !important;
+  }
+  .overlay-b .btn-b-next {
+    background: #8b5cf6; color: #fff;
+  }
+  .overlay-b .btn-b-next:hover { background: #7c3aed; }
+
+  /* Pulse highlight for Style B */
+  .pulse-ring {
+    display: none;
+    position: absolute; z-index: 4999;
+    border: 2px solid rgba(139, 92, 246, 0.5);
+    border-radius: 14px;
+    animation: pulse-glow 2s ease-in-out infinite;
+    pointer-events: none;
+    transition: all 0.4s ease;
+  }
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 8px rgba(139, 92, 246, 0.2); }
+    50% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.5); }
+  }
+
+  /* ═══════════════════════════════════════
+     STYLE C: Bottom Bar + Pointer
+     ═══════════════════════════════════════ */
+  .overlay-c {
+    display: none;
+    position: fixed; bottom: 0; left: 0; right: 0;
+    z-index: 5000;
+  }
+  .overlay-c .bottom-bar {
+    background: linear-gradient(180deg, #16162a 0%, #12121e 100%);
+    border-top: 1px solid rgba(139, 92, 246, 0.25);
+    padding: 16px 28px;
+    display: flex; align-items: center; gap: 20px;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+  }
+  .overlay-c .bar-step-badge {
+    display: flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px; border-radius: 50%;
+    background: rgba(139, 92, 246, 0.15);
+    border: 2px solid #8b5cf6;
+    color: #c4b5fd; font-size: 14px; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .overlay-c .bar-text { flex: 1; }
+  .overlay-c .bar-title {
+    font-size: 14px; font-weight: 600; color: #e0e0ff;
+    margin-bottom: 2px;
+  }
+  .overlay-c .bar-body {
+    font-size: 12px; color: #7777a0; line-height: 1.4;
+  }
+  .overlay-c .bar-progress {
+    display: flex; gap: 3px; align-items: center;
+  }
+  .overlay-c .bar-pip {
+    width: 24px; height: 4px; border-radius: 2px;
+    background: rgba(139, 92, 246, 0.15);
+    transition: background 0.3s;
+  }
+  .overlay-c .bar-pip.active { background: #8b5cf6; }
+  .overlay-c .bar-pip.done { background: rgba(139, 92, 246, 0.4); }
+  .overlay-c .bar-actions { display: flex; gap: 8px; }
+  .overlay-c .btn-c-skip {
+    padding: 8px 14px; border-radius: 8px; border: none;
+    background: transparent; color: #555; font-size: 12px; cursor: pointer;
+  }
+  .overlay-c .btn-c-skip:hover { color: #888; }
+  .overlay-c .btn-c-back {
+    padding: 8px 14px; border-radius: 8px; border: 1px solid #333;
+    background: transparent; color: #888; font-size: 12px; cursor: pointer;
+  }
+  .overlay-c .btn-c-next {
+    padding: 8px 20px; border-radius: 8px; border: none;
+    background: #8b5cf6; color: #fff; font-size: 12px;
+    font-weight: 600; cursor: pointer;
+  }
+  .overlay-c .btn-c-next:hover { background: #7c3aed; }
+
+  /* Animated pointer for Style C */
+  .pointer-arrow {
+    display: none;
+    position: absolute; z-index: 4999;
+    pointer-events: none;
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .pointer-arrow svg { filter: drop-shadow(0 2px 6px rgba(139, 92, 246, 0.4)); }
+
+  /* Subtle dim for Style C */
+  .overlay-c .soft-dim {
+    position: fixed; top: 52px; left: 0; right: 0; bottom: 60px;
+    background: rgba(0, 0, 0, 0.25);
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+
+  /* ─── Active state glow on mode selector ─── */
+  body[data-mode="a"] .mode-btn[data-mode="a"],
+  body[data-mode="b"] .mode-btn[data-mode="b"],
+  body[data-mode="c"] .mode-btn[data-mode="c"] {
+    background: rgba(139, 92, 246, 0.25); border-color: #8b5cf6;
+    color: #fff; box-shadow: 0 0 12px rgba(139, 92, 246, 0.2);
+  }
+
+  /* ─── Keyboard hint ─── */
+  .kbd {
+    display: inline-block; padding: 1px 6px; border-radius: 4px;
+    background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.25);
+    font-family: monospace; font-size: 11px; color: #c4b5fd;
+  }
+</style>
+</head>
+<body data-mode="none">
+
+<!-- ═══ Mode Selector Bar ═══ -->
+<div class="mode-bar">
+  <h1>Tour Styles</h1>
+  <button class="mode-btn" data-mode="a" onclick="activateMode('a')">A: Spotlight + Card</button>
+  <button class="mode-btn" data-mode="b" onclick="activateMode('b')">B: Side Panel</button>
+  <button class="mode-btn" data-mode="c" onclick="activateMode('c')">C: Bottom Bar + Pointer</button>
+  <button class="mode-btn" data-mode="none" onclick="activateMode('none')">Off</button>
+  <span class="mode-desc">Click a style to see it in action on the mock dashboard below. Use arrow keys or the tour buttons to step through.</span>
+</div>
+
+<!-- ═══ Fake Dashboard ═══ -->
+<div class="dashboard">
+  <!-- Header -->
+  <div class="dash-header" id="el-header">
+    <span class="dash-logo">Synapse</span>
+    <span class="dash-session" id="el-session">demo-session-01</span>
+    <span class="dash-spacer"></span>
+    <div class="dash-settings" id="el-settings">
+      <span class="dash-btn">Pause</span>
+      <span class="dash-btn" id="el-gear">Settings</span>
+      <span class="dash-shortcuts" id="el-shortcuts">?</span>
+    </div>
+  </div>
+
+  <!-- Lens Panel -->
+  <div class="dash-lens" id="el-lens">
+    <div class="lens-tabs" id="el-lens-tabs">
+      <span class="lens-tab">TMap</span>
+      <span class="lens-tab">Heat</span>
+      <span class="lens-tab">Comp</span>
+      <span class="lens-tab">Cost</span>
+      <span class="lens-tab">Flow</span>
+      <span class="lens-tab active">Tree</span>
+    </div>
+    <div class="lens-content">
+      <div class="lens-row"><span class="dot session"></span><span class="label">Session: demo-session-01</span><span class="cost">$0.14</span></div>
+      <div class="lens-row" style="padding-left: 24px;"><span class="dot prompt"></span><span class="label">Add health check endpoint</span><span class="cost">$0.05</span></div>
+      <div class="lens-row" style="padding-left: 40px;"><span class="dot tool"></span><span class="label">Read server/index.ts</span><span class="cost">$0.01</span></div>
+      <div class="lens-row" style="padding-left: 40px;"><span class="dot tool"></span><span class="label">Edit server/index.ts</span><span class="cost">$0.02</span></div>
+      <div class="lens-row" style="padding-left: 40px;"><span class="dot tool"></span><span class="label">Bash curl localhost</span><span class="cost">$0.00</span></div>
+      <div class="lens-row" style="padding-left: 24px;"><span class="dot prompt"></span><span class="label">Find TypeScript files</span><span class="cost">$0.04</span></div>
+      <div class="lens-row" style="padding-left: 40px;"><span class="dot agent"></span><span class="label">Explore agent</span><span class="cost">$0.03</span></div>
+      <div class="lens-row" style="padding-left: 56px;"><span class="dot tool"></span><span class="label">Glob **/*.ts</span><span class="cost">$0.01</span></div>
+      <div class="lens-row" style="padding-left: 56px;"><span class="dot tool"></span><span class="label">Grep WebSocket</span><span class="cost">$0.01</span></div>
+      <div class="lens-row" style="padding-left: 24px;"><span class="dot prompt"></span><span class="label">Refactor broadcaster</span><span class="cost">$0.05</span></div>
+    </div>
+  </div>
+
+  <!-- Graph Canvas -->
+  <div class="dash-graph" id="el-graph">
+    <svg class="graph-edges">
+      <line x1="160" y1="75" x2="150" y2="130" />
+      <line x1="160" y1="75" x2="390" y2="130" />
+      <line x1="150" y1="165" x2="140" y2="230" />
+      <line x1="390" y1="165" x2="385" y2="250" />
+      <line x1="160" y1="75" x2="150" y2="340" />
+    </svg>
+
+    <div class="graph-node node-session" id="el-node-session">
+      <span class="icon">&#9679;</span> demo-session-01
+    </div>
+    <div class="graph-node node-prompt1" id="el-node-prompt">
+      <span class="icon">&#9998;</span> Add health check endpoint
+    </div>
+    <div class="graph-node node-agent1" id="el-node-agent">
+      <span class="icon">&#9670;</span> Explore Agent
+    </div>
+    <div class="graph-node node-toolgroup" id="el-node-tools">
+      <span class="tool-pill">Read</span>
+      <span class="tool-pill">Edit</span>
+      <span class="tool-pill">Bash</span>
+    </div>
+    <div class="graph-node node-agent2">
+      <span class="icon">&#9670;</span> Plan Agent
+    </div>
+    <div class="graph-node node-prompt2">
+      <span class="icon">&#9998;</span> Refactor broadcaster
+    </div>
+    <div class="graph-node node-spawn" id="el-node-spawn">+</div>
+
+    <!-- Pointer arrow (Style C) -->
+    <div class="pointer-arrow" id="pointer">
+      <svg width="32" height="32" viewBox="0 0 32 32">
+        <path d="M16 4 L28 28 L16 22 L4 28 Z" fill="#8b5cf6" stroke="#c4b5fd" stroke-width="1"/>
+      </svg>
+    </div>
+
+    <!-- Pulse ring (Style B) -->
+    <div class="pulse-ring" id="pulse"></div>
+  </div>
+</div>
+
+<!-- ═══ Style A: Spotlight + Floating Card ═══ -->
+<div class="overlay-a" id="overlay-a">
+  <div class="dimmer" id="dimmer-a"></div>
+  <div class="spotlight-ring" id="spotlight-a"></div>
+  <div class="card" id="card-a">
+    <div class="card-title" id="card-a-title"></div>
+    <div class="card-body" id="card-a-body"></div>
+    <div class="card-footer">
+      <div class="card-progress" id="card-a-dots"></div>
+      <div class="card-actions">
+        <button class="btn-back" id="btn-a-back" onclick="prevStep('a')">Back</button>
+        <button class="btn-skip" onclick="activateMode('none')">Skip tour</button>
+        <button class="btn-next" id="btn-a-next" onclick="nextStep('a')">Next</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Style B: Side Panel Narrator ═══ -->
+<div class="overlay-b" id="overlay-b">
+  <div class="narrator-header">
+    <span class="narrator-title"><span style="font-size:16px;">&#9733;</span> Guided Tour</span>
+    <button class="narrator-close" onclick="activateMode('none')">&times;</button>
+  </div>
+  <div class="narrator-progress-bar">
+    <div class="narrator-progress-fill" id="narrator-progress"></div>
+  </div>
+  <div class="narrator-steps" id="narrator-steps"></div>
+  <div class="narrator-footer">
+    <button class="btn-b-back" id="btn-b-back" onclick="prevStep('b')">Back</button>
+    <button class="btn-b-next" id="btn-b-next" onclick="nextStep('b')">Next</button>
+  </div>
+</div>
+
+<!-- ═══ Style C: Bottom Bar + Pointer ═══ -->
+<div class="overlay-c" id="overlay-c">
+  <div class="soft-dim" id="dim-c"></div>
+  <div class="bottom-bar">
+    <div class="bar-step-badge" id="bar-c-badge">1</div>
+    <div class="bar-text">
+      <div class="bar-title" id="bar-c-title"></div>
+      <div class="bar-body" id="bar-c-body"></div>
+    </div>
+    <div class="bar-progress" id="bar-c-pips"></div>
+    <div class="bar-actions">
+      <button class="btn-c-back" id="btn-c-back" onclick="prevStep('c')">Back</button>
+      <button class="btn-c-skip" onclick="activateMode('none')">Skip</button>
+      <button class="btn-c-next" id="btn-c-next" onclick="nextStep('c')">Next</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Tour step definitions ───
+const STEPS = [
+  {
+    target: 'el-node-session',
+    title: 'Session Node',
+    body: 'Each Claude Code session appears as a root node. It shows the session ID, git branch, and accumulated cost.',
+    cardPos: 'right',
+  },
+  {
+    target: 'el-node-prompt',
+    title: 'User Prompts',
+    body: 'Every prompt you type becomes a node. Prompts are connected to the tools and agents they trigger.',
+    cardPos: 'right',
+  },
+  {
+    target: 'el-node-agent',
+    title: 'Agent Nodes',
+    body: 'Subagents (Explore, Plan, etc.) appear as purple nodes. They can spawn their own tools and child agents.',
+    cardPos: 'left',
+  },
+  {
+    target: 'el-node-tools',
+    title: 'Tool Groups',
+    body: 'Leaf tools are grouped into compact pill grids. Press <span class="kbd">F</span> to expand them into individual nodes. Switch to Timeline or Heatmap mode in Settings.',
+    cardPos: 'right',
+  },
+  {
+    target: 'el-lens',
+    title: 'Lens Panel',
+    body: 'Six analysis lenses: Treemap, Heatmap, Compaction, Cost Waterfall, Sankey Flow, and Tree. Press <span class="kbd">1</span>–<span class="kbd">6</span> to switch between them.',
+    cardPos: 'right',
+  },
+  {
+    target: 'el-settings',
+    title: 'View Settings',
+    body: 'Toggle viewport lock <span class="kbd">V</span>, hook events <span class="kbd">H</span>, tool expansion <span class="kbd">F</span>, and auto-collapse prompts <span class="kbd">C</span>. Configure tool view mode and notifications.',
+    cardPos: 'below',
+  },
+];
+
+let currentStep = { a: 0, b: 0, c: 0 };
+let activeMode = 'none';
+
+function getTargetRect(stepIndex) {
+  const el = document.getElementById(STEPS[stepIndex].target);
+  if (!el) return { x: 100, y: 100, w: 200, h: 50 };
+  const r = el.getBoundingClientRect();
+  return { x: r.left, y: r.top, w: r.width, h: r.height };
+}
+
+// ─── Mode activation ───
+function activateMode(mode) {
+  activeMode = mode;
+  document.body.setAttribute('data-mode', mode);
+
+  // Hide all
+  document.getElementById('overlay-a').style.display = 'none';
+  document.getElementById('overlay-b').style.display = 'none';
+  document.getElementById('overlay-c').style.display = 'none';
+  document.getElementById('pulse').style.display = 'none';
+  document.getElementById('pointer').style.display = 'none';
+
+  // Update mode button states
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  const activeBtn = document.querySelector(`.mode-btn[data-mode="${mode}"]`);
+  if (activeBtn) activeBtn.classList.add('active');
+
+  if (mode === 'none') return;
+
+  currentStep[mode] = 0;
+  if (mode === 'a') {
+    document.getElementById('overlay-a').style.display = 'block';
+    renderStepA();
+  } else if (mode === 'b') {
+    document.getElementById('overlay-b').style.display = 'flex';
+    document.getElementById('pulse').style.display = 'block';
+    renderAllStepsB();
+    renderStepB();
+  } else if (mode === 'c') {
+    document.getElementById('overlay-c').style.display = 'block';
+    document.getElementById('pointer').style.display = 'block';
+    renderStepC();
+  }
+}
+
+function nextStep(mode) {
+  if (currentStep[mode] < STEPS.length - 1) {
+    currentStep[mode]++;
+    if (mode === 'a') renderStepA();
+    else if (mode === 'b') renderStepB();
+    else if (mode === 'c') renderStepC();
+  } else {
+    activateMode('none');
+  }
+}
+
+function prevStep(mode) {
+  if (currentStep[mode] > 0) {
+    currentStep[mode]--;
+    if (mode === 'a') renderStepA();
+    else if (mode === 'b') renderStepB();
+    else if (mode === 'c') renderStepC();
+  }
+}
+
+// ─── Style A rendering ───
+function renderStepA() {
+  const idx = currentStep.a;
+  const step = STEPS[idx];
+  const r = getTargetRect(idx);
+  const pad = 10;
+
+  // Clip-path dimmer (polygon with hole)
+  const dimmer = document.getElementById('dimmer-a');
+  const sx = r.x - pad, sy = r.y - pad, sw = r.w + pad * 2, sh = r.h + pad * 2;
+  dimmer.style.clipPath = `polygon(
+    0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%,
+    ${sx}px ${sy}px, ${sx}px ${sy + sh}px, ${sx + sw}px ${sy + sh}px, ${sx + sw}px ${sy}px, ${sx}px ${sy}px
+  )`;
+
+  // Spotlight ring
+  const ring = document.getElementById('spotlight-a');
+  ring.style.left = (r.x - pad) + 'px';
+  ring.style.top = (r.y - pad) + 'px';
+  ring.style.width = (r.w + pad * 2) + 'px';
+  ring.style.height = (r.h + pad * 2) + 'px';
+
+  // Card positioning
+  const card = document.getElementById('card-a');
+  if (step.cardPos === 'right') {
+    card.style.left = (r.x + r.w + 24) + 'px';
+    card.style.top = r.y + 'px';
+    card.style.right = 'auto';
+  } else if (step.cardPos === 'left') {
+    card.style.left = (r.x - 344) + 'px';
+    card.style.top = r.y + 'px';
+    card.style.right = 'auto';
+  } else if (step.cardPos === 'below') {
+    card.style.left = (r.x + r.w / 2 - 160) + 'px';
+    card.style.top = (r.y + r.h + 16) + 'px';
+    card.style.right = 'auto';
+  }
+
+  document.getElementById('card-a-title').textContent = step.title;
+  document.getElementById('card-a-body').innerHTML = step.body;
+
+  // Dots
+  const dotsEl = document.getElementById('card-a-dots');
+  dotsEl.innerHTML = STEPS.map((_, i) =>
+    `<span class="card-dot ${i === idx ? 'active' : i < idx ? 'done' : ''}"></span>`
+  ).join('');
+
+  // Button visibility
+  document.getElementById('btn-a-back').style.display = idx === 0 ? 'none' : 'inline-block';
+  document.getElementById('btn-a-next').textContent = idx === STEPS.length - 1 ? 'Finish' : 'Next';
+}
+
+// ─── Style B rendering ───
+function renderAllStepsB() {
+  const container = document.getElementById('narrator-steps');
+  container.innerHTML = STEPS.map((s, i) => `
+    <div class="narrator-step" id="narrator-step-${i}">
+      <div class="narrator-step-num">Step ${i + 1} of ${STEPS.length}</div>
+      <div class="narrator-step-title"><span class="check" style="display:none;">&#10003;</span>${s.title}</div>
+      <div class="narrator-step-body">${s.body}</div>
+    </div>
+  `).join('');
+}
+
+function renderStepB() {
+  const idx = currentStep.b;
+  const r = getTargetRect(idx);
+  const pad = 8;
+
+  // Progress bar
+  document.getElementById('narrator-progress').style.width = ((idx + 1) / STEPS.length * 100) + '%';
+
+  // Highlight active step card, dim previous
+  STEPS.forEach((_, i) => {
+    const el = document.getElementById(`narrator-step-${i}`);
+    el.classList.remove('active', 'done');
+    el.querySelector('.check').style.display = 'none';
+    if (i === idx) {
+      el.classList.add('active');
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    if (i < idx) {
+      el.classList.add('done');
+      el.querySelector('.check').style.display = 'inline';
+    }
+  });
+
+  // Pulse ring on target
+  const pulse = document.getElementById('pulse');
+  pulse.style.left = (r.x - pad) + 'px';
+  pulse.style.top = (r.y - pad) + 'px';
+  pulse.style.width = (r.w + pad * 2) + 'px';
+  pulse.style.height = (r.h + pad * 2) + 'px';
+
+  document.getElementById('btn-b-back').style.display = idx === 0 ? 'none' : 'inline-block';
+  document.getElementById('btn-b-next').textContent = idx === STEPS.length - 1 ? 'Finish' : 'Next';
+}
+
+// ─── Style C rendering ───
+function renderStepC() {
+  const idx = currentStep.c;
+  const step = STEPS[idx];
+  const r = getTargetRect(idx);
+
+  document.getElementById('bar-c-badge').textContent = idx + 1;
+  document.getElementById('bar-c-title').textContent = step.title;
+  document.getElementById('bar-c-body').innerHTML = step.body;
+
+  // Pips
+  document.getElementById('bar-c-pips').innerHTML = STEPS.map((_, i) =>
+    `<span class="bar-pip ${i === idx ? 'active' : i < idx ? 'done' : ''}"></span>`
+  ).join('');
+
+  // Pointer arrow
+  const pointer = document.getElementById('pointer');
+  pointer.style.left = (r.x + r.w / 2 - 16) + 'px';
+  pointer.style.top = (r.y - 40) + 'px';
+
+  document.getElementById('btn-c-back').style.display = idx === 0 ? 'none' : 'inline-block';
+  document.getElementById('btn-c-next').textContent = idx === STEPS.length - 1 ? 'Finish' : 'Next';
+}
+
+// ─── Keyboard navigation ───
+document.addEventListener('keydown', (e) => {
+  if (activeMode === 'none') return;
+  if (e.key === 'ArrowRight' || e.key === ' ') {
+    e.preventDefault();
+    nextStep(activeMode);
+  } else if (e.key === 'ArrowLeft') {
+    e.preventDefault();
+    prevStep(activeMode);
+  } else if (e.key === 'Escape') {
+    activateMode('none');
+  }
+});
+</script>
+</body>
+</html>

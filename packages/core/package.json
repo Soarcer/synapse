@@ -3,6 +3,18 @@
   "version": "0.1.0",
   "description": "Shared types, validation schemas, and utilities for Synapse",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Soarcer/synapse.git",
+    "directory": "packages/core"
+  },
+  "keywords": [
+    "synapse",
+    "claude",
+    "ai-agent",
+    "types",
+    "schemas"
+  ],
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

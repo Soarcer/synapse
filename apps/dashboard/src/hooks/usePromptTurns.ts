@@ -5,7 +5,8 @@ import { createContext, useContext, useState, useEffect, useRef, useCallback } f
 import type { PromptTurnData, PromptTurnGroup } from '@synapse-ai/core';
 import { apiUrl } from '../utils/api';
 
-const POLL_INTERVAL = 8000; // 8 seconds — transcript updates are less frequent than events
+const POLL_INTERVAL = 15000; // 15 seconds — transcript updates are infrequent
+const MAX_SESSIONS_TO_POLL = 3; // Only poll the most recent sessions to avoid flooding
 const EMPTY_MAP = new Map<string, PromptTurnGroup[]>();
 
 /** Map of sessionId → PromptTurnGroup[] shared across all prompt nodes */
@@ -22,6 +23,9 @@ export function usePromptTurns(sessionIds: string[]): Map<string, PromptTurnGrou
   // Stable key to avoid re-fetching when array identity changes but content doesn't
   const idsKey = sessionIds.sort().join(',');
 
+  // Track sessions that returned 404 so we don't keep hammering them
+  const noTranscriptRef = useRef(new Set<string>());
+
   const fetchAll = useCallback(() => {
     if (!sessionIds.length) return;
 
@@ -29,16 +33,29 @@ export function usePromptTurns(sessionIds: string[]): Map<string, PromptTurnGrou
     const controller = new AbortController();
     abortRef.current = controller;
 
+    // Only poll recent sessions, skip known 404s
+    const toPoll = sessionIds
+      .filter((sid) => !noTranscriptRef.current.has(sid))
+      .slice(-MAX_SESSIONS_TO_POLL);
+
+    if (toPoll.length === 0) return;
+
     Promise.all(
-      sessionIds.map((sid) =>
+      toPoll.map((sid) =>
         fetch(apiUrl(`/api/transcript/${sid}/prompt-turns`), { signal: controller.signal })
-          .then((r) => (r.ok ? r.json() : null))
+          .then((r) => {
+            if (r.status === 404) {
+              noTranscriptRef.current.add(sid);
+              return null;
+            }
+            return r.ok ? r.json() : null;
+          })
           .then((d: PromptTurnData | null) => (d ? ([sid, d.groups] as const) : null))
           .catch(() => null),
       ),
     ).then((results) => {
       if (controller.signal.aborted) return;
-      const next = new Map<string, PromptTurnGroup[]>();
+      const next = new Map(groupMap);
       for (const r of results) {
         if (r) next.set(r[0], r[1]);
       }

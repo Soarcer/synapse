@@ -1,17 +1,55 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Bernhard
 
-import type { OpenClawTool } from '../types.js';
+import { ensureServerReady } from '../plugin.js';
+
+// Minimal type for the OpenClaw plugin API surface we use
+interface PluginApi {
+  registerTool(
+    config: {
+      name: string;
+      description: string;
+      parameters: Record<string, unknown>;
+      execute: (runId: string, params: Record<string, unknown>) => Promise<ToolResult>;
+    },
+    options?: { optional: boolean },
+  ): void;
+}
+
+interface ToolResult {
+  content: Array<{ type: string; text: string }>;
+}
+
+function textResult(data: unknown): ToolResult {
+  return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+}
+
+// ─── Lazy server readiness gate ─────────────────────────────────────
+
+let serverChecked = false;
+
+async function requireServer(port: number): Promise<void> {
+  if (serverChecked) return;
+  await ensureServerReady(port);
+  serverChecked = true;
+}
+
+/** Reset server-checked flag (for testing) */
+export function resetServerCheck(): void {
+  serverChecked = false;
+}
+
+// ─── Tool Registration ──────────────────────────────────────────────
 
 /**
- * Layer 2: Agent tools registered with OpenClaw.
+ * Layer 2: Register Synapse monitoring tools with OpenClaw.
  * Agents can query monitoring data and access the dashboard.
  */
-export function createAgentTools(port: number): OpenClawTool[] {
+export function registerSynapseTools(api: PluginApi, port: number): void {
   const baseUrl = `http://localhost:${port}`;
 
-  return [
-    // ── synapse_query: Query monitoring events ──
+  // ── synapse_query: Query monitoring events ──
+  api.registerTool(
     {
       name: 'synapse_query',
       description:
@@ -38,7 +76,8 @@ export function createAgentTools(port: number): OpenClawTool[] {
           },
         },
       },
-      execute: async (params) => {
+      async execute(_runId, params) {
+        await requireServer(port);
         const limit = Math.min(Number(params.limit) || 20, 100);
         const query = new URLSearchParams();
         if (params.sessionId) query.set('sessionId', String(params.sessionId));
@@ -47,16 +86,15 @@ export function createAgentTools(port: number): OpenClawTool[] {
 
         try {
           const res = await fetch(`${baseUrl}/api/events?${query}`);
-          if (!res.ok) return { error: `Server returned ${res.status}` };
+          if (!res.ok) return textResult({ error: `Server returned ${res.status}` });
           let events = (await res.json()) as Array<Record<string, unknown>>;
 
-          // Client-side vendor filter (server doesn't support vendor query yet)
+          // Client-side vendor filter
           if (params.vendor) {
             events = events.filter((e) => e.vendor === params.vendor);
           }
 
-          // Format for readable output
-          return {
+          return textResult({
             count: events.length,
             events: events.slice(0, limit).map((e) => ({
               type: e.type,
@@ -68,14 +106,17 @@ export function createAgentTools(port: number): OpenClawTool[] {
               tokens: e.tokenUsage,
               timestamp: e.timestamp ? new Date(e.timestamp as number).toISOString() : undefined,
             })),
-          };
+          });
         } catch (err) {
-          return { error: `Failed to query Synapse: ${err}` };
+          return textResult({ error: `Failed to query Synapse: ${err}` });
         }
       },
     },
+    { optional: true },
+  );
 
-    // ── synapse_metrics: Aggregate statistics ──
+  // ── synapse_metrics: Aggregate statistics ──
+  api.registerTool(
     {
       name: 'synapse_metrics',
       description:
@@ -93,11 +134,11 @@ export function createAgentTools(port: number): OpenClawTool[] {
           },
         },
       },
-      execute: async (params) => {
+      async execute(_runId, params) {
+        await requireServer(port);
         const groupBy = String(params.groupBy || 'vendor');
         const timeRange = String(params.timeRange || '24h');
 
-        // Calculate time cutoff
         const now = Date.now();
         const cutoffs: Record<string, number> = {
           '1h': now - 3600_000,
@@ -109,13 +150,11 @@ export function createAgentTools(port: number): OpenClawTool[] {
 
         try {
           const res = await fetch(`${baseUrl}/api/events?limit=2000`);
-          if (!res.ok) return { error: `Server returned ${res.status}` };
+          if (!res.ok) return textResult({ error: `Server returned ${res.status}` });
           const events = (await res.json()) as Array<Record<string, unknown>>;
 
-          // Filter by time range
           const filtered = events.filter((e) => (e.timestamp as number) >= cutoff);
 
-          // Aggregate
           const groups = new Map<
             string,
             {
@@ -161,7 +200,6 @@ export function createAgentTools(port: number): OpenClawTool[] {
             }
           }
 
-          // Format output
           const metrics: Record<string, unknown>[] = [];
           for (const [key, g] of groups) {
             metrics.push({
@@ -175,19 +213,22 @@ export function createAgentTools(port: number): OpenClawTool[] {
             });
           }
 
-          return {
+          return textResult({
             timeRange,
             groupBy,
             totalEvents: filtered.length,
             metrics: metrics.sort((a, b) => (b.totalTokens as number) - (a.totalTokens as number)),
-          };
+          });
         } catch (err) {
-          return { error: `Failed to get metrics: ${err}` };
+          return textResult({ error: `Failed to get metrics: ${err}` });
         }
       },
     },
+    { optional: true },
+  );
 
-    // ── synapse_dashboard: Get dashboard URL ──
+  // ── synapse_dashboard: Get dashboard URL ──
+  api.registerTool(
     {
       name: 'synapse_dashboard',
       description:
@@ -196,24 +237,26 @@ export function createAgentTools(port: number): OpenClawTool[] {
         type: 'object',
         properties: {},
       },
-      execute: async () => {
+      async execute(_runId) {
+        await requireServer(port);
         try {
           const res = await fetch(`${baseUrl}/api/health`);
           const health = (await res.json()) as Record<string, unknown>;
-          return {
+          return textResult({
             url: baseUrl,
             status: health.ok ? 'running' : 'error',
             connectedClients: health.clients,
             mode: health.mode || 'openclaw',
-          };
+          });
         } catch {
-          return {
+          return textResult({
             url: baseUrl,
             status: 'unreachable',
             message: 'Synapse server may not be running',
-          };
+          });
         }
       },
     },
-  ];
+    { optional: true },
+  );
 }

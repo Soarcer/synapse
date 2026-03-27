@@ -1,0 +1,1891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Synapse — Notification Integration Concepts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+/* ── Reset & Base ────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-deep: #060a12;
+  --bg-base: #0c1220;
+  --bg-surface: #131b2e;
+  --bg-elevated: #1a2540;
+  --bg-hover: #1f2d4a;
+  --border-subtle: rgba(99, 132, 190, 0.12);
+  --border-medium: rgba(99, 132, 190, 0.22);
+  --border-strong: rgba(99, 132, 190, 0.35);
+  --text-primary: #e2e8f4;
+  --text-secondary: #8899b8;
+  --text-muted: #5a6e8f;
+  --accent-cyan: #38bdf8;
+  --accent-cyan-dim: rgba(56, 189, 248, 0.15);
+  --accent-green: #34d399;
+  --accent-green-dim: rgba(52, 211, 153, 0.12);
+  --accent-amber: #fbbf24;
+  --accent-amber-dim: rgba(251, 191, 36, 0.12);
+  --accent-red: #f87171;
+  --accent-red-dim: rgba(248, 113, 113, 0.12);
+  --accent-purple: #a78bfa;
+  --font-display: 'Outfit', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-display);
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* ── Scrollbar ───────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-medium); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+/* ── Nav ─────────────────────────────────────────── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: rgba(6, 10, 18, 0.85);
+  backdrop-filter: blur(24px) saturate(1.3);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0 32px;
+  height: 56px;
+  display: flex; align-items: center; gap: 32px;
+}
+nav .logo {
+  font-family: var(--font-mono);
+  font-weight: 700; font-size: 14px;
+  color: var(--accent-cyan);
+  letter-spacing: -0.5px;
+  white-space: nowrap;
+  display: flex; align-items: center; gap: 8px;
+}
+nav .logo .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent-cyan);
+  box-shadow: 0 0 12px var(--accent-cyan);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+nav .links {
+  display: flex; gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+nav .links::-webkit-scrollbar { display: none; }
+nav .links a {
+  font-size: 12px; font-weight: 500;
+  color: var(--text-muted);
+  text-decoration: none;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+nav .links a:hover, nav .links a.active {
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+}
+
+/* ── Hero ────────────────────────────────────────── */
+.hero {
+  padding: 120px 32px 80px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 600px 300px at 50% 40%, rgba(56, 189, 248, 0.06), transparent),
+    radial-gradient(ellipse 400px 200px at 30% 60%, rgba(52, 211, 153, 0.04), transparent),
+    radial-gradient(ellipse 400px 200px at 70% 60%, rgba(248, 113, 113, 0.03), transparent);
+  pointer-events: none;
+}
+.hero h1 {
+  font-size: clamp(36px, 5vw, 64px);
+  font-weight: 900;
+  letter-spacing: -2px;
+  line-height: 1.1;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, var(--text-primary) 30%, var(--accent-cyan) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hero .subtitle {
+  font-size: 18px;
+  color: var(--text-secondary);
+  max-width: 640px;
+  margin: 0 auto 40px;
+  font-weight: 300;
+}
+.hero .badge-row {
+  display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;
+}
+.badge {
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 500;
+  padding: 5px 14px;
+  border-radius: 100px;
+  border: 1px solid var(--border-medium);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+}
+
+/* ── Sections ────────────────────────────────────── */
+section {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 80px 32px;
+}
+section + section { border-top: 1px solid var(--border-subtle); }
+
+.section-label {
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--accent-cyan);
+  margin-bottom: 8px;
+}
+.section-title {
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  margin-bottom: 8px;
+}
+.section-desc {
+  font-size: 15px;
+  color: var(--text-secondary);
+  max-width: 600px;
+  margin-bottom: 32px;
+  font-weight: 300;
+}
+
+/* ── Buttons ─────────────────────────────────────── */
+.btn {
+  font-family: var(--font-mono);
+  font-size: 12px; font-weight: 500;
+  padding: 8px 18px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-medium);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+.btn.primary {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.3);
+  color: var(--accent-cyan);
+}
+.btn.primary:hover {
+  background: rgba(56, 189, 248, 0.25);
+  border-color: rgba(56, 189, 248, 0.5);
+}
+.btn.danger {
+  background: var(--accent-red-dim);
+  border-color: rgba(248, 113, 113, 0.3);
+  color: var(--accent-red);
+}
+
+/* ── Controls bar ────────────────────────────────── */
+.controls {
+  display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap;
+}
+
+/* ══════════════════════════════════════════════════
+   SECTION 1: MISSION CONTROL
+   ══════════════════════════════════════════════════ */
+
+.mc-strip {
+  display: flex; gap: 12px;
+  padding: 16px;
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow-x: auto;
+}
+
+.mc-card {
+  flex: 0 0 220px;
+  padding: 14px 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+.mc-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; bottom: 0; width: 3px;
+  border-radius: 3px 0 0 3px;
+  transition: background 0.3s;
+}
+.mc-card[data-state="running"]::before { background: var(--accent-green); }
+.mc-card[data-state="blocked"]::before { background: var(--accent-red); }
+.mc-card[data-state="question"]::before { background: var(--accent-amber); }
+.mc-card[data-state="complete"]::before { background: var(--text-muted); }
+
+.mc-card:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+.mc-card.selected {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 1px var(--accent-cyan), 0 8px 24px rgba(56, 189, 248, 0.1);
+}
+
+.mc-card .header {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 10px;
+}
+.mc-card .status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: all 0.3s;
+}
+.mc-card[data-state="running"] .status-dot {
+  background: var(--accent-green);
+  box-shadow: 0 0 8px var(--accent-green);
+}
+.mc-card[data-state="blocked"] .status-dot {
+  background: var(--accent-red);
+  box-shadow: 0 0 8px var(--accent-red);
+  animation: pulse-dot 1s ease-in-out infinite;
+}
+.mc-card[data-state="question"] .status-dot {
+  background: var(--accent-amber);
+  box-shadow: 0 0 8px var(--accent-amber);
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+.mc-card[data-state="complete"] .status-dot {
+  background: var(--text-muted);
+}
+
+.mc-card .session-name {
+  font-family: var(--font-mono);
+  font-size: 13px; font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mc-card .meta {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 11px; color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.mc-card .timer {
+  font-weight: 600;
+  transition: color 0.3s;
+}
+.mc-card[data-state="blocked"] .timer { color: var(--accent-red); }
+.mc-card[data-state="question"] .timer { color: var(--accent-amber); }
+
+.mc-card .status-label {
+  font-size: 10px; font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 2px 8px;
+  border-radius: 100px;
+  margin-top: 8px;
+  display: inline-block;
+}
+.mc-card[data-state="running"] .status-label {
+  color: var(--accent-green);
+  background: var(--accent-green-dim);
+}
+.mc-card[data-state="blocked"] .status-label {
+  color: var(--accent-red);
+  background: var(--accent-red-dim);
+}
+.mc-card[data-state="question"] .status-label {
+  color: var(--accent-amber);
+  background: var(--accent-amber-dim);
+}
+.mc-card[data-state="complete"] .status-label {
+  color: var(--text-muted);
+  background: rgba(90, 110, 143, 0.12);
+}
+
+.mc-summary {
+  display: flex; gap: 16px; margin-top: 16px;
+  padding: 12px 16px;
+  background: var(--bg-surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.mc-summary .stat {
+  display: flex; align-items: center; gap: 6px;
+  color: var(--text-secondary);
+}
+.mc-summary .stat .val {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.mc-summary .stat.alert .val {
+  color: var(--accent-red);
+}
+
+/* ══════════════════════════════════════════════════
+   SECTION 2: CONTEXT SNAPSHOTS
+   ══════════════════════════════════════════════════ */
+
+.snapshot-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+@media (max-width: 768px) {
+  .snapshot-grid { grid-template-columns: 1fr; }
+}
+
+.snapshot-col-label {
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.raw-notification {
+  padding: 20px;
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.raw-notification .icon { font-size: 24px; margin-bottom: 12px; }
+.raw-notification .msg {
+  color: var(--text-primary);
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+.raw-notification .type {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.enriched-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: all 0.3s;
+}
+.enriched-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+.enriched-card .card-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.enriched-card .card-header .indicator {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.enriched-card .card-header .indicator.red {
+  background: var(--accent-red);
+  box-shadow: 0 0 10px var(--accent-red);
+  animation: pulse-dot 1s ease-in-out infinite;
+}
+.enriched-card .card-header .indicator.amber {
+  background: var(--accent-amber);
+  box-shadow: 0 0 10px var(--accent-amber);
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+.enriched-card .card-header .session {
+  font-family: var(--font-mono);
+  font-size: 13px; font-weight: 600;
+  flex: 1;
+}
+.enriched-card .card-header .wait-time {
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 600;
+  color: var(--accent-red);
+  padding: 2px 8px;
+  background: var(--accent-red-dim);
+  border-radius: 100px;
+}
+
+.enriched-card .card-body { padding: 14px 16px; }
+
+.enriched-card .wants-row {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 12px;
+}
+.enriched-card .wants-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.enriched-card .wants-value {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--accent-amber);
+  background: var(--accent-amber-dim);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.enriched-card .trail {
+  display: flex; align-items: center; gap: 4px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.enriched-card .trail .step {
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 500;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+.enriched-card .trail .arrow {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+.enriched-card .trail .step.current {
+  background: var(--accent-red-dim);
+  border-color: rgba(248, 113, 113, 0.3);
+  color: var(--accent-red);
+}
+
+.enriched-card .stats-row {
+  display: flex; gap: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+  margin-bottom: 14px;
+}
+.enriched-card .stat-item {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.enriched-card .stat-item .val {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.enriched-card .card-footer {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex; justify-content: flex-end; gap: 8px;
+}
+
+/* ══════════════════════════════════════════════════
+   SECTION 3: GRAPH ZOOM + PULSE
+   ══════════════════════════════════════════════════ */
+
+.graph-container {
+  position: relative;
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  height: 480px;
+}
+.graph-container svg {
+  width: 100%; height: 100%;
+  transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.graph-node {
+  cursor: pointer;
+  transition: opacity 0.4s ease;
+}
+.graph-node rect, .graph-node circle {
+  transition: all 0.4s ease;
+}
+.graph-node text {
+  font-family: 'JetBrains Mono', monospace;
+  fill: var(--text-primary);
+}
+.graph-node .node-label {
+  font-size: 11px;
+  font-weight: 600;
+}
+.graph-node .node-sub {
+  font-size: 9px;
+  fill: var(--text-secondary);
+}
+
+.graph-edge {
+  transition: opacity 0.4s ease;
+}
+
+.graph-dimmed { opacity: 0.15 !important; }
+
+/* Pulse ring animation for blocked node */
+@keyframes pulse-ring {
+  0% { r: 30; opacity: 0.8; }
+  100% { r: 55; opacity: 0; }
+}
+@keyframes pulse-ring-inner {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.pulse-ring {
+  fill: none;
+  stroke: var(--accent-red);
+  stroke-width: 2;
+  animation: pulse-ring 1.5s ease-out infinite;
+}
+.pulse-ring-2 {
+  fill: none;
+  stroke: var(--accent-red);
+  stroke-width: 1.5;
+  animation: pulse-ring 1.5s ease-out 0.5s infinite;
+}
+.pulse-glow {
+  fill: none;
+  stroke: var(--accent-red);
+  stroke-width: 2;
+  opacity: 0.6;
+  animation: pulse-ring-inner 1.5s ease-in-out infinite;
+}
+
+/* Floating message above blocked node */
+.graph-message {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.3s;
+  pointer-events: none;
+}
+.graph-message.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.graph-message rect {
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5));
+}
+
+/* ══════════════════════════════════════════════════
+   SECTION 4: LENS NOTIFICATION CARDS
+   ══════════════════════════════════════════════════ */
+
+.lens-demo {
+  position: relative;
+  height: 400px;
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.lens-mock-graph {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0.3;
+}
+.lens-mock-graph .fake-nodes {
+  display: flex; gap: 40px; align-items: center;
+}
+.lens-mock-graph .fake-node {
+  width: 100px; height: 40px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+}
+.lens-mock-graph .fake-edge {
+  width: 30px; height: 2px;
+  background: var(--border-medium);
+}
+
+/* Lens tab bar at the bottom */
+.lens-tab-bar {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: rgba(19, 27, 46, 0.95);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border-subtle);
+  z-index: 10;
+}
+.lens-tab-row {
+  display: flex; align-items: center;
+  padding: 6px 12px;
+  gap: 4px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.lens-tab {
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 500;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  border: none;
+  background: none;
+  transition: all 0.2s;
+  position: relative;
+}
+.lens-tab:hover { color: var(--text-secondary); background: var(--bg-hover); }
+.lens-tab.active { color: var(--text-primary); background: var(--bg-elevated); }
+.lens-tab .tab-badge {
+  position: absolute; top: -2px; right: -2px;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--accent-red);
+  color: white;
+  font-size: 8px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 8px var(--accent-red);
+  animation: pulse-dot 1s ease-in-out infinite;
+  opacity: 0;
+  transform: scale(0);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.lens-tab .tab-badge.visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Notification card tray */
+.lens-card-tray {
+  padding: 8px 12px;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  min-height: 0;
+  max-height: 0;
+  opacity: 0;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.lens-card-tray.open {
+  min-height: 120px;
+  max-height: 200px;
+  opacity: 1;
+  padding: 12px;
+}
+.lens-card-tray::-webkit-scrollbar { display: none; }
+
+.lens-card {
+  flex: 0 0 260px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  position: relative;
+  overflow: hidden;
+  transform: translateY(100%);
+  opacity: 0;
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.lens-card.visible {
+  transform: translateY(0);
+  opacity: 1;
+}
+.lens-card::before {
+  content: '';
+  position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+}
+.lens-card.red::before { background: var(--accent-red); }
+.lens-card.amber::before { background: var(--accent-amber); }
+
+.lens-card .lc-header {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 8px;
+}
+.lens-card .lc-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+}
+.lens-card.red .lc-dot {
+  background: var(--accent-red);
+  box-shadow: 0 0 6px var(--accent-red);
+}
+.lens-card.amber .lc-dot {
+  background: var(--accent-amber);
+  box-shadow: 0 0 6px var(--accent-amber);
+}
+.lens-card .lc-session {
+  font-family: var(--font-mono);
+  font-size: 12px; font-weight: 600;
+  flex: 1;
+}
+.lens-card .lc-dismiss {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255,255,255,0.06);
+  color: var(--text-muted);
+  font-size: 10px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.lens-card .lc-dismiss:hover {
+  background: rgba(255,255,255,0.12);
+  color: var(--text-primary);
+}
+
+.lens-card .lc-message {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.lens-card .lc-tool {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 3px 8px;
+  background: var(--bg-base);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  display: inline-block;
+  margin-bottom: 10px;
+}
+
+.lens-card .lc-action {
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 600;
+  color: var(--accent-cyan);
+  background: var(--accent-cyan-dim);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  padding: 5px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.lens-card .lc-action:hover {
+  background: rgba(56, 189, 248, 0.25);
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+/* ══════════════════════════════════════════════════
+   SECTION 5: VS CODE PIT BOARD MOCKUP
+   ══════════════════════════════════════════════════ */
+
+.vscode-mock {
+  background: #1e1e1e;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid #333;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+.vscode-titlebar {
+  background: #323233;
+  padding: 0 12px;
+  height: 30px;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px;
+  color: #ccc;
+}
+.vscode-titlebar .dots {
+  display: flex; gap: 6px;
+}
+.vscode-titlebar .dot-btn {
+  width: 12px; height: 12px; border-radius: 50%;
+}
+.vscode-titlebar .dot-btn.close { background: #f25056; }
+.vscode-titlebar .dot-btn.min { background: #fac536; }
+.vscode-titlebar .dot-btn.max { background: #39ea49; }
+
+.vscode-body {
+  display: flex; height: 360px;
+}
+
+.vscode-sidebar {
+  width: 240px;
+  background: #252526;
+  border-right: 1px solid #333;
+  display: flex; flex-direction: column;
+}
+.vscode-sidebar-title {
+  font-size: 11px; font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #bbb;
+  padding: 10px 16px;
+  border-bottom: 1px solid #333;
+}
+
+.vscode-tree {
+  padding: 4px 0;
+  flex: 1;
+}
+.vscode-tree-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 16px 4px 20px;
+  font-size: 13px;
+  color: #ccc;
+  cursor: pointer;
+  transition: background 0.1s;
+  position: relative;
+}
+.vscode-tree-item:hover { background: #2a2d2e; }
+.vscode-tree-item .tree-icon { font-size: 14px; flex-shrink: 0; }
+.vscode-tree-item .tree-label { flex: 1; }
+.vscode-tree-item .tree-badge {
+  font-size: 9px; font-weight: 700;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: white;
+}
+.vscode-tree-item .tree-badge.attention {
+  background: #e74c3c;
+  animation: pulse-dot 1s ease-in-out infinite;
+}
+.vscode-tree-item .tree-badge.ok {
+  background: #2ecc71;
+}
+
+.vscode-editor {
+  flex: 1;
+  background: #1e1e1e;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.vscode-editor-placeholder {
+  color: #555;
+  font-size: 14px;
+  font-style: italic;
+}
+
+/* VS Code toast notification */
+.vscode-toast-container {
+  position: absolute;
+  bottom: 40px; right: 16px;
+  width: 320px;
+  z-index: 20;
+}
+.vscode-toast {
+  background: #252526;
+  border: 1px solid #454545;
+  border-radius: 4px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  overflow: hidden;
+  transform: translateX(120%);
+  opacity: 0;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.vscode-toast.visible {
+  transform: translateX(0);
+  opacity: 1;
+}
+.vscode-toast-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #333;
+}
+.vscode-toast-icon {
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--accent-cyan);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px;
+  color: #000;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.vscode-toast-title {
+  font-size: 13px; font-weight: 600;
+  color: #eee;
+  flex: 1;
+}
+.vscode-toast-close {
+  width: 20px; height: 20px;
+  border: none; background: none;
+  color: #999; cursor: pointer;
+  font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 3px;
+}
+.vscode-toast-close:hover { background: #444; color: #eee; }
+.vscode-toast-body {
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #ccc;
+  line-height: 1.5;
+}
+.vscode-toast-body code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: #333;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: #e8c97c;
+}
+.vscode-toast-actions {
+  display: flex; gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid #333;
+}
+.vscode-toast-btn {
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 3px;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.vscode-toast-btn.primary {
+  background: #0e639c;
+  color: white;
+}
+.vscode-toast-btn.primary:hover { background: #1177bb; }
+.vscode-toast-btn.secondary {
+  background: #333;
+  color: #ccc;
+}
+.vscode-toast-btn.secondary:hover { background: #444; }
+
+.vscode-statusbar {
+  background: #007acc;
+  height: 22px;
+  display: flex; align-items: center;
+  padding: 0 8px;
+  font-size: 12px;
+  color: white;
+  gap: 12px;
+}
+.vscode-statusbar .sb-segment {
+  display: flex; align-items: center; gap: 4px;
+  padding: 0 6px;
+  height: 100%;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.vscode-statusbar .sb-segment:hover { background: rgba(255,255,255,0.12); }
+.vscode-statusbar .sb-segment.warning {
+  background: #d97706;
+}
+.vscode-statusbar .sb-segment.warning:hover {
+  background: #b45309;
+}
+.vscode-statusbar .sb-icon { font-size: 13px; }
+
+/* ── Shared animations ───────────────────────────── */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes slideInUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-in {
+  animation: slideInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── Comparison arrow between raw/enriched ───────── */
+.comparison-arrow {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px;
+  color: var(--accent-cyan);
+  opacity: 0.5;
+  grid-column: 1 / -1;
+  margin: -8px 0;
+}
+
+/* ── Footer ──────────────────────────────────────── */
+footer {
+  text-align: center;
+  padding: 40px 32px 60px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  nav { padding: 0 16px; }
+  section { padding: 48px 16px; }
+  .mc-strip { flex-direction: column; }
+  .mc-card { flex: none; }
+  .snapshot-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ NAV ═══════════════════════════════════════ -->
+<nav>
+  <div class="logo">
+    <span class="dot"></span>
+    SYNAPSE
+  </div>
+  <div class="links">
+    <a href="#mission-control">Mission Control</a>
+    <a href="#context-snapshots">Context Snapshots</a>
+    <a href="#graph-pulse">Graph Pulse</a>
+    <a href="#lens-cards">Lens Cards</a>
+    <a href="#vscode-pit">VS Code Pit Board</a>
+  </div>
+</nav>
+
+<!-- ═══ HERO ══════════════════════════════════════ -->
+<div class="hero">
+  <h1>Notification Integration</h1>
+  <p class="subtitle">Five concepts for surfacing Claude Code notification hooks across the Synapse dashboard, VS Code extension, and graph view.</p>
+  <div class="badge-row">
+    <span class="badge">permission_prompt</span>
+    <span class="badge">elicitation_dialog</span>
+    <span class="badge">context_warning</span>
+    <span class="badge">idle_timeout</span>
+  </div>
+</div>
+
+<!-- ═══ 1. MISSION CONTROL ═══════════════════════ -->
+<section id="mission-control">
+  <div class="section-label">Concept 01</div>
+  <h2 class="section-title">Mission Control Strip</h2>
+  <p class="section-desc">A persistent bar showing all active sessions at a glance. Sessions change state in real-time as notification hooks fire. Sorted by urgency — longest-blocked first.</p>
+
+  <div class="controls">
+    <button class="btn primary" onclick="mcSimulateBlock()">
+      <span>&#9679;</span> Simulate Permission Block
+    </button>
+    <button class="btn" onclick="mcSimulateQuestion()">
+      <span>&#9679;</span> Simulate Question
+    </button>
+    <button class="btn" onclick="mcResetAll()">Reset All</button>
+  </div>
+
+  <div class="mc-strip" id="mc-strip">
+    <!-- Cards injected by JS -->
+  </div>
+
+  <div class="mc-summary" id="mc-summary">
+    <div class="stat">
+      Total: <span class="val" id="mc-total">5</span>
+    </div>
+    <div class="stat">
+      Running: <span class="val" style="color: var(--accent-green)" id="mc-running">4</span>
+    </div>
+    <div class="stat alert">
+      Attention: <span class="val" id="mc-attention">1</span>
+    </div>
+    <div class="stat">
+      Avg Wait: <span class="val" id="mc-avg-wait">—</span>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 2. CONTEXT SNAPSHOTS ═════════════════════ -->
+<section id="context-snapshots">
+  <div class="section-label">Concept 02</div>
+  <h2 class="section-title">Context Snapshot Cards</h2>
+  <p class="section-desc">Raw hook notifications are cryptic. Synapse enriches them with session history, tool context, and cost data — so you know what's needed before switching.</p>
+
+  <div class="controls">
+    <button class="btn primary" onclick="snapshotAnimate()">Enrich Notifications</button>
+  </div>
+
+  <!-- Card pair 1: Permission -->
+  <div class="snapshot-grid" style="margin-bottom: 32px;">
+    <div>
+      <div class="snapshot-col-label">Raw Hook Event</div>
+      <div class="raw-notification">
+        <div class="icon">&#128276;</div>
+        <div class="msg">Claude needs your permission</div>
+        <div class="type">notification_type: permission_prompt</div>
+        <div style="margin-top: 8px; color: var(--text-muted); font-size: 11px;">
+          That's it. No context about what or why.
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="snapshot-col-label">Synapse Enriched</div>
+      <div class="enriched-card snapshot-card" data-delay="0">
+        <div class="card-header">
+          <div class="indicator red"></div>
+          <div class="session">feat/auth</div>
+          <div class="wait-time">1m 23s</div>
+        </div>
+        <div class="card-body">
+          <div class="wants-row">
+            <span class="wants-label">Wants:</span>
+            <span class="wants-value">Bash("git push -u origin feat/auth")</span>
+          </div>
+          <div class="trail">
+            <span class="step">Read</span>
+            <span class="arrow">&rarr;</span>
+            <span class="step">Edit</span>
+            <span class="arrow">&rarr;</span>
+            <span class="step">Edit</span>
+            <span class="arrow">&rarr;</span>
+            <span class="step current">Bash</span>
+          </div>
+          <div class="stats-row">
+            <div class="stat-item"><span class="val">$1.20</span> cost</div>
+            <div class="stat-item"><span class="val">47</span> events</div>
+            <div class="stat-item"><span class="val">18m</span> elapsed</div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <button class="btn" style="font-size: 11px; padding: 5px 12px;">Dismiss</button>
+          <button class="btn primary" style="font-size: 11px; padding: 5px 12px;">Go to Session &rarr;</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Card pair 2: Question -->
+  <div class="snapshot-grid" style="margin-bottom: 32px;">
+    <div>
+      <div class="snapshot-col-label">Raw Hook Event</div>
+      <div class="raw-notification">
+        <div class="icon">&#10067;</div>
+        <div class="msg">Claude has a question for you</div>
+        <div class="type">notification_type: elicitation_dialog</div>
+        <div style="margin-top: 8px; color: var(--text-muted); font-size: 11px;">
+          What question? About what? No idea.
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="snapshot-col-label">Synapse Enriched</div>
+      <div class="enriched-card snapshot-card" data-delay="200">
+        <div class="card-header">
+          <div class="indicator amber"></div>
+          <div class="session">fix/perf-regression</div>
+          <div class="wait-time" style="color: var(--accent-amber); background: var(--accent-amber-dim);">34s</div>
+        </div>
+        <div class="card-body">
+          <div class="wants-row">
+            <span class="wants-label">Asking:</span>
+            <span class="wants-value" style="color: var(--accent-amber); background: var(--accent-amber-dim);">"Should I use Redis or in-memory cache?"</span>
+          </div>
+          <div class="trail">
+            <span class="step">Read</span>
+            <span class="arrow">&rarr;</span>
+            <span class="step">Grep</span>
+            <span class="arrow">&rarr;</span>
+            <span class="step">Read</span>
+            <span class="arrow">&rarr;</span>
+            <span class="step current" style="background: var(--accent-amber-dim); border-color: rgba(251,191,36,0.3); color: var(--accent-amber);">Ask</span>
+          </div>
+          <div class="stats-row">
+            <div class="stat-item"><span class="val">$0.38</span> cost</div>
+            <div class="stat-item"><span class="val">12</span> events</div>
+            <div class="stat-item"><span class="val">4m</span> elapsed</div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <button class="btn" style="font-size: 11px; padding: 5px 12px;">Dismiss</button>
+          <button class="btn primary" style="font-size: 11px; padding: 5px 12px;">Go to Session &rarr;</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Card pair 3: Warning -->
+  <div class="snapshot-grid">
+    <div>
+      <div class="snapshot-col-label">Raw Hook Event</div>
+      <div class="raw-notification">
+        <div class="icon">&#9888;&#65039;</div>
+        <div class="msg">Context window approaching limit</div>
+        <div class="type">notification_type: warning</div>
+        <div style="margin-top: 8px; color: var(--text-muted); font-size: 11px;">
+          Which session? How close to the limit?
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="snapshot-col-label">Synapse Enriched</div>
+      <div class="enriched-card snapshot-card" data-delay="400">
+        <div class="card-header">
+          <div class="indicator amber"></div>
+          <div class="session">refactor/db-layer</div>
+          <div class="wait-time" style="color: var(--accent-amber); background: var(--accent-amber-dim);">auto</div>
+        </div>
+        <div class="card-body">
+          <div class="wants-row">
+            <span class="wants-label">Warning:</span>
+            <span class="wants-value" style="color: var(--accent-amber); background: var(--accent-amber-dim);">Context 87% full — compaction recommended</span>
+          </div>
+          <div class="trail">
+            <span class="step">Read &times;14</span>
+            <span class="arrow">&rarr;</span>
+            <span class="step">Edit &times;8</span>
+            <span class="arrow">&rarr;</span>
+            <span class="step">Grep &times;6</span>
+            <span class="arrow">&rarr;</span>
+            <span class="step current" style="background: var(--accent-amber-dim); border-color: rgba(251,191,36,0.3); color: var(--accent-amber);">&#9888; 87%</span>
+          </div>
+          <div class="stats-row">
+            <div class="stat-item"><span class="val">$3.85</span> cost</div>
+            <div class="stat-item"><span class="val">142</span> events</div>
+            <div class="stat-item"><span class="val">43m</span> elapsed</div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <button class="btn" style="font-size: 11px; padding: 5px 12px;">Dismiss</button>
+          <button class="btn primary" style="font-size: 11px; padding: 5px 12px;">Go to Session &rarr;</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 3. GRAPH ZOOM + PULSE ════════════════════ -->
+<section id="graph-pulse">
+  <div class="section-label">Concept 03</div>
+  <h2 class="section-title">Graph Zoom + Pulse</h2>
+  <p class="section-desc">When a notification arrives, the graph smoothly zooms to the relevant node, dims the rest, and pulses an attention ring with the notification message floating above.</p>
+
+  <div class="controls">
+    <button class="btn primary" onclick="graphTriggerNotification()">Trigger Notification</button>
+    <button class="btn" onclick="graphReset()">Reset View</button>
+  </div>
+
+  <div class="graph-container" id="graph-container">
+    <svg id="graph-svg" viewBox="0 0 900 400" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <linearGradient id="edge-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" style="stop-color: rgba(99,132,190,0.5)"/>
+          <stop offset="100%" style="stop-color: rgba(99,132,190,0.2)"/>
+        </linearGradient>
+        <filter id="node-glow">
+          <feGaussianBlur stdDeviation="3" result="blur"/>
+          <feMerge>
+            <feMergeNode in="blur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+        <filter id="red-glow">
+          <feGaussianBlur stdDeviation="6" result="blur"/>
+          <feMerge>
+            <feMergeNode in="blur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+
+      <!-- Edges -->
+      <g class="graph-edges">
+        <line class="graph-edge" x1="160" y1="200" x2="310" y2="120" stroke="url(#edge-gradient)" stroke-width="2"/>
+        <line class="graph-edge" x1="160" y1="200" x2="310" y2="280" stroke="url(#edge-gradient)" stroke-width="2"/>
+        <line class="graph-edge" x1="380" y1="120" x2="530" y2="80" stroke="url(#edge-gradient)" stroke-width="2"/>
+        <line class="graph-edge" x1="380" y1="120" x2="530" y2="160" stroke="url(#edge-gradient)" stroke-width="2"/>
+        <line class="graph-edge" x1="380" y1="280" x2="530" y2="240" stroke="url(#edge-gradient)" stroke-width="2"/>
+        <line class="graph-edge" x1="380" y1="280" x2="530" y2="320" stroke="url(#edge-gradient)" stroke-width="2"/>
+        <line class="graph-edge" x1="600" y1="160" x2="720" y2="160" stroke="url(#edge-gradient)" stroke-width="2"/>
+      </g>
+
+      <!-- Node: Session -->
+      <g class="graph-node" id="gn-session" transform="translate(100, 178)">
+        <rect width="120" height="44" rx="8" fill="#131b2e" stroke="rgba(56,189,248,0.3)" stroke-width="1.5"/>
+        <circle cx="16" cy="22" r="5" fill="#38bdf8"/>
+        <text class="node-label" x="28" y="19" fill="#e2e8f4" font-size="11">Session</text>
+        <text class="node-sub" x="28" y="32" fill="#8899b8" font-size="9">feat/auth</text>
+      </g>
+
+      <!-- Node: Agent A -->
+      <g class="graph-node" id="gn-agent-a" transform="translate(280, 98)">
+        <rect width="100" height="44" rx="8" fill="#131b2e" stroke="rgba(52,211,153,0.3)" stroke-width="1.5"/>
+        <circle cx="16" cy="22" r="5" fill="#34d399"/>
+        <text class="node-label" x="28" y="19" fill="#e2e8f4" font-size="11">Agent</text>
+        <text class="node-sub" x="28" y="32" fill="#8899b8" font-size="9">main</text>
+      </g>
+
+      <!-- Node: Agent B -->
+      <g class="graph-node" id="gn-agent-b" transform="translate(280, 258)">
+        <rect width="100" height="44" rx="8" fill="#131b2e" stroke="rgba(52,211,153,0.3)" stroke-width="1.5"/>
+        <circle cx="16" cy="22" r="5" fill="#34d399"/>
+        <text class="node-label" x="28" y="19" fill="#e2e8f4" font-size="11">Agent</text>
+        <text class="node-sub" x="28" y="32" fill="#8899b8" font-size="9">sub-task</text>
+      </g>
+
+      <!-- Node: Read tool -->
+      <g class="graph-node" id="gn-read" transform="translate(500, 58)">
+        <rect width="100" height="44" rx="8" fill="#131b2e" stroke="rgba(99,132,190,0.2)" stroke-width="1"/>
+        <text class="node-label" x="14" y="19" fill="#8899b8" font-size="10">&#128196; Read</text>
+        <text class="node-sub" x="14" y="32" fill="#5a6e8f" font-size="9">auth.ts</text>
+      </g>
+
+      <!-- Node: Bash (the target!) -->
+      <g class="graph-node" id="gn-bash" transform="translate(500, 138)">
+        <rect width="100" height="44" rx="8" fill="#131b2e" stroke="rgba(99,132,190,0.2)" stroke-width="1" id="gn-bash-rect"/>
+        <text class="node-label" x="14" y="19" fill="#8899b8" font-size="10">&#9000; Bash</text>
+        <text class="node-sub" x="14" y="32" fill="#5a6e8f" font-size="9">git push</text>
+      </g>
+
+      <!-- Node: Edit tool -->
+      <g class="graph-node" id="gn-edit" transform="translate(500, 218)">
+        <rect width="100" height="44" rx="8" fill="#131b2e" stroke="rgba(99,132,190,0.2)" stroke-width="1"/>
+        <text class="node-label" x="14" y="19" fill="#8899b8" font-size="10">&#9998; Edit</text>
+        <text class="node-sub" x="14" y="32" fill="#5a6e8f" font-size="9">db.ts</text>
+      </g>
+
+      <!-- Node: Grep tool -->
+      <g class="graph-node" id="gn-grep" transform="translate(500, 298)">
+        <rect width="100" height="44" rx="8" fill="#131b2e" stroke="rgba(99,132,190,0.2)" stroke-width="1"/>
+        <text class="node-label" x="14" y="19" fill="#8899b8" font-size="10">&#128270; Grep</text>
+        <text class="node-sub" x="14" y="32" fill="#5a6e8f" font-size="9">import</text>
+      </g>
+
+      <!-- Node: Permission prompt (connected to Bash) -->
+      <g class="graph-node" id="gn-permission" transform="translate(690, 138)">
+        <rect width="120" height="44" rx="8" fill="rgba(248,113,113,0.08)" stroke="rgba(248,113,113,0.3)" stroke-width="1.5" id="gn-perm-rect"/>
+        <circle cx="16" cy="22" r="5" fill="#f87171" id="gn-perm-dot"/>
+        <text class="node-label" x="28" y="19" fill="#f87171" font-size="10">Permission</text>
+        <text class="node-sub" x="28" y="32" fill="#f87171" font-size="9" opacity="0.7">git push</text>
+      </g>
+
+      <!-- Pulse rings (hidden by default) -->
+      <g id="pulse-rings" style="display: none;">
+        <circle class="pulse-ring" cx="750" cy="160" r="30"/>
+        <circle class="pulse-ring-2" cx="750" cy="160" r="30"/>
+        <circle class="pulse-glow" cx="750" cy="160" r="32"/>
+      </g>
+
+      <!-- Floating message (hidden by default) -->
+      <g class="graph-message" id="graph-float-msg">
+        <rect x="660" y="70" width="200" height="52" rx="8" fill="#1a2540" stroke="rgba(248,113,113,0.4)" stroke-width="1"/>
+        <text x="670" y="89" fill="#f87171" font-family="JetBrains Mono, monospace" font-size="10" font-weight="600">Waiting for permission</text>
+        <text x="670" y="108" fill="#e2e8f4" font-family="JetBrains Mono, monospace" font-size="10">Bash: git push -u origin</text>
+      </g>
+    </svg>
+  </div>
+</section>
+
+<!-- ═══ 4. LENS NOTIFICATION CARDS ═══════════════ -->
+<section id="lens-cards">
+  <div class="section-label">Concept 04</div>
+  <h2 class="section-title">Lens Notification Cards</h2>
+  <p class="section-desc">Cards slide up from the bottom of the lens panel like post-it notes. Each shows session context and an action button to jump to the blocked node. Dismissable individually.</p>
+
+  <div class="controls">
+    <button class="btn primary" onclick="lensAddPermission()">+ Permission Block</button>
+    <button class="btn" onclick="lensAddQuestion()">+ Elicitation Dialog</button>
+    <button class="btn" onclick="lensAddWarning()">+ Context Warning</button>
+    <button class="btn danger" onclick="lensClearAll()">Clear All</button>
+  </div>
+
+  <div class="lens-demo" id="lens-demo">
+    <!-- Fake background graph -->
+    <div class="lens-mock-graph">
+      <div class="fake-nodes">
+        <div class="fake-node"></div>
+        <div class="fake-edge"></div>
+        <div class="fake-node"></div>
+        <div class="fake-edge"></div>
+        <div class="fake-node"></div>
+        <div class="fake-edge"></div>
+        <div class="fake-node"></div>
+      </div>
+    </div>
+
+    <!-- Lens tab bar at bottom -->
+    <div class="lens-tab-bar">
+      <div class="lens-tab-row">
+        <button class="lens-tab">TMap <kbd style="font-size:9px;opacity:0.4;margin-left:2px">1</kbd></button>
+        <button class="lens-tab">Heat <kbd style="font-size:9px;opacity:0.4;margin-left:2px">2</kbd></button>
+        <button class="lens-tab">Comp <kbd style="font-size:9px;opacity:0.4;margin-left:2px">3</kbd></button>
+        <button class="lens-tab">Cost <kbd style="font-size:9px;opacity:0.4;margin-left:2px">4</kbd></button>
+        <button class="lens-tab">Flow <kbd style="font-size:9px;opacity:0.4;margin-left:2px">5</kbd></button>
+        <button class="lens-tab">Tree <kbd style="font-size:9px;opacity:0.4;margin-left:2px">6</kbd></button>
+        <button class="lens-tab active" id="lens-alerts-tab">
+          Alerts <kbd style="font-size:9px;opacity:0.4;margin-left:2px">7</kbd>
+          <span class="tab-badge" id="lens-badge">0</span>
+        </button>
+      </div>
+      <div class="lens-card-tray" id="lens-card-tray">
+        <!-- Cards injected by JS -->
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 5. VS CODE PIT BOARD ═════════════════════ -->
+<section id="vscode-pit">
+  <div class="section-label">Concept 05</div>
+  <h2 class="section-title">VS Code Pit Board</h2>
+  <p class="section-desc">Native VS Code integration — status bar shows session counts, tree view badges highlight blocked sessions, and toast notifications surface with action buttons.</p>
+
+  <div class="controls">
+    <button class="btn primary" onclick="vscodeShowToast()">Trigger Toast Notification</button>
+    <button class="btn" onclick="vscodeHideToast()">Dismiss</button>
+  </div>
+
+  <div class="vscode-mock">
+    <div class="vscode-titlebar">
+      <div class="dots">
+        <div class="dot-btn close"></div>
+        <div class="dot-btn min"></div>
+        <div class="dot-btn max"></div>
+      </div>
+      <span>Synapse — Visual Studio Code</span>
+    </div>
+
+    <div class="vscode-body">
+      <!-- Sidebar -->
+      <div class="vscode-sidebar">
+        <div class="vscode-sidebar-title">Synapse Sessions</div>
+        <div class="vscode-tree">
+          <div class="vscode-tree-item">
+            <span class="tree-icon">&#128994;</span>
+            <span class="tree-label">feat/auth</span>
+            <span class="tree-badge attention" id="vsc-badge-auth">!</span>
+          </div>
+          <div class="vscode-tree-item">
+            <span class="tree-icon">&#128994;</span>
+            <span class="tree-label">fix/perf-regression</span>
+            <span class="tree-badge ok">&check;</span>
+          </div>
+          <div class="vscode-tree-item">
+            <span class="tree-icon">&#128994;</span>
+            <span class="tree-label">refactor/db-layer</span>
+            <span class="tree-badge ok">&check;</span>
+          </div>
+          <div class="vscode-tree-item">
+            <span class="tree-icon">&#9898;</span>
+            <span class="tree-label" style="opacity:0.5">chore/deps</span>
+            <span class="tree-badge" style="background: #555; font-size: 9px; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;">&#10003;</span>
+          </div>
+          <div class="vscode-tree-item">
+            <span class="tree-icon">&#128994;</span>
+            <span class="tree-label">feat/notifications</span>
+            <span class="tree-badge ok">&check;</span>
+          </div>
+          <div style="padding: 12px 16px; margin-top: 16px; border-top: 1px solid #333;">
+            <div style="font-size: 11px; color: #888; margin-bottom: 8px;">Session Details</div>
+            <div style="font-size: 12px; color: #ccc; font-family: var(--font-mono);">
+              <div style="margin-bottom: 4px;">feat/auth</div>
+              <div style="color: #e74c3c; font-size: 11px;">&#9888; Blocked — waiting for permission</div>
+              <div style="color: #888; font-size: 11px; margin-top: 4px;">47 events &middot; $1.20 &middot; 18m</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Editor -->
+      <div class="vscode-editor">
+        <div class="vscode-editor-placeholder">
+          Welcome — 5 Claude sessions active
+        </div>
+
+        <!-- Toast -->
+        <div class="vscode-toast-container">
+          <div class="vscode-toast" id="vscode-toast">
+            <div class="vscode-toast-header">
+              <div class="vscode-toast-icon">S</div>
+              <div class="vscode-toast-title">Synapse</div>
+              <button class="vscode-toast-close" onclick="vscodeHideToast()">&times;</button>
+            </div>
+            <div class="vscode-toast-body">
+              <strong>feat/auth</strong> needs permission to run<br>
+              <code>git push -u origin feat/auth</code>
+            </div>
+            <div class="vscode-toast-actions">
+              <button class="vscode-toast-btn primary">View in Synapse</button>
+              <button class="vscode-toast-btn secondary">Open Terminal</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="vscode-statusbar">
+      <div class="vscode-statusbar">
+        <div class="sb-segment">
+          <span class="sb-icon">&#9881;</span> main
+        </div>
+        <div class="sb-segment">
+          <span class="sb-icon">&#10003;</span> 0 problems
+        </div>
+        <div class="sb-segment" style="margin-left: auto;">
+          <span class="sb-icon" style="font-size: 10px;">&#9679;</span>
+          Synapse: 5 sessions
+        </div>
+        <div class="sb-segment warning" id="vsc-status-warning">
+          <span>&#9888; 1 waiting</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  SYNAPSE &middot; Notification Integration Concepts &middot; 2026
+</footer>
+
+<!-- ═══ JAVASCRIPT ═══════════════════════════════ -->
+<script>
+// ── SECTION 1: Mission Control ──────────────────
+const MC_SESSIONS = [
+  { id: 's1', name: 'feat/auth', state: 'blocked', events: 47, cost: '$1.20', elapsed: '18m', blockedAt: Date.now() - 83000 },
+  { id: 's2', name: 'fix/perf-regression', state: 'running', events: 12, cost: '$0.38', elapsed: '4m', blockedAt: null },
+  { id: 's3', name: 'refactor/db-layer', state: 'running', events: 142, cost: '$3.85', elapsed: '43m', blockedAt: null },
+  { id: 's4', name: 'feat/notifications', state: 'running', events: 8, cost: '$0.15', elapsed: '2m', blockedAt: null },
+  { id: 's5', name: 'chore/deps', state: 'complete', events: 31, cost: '$0.42', elapsed: '7m', blockedAt: null },
+];
+
+let mcSelected = null;
+
+function mcRender() {
+  const strip = document.getElementById('mc-strip');
+  // Sort: blocked first (by duration), then question, then running, then complete
+  const order = { blocked: 0, question: 1, running: 2, complete: 3 };
+  const sorted = [...MC_SESSIONS].sort((a, b) => {
+    if (order[a.state] !== order[b.state]) return order[a.state] - order[b.state];
+    if (a.blockedAt && b.blockedAt) return a.blockedAt - b.blockedAt;
+    return 0;
+  });
+
+  strip.innerHTML = sorted.map(s => {
+    const stateLabels = { running: 'Running', blocked: 'Blocked', question: 'Question', complete: 'Complete' };
+    return `
+      <div class="mc-card ${mcSelected === s.id ? 'selected' : ''}" data-state="${s.state}" onclick="mcSelect('${s.id}')">
+        <div class="header">
+          <div class="status-dot"></div>
+          <div class="session-name">${s.name}</div>
+        </div>
+        <div class="meta">
+          <span>${s.events} events &middot; ${s.cost}</span>
+          <span class="timer" id="mc-timer-${s.id}">${s.blockedAt ? formatWait(Date.now() - s.blockedAt) : s.elapsed}</span>
+        </div>
+        <div class="status-label">${stateLabels[s.state]}</div>
+      </div>
+    `;
+  }).join('');
+
+  // Update summary
+  const running = MC_SESSIONS.filter(s => s.state === 'running').length;
+  const attention = MC_SESSIONS.filter(s => s.state === 'blocked' || s.state === 'question').length;
+  const blocked = MC_SESSIONS.filter(s => s.blockedAt);
+  const avgWait = blocked.length > 0
+    ? formatWait(blocked.reduce((sum, s) => sum + (Date.now() - s.blockedAt), 0) / blocked.length)
+    : '—';
+
+  document.getElementById('mc-total').textContent = MC_SESSIONS.length;
+  document.getElementById('mc-running').textContent = running;
+  document.getElementById('mc-attention').textContent = attention;
+  document.getElementById('mc-avg-wait').textContent = avgWait;
+}
+
+function formatWait(ms) {
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return s + 's';
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return m + 'm ' + String(sec).padStart(2, '0') + 's';
+}
+
+function mcSelect(id) {
+  mcSelected = mcSelected === id ? null : id;
+  mcRender();
+}
+
+function mcSimulateBlock() {
+  const running = MC_SESSIONS.filter(s => s.state === 'running');
+  if (running.length === 0) return;
+  const target = running[Math.floor(Math.random() * running.length)];
+  target.state = 'blocked';
+  target.blockedAt = Date.now();
+  mcRender();
+}
+
+function mcSimulateQuestion() {
+  const running = MC_SESSIONS.filter(s => s.state === 'running');
+  if (running.length === 0) return;
+  const target = running[Math.floor(Math.random() * running.length)];
+  target.state = 'question';
+  target.blockedAt = Date.now();
+  mcRender();
+}
+
+function mcResetAll() {
+  MC_SESSIONS.forEach((s, i) => {
+    if (i === 4) { s.state = 'complete'; s.blockedAt = null; }
+    else if (i === 0) { s.state = 'blocked'; s.blockedAt = Date.now() - 83000; }
+    else { s.state = 'running'; s.blockedAt = null; }
+  });
+  mcSelected = null;
+  mcRender();
+}
+
+// Live timer updates
+setInterval(() => {
+  MC_SESSIONS.forEach(s => {
+    if (s.blockedAt) {
+      const el = document.getElementById('mc-timer-' + s.id);
+      if (el) el.textContent = formatWait(Date.now() - s.blockedAt);
+    }
+  });
+}, 1000);
+
+mcRender();
+
+// ── SECTION 2: Context Snapshots ────────────────
+function snapshotAnimate() {
+  document.querySelectorAll('.snapshot-card').forEach(card => {
+    const delay = parseInt(card.dataset.delay) || 0;
+    card.style.transition = 'none';
+    card.style.opacity = '0';
+    card.style.transform = 'translateY(20px) scale(0.97)';
+    requestAnimationFrame(() => {
+      card.style.transition = `all 0.6s cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms`;
+      card.style.opacity = '1';
+      card.style.transform = 'translateY(0) scale(1)';
+    });
+  });
+}
+
+// ── SECTION 3: Graph Zoom + Pulse ───────────────
+let graphNotified = false;
+
+function graphTriggerNotification() {
+  if (graphNotified) return;
+  graphNotified = true;
+
+  const svg = document.getElementById('graph-svg');
+  const nodes = svg.querySelectorAll('.graph-node');
+  const edges = svg.querySelectorAll('.graph-edge');
+
+  // Dim all nodes except the permission node and its parent (bash)
+  nodes.forEach(n => {
+    if (n.id !== 'gn-permission' && n.id !== 'gn-bash' && n.id !== 'gn-agent-a') {
+      n.classList.add('graph-dimmed');
+    }
+  });
+  edges.forEach(e => e.classList.add('graph-dimmed'));
+  // Keep the edge between bash and permission visible
+  const keepEdge = edges[6]; // the bash→permission edge
+  if (keepEdge) keepEdge.classList.remove('graph-dimmed');
+
+  // Zoom SVG viewBox to center on the permission node
+  setTimeout(() => {
+    svg.setAttribute('viewBox', '560 80 280 180');
+  }, 100);
+
+  // Show pulse rings
+  setTimeout(() => {
+    document.getElementById('pulse-rings').style.display = 'block';
+  }, 400);
+
+  // Highlight the permission node
+  setTimeout(() => {
+    const rect = document.getElementById('gn-perm-rect');
+    rect.setAttribute('stroke', '#f87171');
+    rect.setAttribute('stroke-width', '2.5');
+    rect.setAttribute('fill', 'rgba(248,113,113,0.15)');
+    rect.setAttribute('filter', 'url(#red-glow)');
+  }, 300);
+
+  // Show floating message
+  setTimeout(() => {
+    document.getElementById('graph-float-msg').classList.add('visible');
+  }, 600);
+}
+
+function graphReset() {
+  graphNotified = false;
+  const svg = document.getElementById('graph-svg');
+
+  // Reset viewBox
+  svg.setAttribute('viewBox', '0 0 900 400');
+
+  // Un-dim everything
+  svg.querySelectorAll('.graph-dimmed').forEach(el => el.classList.remove('graph-dimmed'));
+
+  // Hide pulse
+  document.getElementById('pulse-rings').style.display = 'none';
+
+  // Reset permission node
+  const rect = document.getElementById('gn-perm-rect');
+  rect.setAttribute('stroke', 'rgba(248,113,113,0.3)');
+  rect.setAttribute('stroke-width', '1.5');
+  rect.setAttribute('fill', 'rgba(248,113,113,0.08)');
+  rect.removeAttribute('filter');
+
+  // Hide message
+  document.getElementById('graph-float-msg').classList.remove('visible');
+}
+
+// ── SECTION 4: Lens Cards ───────────────────────
+let lensCardId = 0;
+const lensCards = [];
+
+const LENS_NOTIFICATIONS = {
+  permission: [
+    { session: 'feat/auth', msg: 'Wants to run git push', tool: 'Bash("git push -u origin")', color: 'red' },
+    { session: 'fix/ci', msg: 'Wants to delete test fixtures', tool: 'Bash("rm -rf fixtures/")', color: 'red' },
+    { session: 'feat/deploy', msg: 'Wants to write to .env', tool: 'Write(".env.production")', color: 'red' },
+  ],
+  question: [
+    { session: 'fix/perf', msg: 'Redis or in-memory cache?', tool: 'AskUserQuestion', color: 'amber' },
+    { session: 'feat/ui', msg: 'Dark or light theme default?', tool: 'AskUserQuestion', color: 'amber' },
+  ],
+  warning: [
+    { session: 'refactor/db', msg: 'Context 87% full', tool: 'PreCompact', color: 'amber' },
+    { session: 'feat/api', msg: 'Token budget exceeded', tool: 'BudgetWarning', color: 'amber' },
+  ]
+};
+
+function lensAddCard(type) {
+  const pool = LENS_NOTIFICATIONS[type];
+  const data = pool[Math.floor(Math.random() * pool.length)];
+  const id = ++lensCardId;
+  lensCards.push({ id, ...data });
+  lensRender();
+}
+
+function lensAddPermission() { lensAddCard('permission'); }
+function lensAddQuestion() { lensAddCard('question'); }
+function lensAddWarning() { lensAddCard('warning'); }
+
+function lensDismiss(id) {
+  const idx = lensCards.findIndex(c => c.id === id);
+  if (idx >= 0) {
+    const el = document.querySelector(`[data-lens-id="${id}"]`);
+    if (el) {
+      el.style.transform = 'translateY(100%)';
+      el.style.opacity = '0';
+      setTimeout(() => {
+        lensCards.splice(idx, 1);
+        lensRender();
+      }, 300);
+      return;
+    }
+    lensCards.splice(idx, 1);
+    lensRender();
+  }
+}
+
+function lensClearAll() {
+  const els = document.querySelectorAll('.lens-card');
+  els.forEach((el, i) => {
+    setTimeout(() => {
+      el.style.transform = 'translateY(100%)';
+      el.style.opacity = '0';
+    }, i * 60);
+  });
+  setTimeout(() => {
+    lensCards.length = 0;
+    lensRender();
+  }, els.length * 60 + 300);
+}
+
+function lensRender() {
+  const tray = document.getElementById('lens-card-tray');
+  const badge = document.getElementById('lens-badge');
+  const count = lensCards.length;
+
+  // Update badge
+  badge.textContent = count;
+  badge.classList.toggle('visible', count > 0);
+
+  // Open/close tray
+  tray.classList.toggle('open', count > 0);
+
+  // Render cards
+  tray.innerHTML = lensCards.map((c, i) => `
+    <div class="lens-card ${c.color}" data-lens-id="${c.id}" style="transition-delay: ${i * 80}ms">
+      <div class="lc-header">
+        <div class="lc-dot"></div>
+        <div class="lc-session">${c.session}</div>
+        <button class="lc-dismiss" onclick="lensDismiss(${c.id})">&times;</button>
+      </div>
+      <div class="lc-message">${c.msg}</div>
+      <div class="lc-tool">${c.tool}</div>
+      <button class="lc-action" onclick="lensFlash(this)">&#8599; Go to Node</button>
+    </div>
+  `).join('');
+
+  // Animate in
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      tray.querySelectorAll('.lens-card').forEach(el => el.classList.add('visible'));
+    });
+  });
+}
+
+function lensFlash(btn) {
+  const orig = btn.textContent;
+  btn.textContent = '✓ Focused';
+  btn.style.background = 'rgba(52, 211, 153, 0.2)';
+  btn.style.borderColor = 'rgba(52, 211, 153, 0.4)';
+  btn.style.color = '#34d399';
+  setTimeout(() => {
+    btn.innerHTML = '&#8599; Go to Node';
+    btn.style.background = '';
+    btn.style.borderColor = '';
+    btn.style.color = '';
+  }, 1200);
+}
+
+// ── SECTION 5: VS Code ─────────────────────────
+function vscodeShowToast() {
+  document.getElementById('vscode-toast').classList.add('visible');
+}
+
+function vscodeHideToast() {
+  document.getElementById('vscode-toast').classList.remove('visible');
+}
+
+// ── NAV active state tracking ───────────────────
+const sections = document.querySelectorAll('section[id]');
+const navLinks = document.querySelectorAll('nav .links a');
+
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      navLinks.forEach(link => link.classList.remove('active'));
+      const activeLink = document.querySelector(`nav .links a[href="#${entry.target.id}"]`);
+      if (activeLink) activeLink.classList.add('active');
+    }
+  });
+}, { threshold: 0.3 });
+
+sections.forEach(section => observer.observe(section));
+</script>
+
+</body>
+</html>

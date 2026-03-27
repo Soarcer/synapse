@@ -121,6 +121,16 @@ export interface UserPromptData {
   compactedAfter?: boolean; // True if a compaction event follows this prompt
 }
 
+// ─── Assistant Response Data ────────────────────────────────────────
+
+export interface AssistantResponseData {
+  id: string;
+  sessionId: string;
+  text: string;
+  timestamp: number;
+  promptId: string; // Resolved: last prompt with timestamp <= response timestamp
+}
+
 // ─── API Request/Response Types ─────────────────────────────────────
 
 export interface SpawnAgentRequest {
@@ -142,12 +152,14 @@ export interface McpServerConfig {
 
 // ─── WebSocket Message Types ────────────────────────────────────────
 
+import type { CoachingNudge } from './coaching.js';
+
 export type WsServerMessage =
   | { type: 'event'; data: AgentEvent }
   | { type: 'connected'; data: { activeAgents: ActiveAgentInfo[] } }
   | { type: 'agent_text'; data: { agentId: string; text: string; isPartial: boolean } }
   | { type: 'stale'; data: Record<string, never> }
-  | { type: 'coaching_nudge'; data: import('./coaching.js').CoachingNudge }
+  | { type: 'coaching_nudge'; data: CoachingNudge }
   | { type: 'terminal_send'; data: { text: string } }
   | {
       type: 'pendingPermission';
@@ -160,7 +172,10 @@ export type WsServerMessage =
         expiresAt: number;
       };
     }
-  | { type: 'permissionResolved'; data: { id: string; behavior: 'allow' | 'deny' } };
+  | {
+      type: 'permissionResolved';
+      data: { id: string; behavior: 'allow' | 'deny' | 'auto-dismissed' };
+    };
 
 export type WsClientMessage =
   | { type: 'subscribe'; sessionId: string }

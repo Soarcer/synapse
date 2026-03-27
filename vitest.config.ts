@@ -9,6 +9,9 @@ export default defineConfig({
       'apps/*/src/**/*.test.{ts,tsx}',
       'apps/*/vite-plugins/**/*.test.ts',
     ],
+    exclude: [
+      'apps/vscode/src/test/**', // requires VS Code extension host, not Vitest
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],

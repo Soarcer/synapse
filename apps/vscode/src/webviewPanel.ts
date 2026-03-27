@@ -10,7 +10,7 @@ type VoidHandler = () => void;
 export class SynapsePanel {
   private static currentPanel: SynapsePanel | undefined;
   private readonly panel: vscode.WebviewPanel;
-  private readonly port: number;
+  private port: number;
   private readonly viewParam: string;
   private readonly cwd: string | undefined;
   private disposables: vscode.Disposable[] = [];
@@ -55,6 +55,7 @@ export class SynapsePanel {
     cwd?: string,
   ): SynapsePanel {
     if (SynapsePanel.currentPanel) {
+      SynapsePanel.currentPanel.updatePort(port);
       SynapsePanel.currentPanel.panel.reveal(vscode.ViewColumn.One);
       return SynapsePanel.currentPanel;
     }
@@ -71,6 +72,13 @@ export class SynapsePanel {
 
     SynapsePanel.currentPanel = new SynapsePanel(panel, port, viewParam, cwd);
     return SynapsePanel.currentPanel;
+  }
+
+  /** Update the port and regenerate the iframe HTML if it changed */
+  private updatePort(newPort: number): void {
+    if (newPort === this.port) return;
+    this.port = newPort;
+    this.panel.webview.html = this.getHtml();
   }
 
   /** Register a callback for when the user selects a node in the graph */
@@ -152,11 +160,14 @@ export class SynapsePanel {
     };
 
     let retries = 0;
+    const MAX_RETRIES = 5;
     iframe.onerror = () => {
-      if (retries++ < 10) {
-        setTimeout(() => { iframe.src = '${url}'; }, 1000);
+      if (retries < MAX_RETRIES) {
+        const delay = Math.min(1000 * Math.pow(2, retries), 16000);
+        retries++;
+        setTimeout(() => { iframe.src = '${url}'; }, delay);
       } else {
-        loading.textContent = 'Failed to connect to Synapse server on port ${this.port}';
+        loading.textContent = 'Could not connect to Synapse server on port ${this.port}. Try reloading the window.';
       }
     };
 
@@ -171,7 +182,7 @@ export class SynapsePanel {
       if (!msg || typeof msg !== 'object') return;
       // Extension → iframe
       if ((msg.type === 'selectNode' || msg.type === 'synapseEvent' || msg.type === 'hydrateEvents') && iframe.contentWindow) {
-        iframe.contentWindow.postMessage(msg, '*');
+        iframe.contentWindow.postMessage(msg, 'http://localhost:${this.port}');
       }
       // iframe → extension
       if (msg.type === 'selectionChanged' || msg.type === 'clipboardWrite') {

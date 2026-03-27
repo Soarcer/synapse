@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Bernhard
 
-// Gemini CLI hook script — reads JSON from stdin, POSTs to Synapse server.
+// Gemini CLI hook script — reads JSON from stdin, writes to the Synapse relay file.
+// Falls back to HTTP POST if the file write fails.
 // No dependencies. Fire and forget (exit 0 regardless).
 //
 // Gemini CLI sends hook events as JSON on stdin with fields like:
@@ -26,97 +27,103 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-// Parse --port from command line
-function getCliPort() {
-  const idx = process.argv.indexOf('--port');
-  if (idx !== -1 && process.argv[idx + 1]) {
-    return parseInt(process.argv[idx + 1], 10);
-  }
-  return null;
-}
-
-// Read port from .claude/.synapse-port file (written by VS Code extension or CLI).
-function getPortFromFile() {
-  try {
-    const portFile = path.join(process.cwd(), '.claude', '.synapse-port');
-    const content = fs.readFileSync(portFile, 'utf-8').trim();
-    const port = parseInt(content, 10);
-    if (port > 0 && port < 65536) return port;
-  } catch { /* file doesn't exist or unreadable */ }
-  return null;
-}
-
-// Read port from global ~/.synapse/port file (written by standalone daemon).
-function getGlobalPort() {
-  try {
-    const portFile = path.join(os.homedir(), '.synapse', 'port');
-    const content = fs.readFileSync(portFile, 'utf-8').trim();
-    const port = parseInt(content, 10);
-    if (port > 0 && port < 65536) return port;
-  } catch { /* file doesn't exist or unreadable */ }
-  return null;
-}
-
-const SERVER_URL = (() => {
-  if (process.env.SYNAPSE_URL) return process.env.SYNAPSE_URL;
-  // Port file takes priority over CLI arg
-  const filePort = getPortFromFile();
-  if (filePort) return `http://localhost:${filePort}/api/events`;
-  const globalPort = getGlobalPort();
-  if (globalPort) return `http://localhost:${globalPort}/api/events`;
-  const cliPort = getCliPort();
-  if (cliPort) return `http://localhost:${cliPort}/api/events`;
-  return 'http://localhost:4000/api/events';
-})();
+const basePort = Number(process.env.SYNAPSE_PORT || '27246');
+const httpPort = basePort + 2; // HTTP fallback always plain HTTP
+const SERVER_URL = process.env.SYNAPSE_URL || `http://localhost:${httpPort}/api/events`;
+const RELAY_PATH = process.env.SYNAPSE_RELAY_FILE
+  || path.join(os.tmpdir(), `synapse_relay_${basePort}.jsonl`);
 const DEBUG = process.env.SYNAPSE_DEBUG === '1';
-const DEBUG_LOG = path.join(__dirname, '..', 'gemini_hook_debug.log');
+const DEBUG_LOG = path.join(os.tmpdir(), 'synapse_gemini_hook_debug.log');
+const FORCE_HTTP = process.env.SYNAPSE_TRANSPORT === 'http';
+
+// Circuit breaker — guards the HTTP fallback path.
+// Trips permanently after CB_MAX_FAILURES consecutive failures. Only resets when
+// the Synapse server starts and deletes the CB file (see index.ts).
+const CB_FILE = path.join(os.tmpdir(), `synapse_cb_${basePort}.json`);
+const CB_MAX_FAILURES = 3;
 
 function debugLog(msg) {
   if (!DEBUG) return;
-  try {
-    fs.appendFileSync(DEBUG_LOG, `[${new Date().toISOString()}] ${msg}\n`);
-  } catch { /* ignore */ }
+  try { fs.appendFileSync(DEBUG_LOG, `[${new Date().toISOString()}] ${msg}\n`); } catch { /* ignore */ }
 }
 
-async function main() {
-  debugLog('Gemini hook invoked');
+function cbIsOpen() {
+  return fs.existsSync(CB_FILE);
+}
+function cbRecordFailure() {
+  let count = 0;
+  try { count = JSON.parse(fs.readFileSync(CB_FILE, 'utf-8')).failures || 0; } catch { /* fresh */ }
+  count++;
+  try { fs.writeFileSync(CB_FILE, JSON.stringify({ failures: count, tripped: count >= CB_MAX_FAILURES, trippedAt: Date.now() })); } catch { /* ignore */ }
+  return count >= CB_MAX_FAILURES;
+}
+function cbRecordSuccess() {
+  try { fs.unlinkSync(CB_FILE); } catch { /* ignore */ }
+}
+
+async function sendHttp(body) {
+  if (cbIsOpen()) {
+    debugLog('Circuit breaker OPEN — skipping HTTP send');
+    return;
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 3000);
   try {
-    const chunks = [];
-    for await (const chunk of process.stdin) {
-      chunks.push(chunk);
-    }
-    const body = Buffer.concat(chunks).toString('utf-8');
-    debugLog(`Received body (${body.length} chars): ${body.slice(0, 200)}`);
-    if (!body.trim()) {
-      debugLog('Empty body, skipping');
-      return;
-    }
-
-    // Validate JSON before sending
-    JSON.parse(body);
-
-    // POST with a 3-second timeout so we never block Gemini CLI
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 3000);
-
     const resp = await fetch(SERVER_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body,
       signal: controller.signal,
     });
-
-    debugLog(`POST response: ${resp.status} ${resp.statusText}`);
+    debugLog(`HTTP POST response: ${resp.status}`);
     clearTimeout(timer);
+    cbRecordSuccess();
   } catch (err) {
-    debugLog(`Error: ${err.message}`);
-    // Fire and forget — never block Gemini CLI
+    clearTimeout(timer);
+    const tripped = cbRecordFailure();
     if (err.code === 'ECONNREFUSED') {
-      process.stderr.write(`[synapse-gemini-hook] Server unreachable at ${SERVER_URL} — is the server running?\n`);
+      process.stderr.write(`[synapse-gemini-hook] Server unreachable at ${SERVER_URL}\n`);
     } else if (err.name !== 'AbortError') {
       process.stderr.write(`[synapse-gemini-hook] ${err.message}\n`);
     }
+    if (tripped) {
+      process.stderr.write(`[synapse-gemini-hook] Circuit breaker tripped — hooks disabled until server restarts\n`);
+    }
   }
+}
+
+async function main() {
+  debugLog('Gemini hook invoked');
+
+  const chunks = [];
+  for await (const chunk of process.stdin) chunks.push(chunk);
+  const body = Buffer.concat(chunks).toString('utf-8');
+  debugLog(`Received body (${body.length} chars)`);
+  if (!body.trim()) return;
+
+  // Validate JSON and tag as gemini source
+  const payload = JSON.parse(body);
+  payload.gemini_source = true;
+  const tagged = JSON.stringify(payload);
+
+  if (FORCE_HTTP) {
+    debugLog('SYNAPSE_TRANSPORT=http — using HTTP POST');
+    await sendHttp(tagged);
+    return;
+  }
+
+  // Primary path: append to relay file (microseconds, no network)
+  try {
+    fs.appendFileSync(RELAY_PATH, tagged.trim() + '\n');
+    debugLog(`Appended to relay file: ${RELAY_PATH}`);
+    return;
+  } catch (err) {
+    debugLog(`Relay file write failed (${err.message}) — falling back to HTTP`);
+    process.stderr.write(`[synapse-gemini-hook] Relay write failed: ${err.message} — falling back to HTTP\n`);
+  }
+
+  // Fallback: HTTP POST with circuit breaker
+  await sendHttp(tagged);
 }
 
 main().then(() => process.exit(0));

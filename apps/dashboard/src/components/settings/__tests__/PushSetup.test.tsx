@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
+import { Features } from '@synapse-ai/core';
 import { render, screen } from '@testing-library/react';
 import { PushSetup } from '../PushSetup';
 
@@ -23,7 +24,7 @@ global.fetch = vi.fn().mockResolvedValue({
 
 import { usePush } from '../../../hooks/usePush';
 
-describe('PushSetup', () => {
+describe.skipIf(!Features.pushNotifications)('PushSetup', () => {
   it('shows enable button in default state', () => {
     render(<PushSetup />);
     expect(screen.getByText('Enable Push Notifications')).toBeDefined();
@@ -38,6 +39,8 @@ describe('PushSetup', () => {
       clearError: vi.fn(),
       sendTest: vi.fn(),
     });
+    // jsdom defaults isSecureContext to false, which would show the HTTPS message instead
+    Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true });
     render(<PushSetup />);
     expect(screen.getByText(/doesn.*support push/i)).toBeDefined();
   });

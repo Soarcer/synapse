@@ -26,7 +26,7 @@ export const HOOK_PORT = SYNAPSE_PORT + 1;
 export const HTTP_FALLBACK_PORT = SYNAPSE_PORT + 2;
 
 /** Vite dev server port (only relevant in development). */
-export const DEV_PORT = parseInt(process.env.VITE_DEV_PORT || '5173', 10);
+export const DEV_PORT = parseAndValidatePort(process.env.VITE_DEV_PORT || '5173');
 
 /** Whether TLS is configured. Both cert and key must be set. */
 export const USE_TLS = !!(process.env.SYNAPSE_TLS_CERT && process.env.SYNAPSE_TLS_KEY);

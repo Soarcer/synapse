@@ -493,6 +493,8 @@ export function SnakeMode({ tools, selectedNodeId, selectNode }: GameModeProps) 
           width={CONTAINER_W}
           height={CONTAINER_H}
           className="cursor-pointer"
+          role="img"
+          aria-label="Tool call snake game"
           onClick={handleClick}
           onMouseMove={handleMove}
           onMouseLeave={handleLeave}

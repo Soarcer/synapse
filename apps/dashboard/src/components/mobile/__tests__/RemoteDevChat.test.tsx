@@ -3,6 +3,7 @@
 
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { Features } from '@synapse-ai/core';
 import { render, screen, cleanup } from '@testing-library/react';
 import { useRemoteDevStore } from '../../../store/remoteDevStore';
 
@@ -30,7 +31,7 @@ beforeEach(() => {
   cleanup();
 });
 
-describe('RemoteDevChat', () => {
+describe.skipIf(!Features.remoteDevChat)('RemoteDevChat', () => {
   it('shows empty state when idle with no messages', () => {
     render(<RemoteDevChat />);
     expect(screen.getByText('/remote-dev')).toBeTruthy();

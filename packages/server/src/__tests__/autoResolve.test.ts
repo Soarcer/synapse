@@ -235,7 +235,7 @@ describe('connection monitor (Layer 2)', () => {
     expect(broadcastSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'permissionResolved',
-        data: expect.objectContaining({ id, behavior: 'allow' }),
+        data: expect.objectContaining({ id, behavior: 'auto-dismissed' }),
       }),
     );
   });

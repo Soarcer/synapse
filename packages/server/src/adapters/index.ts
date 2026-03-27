@@ -8,7 +8,7 @@ import type { Adapter } from './types.js';
 import type { AgentEvent } from '@synapse-ai/core';
 import { logger } from '../lib/logger.js';
 
-const DEDUPE_WINDOW_MS = 2000;
+const DEDUPE_WINDOW_MS = 500;
 
 export class AdapterRegistry {
   private readonly adapters: Adapter[] = [];
@@ -69,14 +69,8 @@ export class AdapterRegistry {
     const qualifiedFp = `${adapter.id}:${fp}`;
     const prev = this.recentEvents.get(qualifiedFp);
     if (prev && now - prev < DEDUPE_WINDOW_MS) {
-      logger.info({ fp: qualifiedFp, deltaMs: now - prev }, 'Duplicate event dropped');
+      logger.debug({ fp: qualifiedFp, deltaMs: now - prev }, 'Duplicate event dropped');
       return true;
-    }
-    if (prev) {
-      logger.info(
-        { fp: qualifiedFp, deltaMs: now - prev },
-        'Dedup window expired — treating as new',
-      );
     }
     this.recentEvents.set(qualifiedFp, now);
     return false;

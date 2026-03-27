@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Bernhard
 
-import { useMemo, useRef, useState, useCallback, useEffect } from 'react';
+import { useMemo, useRef, useState, useCallback } from 'react';
 import { useAgentStore } from '../../store/agentStore';
 import { getTypeColor, formatDuration } from '@synapse-ai/core';
 import { Tooltip } from '../ui/Tooltip';
@@ -16,22 +16,19 @@ export function TimelinePanel() {
 
   const agentList = useMemo(() => [...agents.values()], [agents]);
 
-  // Track "now" in a ref, updated via effect (avoids impure Date.now() during render)
+  // Compute time bounds — monitoring dashboard needs current time for running agents
+  // eslint-disable-next-line react-hooks/purity -- intentional: fallback for running agents
   const nowRef = useRef(Date.now());
-  useEffect(() => {
-    nowRef.current = Date.now();
-  });
-  const now = nowRef.current;
-
-  // Compute time bounds
-  const { minTime, maxTime } = useMemo(() => {
-    if (agentList.length === 0) return { minTime: now, maxTime: now + 1000 };
+  const { minTime, maxTime, now } = useMemo(() => {
+    const now = nowRef.current;
+    if (agentList.length === 0) return { minTime: now, maxTime: now + 1000, now };
     const times = agentList.flatMap((a) => [a.startTime, a.endTime ?? now]);
     return {
       minTime: Math.min(...times),
       maxTime: Math.max(...times),
+      now,
     };
-  }, [agentList, now]);
+  }, [agentList]);
 
   const totalDuration = Math.max(maxTime - minTime, 1000);
 
@@ -93,14 +90,14 @@ export function TimelinePanel() {
                   >
                     {agent.agentType}
                     {/* Tool markers */}
-                    {agent.toolCalls.map((tc) => {
+                    {agent.toolCalls.map((tc, i) => {
                       const tcOffset =
                         ((tc.startTime - agent.startTime) /
                           Math.max(endTime - agent.startTime, 1)) *
                         100;
                       return (
                         <span
-                          key={tc.toolUseId}
+                          key={tc.toolUseId ?? `tc-${i}`}
                           className="absolute top-0 w-px h-full bg-white/30"
                           style={{ left: `${tcOffset}%` }}
                         />
