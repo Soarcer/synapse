@@ -3,6 +3,7 @@ import request from 'supertest';
 import type { Express } from 'express';
 import { initDb } from '../db.js';
 import { pending } from '../state/permissionState.js';
+import { buildPermissionResolved } from '../state/permissionResolved.js';
 
 // We test the Express app directly (not the listen() part)
 process.env.SYNAPSE_DB_PATH = ':memory:';
@@ -84,6 +85,50 @@ describe('POST /api/hooks/permission', () => {
 
     expect(res.status).toBe(429);
     expect(res.body.error).toContain('Too many');
+  });
+});
+
+describe('permissionResolved payload enrichment', () => {
+  it('includes session_id and tool_use_id from the hook event body', async () => {
+    const responsePromise = new Promise<request.Response>((resolve, reject) => {
+      request(app)
+        .post('/api/hooks/permission')
+        .send({
+          session_id: 'sess-enrich',
+          tool_use_id: 'tu-enrich-1',
+          tool_name: 'AskUserQuestion',
+          tool_input: { questions: [{ question: 'Pick one?' }] },
+          hook_event_name: 'PermissionRequest',
+        })
+        .end((err, res) => {
+          if (err) reject(err);
+          else resolve(res);
+        });
+    });
+
+    await new Promise((r) => setTimeout(r, 100));
+    expect(pending.size).toBe(1);
+
+    const [id, entry] = [...pending.entries()][0];
+
+    expect(entry.event.session_id).toBe('sess-enrich');
+    expect(entry.event.tool_use_id).toBe('tu-enrich-1');
+    expect(entry.event.tool_name).toBe('AskUserQuestion');
+
+    const resolved = buildPermissionResolved(id, 'allow', entry.event);
+    expect(resolved.data.session_id).toBe('sess-enrich');
+    expect(resolved.data.tool_use_id).toBe('tu-enrich-1');
+    expect(resolved.data.tool_name).toBe('AskUserQuestion');
+
+    clearTimeout(entry.timer);
+    entry.res.json({
+      hookSpecificOutput: {
+        hookEventName: 'PermissionRequest',
+        decision: { behavior: 'allow' },
+      },
+    });
+    pending.delete(id);
+    await responsePromise;
   });
 });
 
