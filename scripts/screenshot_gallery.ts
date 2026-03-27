@@ -68,7 +68,7 @@ export function generateGallery(): void {
         (s) => `
     <div class="card">
       <a href="${s.pngPath}" target="_blank"><img src="${s.pngPath}" alt="${s.name}" loading="lazy"></a>
-      <div class="label"><code>${s.name}</code></div>
+      <div class="label"><code>${s.name}</code> · <a href="${s.pngPath}">PNG</a> · <a href="${s.pngPath.replace('.png', '.webp')}">WebP</a></div>
     </div>`,
       )
       .join('')}

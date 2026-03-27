@@ -12,6 +12,7 @@
 import { chromium, type Page, type Browser } from 'playwright';
 import * as fs from 'fs';
 import * as path from 'path';
+import sharp from 'sharp';
 import { clearAllEvents, seedSimulation } from './screenshot_simulation.js';
 import { generateGallery } from './screenshot_gallery.js';
 
@@ -428,6 +429,24 @@ async function main(): Promise<void> {
   // 6. Generate gallery
   console.log('\n\x1b[36m── Generating Gallery ──\x1b[0m');
   generateGallery();
+
+  // 6b. Convert PNGs to WebP
+  console.log('\n\x1b[36m── Converting to WebP ──\x1b[0m');
+  const categories = ['hero', 'lenses', 'features', 'mobile'];
+  let webpCount = 0;
+  for (const cat of categories) {
+    const dir = path.join(OUT_DIR, cat);
+    if (!fs.existsSync(dir)) continue;
+    const pngs = fs.readdirSync(dir).filter((f) => f.endsWith('.png'));
+    for (const png of pngs) {
+      const pngPath = path.join(dir, png);
+      const webpPath = pngPath.replace('.png', '.webp');
+      await sharp(pngPath).webp({ quality: 90, lossless: false }).toFile(webpPath);
+      webpCount++;
+      console.log(`  ✓ ${cat}/${png} → .webp`);
+    }
+  }
+  console.log(`  Converted ${webpCount} files to WebP`);
 
   // 7. Summary
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
