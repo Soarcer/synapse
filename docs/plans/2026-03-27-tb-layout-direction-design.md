@@ -604,3 +604,4 @@ Deferred — ship TB first, validate the UX, then consider the toggle if users r
 - **P2-2:** With 10+ concurrent sessions, the horizontal row gets very wide and fitView zooms out aggressively. Consider a max-sessions-visible threshold with horizontal scrolling if this becomes a real issue
 - **P2-3:** Mobile portrait mode may benefit from TB layout — worth testing during QA but not blocking
 - **P2-4:** Success metric defined in Step 6 of implementation sequence: "identify deepest session within 2 seconds without scrolling with 3 sessions of varying depth"
+- **P2-5: Keyboard navigation remap for TB layout.** Current behavior: arrow left/right move spatially left/right, arrow up/down jump to previous/next node (logical navigation). In TB layout, up/down should move spatially up/down (matching the vertical spine). Logical prev/next navigation should move to `[` and `]` (square brackets). Investigate current keybinding implementation and remap accordingly.
