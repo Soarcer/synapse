@@ -21,6 +21,8 @@ export interface UseVisibleGraphOptions {
   collapsedNodes: ReadonlySet<string>;
   /** Local toolGroupDims state from the consumer component */
   toolGroupDims: Map<string, { width: number; height: number }>;
+  /** Local responseDims state — synthetic response nodes need measured dims fed back */
+  responseDims?: Map<string, { width: number; height: number }>;
 }
 
 export interface UseVisibleGraphResult {
@@ -38,7 +40,7 @@ export interface UseVisibleGraphResult {
  * Used by both AgentGraph (desktop) and MobileGraphView.
  */
 export function useVisibleGraph(options: UseVisibleGraphOptions): UseVisibleGraphResult {
-  const { autoClosePrompts, collapsedNodes, toolGroupDims } = options;
+  const { autoClosePrompts, collapsedNodes, toolGroupDims, responseDims } = options;
 
   const rawNodes = useAgentStore((s) => s.nodes);
   const rawEdges = useAgentStore((s) => s.edges);
@@ -107,20 +109,15 @@ export function useVisibleGraph(options: UseVisibleGraphOptions): UseVisibleGrap
     };
   }, [rawNodes, rawEdges, toolGroupDims]);
 
-  // Phase 1.5: Response node synthesis for expanded turns.
-  // Responses fan out as siblings of the prompt (vertical stacking in LR layout).
+  // Phase 1.5: Response node synthesis — always visible in TB layout.
+  // Responses fan out as rows below the prompt's shelf area.
   // Each response owns children attributed by timestamp window.
   const { phase15Nodes, phase15Edges } = useMemo(() => {
-    if (expandedTurns.size === 0) {
-      return { phase15Nodes: baseNodes, phase15Edges: baseEdges };
-    }
-
-    // Group responses by promptId (using prompt node ID format "prompt-xxx")
+    // Group ALL responses by promptId (always synthesize, not gated by expandedTurns)
     const promptResponses = new Map<string, AssistantResponseData[]>();
     for (const sessionResponses of responses.values()) {
       for (const resp of sessionResponses) {
         const promptNodeId = `prompt-${resp.promptId}`;
-        if (!expandedTurns.has(promptNodeId)) continue;
         const list = promptResponses.get(promptNodeId) ?? [];
         list.push(resp);
         promptResponses.set(promptNodeId, list);
@@ -160,12 +157,15 @@ export function useVisibleGraph(options: UseVisibleGraphOptions): UseVisibleGrap
       // Create synthetic response nodes
       for (let i = 0; i < respList.length; i++) {
         const resp = respList[i];
+        const nodeId = `response-${resp.id}`;
+        const dims = responseDims?.get(nodeId);
         syntheticNodes.push({
-          id: `response-${resp.id}`,
+          id: nodeId,
           type: 'assistantResponse',
           data: { response: resp, index: i, total: respList.length },
           position: { x: -9999, y: -9999 },
           style: { visibility: 'hidden' as const },
+          ...(dims ? { measured: dims } : {}),
         });
       }
 
@@ -212,7 +212,7 @@ export function useVisibleGraph(options: UseVisibleGraphOptions): UseVisibleGrap
       phase15Nodes: [...baseNodes, ...syntheticNodes],
       phase15Edges: [...baseEdges.filter((e) => !reparentedEdgeIds.has(e.id)), ...syntheticEdges],
     };
-  }, [baseNodes, baseEdges, expandedTurns, responses]);
+  }, [baseNodes, baseEdges, expandedTurns, responses, responseDims]);
 
   // Phase 2+: Search, auto-close, collapse (depends on selection, search, etc.)
   return useMemo(() => {

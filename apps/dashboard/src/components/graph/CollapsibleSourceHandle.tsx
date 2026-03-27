@@ -10,9 +10,10 @@ interface Props {
   position: Position;
   style?: React.CSSProperties;
   baseClassName: string;
+  id?: string;
 }
 
-function CollapsibleSourceHandleInner({ nodeId, position, style, baseClassName }: Props) {
+function CollapsibleSourceHandleInner({ nodeId, position, style, baseClassName, id }: Props) {
   const hasChildren = useAgentStore((s) => s.sourceHasEdge.has(nodeId));
   const isCollapsed = useAgentStore((s) => s.collapsedNodes.has(nodeId));
   const toggleCollapsed = useAgentStore((s) => s.toggleCollapsed);
@@ -27,7 +28,9 @@ function CollapsibleSourceHandleInner({ nodeId, position, style, baseClassName }
   });
 
   if (!hasChildren) {
-    return <Handle type="source" position={position} className={baseClassName} style={style} />;
+    return (
+      <Handle type="source" position={position} id={id} className={baseClassName} style={style} />
+    );
   }
 
   return (
@@ -35,6 +38,7 @@ function CollapsibleSourceHandleInner({ nodeId, position, style, baseClassName }
       <Handle
         type="source"
         position={position}
+        id={id}
         className={
           isCollapsed
             ? '!bg-amber-400 !w-4 !h-4 !border-2 !border-amber-800 !cursor-pointer'
@@ -53,7 +57,11 @@ function CollapsibleSourceHandleInner({ nodeId, position, style, baseClassName }
           style={
             position === Position.Right
               ? { right: -4, top: '50%', transform: 'translate(0, -50%)' }
-              : { bottom: -4, left: (style?.left as number) ?? 12, transform: 'translate(-50%, 0)' }
+              : {
+                  bottom: -4,
+                  left: typeof style?.left === 'number' ? style.left : 12,
+                  transform: 'translate(-50%, 0)',
+                }
           }
         >
           +{childCount}

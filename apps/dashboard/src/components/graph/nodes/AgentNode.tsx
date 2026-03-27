@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Bernhard
 
 import { memo, useMemo } from 'react';
-import { Handle, type NodeProps } from '@xyflow/react';
+import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { AgentNodeData } from '@synapse-ai/core';
 import {
   formatTokens,
@@ -12,7 +12,6 @@ import {
   statusBorderColor,
   getVendorColor,
 } from '@synapse-ai/core';
-import { useHandlePositions } from '../../../hooks/useHandlePositions';
 import { useAgentStore } from '../../../store/agentStore';
 import { CollapsibleSourceHandle } from '../CollapsibleSourceHandle';
 import { Tooltip } from '../../ui/Tooltip';
@@ -23,7 +22,10 @@ function AgentNodeComponent({ data }: NodeProps) {
   const agent = (data as { agent: AgentNodeData }).agent;
   const isRunning = agent.status === 'running';
   const preview = agent.streamingText ? agent.streamingText.slice(-50).replace(/\n/g, ' ') : null;
-  const { source, target, sourceStyle } = useHandlePositions();
+  // Shelf node: hardcode Left target, Right source with id="tools"
+  const target = Position.Left;
+  const source = Position.Right;
+  const sourceStyle = undefined;
   const children = useAgentStore((s) => s.childAgents.get(agent.agentId)) ?? EMPTY_AGENTS;
   const selectedNodeId = useAgentStore((s) => s.selectedNodeId);
   const highlightedNodeIds = useAgentStore((s) => s.highlightedNodeIds);
@@ -171,6 +173,7 @@ function AgentNodeComponent({ data }: NodeProps) {
         position={source}
         style={sourceStyle}
         baseClassName="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-800"
+        id="tools"
       />
     </div>
   );

@@ -11,5 +11,6 @@ interface HandleConfig {
 }
 
 export function useHandlePositions(): HandleConfig {
-  return { source: Position.Right, target: Position.Left };
+  // TB layout: spine edges flow top→bottom
+  return { source: Position.Bottom, target: Position.Top };
 }

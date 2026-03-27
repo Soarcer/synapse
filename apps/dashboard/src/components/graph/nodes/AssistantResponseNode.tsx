@@ -2,10 +2,9 @@
 // Copyright (c) 2026 Bernhard
 
 import { memo, useMemo } from 'react';
-import { Handle, type NodeProps } from '@xyflow/react';
+import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { UserPromptData, AgentNodeData, AssistantResponseData } from '@synapse-ai/core';
-import { formatTokens, formatTime } from '@synapse-ai/core';
-import { useHandlePositions } from '../../../hooks/useHandlePositions';
+import { formatTokens, formatTime, formatModelName } from '@synapse-ai/core';
 import { useAgentStore } from '../../../store/agentStore';
 import { Tooltip } from '../../ui/Tooltip';
 
@@ -21,7 +20,9 @@ interface AssistantResponseNodeData {
 
 function AssistantResponseNodeComponent({ data, id }: NodeProps) {
   const { response, index, total } = data as unknown as AssistantResponseNodeData;
-  const { source, target } = useHandlePositions();
+  // Shelf node: hardcode Left target, Right source (not from useHandlePositions)
+  const target = Position.Left;
+  const source = Position.Right;
   const selectedNodeId = useAgentStore((s) => s.selectedNodeId);
   const highlightedNodeIds = useAgentStore((s) => s.highlightedNodeIds);
   const isSelected = selectedNodeId === id;
@@ -35,6 +36,7 @@ function AssistantResponseNodeComponent({ data, id }: NodeProps) {
   const sessionAgents =
     useAgentStore((s) => s.agentsBySession.get(response.sessionId)) ?? EMPTY_AGENTS;
   const transcript = useAgentStore((s) => s.transcripts.get(response.sessionId));
+  const sessionModel = useAgentStore((s) => s.sessions.get(response.sessionId))?.model;
 
   // Sibling responses for per-response tool windowing
   const allSessionResponses =
@@ -100,9 +102,16 @@ function AssistantResponseNodeComponent({ data, id }: NodeProps) {
       />
 
       <div className="flex items-center justify-between mb-1">
-        <span className="text-blue-300 text-xs font-semibold">
-          Claude{total > 1 ? ` (${index + 1}/${total})` : ''}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-blue-300 text-xs font-semibold">
+            Claude{total > 1 ? ` (${index + 1}/${total})` : ''}
+          </span>
+          {sessionModel && (
+            <span className="text-[9px] text-gray-400 font-medium">
+              {formatModelName(sessionModel)}
+            </span>
+          )}
+        </div>
         <span className="text-[10px] text-gray-400">{formatTime(response.timestamp)}</span>
       </div>
       <p className="text-[11px] text-blue-100/80 leading-relaxed line-clamp-4">{preview}</p>

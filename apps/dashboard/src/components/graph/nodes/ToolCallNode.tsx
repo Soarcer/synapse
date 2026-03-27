@@ -2,10 +2,9 @@
 // Copyright (c) 2026 Bernhard
 
 import { memo, useMemo } from 'react';
-import { Handle, type NodeProps } from '@xyflow/react';
+import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { ToolCallSummary } from '@synapse-ai/core';
 import { formatTime } from '@synapse-ai/core';
-import { useHandlePositions } from '../../../hooks/useHandlePositions';
 import { useTranscriptDetail, findThinkingForTool } from '../../../hooks/useTranscriptDetail';
 import { useAgentStore } from '../../../store/agentStore';
 import { CollapsibleSourceHandle } from '../CollapsibleSourceHandle';
@@ -27,7 +26,10 @@ function ToolCallNodeComponent({ data }: NodeProps) {
   const tc = (data as { toolCall: ToolCallSummary }).toolCall;
   const durationMs = tc.duration ?? (tc.endTime != null ? tc.endTime - tc.startTime : null);
   const duration = durationMs != null ? `${(durationMs / 1000).toFixed(1)}s` : null;
-  const { target, source, sourceStyle } = useHandlePositions();
+  // Shelf node: hardcode Left target, Right source (not from useHandlePositions)
+  const target = Position.Left;
+  const source = Position.Right;
+  const sourceStyle = undefined;
   const selectedNodeId = useAgentStore((s) => s.selectedNodeId);
   const highlightedNodeIds = useAgentStore((s) => s.highlightedNodeIds);
   const edges = useAgentStore((s) => s.edges);

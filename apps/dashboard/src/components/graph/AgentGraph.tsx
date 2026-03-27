@@ -72,6 +72,9 @@ function AgentGraphInner() {
   const [toolGroupDims, setToolGroupDims] = useState<
     Map<string, { width: number; height: number }>
   >(() => new Map());
+  const [responseDims, setResponseDims] = useState<Map<string, { width: number; height: number }>>(
+    () => new Map(),
+  );
 
   // Register toast click→node navigator so toasts can zoom to nodes
   useEffect(() => {
@@ -132,6 +135,7 @@ function AgentGraphInner() {
     autoClosePrompts,
     collapsedNodes,
     toolGroupDims,
+    responseDims,
   });
 
   const layoutNodes = useAutoLayout(visibleNodes, visibleEdges, expandedParentId);
@@ -283,9 +287,24 @@ function AgentGraphInner() {
   }, [visibleNodes, visibleEdges, mergedHighlightIds]);
 
   // Single-pass edge styling: smoothstep type + cost gradient + highlight opacity
+  // Also assigns explicit sourceHandle/targetHandle IDs and filters thread edges (TB mode)
   const styledEdges = useMemo(() => {
     const hasHighlight = mergedHighlightIds && mergedHighlightIds.size > 0;
+
+    // Build node type lookup for handle ID assignment
+    const nodeTypeMap = new Map<string, string>();
+    for (const n of visibleNodes) {
+      nodeTypeMap.set(n.id, n.type ?? '');
+    }
+
+    // Shelf node types receive edges from the Left handle.
+    // Unlike isShelfNode in useAutoLayout (which treats everything non-spine as shelf),
+    // this excludes spawnAgent (filtered before layout) and '' (unknown type safety).
+    const isShelf = (type: string) =>
+      type !== 'session' && type !== 'userPrompt' && type !== 'spawnAgent' && type !== '';
+
     return visibleEdges.map((edge) => {
+      const isThread = edge.id.startsWith('thread-');
       const style: Record<string, unknown> = { ...edge.style };
 
       // Cost gradient (only when no highlight active)
@@ -306,14 +325,53 @@ function AgentGraphInner() {
         style.transition = 'opacity 0.2s ease';
       }
 
+      // Assign explicit handle IDs based on node types
+      const sourceType = nodeTypeMap.get(edge.source) ?? '';
+      const targetType = nodeTypeMap.get(edge.target) ?? '';
+      let sourceHandle: string | undefined = edge.sourceHandle ?? 'structural';
+      let targetHandle: string | undefined = edge.targetHandle ?? undefined;
+
+      // TB mode: thread edges become spine edges (re-route to structural handles)
+      if (isThread) {
+        sourceHandle = 'structural';
+        targetHandle = undefined;
+      } else if (isShelf(targetType)) {
+        // Shelf edge: source handle depends on the source node type
+        if (sourceType === 'agent') {
+          sourceHandle = 'tools';
+        } else if (sourceType === 'userPrompt' || sourceType === 'session') {
+          sourceHandle = 'shelf';
+        } else {
+          // assistantResponse, toolCall, etc. — use default handle (no named ID)
+          sourceHandle = undefined;
+        }
+      }
+
+      // Shelf edges with a single sibling use straight lines (no smoothstep kinks).
+      // Multi-child shelf edges and spine/thread edges use smoothstep for routing.
+      const isShelfEdge = !isThread && isShelf(targetType);
+      const sourceShelfCount = isShelfEdge
+        ? visibleEdges.filter(
+            (e) =>
+              e.source === edge.source &&
+              !e.id.startsWith('thread-') &&
+              isShelf(nodeTypeMap.get(e.target) ?? ''),
+          ).length
+        : 0;
+      const edgeType = isShelfEdge && sourceShelfCount === 1 ? 'straight' : 'smoothstep';
+
       return {
         ...edge,
-        type: 'smoothstep' as const,
-        pathOptions: { borderRadius: 12 },
+        type: edgeType as 'straight' | 'smoothstep',
+        ...(edgeType === 'smoothstep' ? { pathOptions: { borderRadius: 12 } } : {}),
+        sourceHandle,
+        targetHandle,
+        // Thread edges: clear LR-era styling (blue straight line → normal structural edge)
+        ...(isThread ? { markerEnd: undefined, animated: false } : {}),
         style,
       };
     });
-  }, [visibleEdges, mergedHighlightIds, edgeCostMap]);
+  }, [visibleNodes, visibleEdges, mergedHighlightIds, edgeCostMap]);
 
   // Resolve a node ID to a visible ID — if the node is a grouped tool,
   // return its parent toolgroup ID instead so fitView can find it.
@@ -664,10 +722,15 @@ function AgentGraphInner() {
     (changes: NodeChange[]) => {
       const dimUpdates: Array<{ id: string; width: number; height: number }> = [];
       const tgUpdates: Array<{ id: string; width: number; height: number }> = [];
+      const respUpdates: Array<{ id: string; width: number; height: number }> = [];
       for (const c of changes) {
         if (c.type === 'dimensions' && c.dimensions?.width && c.dimensions?.height) {
           if (c.id.startsWith('toolgroup-')) {
             tgUpdates.push({ id: c.id, width: c.dimensions.width, height: c.dimensions.height });
+            continue;
+          }
+          if (c.id.startsWith('response-')) {
+            respUpdates.push({ id: c.id, width: c.dimensions.width, height: c.dimensions.height });
             continue;
           }
           dimUpdates.push({ id: c.id, width: c.dimensions.width, height: c.dimensions.height });
@@ -687,6 +750,22 @@ function AgentGraphInner() {
           if (!changed) return prev; // same ref → no re-render
           const next = new Map(prev);
           for (const { id, width, height } of tgUpdates) next.set(id, { width, height });
+          return next;
+        });
+      }
+      if (respUpdates.length > 0) {
+        setResponseDims((prev) => {
+          let changed = false;
+          for (const { id, width, height } of respUpdates) {
+            const existing = prev.get(id);
+            if (!existing || existing.width !== width || existing.height !== height) {
+              changed = true;
+              break;
+            }
+          }
+          if (!changed) return prev;
+          const next = new Map(prev);
+          for (const { id, width, height } of respUpdates) next.set(id, { width, height });
           return next;
         });
       }

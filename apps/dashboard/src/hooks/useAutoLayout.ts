@@ -3,7 +3,7 @@
 
 import { useMemo } from 'react';
 import type { Node, Edge } from '@xyflow/react';
-// Custom tree layout — no external layout library needed
+// Custom tree layout — vertical spine + horizontal shelves (TB)
 
 // ── Fallback dimensions (used before DOM measurement) ────────
 
@@ -19,9 +19,10 @@ const NODE_DEFAULTS: Record<string, { width: number; height: number }> = {
 
 // ── Spacing constants ────────────────────────────────────────
 
-const GAP_X = 120; // horizontal gap between ranks (dagre ranksep)
-const GAP_Y = 32; // vertical gap between sibling structural nodes (dagre nodesep)
-const ROOT_GAP = 24; // extra vertical gap between independent root trees
+const RANK_GAP = 50; // vertical gap between depth ranks (was GAP_X)
+const SIBLING_GAP = 32; // horizontal gap between sibling spine nodes (was GAP_Y)
+const SHELF_GAP = 75; // horizontal gap between all shelf nodes (prompt→response, response→agent, agent→toolgroup)
+const ROOT_GAP = 150; // horizontal gap between root session trees
 const MARGIN = 20; // canvas margin
 const TOOL_GAP_X = 56; // horizontal gap between parent and tool stack
 
@@ -33,11 +34,26 @@ const MAX_GRID_ROWS = 10; // max tools per column before adding another column
 const GRID_GAP_X = 20; // horizontal gap between grid columns
 const GRID_GAP_Y = 6; // vertical gap between grid rows
 
+// ── Node classification ──────────────────────────────────────
+
+// Spine nodes stack vertically (session → prompt chains)
+function isSpineNode(type: string): boolean {
+  return type === 'session' || type === 'userPrompt';
+}
+
+// Shelf nodes fan out horizontally from their parent prompt
+function isShelfNode(type: string): boolean {
+  return !isSpineNode(type);
+}
+
 // ── Helpers ──────────────────────────────────────────────────
 
 function nodeDims(node: Node): { width: number; height: number } {
   const m = node.measured;
-  if (m?.width && m?.height) return { width: m.width, height: m.height };
+  // Force even heights so h/2 is always a whole number → pixel-perfect handle centering
+  if (m?.width && m?.height) {
+    return { width: m.width, height: m.height % 2 === 0 ? m.height : m.height + 1 };
+  }
   return NODE_DEFAULTS[node.type ?? ''] ?? { width: 180, height: 80 };
 }
 
@@ -59,9 +75,10 @@ function nodeTimestampFromNode(n: Node): number {
   return 0;
 }
 
-// ── Dagre hybrid layout (LR) ────────────────────────────────
-// Uses dagre for structural nodes (sessions, prompts, agents,
-// structural tools) and a custom post-pass for leaf tool stacking.
+// ── TB hybrid layout (vertical spine + horizontal shelves) ───
+// Spine nodes (session, userPrompt) stack vertically.
+// Shelf nodes (response, agent, toolGroup, toolCall) fan out
+// horizontally from their parent prompt at the same Y level.
 
 /** @internal Exported for testing */
 export function computeGraphLayout(
@@ -84,15 +101,14 @@ export function computeGraphLayout(
     childrenOf.set(edge.source, kids);
   }
 
-  // ── Step 0b: Sort children chronologically (oldest first → top) ──
+  // ── Step 0b: Sort children chronologically (oldest first) ──
   function nodeTimestamp(id: string): number {
     const n = nodeById.get(id);
     return n ? nodeTimestampFromNode(n) : 0;
   }
 
-  for (const [parentId, kids] of childrenOf) {
+  for (const [, kids] of childrenOf) {
     kids.sort((a, b) => nodeTimestamp(a) - nodeTimestamp(b));
-    childrenOf.set(parentId, kids);
   }
 
   // ── Step 1: Classify leaf tools vs structural nodes ─────────
@@ -109,7 +125,7 @@ export function computeGraphLayout(
         list.push(node.id);
         leafToolsByParent.set(pid, list);
       } else {
-        // Orphan tool with no parent — treat as structural for dagre
+        // Orphan tool with no parent — treat as structural
         structuralNodeIds.add(node.id);
       }
     } else {
@@ -122,7 +138,7 @@ export function computeGraphLayout(
     tools.sort((a, b) => nodeTimestamp(a) - nodeTimestamp(b));
   }
 
-  // ── Step 2: Compute tool stack heights for dagre inflation ──
+  // ── Step 2: Compute tool stack heights for rank inflation ──
   function computeToolStackHeight(pid: string, tools: string[]): number {
     let maxToolH = 0;
     for (const tid of tools) {
@@ -132,13 +148,11 @@ export function computeGraphLayout(
     const toolH = maxToolH || NODE_DEFAULTS.toolCall.height;
 
     if (pid === expandedParentId) {
-      // Grid layout height
       const maxRows = Math.min(tools.length, MAX_GRID_ROWS);
       const numCols = Math.ceil(tools.length / MAX_GRID_ROWS);
       const cascadeY = toolH / 2;
       return maxRows * (toolH + GRID_GAP_Y) - GRID_GAP_Y + (numCols - 1) * cascadeY;
     }
-    // Stacked layout height
     const offset = toolH * STACK_OVERLAP_FRACTION;
     return toolH + (tools.length - 1) * offset;
   }
@@ -160,35 +174,61 @@ export function computeGraphLayout(
     return result;
   }
 
-  // ── Step 4: Custom tree layout per root tree ────────────────
+  // ── Step 4: TB layout per root tree ─────────────────────────
   const positions = new Map<string, { x: number; y: number }>();
   const zIndexMap = new Map<string, number>();
-  let globalOffsetY = MARGIN;
+  let globalOffsetX = MARGIN;
 
   for (const root of roots) {
     const subtreeIds = collectSubtree(root.id);
 
-    // ── Custom tree layout: parent centered over children ────────
-    // Guarantees single children align with parent, multiple children
-    // fan out evenly, and no edge crossings.
+    // ── Step 4a: Build spine-only children map ──────────────
+    // Spine = session + userPrompt; shelf nodes are excluded from the tree.
+    // Key transformation: when a node has multiple prompt children (e.g. session
+    // with all prompts as direct children), chain them vertically instead of
+    // treating them as siblings. This creates the spine: session → prompt₁ → prompt₂ → ...
+    const spineKids = new Map<string, string[]>();
 
-    // Build structural-children map for this subtree
-    const structKids = new Map<string, string[]>();
+    // First pass: collect raw spine children per node
+    const rawSpineKids = new Map<string, string[]>();
     for (const id of subtreeIds) {
       if (!structuralNodeIds.has(id)) continue;
-      const kids = (childrenOf.get(id) ?? []).filter(
-        (k) => structuralNodeIds.has(k) && subtreeIds.has(k),
-      );
-      structKids.set(id, kids);
+      const node = nodeById.get(id)!;
+      if (!isSpineNode(node.type ?? '')) continue;
+      const kids = (childrenOf.get(id) ?? []).filter((k) => {
+        const kn = nodeById.get(k);
+        return kn && isSpineNode(kn.type ?? '') && subtreeIds.has(k);
+      });
+      rawSpineKids.set(id, kids);
     }
 
-    // Compute ranks (depth from root) via BFS
+    // Second pass: chain multiple prompt siblings into vertical sequences
+    const chained = new Set<string>(); // nodes already placed in a chain
+    for (const [id, kids] of rawSpineKids) {
+      if (chained.has(id)) continue; // already placed by a parent's chain
+      if (kids.length > 1) {
+        // Chain: this node → first kid, first kid → second kid, ...
+        spineKids.set(id, [kids[0]]);
+        for (let i = 0; i < kids.length - 1; i++) {
+          spineKids.set(kids[i], [kids[i + 1]]);
+          chained.add(kids[i]);
+        }
+        // Last kid: use its own raw children (if any), otherwise empty
+        const lastKid = kids[kids.length - 1];
+        chained.add(lastKid);
+        spineKids.set(lastKid, rawSpineKids.get(lastKid) ?? []);
+      } else {
+        spineKids.set(id, kids);
+      }
+    }
+
+    // ── Step 4b: Rank computation (BFS on spine only) ───────
     const nodeRank = new Map<string, number>();
     nodeRank.set(root.id, 0);
     const bfs: string[] = [root.id];
     while (bfs.length > 0) {
       const id = bfs.shift()!;
-      for (const kid of structKids.get(id) ?? []) {
+      for (const kid of spineKids.get(id) ?? []) {
         if (!nodeRank.has(kid)) {
           nodeRank.set(kid, nodeRank.get(id)! + 1);
           bfs.push(kid);
@@ -196,7 +236,25 @@ export function computeGraphLayout(
       }
     }
 
-    // Effective width per node: node width + tool stack overhang
+    // ── Step 4c: Rank sizing (Y-spacing) ────────────────────
+    // rankMaxH = tallest element at each rank (including stacked shelf rows)
+    const rankMaxH = new Map<number, number>();
+    let maxRank = 0;
+    for (const [id, r] of nodeRank) {
+      maxRank = Math.max(maxRank, r);
+      // Use shelfTotalHeight which accounts for all stacked shelf rows
+      rankMaxH.set(r, Math.max(rankMaxH.get(r) ?? 0, shelfTotalHeight(id)));
+    }
+
+    let cumY = MARGIN;
+    const rankY = new Map<number, number>();
+    for (let r = 0; r <= maxRank; r++) {
+      rankY.set(r, cumY);
+      cumY += (rankMaxH.get(r) ?? 0) + RANK_GAP;
+    }
+
+    // ── Step 4d: Effective width per node ───────────────────
+    // nodeEffectiveWidth includes tool stack overhang (horizontal)
     function nodeEffectiveWidth(nodeId: string): number {
       const node = nodeById.get(nodeId)!;
       const dims = nodeDims(node);
@@ -211,7 +269,7 @@ export function computeGraphLayout(
         const toolW = maxToolW || NODE_DEFAULTS.toolCall.width;
         if (nodeId === expandedParentId) {
           const numCols = Math.ceil(tools.length / MAX_GRID_ROWS);
-          w += TOOL_GAP_X + numCols * (toolW + GRID_GAP_X);
+          w += TOOL_GAP_X + numCols * toolW + (numCols - 1) * GRID_GAP_X;
         } else {
           w += TOOL_GAP_X + toolW;
         }
@@ -219,106 +277,192 @@ export function computeGraphLayout(
       return w;
     }
 
-    // Max effective width per rank → rank x-starts
-    const rankMaxW = new Map<number, number>();
-    let maxRank = 0;
-    for (const [id, r] of nodeRank) {
-      maxRank = Math.max(maxRank, r);
-      rankMaxW.set(r, Math.max(rankMaxW.get(r) ?? 0, nodeEffectiveWidth(id)));
-    }
-    const rankX = new Map<number, number>();
-    rankX.set(0, 0);
-    for (let r = 1; r <= maxRank; r++) {
-      rankX.set(r, rankX.get(r - 1)! + (rankMaxW.get(r - 1) ?? 0) + GAP_X);
+    // ── Step 4e: Shelf helpers ─────────────────────────────
+    // Get direct shelf children of any node
+    function getShelfChildren(parentId: string): string[] {
+      return (childrenOf.get(parentId) ?? []).filter((k) => {
+        const kn = nodeById.get(k);
+        return kn && isShelfNode(kn.type ?? '') && structuralNodeIds.has(k) && subtreeIds.has(k);
+      });
     }
 
-    // Subtree heights (bottom-up)
-    const subH = new Map<string, number>();
-    function computeSubH(nodeId: string): number {
-      if (subH.has(nodeId)) return subH.get(nodeId)!;
-      const node = nodeById.get(nodeId)!;
-      let selfH = nodeDims(node).height;
+    // Width of a single shelf chain starting from a node (rightward)
+    function shelfChainWidth(nodeId: string): number {
+      const w = nodeEffectiveWidth(nodeId);
+      const kids = getShelfChildren(nodeId);
+      if (kids.length === 0) return w;
+      // Multiple children → take the widest chain (they stack vertically)
+      let maxKidChainW = 0;
+      for (const kid of kids) {
+        maxKidChainW = Math.max(maxKidChainW, shelfChainWidth(kid));
+      }
+      return w + SHELF_GAP + maxKidChainW;
+    }
+
+    // Height of a shelf row starting from a node (accounts for stacked children)
+    function shelfChainHeight(nodeId: string): number {
+      const selfH = nodeDims(nodeById.get(nodeId)!).height;
       const tools = leafToolsByParent.get(nodeId);
-      if (tools && tools.length > 0) {
-        selfH = Math.max(selfH, computeToolStackHeight(nodeId, tools));
+      let h = tools ? Math.max(selfH, computeToolStackHeight(nodeId, tools)) : selfH;
+      const kids = getShelfChildren(nodeId);
+      if (kids.length <= 1) {
+        // Single child chain → row height = max of self and child chain
+        if (kids.length === 1) h = Math.max(h, shelfChainHeight(kids[0]));
+        return h;
       }
-      const kids = structKids.get(nodeId) ?? [];
-      if (kids.length === 0) {
-        subH.set(nodeId, selfH);
-        return selfH;
-      }
-      let childrenH = 0;
-      for (const kid of kids) childrenH += computeSubH(kid);
-      childrenH += (kids.length - 1) * GAP_Y;
-      const h = Math.max(selfH, childrenH);
-      subH.set(nodeId, h);
-      return h;
+      // Multiple children → they stack vertically, sum their heights
+      let totalKidH = 0;
+      for (const kid of kids) totalKidH += shelfChainHeight(kid);
+      totalKidH += (kids.length - 1) * SHELF_GAP;
+      return Math.max(h, totalKidH);
     }
-    computeSubH(root.id);
 
-    // Assign positions: children first, then parent at midpoint of
-    // first/last child center — straight lines for single children,
-    // balanced fan-out for multiple children.
-    function assignPos(nodeId: string, yTop: number) {
+    // Total shelf height for a spine node (all rows stacked)
+    function shelfTotalHeight(spineId: string): number {
+      const selfH = nodeDims(nodeById.get(spineId)!).height;
+      const shelfKids = getShelfChildren(spineId);
+      if (shelfKids.length === 0) return selfH;
+      let totalH = 0;
+      for (const kid of shelfKids) totalH += shelfChainHeight(kid);
+      totalH += (shelfKids.length - 1) * SHELF_GAP;
+      return Math.max(selfH, totalH);
+    }
+
+    // Shelf width: prompt width + gap + widest chain
+    function shelfWidth(spineId: string): number {
+      const node = nodeById.get(spineId)!;
+      const ownW = nodeDims(node).width;
+      const shelfKids = getShelfChildren(spineId);
+      if (shelfKids.length === 0) return ownW;
+      let maxChainW = 0;
+      for (const kid of shelfKids) {
+        maxChainW = Math.max(maxChainW, shelfChainWidth(kid));
+      }
+      return ownW + SHELF_GAP + maxChainW;
+    }
+
+    // ── Step 4f: Subtree width (horizontal sibling spread) ──
+    const subW = new Map<string, number>();
+    function computeSubW(nodeId: string): number {
+      if (subW.has(nodeId)) return subW.get(nodeId)!;
+      const kids = spineKids.get(nodeId) ?? [];
+      const selfW = shelfWidth(nodeId);
+      if (kids.length === 0) {
+        subW.set(nodeId, selfW);
+        return selfW;
+      }
+      let childrenTotalW = 0;
+      for (const kid of kids) childrenTotalW += computeSubW(kid);
+      childrenTotalW += SIBLING_GAP * (kids.length - 1);
+      const w = Math.max(selfW, childrenTotalW);
+      subW.set(nodeId, w);
+      return w;
+    }
+    computeSubW(root.id);
+
+    // ── Step 4g: Position assignment (spine nodes) ──────────
+    // Y from rank, X from horizontal band centering
+    function assignPos(nodeId: string, xStart: number) {
       const node = nodeById.get(nodeId)!;
       const dims = nodeDims(node);
-      const r = nodeRank.get(nodeId)!;
-      const x = MARGIN + (rankX.get(r) ?? 0);
-      const totalH = subH.get(nodeId) ?? dims.height;
-
-      const kids = structKids.get(nodeId) ?? [];
+      const rank = nodeRank.get(nodeId)!;
+      const nodeY = rankY.get(rank)!;
+      const kids = spineKids.get(nodeId) ?? [];
+      const totalW = computeSubW(nodeId);
 
       if (kids.length === 0) {
-        // Leaf: center in subtree slot
+        // Leaf spine node: center in allocated horizontal band
+        const selfW = shelfWidth(nodeId);
         positions.set(nodeId, {
-          x,
-          y: yTop + totalH / 2 - dims.height / 2,
+          x: xStart + (totalW - selfW) / 2,
+          y: nodeY,
         });
         return;
       }
 
-      // Position children first
-      let childrenH = 0;
-      for (const kid of kids) childrenH += subH.get(kid) ?? 0;
-      childrenH += (kids.length - 1) * GAP_Y;
-
-      let childY = yTop + totalH / 2 - childrenH / 2;
+      // Position spine children left-to-right
+      let childX = xStart;
       for (const kid of kids) {
-        assignPos(kid, childY);
-        childY += (subH.get(kid) ?? 0) + GAP_Y;
+        const kidSubW = computeSubW(kid);
+        assignPos(kid, childX);
+        childX += kidSubW + SIBLING_GAP;
       }
 
-      // Session nodes: top-align with first child so conversation flows down.
-      // All other parents: center on children midpoint.
-      const isSession = node.type === 'session';
-      if (isSession) {
-        const firstChildY = positions.get(kids[0])!.y;
-        positions.set(nodeId, { x, y: firstChildY });
+      // Center-align parent with first child for straight vertical spine edges.
+      // The bottom handle (center of parent) must be directly above the top handle (center of child).
+      const firstChild = kids[0];
+      const firstChildX = positions.get(firstChild)!.x;
+      const firstChildW = nodeDims(nodeById.get(firstChild)!).width;
+      const childCenterX = firstChildX + firstChildW / 2;
+      positions.set(nodeId, { x: childCenterX - dims.width / 2, y: nodeY });
+    }
+    assignPos(root.id, globalOffsetX);
+
+    // ── Step 4h: Shelf positioning post-pass ────────────────
+    // Each spine node's shelf children stack vertically as rows.
+    // Within each row, child chains extend rightward.
+
+    // Recursive: position a shelf node and its shelf children rightward.
+    // parentMidY = the vertical center of the parent node's handle (for straight edges).
+    function layoutShelfChain(nodeId: string, x: number, parentHandleY: number) {
+      const node = nodeById.get(nodeId)!;
+      const h = nodeDims(node).height;
+      // Align this node's handle center with the parent's handle center.
+      // No rounding — both parent and child must share the exact same fractional
+      // center Y so React Flow draws a perfectly straight horizontal edge.
+      const y = parentHandleY - h / 2;
+      positions.set(nodeId, { x, y });
+      // This node's handle center (for positioning its children)
+      const myHandleY = parentHandleY; // exact same value, no drift
+
+      const kids = getShelfChildren(nodeId);
+      if (kids.length === 0) return;
+
+      const nextX = x + nodeEffectiveWidth(nodeId) + SHELF_GAP;
+
+      if (kids.length === 1) {
+        // Single child: continue rightward, aligned to this node's actual handle center
+        layoutShelfChain(kids[0], nextX, myHandleY);
       } else {
-        const fc = positions.get(kids[0])!.y + nodeDims(nodeById.get(kids[0])!).height / 2;
-        const lc =
-          positions.get(kids[kids.length - 1])!.y +
-          nodeDims(nodeById.get(kids[kids.length - 1])!).height / 2;
-        const mid = (fc + lc) / 2;
+        // Multiple children: stack them vertically at the next X position
+        let totalKidH = 0;
+        for (const kid of kids) totalKidH += shelfChainHeight(kid);
+        totalKidH += (kids.length - 1) * SHELF_GAP;
 
-        // Clamp so node + tool stack stay within subtree slot
-        let selfH = dims.height;
-        const tools = leafToolsByParent.get(nodeId);
-        if (tools && tools.length > 0) {
-          selfH = Math.max(selfH, computeToolStackHeight(nodeId, tools));
+        let kidY = myHandleY - totalKidH / 2;
+        for (const kid of kids) {
+          const kidRowH = shelfChainHeight(kid);
+          layoutShelfChain(kid, nextX, kidY + kidRowH / 2);
+          kidY += kidRowH + SHELF_GAP;
         }
-        const minY = yTop + selfH / 2 - dims.height / 2;
-        const maxY = yTop + totalH - selfH / 2 - dims.height / 2;
-
-        positions.set(nodeId, {
-          x,
-          y: Math.max(minY, Math.min(maxY, mid - dims.height / 2)),
-        });
       }
     }
-    assignPos(root.id, globalOffsetY);
 
-    // ── Post-pass: position leaf tools for parents in this subtree ──
+    for (const [spineId] of nodeRank) {
+      const spinePos = positions.get(spineId);
+      if (!spinePos) continue;
+      const spineNode = nodeById.get(spineId)!;
+      const spineW = nodeDims(spineNode).width;
+      const spineH = nodeDims(spineNode).height;
+
+      const shelfKids = getShelfChildren(spineId);
+      if (shelfKids.length === 0) continue;
+
+      const shelfStartX = spinePos.x + spineW + SHELF_GAP;
+
+      const spineMidY = spinePos.y + spineH / 2;
+
+      // First shelf child aligns its center with the spine node's center.
+      // Subsequent children stack below.
+      let rowMidY = spineMidY;
+      for (const kid of shelfKids) {
+        const rowH = shelfChainHeight(kid);
+        layoutShelfChain(kid, shelfStartX, rowMidY);
+        rowMidY += rowH + SHELF_GAP;
+      }
+    }
+
+    // ── Step 4i: Leaf tool post-pass ────────────────────────
     for (const nodeId of subtreeIds) {
       const tools = leafToolsByParent.get(nodeId);
       if (!tools) continue;
@@ -375,37 +519,23 @@ export function computeGraphLayout(
       }
     }
 
-    // Advance globalOffsetY past this subtree (including tools)
-    let subtreeBottom = globalOffsetY;
+    // Advance globalOffsetX past this subtree (including tools)
+    let subtreeRight = globalOffsetX;
     for (const nodeId of subtreeIds) {
       const pos = positions.get(nodeId);
       const node = nodeById.get(nodeId);
       if (pos && node) {
-        subtreeBottom = Math.max(subtreeBottom, pos.y + nodeDims(node).height);
+        subtreeRight = Math.max(subtreeRight, pos.x + nodeDims(node).width);
       }
     }
-    globalOffsetY = subtreeBottom + ROOT_GAP;
-  }
-
-  // ── Post-pass: vertically center response nodes with their parent prompt ──
-  for (const edge of edges) {
-    if (!edge.target.startsWith('response-')) continue;
-    const parentPos = positions.get(edge.source);
-    const responsePos = positions.get(edge.target);
-    const parentNode = nodeById.get(edge.source);
-    const responseNode = nodeById.get(edge.target);
-    if (!parentPos || !responsePos || !parentNode || !responseNode) continue;
-    const parentMidY = parentPos.y + nodeDims(parentNode).height / 2;
-    const responseMidY = responsePos.y + nodeDims(responseNode).height / 2;
-    // Shift the response node so its vertical center aligns with the prompt's
-    responsePos.y += parentMidY - responseMidY;
+    globalOffsetX = subtreeRight + ROOT_GAP;
   }
 
   // ── Step 5: Handle orphan nodes ─────────────────────────────
   for (const node of graphNodes) {
     if (!positions.has(node.id)) {
-      positions.set(node.id, { x: MARGIN, y: globalOffsetY });
-      globalOffsetY += nodeDims(node).height + GAP_Y;
+      positions.set(node.id, { x: globalOffsetX, y: MARGIN });
+      globalOffsetX += nodeDims(node).width + SIBLING_GAP;
     }
   }
 
@@ -457,17 +587,24 @@ export function useAutoLayout(
     const positions = result.positions;
     const zIndexMap = result.zIndexMap;
 
-    // Position spawn node at bottom-right of graph
+    // Position spawn node at bottom-center of graph
     if (spawnNode) {
+      let minX = Infinity;
       let maxX = 0;
       let maxY = 0;
       for (const [id, pos] of positions) {
         const node = graphNodes.find((n) => n.id === id);
         const w = node ? nodeDims(node).width : 200;
+        const h = node ? nodeDims(node).height : 100;
+        minX = Math.min(minX, pos.x);
         maxX = Math.max(maxX, pos.x + w);
-        maxY = Math.max(maxY, pos.y);
+        maxY = Math.max(maxY, pos.y + h);
       }
-      positions.set('__spawn__', { x: maxX + 60, y: maxY / 2 });
+      if (minX === Infinity) minX = MARGIN;
+      positions.set('__spawn__', {
+        x: (minX + maxX) / 2 - 25,
+        y: maxY + RANK_GAP,
+      });
     }
 
     return { positions, zIndexMap };

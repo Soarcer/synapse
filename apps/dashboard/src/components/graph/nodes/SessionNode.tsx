@@ -4,7 +4,13 @@
 import { memo, useMemo } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import type { SessionData, AgentNodeData } from '@synapse-ai/core';
-import { formatTokens, formatRelativeTime, formatTime, getVendorColor } from '@synapse-ai/core';
+import {
+  formatTokens,
+  formatRelativeTime,
+  formatTime,
+  getVendorColor,
+  formatModelName,
+} from '@synapse-ai/core';
 import { useHandlePositions } from '../../../hooks/useHandlePositions';
 import { useAgentStore } from '../../../store/agentStore';
 import { CollapsibleSourceHandle } from '../CollapsibleSourceHandle';
@@ -126,6 +132,13 @@ function SessionNodeComponent({ data }: NodeProps) {
               {session.vendor}
             </span>
           )}
+          {session.model && (
+            <Tooltip content={session.model}>
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-medium leading-none bg-gray-700/60 text-gray-300">
+                {formatModelName(session.model)}
+              </span>
+            </Tooltip>
+          )}
         </div>
         <span className="text-[10px] text-gray-400">
           {formatTime(session.startTime)}{' '}
@@ -231,6 +244,7 @@ function SessionNodeComponent({ data }: NodeProps) {
         position={source}
         style={sourceStyle}
         baseClassName="!bg-blue-400 !w-3 !h-3 !border-2 !border-blue-900"
+        id="structural"
       />
     </div>
   );

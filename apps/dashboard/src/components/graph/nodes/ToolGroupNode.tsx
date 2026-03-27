@@ -2,10 +2,9 @@
 // Copyright (c) 2026 Bernhard
 
 import { memo, useMemo } from 'react';
-import { Handle, type NodeProps } from '@xyflow/react';
+import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { ToolCallSummary } from '@synapse-ai/core';
 import { formatDuration, getToolIcon } from '@synapse-ai/core';
-import { useHandlePositions } from '../../../hooks/useHandlePositions';
 import { useTranscriptDetail, findThinkingForTool } from '../../../hooks/useTranscriptDetail';
 import { useAgentStore } from '../../../store/agentStore';
 import { Tooltip } from '../../ui/Tooltip';
@@ -84,7 +83,8 @@ function ToolGroupNodeComponent({ data }: NodeProps) {
   const selectedNodeId = useAgentStore((s) => s.selectedNodeId);
   const selectNode = useAgentStore((s) => s.selectNode);
   const agents = useAgentStore((s) => s.agents);
-  const { target } = useHandlePositions();
+  // Shelf node: hardcode Left target (not from useHandlePositions)
+  const target = Position.Left;
   const arcadeMode = useAgentStore((s) => s.arcadeMode);
   const arcadeSoundEnabled = useAgentStore((s) => s.arcadeSoundEnabled);
   const arcadeVolume = useAgentStore((s) => s.arcadeVolume);
