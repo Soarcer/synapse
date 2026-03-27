@@ -44,3 +44,9 @@ extension/out/
 extension/node_modules/
 distribution/
 .worktrees/
+
+# Screenshot pipeline output (regenerated via scripts/capture_screenshots.ts)
+assets/screenshots/**/*.png
+assets/screenshots/**/*.webp
+assets/screenshots/index.html
+!assets/screenshots/.gitkeep
