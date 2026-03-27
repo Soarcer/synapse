@@ -23,6 +23,7 @@ export function getNextToolIndex(
   if (len === 0) return -1;
 
   if (mode === 'timeline') {
+    // Timeline is horizontal — left/right step through tools
     if (key === 'ArrowLeft') return currentIndex === 0 ? -1 : currentIndex - 1;
     if (key === 'ArrowRight') return Math.min(currentIndex + 1, len - 1);
     // Up/Down: no-op for linear timeline
@@ -34,14 +35,16 @@ export function getNextToolIndex(
     const col = Math.floor(currentIndex / numRows);
     const row = currentIndex % numRows;
 
-    // Up/Down: chronological (prev/next in flat array)
+    // Up/Down: visual — move within same column
     if (key === 'ArrowUp') {
-      return currentIndex > 0 ? currentIndex - 1 : currentIndex;
+      if (row === 0) return currentIndex; // already at top of column
+      return currentIndex - 1;
     }
     if (key === 'ArrowDown') {
-      return currentIndex < len - 1 ? currentIndex + 1 : currentIndex;
+      if (row >= numRows - 1) return currentIndex; // at bottom of column
+      return Math.min(currentIndex + 1, len - 1);
     }
-    // Left/Right: grid-based (across columns)
+    // Left/Right: visual — move across columns (same row)
     if (key === 'ArrowLeft') {
       if (col === 0) return -1; // go to parent
       const target = (col - 1) * numRows + row;
@@ -56,8 +59,10 @@ export function getNextToolIndex(
   if (mode === 'heatmap') {
     // Build row structure: toolName → indices in the flat tools array
     const byName = new Map<string, number[]>();
+    const rowNames: string[] = [];
     for (let i = 0; i < len; i++) {
       const name = tools[i].toolName;
+      if (!byName.has(name)) rowNames.push(name);
       const list = byName.get(name) ?? [];
       list.push(i);
       byName.set(name, list);
@@ -66,6 +71,7 @@ export function getNextToolIndex(
     const currentName = tools[currentIndex].toolName;
     const currentRowIndices = byName.get(currentName)!;
     const colInRow = currentRowIndices.indexOf(currentIndex);
+    const rowIdx = rowNames.indexOf(currentName);
 
     // Left/Right: within same tool-name row
     if (key === 'ArrowLeft') {
@@ -76,12 +82,16 @@ export function getNextToolIndex(
       if (colInRow >= currentRowIndices.length - 1) return currentIndex;
       return currentRowIndices[colInRow + 1];
     }
-    // Up/Down: chronological (prev/next in flat array)
+    // Up/Down: visual — move between rows (same column position or last in row)
     if (key === 'ArrowUp') {
-      return currentIndex > 0 ? currentIndex - 1 : currentIndex;
+      if (rowIdx <= 0) return currentIndex;
+      const prevRow = byName.get(rowNames[rowIdx - 1])!;
+      return prevRow[Math.min(colInRow, prevRow.length - 1)];
     }
     if (key === 'ArrowDown') {
-      return currentIndex < len - 1 ? currentIndex + 1 : currentIndex;
+      if (rowIdx >= rowNames.length - 1) return currentIndex;
+      const nextRow = byName.get(rowNames[rowIdx + 1])!;
+      return nextRow[Math.min(colInRow, nextRow.length - 1)];
     }
   }
 
@@ -120,7 +130,16 @@ export function useGraphNavigation(
   }, [visibleNodes, visibleEdges]);
 
   useEffect(() => {
-    const HANDLED_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '];
+    const HANDLED_KEYS = [
+      'ArrowUp',
+      'ArrowDown',
+      'ArrowLeft',
+      'ArrowRight',
+      '[',
+      ']', // prev/next sibling (logical navigation)
+      'Enter',
+      ' ',
+    ];
 
     const handleKeyNav = (e: KeyboardEvent) => {
       if (!HANDLED_KEYS.includes(e.key)) return;
@@ -161,6 +180,21 @@ export function useGraphNavigation(
             return;
           }
 
+          // [ / ] — logical prev/next tool (wraps around)
+          if (e.key === '[' || e.key === ']') {
+            const len = tg.tools.length;
+            let nextIdx: number;
+            if (e.key === '[') {
+              nextIdx = tg.index > 0 ? tg.index - 1 : len - 1;
+            } else {
+              nextIdx = tg.index < len - 1 ? tg.index + 1 : 0;
+            }
+            if (nextIdx !== tg.index) {
+              selectNode(`tool-${tg.tools[nextIdx].toolUseId}`, 'graph');
+            }
+            return;
+          }
+
           const nextIndex = getNextToolIndex(tg.tools, tg.index, e.key, toolGroupMode);
 
           if (nextIndex === -1) {
@@ -194,7 +228,7 @@ export function useGraphNavigation(
 
       // ── Scenario B: entering a toolGroup from itself ───────
       if (currentId.startsWith('toolgroup-')) {
-        if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') {
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
           const tgNode = vNodes.find((n) => n.id === currentId);
           if (tgNode && useAgentStore.getState().showAllTools) {
             const { tools } = tgNode.data as unknown as ToolGroupData;
@@ -208,8 +242,12 @@ export function useGraphNavigation(
         // Fall through to default graph navigation for other keys
       }
 
-      // ── Default graph-level navigation ─────────────────────
-      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+      // ── Default graph-level navigation (TB layout) ─────────
+      // Up/Down = spine navigation (parent/child — vertical depth)
+      // Left/Right = shelf navigation (siblings at same level — horizontal breadth)
+      // [ / ] = logical prev/next sibling (wraps around)
+      const NAV_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', '[', ']'];
+      if (!NAV_KEYS.includes(e.key)) return;
 
       e.preventDefault();
 
@@ -219,11 +257,11 @@ export function useGraphNavigation(
 
       let targetId: string | null = null;
 
-      if (e.key === 'ArrowLeft') {
-        // Go to parent node
+      if (e.key === 'ArrowUp') {
+        // Go to parent node (up the spine)
         targetId = parentOf.get(currentId) ?? null;
-      } else if (e.key === 'ArrowRight') {
-        // Go to first child node
+      } else if (e.key === 'ArrowDown') {
+        // Go to first child node (down the spine)
         const kids = childrenOf.get(currentId) ?? [];
         targetId = kids[0] ?? null;
 
@@ -238,8 +276,23 @@ export function useGraphNavigation(
             }
           }
         }
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        // Left/Right — navigate siblings at the same level (shelf navigation)
+        const parentId = parentOf.get(currentId);
+        const siblings = parentId
+          ? (childrenOf.get(parentId) ?? [])
+          : vNodes.filter((n) => !parentOf.has(n.id) && n.id !== '__spawn__').map((n) => n.id);
+
+        const idx = siblings.indexOf(currentId);
+        if (idx < 0 || siblings.length <= 1) return;
+
+        if (e.key === 'ArrowLeft') {
+          targetId = idx > 0 ? siblings[idx - 1] : null; // no wrap — stop at edge
+        } else {
+          targetId = idx < siblings.length - 1 ? siblings[idx + 1] : null;
+        }
       } else {
-        // ArrowUp / ArrowDown — navigate siblings of same type
+        // [ / ] — logical prev/next sibling of same type (wraps around)
         const parentId = parentOf.get(currentId);
         const sameTypeSiblings = parentId
           ? (childrenOf.get(parentId) ?? []).filter((id) => {
@@ -253,7 +306,7 @@ export function useGraphNavigation(
         const idx = sameTypeSiblings.indexOf(currentId);
         if (idx < 0 || sameTypeSiblings.length <= 1) return;
 
-        if (e.key === 'ArrowUp') {
+        if (e.key === '[') {
           targetId = sameTypeSiblings[idx > 0 ? idx - 1 : sameTypeSiblings.length - 1];
         } else {
           targetId = sameTypeSiblings[idx < sameTypeSiblings.length - 1 ? idx + 1 : 0];

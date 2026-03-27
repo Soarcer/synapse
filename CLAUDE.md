@@ -91,6 +91,10 @@ Stop either server with **Ctrl+C** in its terminal.
 | **I**      | Import snapshot                                                    |
 | **/**      | Focus graph search                                                 |
 | **1–6**    | Switch lens tab (tree, heatmap, treemap, sankey, compaction, cost) |
+| **↑**      | Navigate to parent node (up the spine)                             |
+| **↓**      | Navigate to first child node (down the spine)                      |
+| **←/→**    | Navigate between siblings at the same level                        |
+| **[ / ]**  | Logical prev/next sibling of same type (wraps around)              |
 
 ## Architecture Docs
 
