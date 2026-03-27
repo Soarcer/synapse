@@ -60,16 +60,20 @@ export function createPermissionsRouter(broadcaster: Broadcaster): Router {
         logger.error({ err: dbErr }, 'Failed to store permission event');
       }
 
-      // Broadcast resolution to all dashboard clients
-      broadcaster.broadcastRaw(buildPermissionResolved(id, behavior, entry.event));
+      // Extract answers before broadcasting (needed for both WS and hook response)
+      const answers = req.body?.answers as Record<string, string> | undefined;
+      const hasAnswers = answers && Object.keys(answers).length > 0;
+
+      // Broadcast resolution to all dashboard clients (include answers for inspector display)
+      const resolved = buildPermissionResolved(id, behavior, entry.event);
+      if (hasAnswers) resolved.data.answers = answers;
+      broadcaster.broadcastRaw(resolved);
 
       // Resolve the held hook response to Claude Code.
       // For AskUserQuestion with answers: use behavior "deny" with message containing
       // the user's selections. Per Claude Code docs, PermissionRequest "message" is only
       // forwarded to Claude on "deny" — on "allow" it's ignored. So we "deny" the tool
       // but include the full answer in the message, which Claude sees and uses.
-      const answers = req.body?.answers as Record<string, string> | undefined;
-      const hasAnswers = answers && Object.keys(answers).length > 0;
 
       const hookDecision: Record<string, unknown> = { behavior };
       if (hasAnswers) {

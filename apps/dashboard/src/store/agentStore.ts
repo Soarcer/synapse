@@ -307,6 +307,7 @@ interface AgentStore {
     sessionId: string,
     behavior: string,
     toolName?: string,
+    answers?: Record<string, string>,
   ) => void;
   clearEvents: () => void;
   loadEvents: (events: AgentEvent[]) => void;
@@ -769,7 +770,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     })),
 
   // ── Permission tool finalization ─────────────────────────────
-  finalizePermissionTool: (toolUseId, sessionId, behavior, toolName) => {
+  finalizePermissionTool: (toolUseId, sessionId, behavior, toolName, answers) => {
     const status = behavior === 'deny' ? 'error' : 'success';
 
     // If tool_use_id is missing (PermissionRequest doesn't include it),
@@ -791,6 +792,8 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       vendor: 'anthropic',
       toolUseId: resolvedToolUseId,
       status,
+      // Include answers so the inspector can show which options were selected
+      toolResponse: answers ? { answers } : undefined,
     };
     get().addEvent(syntheticEvent);
   },
@@ -1026,6 +1029,7 @@ wsClient.setOnEvent((msg) => {
       tool_use_id?: string;
       session_id?: string;
       tool_name?: string;
+      answers?: Record<string, string>;
     };
     const devStore = useRemoteDevStore.getState();
     if (devStore.pendingQuestion?.id === data.id) {
@@ -1034,7 +1038,13 @@ wsClient.setOnEvent((msg) => {
       if (data.session_id) {
         useAgentStore
           .getState()
-          .finalizePermissionTool(data.tool_use_id, data.session_id, data.behavior, data.tool_name);
+          .finalizePermissionTool(
+            data.tool_use_id,
+            data.session_id,
+            data.behavior,
+            data.tool_name,
+            data.answers,
+          );
       }
       return; // Keep return — don't double-process in permissionStore
     }
@@ -1042,7 +1052,13 @@ wsClient.setOnEvent((msg) => {
     if (data.session_id) {
       useAgentStore
         .getState()
-        .finalizePermissionTool(data.tool_use_id, data.session_id, data.behavior, data.tool_name);
+        .finalizePermissionTool(
+          data.tool_use_id,
+          data.session_id,
+          data.behavior,
+          data.tool_name,
+          data.answers,
+        );
     }
   }
   if (handlePermissionWsMessage(msg)) return;
