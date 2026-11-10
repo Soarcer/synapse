@@ -20,7 +20,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"C:/Workspace/Coding/Prototypes/Synapse/packages/cli/dist/hooks/send_event.cjs\"",
+            "command": "node \"C:/Users/Bernhard/AppData/Roaming/npm/node_modules/@synapse-ai/cli/dist/hooks/send_event.cjs\"",
             "async": true
           }
         ]
@@ -31,7 +31,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"C:/Workspace/Coding/Prototypes/Synapse/packages/cli/dist/hooks/send_event.cjs\"",
+            "command": "node \"C:/Users/Bernhard/AppData/Roaming/npm/node_modules/@synapse-ai/cli/dist/hooks/send_event.cjs\"",
             "async": true
           }
         ]
@@ -42,7 +42,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"C:/Workspace/Coding/Prototypes/Synapse/packages/cli/dist/hooks/send_event.cjs\"",
+            "command": "node \"C:/Users/Bernhard/AppData/Roaming/npm/node_modules/@synapse-ai/cli/dist/hooks/send_event.cjs\"",
             "async": true
           }
         ]
@@ -53,7 +53,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"C:/Workspace/Coding/Prototypes/Synapse/packages/cli/dist/hooks/send_event.cjs\"",
+            "command": "node \"C:/Users/Bernhard/AppData/Roaming/npm/node_modules/@synapse-ai/cli/dist/hooks/send_event.cjs\"",
             "async": true
           }
         ]
@@ -64,7 +64,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"C:/Workspace/Coding/Prototypes/Synapse/packages/cli/dist/hooks/send_event.cjs\"",
+            "command": "node \"C:/Users/Bernhard/AppData/Roaming/npm/node_modules/@synapse-ai/cli/dist/hooks/send_event.cjs\"",
             "async": true
           }
         ]
@@ -75,7 +75,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"C:/Workspace/Coding/Prototypes/Synapse/packages/cli/dist/hooks/send_event.cjs\"",
+            "command": "node \"C:/Users/Bernhard/AppData/Roaming/npm/node_modules/@synapse-ai/cli/dist/hooks/send_event.cjs\"",
             "async": true
           }
         ]
@@ -86,7 +86,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"C:/Workspace/Coding/Prototypes/Synapse/packages/cli/dist/hooks/send_event.cjs\"",
+            "command": "node \"C:/Users/Bernhard/AppData/Roaming/npm/node_modules/@synapse-ai/cli/dist/hooks/send_event.cjs\"",
             "async": true
           }
         ]
@@ -97,7 +97,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"C:/Workspace/Coding/Prototypes/Synapse/packages/cli/dist/hooks/send_event.cjs\"",
+            "command": "node \"C:/Users/Bernhard/AppData/Roaming/npm/node_modules/@synapse-ai/cli/dist/hooks/send_event.cjs\"",
             "async": true
           }
         ]
@@ -108,7 +108,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"C:/Workspace/Coding/Prototypes/Synapse/packages/cli/dist/hooks/send_event.cjs\"",
+            "command": "node \"C:/Users/Bernhard/AppData/Roaming/npm/node_modules/@synapse-ai/cli/dist/hooks/send_event.cjs\"",
             "async": true
           }
         ]
@@ -119,7 +119,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"C:/Workspace/Coding/Prototypes/Synapse/packages/cli/dist/hooks/send_event.cjs\"",
+            "command": "node \"C:/Users/Bernhard/AppData/Roaming/npm/node_modules/@synapse-ai/cli/dist/hooks/send_event.cjs\"",
             "async": true
           },
           {
@@ -135,7 +135,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"C:/Workspace/Coding/Prototypes/Synapse/packages/cli/dist/hooks/send_event.cjs\"",
+            "command": "node \"C:/Users/Bernhard/AppData/Roaming/npm/node_modules/@synapse-ai/cli/dist/hooks/send_event.cjs\"",
             "async": true
           }
         ]
@@ -146,7 +146,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"C:/Workspace/Coding/Prototypes/Synapse/packages/cli/dist/hooks/send_event.cjs\"",
+            "command": "node \"C:/Users/Bernhard/AppData/Roaming/npm/node_modules/@synapse-ai/cli/dist/hooks/send_event.cjs\"",
             "async": true
           }
         ]

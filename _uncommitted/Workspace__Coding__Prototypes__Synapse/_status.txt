@@ -1,0 +1,31 @@
+ M .claude/settings.local.json
+ M README.md
+ M docs/site/index.html
+?? docs/github-welcome-discussion.md
+?? docs/plans/2026-04-01-clean-github-release.md
+?? docs/sessions/2026-03-28-launch-day.md
+?? docs/site/content.md
+?? docs/site/favicon.svg
+?? docs/site/images/Synapse_overview.mp4
+?? docs/site/images/dektop__tools_pillgrid.png
+?? docs/site/images/desktop_nodegraph_lens.png
+?? docs/site/images/desktop_nodegraph_lens_selected.png
+?? docs/site/images/desktop_nodeinspector.png
+?? docs/site/images/desktop_remote-options.png
+?? docs/site/images/desktop_sankey.png
+?? docs/site/images/desktop_tools_arcade.png
+?? docs/site/images/desktop_tools_heatmap.png
+?? docs/site/images/desktop_tools_timeline.png
+?? docs/site/images/hero.webm
+?? docs/site/images/mobile_approval.PNG
+?? docs/site/images/mobile_lens_sankey.PNG
+?? docs/site/images/mobile_lens_treemap.PNG
+?? docs/site/images/mobile_nodegraph.PNG
+?? docs/superpowers/plans/2026-03-27-screenshot-pipeline.md
+?? docs/superpowers/specs/2026-03-27-screenshot-pipeline-design.md
+?? docs/video-script.md
+?? packages/cli/INSTALL-LOCAL.md
+?? packages/cli/scripts/postinstall.mjs
+?? packages/cli/src/setup.ts
+?? packages/cli/synapse-ai-cli-0.1.1.tgz
+?? scripts/inject_25_tools.ts

@@ -1,0 +1,1427 @@
+diff --git a/.claude/settings.local.json b/.claude/settings.local.json
+index 4550fe6..425e500 100644
+--- a/.claude/settings.local.json
++++ b/.claude/settings.local.json
+@@ -20,7 +20,7 @@
+         "hooks": [
+           {
+             "type": "command",
+-            "command": "node \"C:/Workspace/Coding/Prototypes/Synapse/packages/cli/dist/hooks/send_event.cjs\"",
++            "command": "node \"C:/Users/Bernhard/AppData/Roaming/npm/node_modules/@synapse-ai/cli/dist/hooks/send_event.cjs\"",
+             "async": true
+           }
+         ]
+@@ -31,7 +31,7 @@
+         "hooks": [
+           {
+             "type": "command",
+-            "command": "node \"C:/Workspace/Coding/Prototypes/Synapse/packages/cli/dist/hooks/send_event.cjs\"",
++            "command": "node \"C:/Users/Bernhard/AppData/Roaming/npm/node_modules/@synapse-ai/cli/dist/hooks/send_event.cjs\"",
+             "async": true
+           }
+         ]
+@@ -42,7 +42,7 @@
+         "hooks": [
+           {
+             "type": "command",
+-            "command": "node \"C:/Workspace/Coding/Prototypes/Synapse/packages/cli/dist/hooks/send_event.cjs\"",
++            "command": "node \"C:/Users/Bernhard/AppData/Roaming/npm/node_modules/@synapse-ai/cli/dist/hooks/send_event.cjs\"",
+             "async": true
+           }
+         ]
+@@ -53,7 +53,7 @@
+         "hooks": [
+           {
+             "type": "command",
+-            "command": "node \"C:/Workspace/Coding/Prototypes/Synapse/packages/cli/dist/hooks/send_event.cjs\"",
++            "command": "node \"C:/Users/Bernhard/AppData/Roaming/npm/node_modules/@synapse-ai/cli/dist/hooks/send_event.cjs\"",
+             "async": true
+           }
+         ]
+@@ -64,7 +64,7 @@
+         "hooks": [
+           {
+             "type": "command",
+-            "command": "node \"C:/Workspace/Coding/Prototypes/Synapse/packages/cli/dist/hooks/send_event.cjs\"",
++            "command": "node \"C:/Users/Bernhard/AppData/Roaming/npm/node_modules/@synapse-ai/cli/dist/hooks/send_event.cjs\"",
+             "async": true
+           }
+         ]
+@@ -75,7 +75,7 @@
+         "hooks": [
+           {
+             "type": "command",
+-            "command": "node \"C:/Workspace/Coding/Prototypes/Synapse/packages/cli/dist/hooks/send_event.cjs\"",
++            "command": "node \"C:/Users/Bernhard/AppData/Roaming/npm/node_modules/@synapse-ai/cli/dist/hooks/send_event.cjs\"",
+             "async": true
+           }
+         ]
+@@ -86,7 +86,7 @@
+         "hooks": [
+           {
+             "type": "command",
+-            "command": "node \"C:/Workspace/Coding/Prototypes/Synapse/packages/cli/dist/hooks/send_event.cjs\"",
++            "command": "node \"C:/Users/Bernhard/AppData/Roaming/npm/node_modules/@synapse-ai/cli/dist/hooks/send_event.cjs\"",
+             "async": true
+           }
+         ]
+@@ -97,7 +97,7 @@
+         "hooks": [
+           {
+             "type": "command",
+-            "command": "node \"C:/Workspace/Coding/Prototypes/Synapse/packages/cli/dist/hooks/send_event.cjs\"",
++            "command": "node \"C:/Users/Bernhard/AppData/Roaming/npm/node_modules/@synapse-ai/cli/dist/hooks/send_event.cjs\"",
+             "async": true
+           }
+         ]
+@@ -108,7 +108,7 @@
+         "hooks": [
+           {
+             "type": "command",
+-            "command": "node \"C:/Workspace/Coding/Prototypes/Synapse/packages/cli/dist/hooks/send_event.cjs\"",
++            "command": "node \"C:/Users/Bernhard/AppData/Roaming/npm/node_modules/@synapse-ai/cli/dist/hooks/send_event.cjs\"",
+             "async": true
+           }
+         ]
+@@ -119,7 +119,7 @@
+         "hooks": [
+           {
+             "type": "command",
+-            "command": "node \"C:/Workspace/Coding/Prototypes/Synapse/packages/cli/dist/hooks/send_event.cjs\"",
++            "command": "node \"C:/Users/Bernhard/AppData/Roaming/npm/node_modules/@synapse-ai/cli/dist/hooks/send_event.cjs\"",
+             "async": true
+           },
+           {
+@@ -135,7 +135,7 @@
+         "hooks": [
+           {
+             "type": "command",
+-            "command": "node \"C:/Workspace/Coding/Prototypes/Synapse/packages/cli/dist/hooks/send_event.cjs\"",
++            "command": "node \"C:/Users/Bernhard/AppData/Roaming/npm/node_modules/@synapse-ai/cli/dist/hooks/send_event.cjs\"",
+             "async": true
+           }
+         ]
+@@ -146,7 +146,7 @@
+         "hooks": [
+           {
+             "type": "command",
+-            "command": "node \"C:/Workspace/Coding/Prototypes/Synapse/packages/cli/dist/hooks/send_event.cjs\"",
++            "command": "node \"C:/Users/Bernhard/AppData/Roaming/npm/node_modules/@synapse-ai/cli/dist/hooks/send_event.cjs\"",
+             "async": true
+           }
+         ]
+diff --git a/README.md b/README.md
+index 669d9ed..11b885b 100644
+--- a/README.md
++++ b/README.md
+@@ -1,515 +1,101 @@
+-<p align="center">
+-  <br />
+-  <code>&nbsp;S Y N A P S E&nbsp;</code>
+-  <br />
+-  <strong>Real-time agent observability for Claude Code</strong>
+-  <br />
+-  <em>Because your AI is doing a lot of things. You should probably see what.</em>
+-  <br />
+-  <br />
+-  <a href="#the-graph">The Graph</a> &bull;
+-  <a href="#six-lenses">Six Lenses</a> &bull;
+-  <a href="#prompt-lab">Prompt Lab</a> &bull;
+-  <a href="#8--mobile--remote-approval">Mobile</a> &bull;
+-  <a href="#getting-started">Getting Started</a>
+-  <br />
+-  <br />
+-</p>
+-
+-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+-[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/Soarcer.synapse-vscode)](https://marketplace.visualstudio.com/items?itemName=Soarcer.synapse-vscode)
+-[![Tests](https://img.shields.io/badge/tests-825_passing-brightgreen)](.)
++# Synapse
+ 
+----
+-
+-## What Is This?
+-
+-Claude Code spawns subagents. Those subagents call tools. Those tools spawn _more_ agents — and the whole tree of computation happens behind a blinking cursor in your terminal. I wanted to see what was actually going on in there.
+-
+-So I built Synapse. It started as a weekend hack to visualize hook events and turned into... this.
+-
+-**Synapse is a real-time visual dashboard** that renders your entire Claude Code session as an interactive node graph. Every agent spawn, every tool call, every token — captured, visualized, and explorable. It runs as a **VS Code extension** with an embedded server, as a **standalone CLI** (`pnpm dev`) for console-only workflows, or as a **mobile PWA** you can pin to your phone and approve permissions from while making coffee. All three modes connect to the same backend — use whichever fits how you work.
+-
+-<!-- 📸 HERO SCREENSHOT: Full dashboard showing a complex agent tree with animated edges, lens panel open on the left, detail panel on the right -->
+-<!-- ![Synapse dashboard](docs/assets/hero-screenshot.png) -->
+-
+-> **Status:** Prototype with opinions. 825 tests. 10 completed development phases. Some edges are load-bearing. I'm proud of it anyway.
++**See what your AI agents are actually doing.**
+ 
+ ---
+ 
+-## 11 Things That Might Be Interesting
+-
+-I'm not sure which of these are genuinely novel and which are "obvious in retrospect," but here's what I think is worth looking at:
+-
+-### 1. 🔴 Live Node Graph with Animated Data Flow
+-
+-The core visualization — and the first thing you see. Sessions, agents, subagents, and tool calls rendered as connected nodes with animated smooth-step edges showing data flowing through the agent tree. New nodes animate into position as agents spawn. Color-coded by status — green running, red error, purple task agent, orange context compaction. Custom tree layout algorithm (we replaced dagre — long story) that handles arbitrarily deep hierarchies without overlapping.
+-
+-<!-- 📸 GIF: Agent tree expanding in real-time as Claude works — nodes appearing, edges animating, status colors changing -->
+-<!-- ![Live graph animation](docs/assets/graph-animation.gif) -->
+-
+-### 2. 🎯 Deep Node Drill-Down
+-
+-Click any node in the graph. The detail panel shows everything: streaming text output, full tool call history with inputs and outputs, token counts, elapsed time, cost estimate, agent hierarchy path, and status timeline. For tool groups, expand to see individual calls with duration bars. For sessions, see the full prompt history with complexity scoring.
+-
+-<!-- 📸 GIF: Clicking a node, detail panel sliding open, expanding tool history, drilling into a specific tool call -->
+-<!-- ![Node drill-down](docs/assets/node-drilldown.gif) -->
+-
+-### 3. 🔍 Six Bidirectionally-Linked Lens Views
+-
+-Same data. Six perspectives. Click a node in any lens, it highlights in the graph. Click a node in the graph, it highlights in every lens. All derived from the same tree structure — one source of truth.
+-
+-| Lens           | What It Shows                                                                                                                     |
+-| -------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+-| **Tree**       | Hierarchical explorer. Sessions → Prompts → Agents → Tools. Consecutive identical calls auto-grouped (`Read x14`).                |
+-| **Heatmap**    | Activity density. Tools on Y-axis, time on X-axis, color intensity = call count or token usage.                                   |
+-| **Treemap**    | Proportional resource usage. Rectangle area = tokens, duration, or count. Drill into any agent.                                   |
+-| **Sankey**     | Flow diagram. Four layers showing how resources flow through the agent tree. Prettiest lens. Least functional. We keep it anyway. |
+-| **Compaction** | Context window forensics. Sawtooth sparkline showing when Claude forgot what you said, and why.                                   |
+-| **Cost**       | Per-turn USD waterfall. Input, output, cache tokens, model used, latency, running total.                                          |
+-
+-<!-- 📸 SCREENSHOT GRID: 2x3 grid showing all six lens views with the same session data -->
+-<!-- ![Six lens views](docs/assets/lens-grid.png) -->
+-
+-### 4. 🧩 Tool Call Grouping (Three Visualization Modes)
+-
+-An agent that calls 47 tools used to produce 47 nodes. Now they're grouped into composite nodes with three display modes:
+-
+-| Mode          | Shows                                                                            |
+-| ------------- | -------------------------------------------------------------------------------- |
+-| **Pill Grid** | Color-coded pills — tool name, count badge, status dot. Compact overview.        |
+-| **Timeline**  | Chronological swimlanes — which tools ran when, how long each took.              |
+-| **Heatmap**   | Density grid — color intensity = call frequency. Spot the hot tools at a glance. |
+-
+-Toggle between collapsed chips and expanded detail with **F**. The underlying data stays the same — individual tools in the store, composite nodes rendered at display time. (And if you happen to try a few classic input sequences while hovering over a tool group... well, we can neither confirm nor deny.)
+-
+-<!-- 📸 GIF: Toggling between the three tool group modes on the same node -->
+-<!-- ![Tool group modes](docs/assets/tool-groups.gif) -->
+-
+-### 5. ✍️ Prompt Lab — Save Tokens, Save Money
+-
+-Press **W** to open the Prompt Lab. Write a draft prompt, pick a model (Haiku/Sonnet/Opus), choose analysis mode (Developer for technical feedback, Vibe for casual coaching), and get real-time scoring with rewrite suggestions. When you're happy with it, relay the improved prompt directly to your Claude Code terminal.
+-
+-The idea is simple: a better prompt means fewer wasted tokens, fewer confused agent loops, and less money burned on round-trips that could've been one shot. Draft it, refine it, send it — without context-switching out of the dashboard.
+-
+-> **Note:** AI-powered prompt analysis requires an Anthropic API key configured in settings. We're investigating whether the Prompt Lab can piggyback on an existing Claude Max/Pro subscription instead — stay tuned.
+-
+-<!-- 📸 SCREENSHOT: Prompt Lab modal with a scored prompt, rewrite suggestion, and "Send to Terminal" button -->
+-<!-- ![Prompt Lab](docs/assets/prompt-lab.png) -->
+-
+-### 6. 🔬 Compaction Forensics
+-
+-Ever had Claude forget something you told it 10 minutes ago? The Compaction lens shows exactly when the context window hit its limit, with a sparkline of cumulative input tokens over time. Red dashed lines mark compaction events. The sawtooth pattern is your forensic evidence. Per-turn breakdown table shows which prompt triggered each compaction and what it cost.
+-
+-<!-- 📸 SCREENSHOT: Compaction lens showing sawtooth pattern with compaction markers -->
+-<!-- ![Compaction forensics](docs/assets/compaction-lens.png) -->
+-
+-### 7. 💰 Cost Tracking Per Turn
+-
+-Every turn gets a cost estimate broken down by input, output, cache read, and cache creation tokens. Cumulative waterfall so you know whether that "simple refactor" cost $0.03 or $3.00. Model badges show which Claude model handled each turn. The Cost lens is your "am I spending what I think I'm spending" view.
+-
+-<!-- 📸 SCREENSHOT: Cost lens showing per-turn waterfall with model badges and running total -->
+-<!-- ![Cost tracking](docs/assets/cost-lens.png) -->
+-
+-### 8. 📲 Mobile + Remote Approval
+-
+-The dashboard is a full Progressive Web App — pin it to your home screen and it works like a native app. Auto-detects phones and switches to a mobile-optimized layout with 13 purpose-built components: bottom tab bar, swipe-up detail sheets, pinch-zoom graph, session selector.
+-
+-But the real reason for mobile: **remote approval**. Start a big job on your laptop, walk away, and your phone buzzes when Claude is blocked on a permission. Swipe to approve. Job continues. You never opened your laptop. Claude Code's HTTP hooks hold the response open until you tap Approve or Deny from any device. Cards stack with countdown timers, and you can swipe-cycle through multiple pending requests.
++Claude Code does a lot of things behind a blinking cursor. Synapse renders all of it — sessions, agents, subagents, tool calls — as a live, interactive node graph. Because understanding is its own reward.
+ 
+-And you don't even need the dashboard open — Synapse registers a Service Worker and sends **native push notifications** when Claude is blocked. On Android you get Approve/Deny action buttons right in the notification. On iOS you tap to open. Works with the app completely closed.
++*For developers running Claude Code who want to see what's happening under the hood.*
+ 
+-> **Heads up:** Remote approval requires `--lan` mode, which opens unauthenticated HTTP endpoints on your local network. This is great on your home Wi-Fi. This is less great at a coffee shop. See [Security Model](#security-model) for what's exposed and how to lock it down.
++![Synapse dashboard](docs/site/images/desktop_nodegraph_lens.png)
+ 
+-<!-- 📸 GIF: Phone showing permission card with countdown, user tapping Approve, then showing the graph resuming -->
+-<!-- ![Mobile + remote approval](docs/assets/remote-approval.gif) -->
+-
+-### 9. 🔌 Multi-Vendor Support (In Progress)
+-
+-The adapter architecture is built and Claude Code is fully working. Gemini CLI and Codex CLI adapters are in progress — the plumbing is there (adapter interface, registry, vendor detection, session namespacing) but they haven't been battle-tested yet. The goal: monitor any AI coding agent from one dashboard, regardless of vendor.
+-
+-### 10. 🎓 Guided Tour
+-
+-First-time visitors get an interactive onboarding walkthrough — spotlight highlights, narration cards, step-by-step through the graph, lenses, panels, and settings. Six chapters, 18+ steps.
+-
+-### 11. 🖥️ Two Ways to Run It
+-
+-Synapse works as a **VS Code extension** or as a **standalone CLI** — and they complement each other.
+-
+-**VS Code extension:** The full stack — server, dashboard, hook scripts, SQLite — bundles into a `.vsix` with zero native dependencies. Auto-starts when you open a Claude project, auto-stops when VS Code closes. Split layout (lens sidebar + graph editor) or single panel. Works identically in Cursor.
+-
+-**CLI:** `synapse start` boots the server, auto-configures your hooks, and opens the dashboard in your browser. Background daemon mode (`--bg`) keeps it running across terminal sessions. `synapse stop` shuts it down. Good for Claude Code console users, multi-monitor setups, or when you want the graph on a separate screen.
+-
+-Both modes connect to the same backend. Use the extension for integrated development, the CLI for flexibility, or both at once.
+-
+-<!-- 📸 SCREENSHOT: VS Code with Synapse split layout — lens sidebar on left, graph in editor panel -->
+-<!-- ![VS Code extension](docs/assets/vscode-extension.png) -->
+-
+----
+-
+-## How It Works
++## Install
+ 
+ ```
+-┌─────────────────────────────────────────────────────────┐
+-│                  FRONTEND (React + Vite)                 │
+-│                                                         │
+-│   ┌──────────────┐  ┌──────────┐  ┌─────────────────┐  │
+-│   │  React Flow   │  │  Detail   │  │  Tool Log       │  │
+-│   │  Node Graph   │  │  Panels   │  │  Timeline       │  │
+-│   └──────┬───────┘  └────┬─────┘  └────────┬────────┘  │
+-│          └────────────────┴─────────────────┘           │
+-│                          │ WebSocket                     │
+-└──────────────────────────┼──────────────────────────────┘
+-                           │
+-┌──────────────────────────┼──────────────────────────────┐
+-│                  BACKEND (Express + SQLite)               │
+-│                                                          │
+-│   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
+-│   │ Hook Receiver │  │ Permission   │  │  WebSocket   │  │
+-│   │ POST /events  │  │ Server :27247│  │  Broadcaster │  │
+-│   └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  │
+-│          └──────────────────┴─────────────────┘          │
+-│                     Event Store (sql.js)                  │
+-└──────────────────────────────────────────────────────────┘
+-         ▲                    ▲               │
+-         │ HTTP POST          │ HTTP Hook     │ Agent SDK
+-         │                    │ (waits)       ▼
+-┌────────┴───────────┐  ┌────┴──────────┐  ┌──────────────┐
+-│  Claude Code Hooks  │  │  Permission   │  │  Spawned     │
+-│  (your sessions)    │  │  Requests     │  │  Agents      │
+-└────────────────────┘  └───────────────┘  └──────────────┘
+-```
+-
+-**The short version:**
+-
+-1. You run Claude Code like normal. Hook scripts silently capture events and POST them to Synapse.
+-2. The backend normalizes, stores (SQLite), and broadcasts over WebSocket.
+-3. The frontend renders everything as an interactive node graph in real-time.
+-4. When Claude needs permission, a separate HTTP hook holds the request open until you approve from any device.
+-
+----
+-
+-## Features At a Glance
+-
+-### The Graph
+-
+-- **Interactive node graph** — Sessions, agents, subagents, tool calls as connected nodes with animated edges
+-- **Custom tree layout** — Purpose-built algorithm that handles arbitrarily deep hierarchies without overlap
+-- **Color-coded status** — Green = running, gray = done, red = error, purple = task agent, orange = compaction
+-- **Auto-expanding** — New nodes animate into position as agents spawn
+-- **Streaming preview** — Live agent output shown on node hover
+-
+-### Remote Approval + Mobile
+-
+-- **Permission cards** — Draggable card stack with countdown timers and swipe cycling
+-- **Multi-question forms** — AskUserQuestion cards with tab bar, multi-select, and answer tracking
+-- **Deny with message** — Add context when denying so Claude knows why
+-- **Web Push** — Native phone notifications even with the app closed
+-- **Progressive Web App** — Pin to home screen, 13 mobile-optimized components, QR code setup
+-
+-### Observability
+-
+-- **Real-time streaming** — WebSocket, not polling. Events appear as they happen.
+-- **Full event history** — Everything persisted to SQLite. Filter by session, agent, type.
+-- **Token tracking** — Input/output/cache tokens per agent, per session, per turn
+-- **Tool call timeline** — Chronological log with duration, status, input/output inspection
+-- **Session snapshots** — Export/import full graph state as JSON. Share with your team.
+-
+-### Analytics (Work in Progress)
+-
+-| Tab          | What It Does                                                                        |
+-| ------------ | ----------------------------------------------------------------------------------- |
+-| **Prompts**  | Complexity scoring, cost scatter plots, AI-powered scoring with rewrite suggestions |
+-| **Insights** | Usage patterns, tool distribution, session trends. More tabs coming.                |
+-
+-### Control
+-
+-- **Spawn agents** — Pick model, tools, permissions, write a prompt, watch it work live
+-- **Send messages** — Interactive conversation with spawned agents
+-- **Stop agents** — Kill any agent from the graph or detail panel
+-- **Pause/resume** — Freeze the stream without losing events
+-
+----
+-
+-## Keyboard Shortcuts
+-
+-| Key        | Action                    | Key     | Action                |
+-| ---------- | ------------------------- | ------- | --------------------- |
+-| **Space**  | Pause/resume live updates | **/**   | Focus graph search    |
+-| **T**      | Toggle tool log panel     | **L**   | Toggle lens panel     |
+-| **N**      | Open spawn agent dialog   | **1–6** | Switch lens tab       |
+-| **W**      | Open Prompt Lab           | **E**   | Export snapshot       |
+-| **V**      | Lock viewport             | **I**   | Import snapshot       |
+-| **F**      | Toggle tool expansion     | **A**   | Toggle notifications  |
+-| **H**      | Toggle hook events        | **C**   | Auto-collapse prompts |
+-| **Escape** | Close panels and dialogs  |         |                       |
+-
+----
+-
+-## Getting Started
+-
+-### Install
+-
+-```bash
+ npm install -g @synapse-ai/cli
+ ```
+ 
+-### Quick Start
+-
+-```bash
+-cd ~/your-project
+-synapse start
+-```
+-
+-That's it. Synapse starts the server, configures Claude Code hooks for the current project, and opens the dashboard in your browser. Every Claude Code session now streams events to the graph.
+-
+-```bash
+-synapse start -d              # background daemon (recommended)
+-synapse start --observe-only  # monitor only — no permission interception
+-synapse start --lan           # LAN-accessible (required for mobile/remote approval)
+-synapse stop                  # shut it down
+-synapse status                # check what's running
+ ```
+-
+-Requires Node.js 20+. Don't want to install globally? `npx @synapse-ai/cli start` works too.
+-
+-By default, the server binds to **localhost only**. Nothing leaves your machine unless you pass `--lan`. See [Security Model](#security-model).
+-
+-### Multi-Project Setup
+-
+-The server is global — start it once, then hook multiple projects:
+-
+-```bash
+-synapse start -d                           # start once
+-cd ~/project-a && synapse hook             # hook project A
+-cd ~/project-b && synapse hook             # hook project B
+-synapse open                               # dashboard shows all projects
+-```
+-
+-### From Source
+-
+-```bash
+-git clone https://github.com/Soarcer/synapse.git
+-cd synapse
+-pnpm install
+-pnpm dev  # starts backend (port 27246) + frontend (port 5173)
+-```
+-
+-Open **http://localhost:5173**. Requires Node.js >= 20 and pnpm >= 9.
+-
+-### Try It Without Claude
+-
+-```bash
+-# Basic simulation — 8 events (session, agents, tools)
+-npx tsx scripts/simulate_session.ts
+-
+-# Full demo — 31 events covering every node type
+-npx tsx scripts/simulate_all_nodes.ts
++synapse start
+ ```
+ 
+----
++Server starts. Hooks configured. Browser opens. Done.
+ 
+-## Tech Stack
++Requires [Node.js 20+](https://nodejs.org).
+ 
+-| Layer         | Technology                                                     |
+-| ------------- | -------------------------------------------------------------- |
+-| **Frontend**  | React 19, React Flow v12, Zustand 5, Tailwind CSS 4, Vite 6    |
+-| **Backend**   | Express 5, WebSocket (ws 8), sql.js (pure JS SQLite), Node 20+ |
+-| **Agent SDK** | @anthropic-ai/claude-agent-sdk                                 |
+-| **Language**  | TypeScript 5.7 throughout                                      |
+-| **Testing**   | Vitest 4 — 825 tests                                           |
+-| **Monorepo**  | pnpm workspaces (@synapse-ai/\*)                               |
+-| **Linting**   | ESLint 9, Prettier 3, Husky + lint-staged                      |
++## Features
+ 
+----
++**Live Node Graph** — Sessions, agents, subagents, and tool calls as connected nodes with animated edges. Color-coded by status. Auto-expanding as agents spawn. Custom layout algorithm that handles arbitrarily deep trees without overlapping.
+ 
+-## Project Structure
++**Four Analysis Lenses** — Same data, four perspectives. Tree view, treemap, sankey flow, and compaction timeline. Click a node in any lens — it highlights in the graph. Click a node in the graph — it highlights in every lens. The Sankey is all form, the Treemap is all function.
+ 
+-```
+-Synapse/
+-├── packages/
+-│   ├── core/             # @synapse-ai/core — types, Zod schemas, format utils
+-│   └── server/           # @synapse-ai/server — Express + sql.js + WebSocket
+-├── apps/
+-│   ├── dashboard/        # React 19 + React Flow v12 frontend
+-│   └── vscode/           # VS Code extension (embedded dashboard)
+-├── hooks/                # Claude Code hook scripts (zero dependencies)
+-├── scripts/              # Build, simulation, and utility scripts
+-└── docs/                 # Architecture, plans, and specs
+-```
++**Tool Call Grouping** — 47 tool calls don't produce 47 nodes. They're grouped into composites with three display modes: pill grid, timeline swimlanes, and density heatmap.
+ 
+----
+-
+-## API
++**Remote Approval** — Start a job, walk away, approve permissions from your phone. Claude Code's HTTP hooks hold the request open until you tap Approve or Deny. Yes, others do this too. Now you have options. Requires `--lan` mode. Your home Wi-Fi, not the coffee shop.
+ 
+-### Events
++**Keyboard Navigation** — Arrow keys to walk the graph. Up/down the spine, left/right between siblings. Bracket keys for logical next/prev. Navigate a 200-node tree without touching the mouse.
+ 
+-```
+-POST /api/events                    # Receive hook events
+-GET  /api/events?sessionId=X&limit=100  # Query history
+-```
++**Node Inspector** — Click any node for full metadata: tool arguments, response payloads, token counts, timing, parent chain. Everything the graph summarizes, the inspector shows in full.
+ 
+-### Agents
++## Screenshots
+ 
+-```
+-GET    /api/agents                  # List active agents
+-POST   /api/agents/spawn            # Spawn new agent
+-POST   /api/agents/:id/message      # Send message
+-DELETE /api/agents/:id              # Stop agent
+-GET    /api/agents/:id/transcript   # Get transcript
+-```
++| | |
++|---|---|
++| ![Agent graph](docs/site/images/desktop_nodegraph_lens_selected.png) | ![Node inspector](docs/site/images/desktop_nodeinspector.png) |
++| Agent tree with lens cross-highlighting | Node inspector — full metadata at a click |
++| ![Pill grid](docs/site/images/dektop__tools_pillgrid.png) | ![Timeline](docs/site/images/desktop_tools_timeline.png) |
++| Tool grouping — pill grid | Tool grouping — timeline |
++| ![Frequency matrix](docs/site/images/desktop_tools_heatmap.png) | ![Remote approval](docs/site/images/desktop_remote-options.png) |
++| Tool grouping — frequency matrix | Remote approval with deny + message |
+ 
+-### Permissions
++## Works on Mobile
+ 
+-```
+-GET  /api/permissions               # List pending permissions
+-GET  /api/permissions/:id           # Get full permission detail
+-POST /api/permissions/:id/respond   # Approve or deny
+-```
++The full dashboard, responsive down to mobile. Approve permissions from the couch, check agent progress from the kitchen, watch the graph grow from anywhere on your network.
+ 
+-### Analytics
++| | | | |
++|---|---|---|---|
++| ![Mobile graph](docs/site/images/mobile_nodegraph.PNG) | ![Mobile approval](docs/site/images/mobile_approval.PNG) | ![Mobile sankey](docs/site/images/mobile_lens_sankey.PNG) | ![Mobile treemap](docs/site/images/mobile_lens_treemap.PNG) |
++| Live graph | Remote approval | Sankey lens | Treemap lens |
+ 
+-```
+-GET /api/analytics/overview         # KPI summary
+-GET /api/analytics/sessions         # Session breakdown
+-GET /api/analytics/tools            # Tool usage stats
+-GET /api/analytics/models           # Model comparison
+-GET /api/analytics/turns            # Per-turn detail
+-GET /api/analytics/velocity         # Tokens/min, cost/min
+-GET /api/analytics/budget           # Budget tracking
+-```
++## One More Thing
+ 
+-### WebSocket
++Not every feature needs a business case. Data can be fun too.
+ 
+-```
+-WS /ws                              # Real-time event stream
+-```
++![Arcade modes](docs/site/images/desktop_tools_arcade.png)
++*Game of Life - Snake - Breakout*
+ 
+----
++## Feature walkthrough video
+ 
+-## Configuration
+-
+-| Variable             | Default   | Description                                      |
+-| -------------------- | --------- | ------------------------------------------------ |
+-| `SYNAPSE_PORT`       | `27246`   | Main server port (hook port = +1, fallback = +2) |
+-| `SYNAPSE_MAX_EVENTS` | unlimited | Cap stored events                                |
+-
+-Or use CLI flags: `synapse start --port 9000 --lan --observe-only`. Run `synapse help` for the full list.
+-
+----
++[![Watch on YouTube](https://img.youtube.com/vi/j4WqJHcVUc4/maxresdefault.jpg)](https://www.youtube.com/watch?v=j4WqJHcVUc4)
+ 
+ ## Security Model
+ 
+-Let's be honest about what this opens on your machine.
+-
+-### The Default: Localhost Only
+-
+-Out of the box, `synapse start` binds to `127.0.0.1`. Nothing is reachable from other devices. Your events, your permissions, your dashboard — all local. Boring, but safe.
+-
+-### LAN Mode: `--lan`
+-
+-Pass `--lan` and the server binds to `0.0.0.0`, making it reachable from your local network. This is what enables mobile remote approval — your phone on the same Wi-Fi can see and respond to permission requests.
+-
+-**What's exposed in LAN mode:**
+-
+-| Endpoint                            | Auth | What it does                        |
+-| ----------------------------------- | ---- | ----------------------------------- |
+-| `GET /api/events`                   | None | View event history                  |
+-| `GET /api/permissions/pending`      | None | See pending permission requests     |
+-| `PUT /api/permissions/:id/decision` | None | Approve or deny a pending tool call |
+-| `WS /ws`                            | None | Real-time event stream              |
+-
+-Yes, that means anyone on your network can approve or deny Claude's tool calls. There is no authentication on permission endpoints — Claude Code hooks can't send Bearer tokens, and requiring phone users to configure auth tokens would defeat the purpose of "approve from your phone while making coffee."
+-
+-**This is fine on your home network.** This is less fine at a coffee shop, coworking space, or hotel Wi-Fi. If you're on an untrusted network, don't use `--lan`. That's it. That's the security model.
+-
+-### Hardening Options
+-
+-If the above made you twitch, here are your options:
+-
+-| Approach              | Command                        | Trade-off                                                                                          |
+-| --------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------- |
+-| **Don't use `--lan`** | `synapse start`                | No mobile approval, but fully isolated                                                             |
+-| **Observe only**      | `synapse start --observe-only` | No permission interception at all — pure read-only monitoring. The hook server doesn't even start. |
+-| **Firewall rules**    | OS-level                       | Allow only your phone's IP to reach port 27246                                                     |
+-| **VPN/Tailscale**     | Network-level                  | Treat your phone as "local" without exposing to the LAN                                            |
+-
+-### What We Don't Do
+-
+-- **No auth tokens on permission endpoints.** See above for why.
+-- **No TLS by default.** Your LAN traffic is plaintext. If someone is sniffing packets on your home network, you have bigger problems — but it's worth knowing.
+-- **No rate limiting on approvals.** The hook POST endpoint is rate-limited (60/min), but the decision endpoint is not. If someone is spamming your approval endpoint, again, you have bigger problems.
+-
+-### The `--observe-only` Escape Hatch
++By default, Synapse binds to `localhost`. Nothing leaves your machine.
+ 
+-If you just want to watch the pretty graph and don't need remote approval, `--observe-only` is your friend. It skips the `PermissionRequest` hook entirely — Claude Code is never blocked, the hook server doesn't bind, and the only network surface is the dashboard and event stream. All the visualization, none of the attack surface.
++**`--lan` mode** — Enables remote approval from your phone. This opens unauthenticated HTTP and WebSocket endpoints on your local network. Intended for your home Wi-Fi, not the coffee shop. Anyone on the same network can view the dashboard and approve/deny permission requests.
+ 
+-```bash
+-synapse start --observe-only    # just the graph, no permission interception
+-synapse hook --observe-only     # re-hook a project without approval
+-```
+-
+----
+-
+-## Known Limitations
+-
+-Let's continue being honest:
+-
+-- **WebSocket reconnect is loyal** — If the server goes down, the client will try to reconnect. Forever. With exponential backoff. But also forever.
+-- **Memory at scale** — Long sessions with thousands of events accumulate in the Zustand store. If your agent tree looks like a fractal, refresh.
+-- **Windows-first** — Built on Windows, start scripts are PowerShell. `pnpm dev` works everywhere though.
+-
+----
+-
+-## Roadmap
+-
+-What's done and what's next:
+-
+-| Phase                | Status | Description                                         |
+-| -------------------- | ------ | --------------------------------------------------- |
+-| Hardening            | ✅     | Error boundaries, rate limiting, agent limits       |
+-| Developer Experience | ✅     | ESLint, Prettier, Vitest, Husky, CI/CD              |
+-| Monorepo             | ✅     | 5 packages, pnpm workspaces, @synapse-ai/\*         |
+-| Performance + UX     | ✅     | Async I/O, react-virtuoso, URL deep linking         |
+-| Mobile Responsive    | ✅     | 13 components, auto-detect, pinch zoom              |
+-| Notifications        | ✅     | Toast tray, push subscriptions, Service Worker      |
+-| Guided Tour          | ✅     | Auto-play demo + spotlight walkthrough              |
+-| VS Code Extension    | ✅     | v0.9.0 — 11 commands, split layout, embedded server |
+-| Analytics + Cost     | 🔄     | Prompts + Insights tabs. More coming                |
+-| Multi-Vendor         | 🔄     | Claude working. Gemini + Codex adapters in progress |
+-| Remote Approval      | ✅     | HTTP hooks, permission cards, web push              |
+-| Standalone CLI       | ⬜     | `npx synapse` — zero-config, daemon mode            |
++**`--observe-only` mode** — Pure read-only monitoring. The approval relay is disabled entirely — zero security surface. Use this if you want visibility without any write capability.
+ 
+----
+-
+-## Contributing
+-
+-Contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and code style.
+-
+----
++If you don't pass either flag, everything stays on localhost. No remote access, no network exposure, no attack surface.
+ 
+-## The Story
++## Source Code
+ 
+-I built this because I was curious. Claude Code does a _lot_ of things when you're not looking — spawning subagents, calling tools, reading files, making decisions — and all you see is a blinking cursor. I wanted to see the machine think.
++Coming soon. I didn't want to delay the release again.
+ 
+-It started as a script that logged hook events to a terminal. Then I added a web UI. Then a node graph. Then I wanted to see the graph on my phone. Then I wanted to approve permissions from my phone. Then I wanted coaching on my prompts. Then I added arcade games because why not.
++## Links
+ 
+-Ten development phases later, here we are. It's a prototype. It has rough edges. Some of those edges turned out to be features. I've been using it every day while building it — which means it's been tested in production — where "production" is defined as "my laptop at 2 AM."
+-
+-If you're the kind of person who reads this far in a README, you're probably also the kind of person who wants to understand the machine. Not because you don't trust it, but because understanding is its own reward.
+-
+-Also, it looks really cool. Let's not pretend that wasn't a factor.
+-
+----
++- [Website](https://usesynapse.dev)
++- [npm](https://www.npmjs.com/package/@synapse-ai/cli)
++- [YouTube](https://www.youtube.com/watch?v=j4WqJHcVUc4)
++- [Contact](mailto:bernhard@usesynapse.dev)
+ 
+ ## License
+ 
+-MIT — see [LICENSE](./LICENSE)
++[MIT](LICENSE)
+ 
+ ---
+ 
+-<p align="center">
+-  <sub>Built with curiosity, caffeine, and a mass amount of Claude.</sub>
+-  <br />
+-  <sub>If you're reading this, an AI agent might be watching you read this. <em>Check the graph.</em></sub>
+-</p>
++Built with Claude.
++The ideas were mine. The 38,000 lines of code were not.
++Thanks to Anthropic for turning "what if" into "what is."
+diff --git a/docs/site/index.html b/docs/site/index.html
+index 0a8d4d2..12a5f97 100644
+--- a/docs/site/index.html
++++ b/docs/site/index.html
+@@ -8,8 +8,9 @@
+ <meta property="og:title" content="Synapse — Real-time Agent Observability">
+ <meta property="og:description" content="See what your AI agents are actually doing. Interactive node graph, cost tracking, remote approval from your phone.">
+ <meta property="og:type" content="website">
+-<meta property="og:url" content="https://soarcer.github.io/synapse">
+-<!-- <meta property="og:image" content="https://soarcer.github.io/synapse/assets/og-image.png"> -->
++<meta property="og:url" content="https://usesynapse.dev">
++<meta property="og:image" content="https://usesynapse.dev/images/og-image.png">
++<link rel="icon" type="image/svg+xml" href="favicon.svg">
+ <link rel="preconnect" href="https://fonts.googleapis.com">
+ <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+ <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+@@ -46,17 +47,6 @@
+     overflow-x: hidden;
+   }
+ 
+-  /* ── Grain overlay ──────────────────────────────────── */
+-  body::before {
+-    content: '';
+-    position: fixed;
+-    inset: 0;
+-    opacity: 0.03;
+-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+-    pointer-events: none;
+-    z-index: 9999;
+-  }
+-
+   /* ── Glow effects ───────────────────────────────────── */
+   .glow-blue {
+     position: absolute;
+@@ -295,78 +285,8 @@
+     position: relative;
+   }
+ 
+-  .hero-screenshot .placeholder {
+-    width: 100%;
+-    aspect-ratio: 16 / 9;
+-    background: var(--bg-card);
+-    border: 1px solid var(--border);
+-    border-radius: 12px;
+-    display: flex;
+-    align-items: center;
+-    justify-content: center;
+-    color: var(--text-muted);
+-    font-size: 14px;
+-    font-family: 'Space Mono', monospace;
+-    position: relative;
+-    overflow: hidden;
+-  }
+-
+-  .hero-screenshot .placeholder::before {
+-    content: '';
+-    position: absolute;
+-    inset: 0;
+-    background: linear-gradient(135deg, rgba(88, 166, 255, 0.03) 0%, transparent 50%, rgba(63, 185, 80, 0.03) 100%);
+-  }
+-
+-  /* Simulated graph nodes in placeholder */
+-  .fake-node {
+-    position: absolute;
+-    background: var(--bg-primary);
+-    border: 1px solid var(--border);
+-    border-radius: 8px;
+-    padding: 8px 14px;
+-    font-size: 11px;
+-    color: var(--text-secondary);
+-    display: flex;
+-    align-items: center;
+-    gap: 6px;
+-    animation: floatNode 6s ease-in-out infinite;
+-  }
+-
+-  .fake-node .status {
+-    width: 6px;
+-    height: 6px;
+-    border-radius: 50%;
+-  }
+-
+-  .fake-node:nth-child(2) { top: 25%; left: 35%; animation-delay: 0s; }
+-  .fake-node:nth-child(3) { top: 40%; left: 55%; animation-delay: 1s; }
+-  .fake-node:nth-child(4) { top: 55%; left: 40%; animation-delay: 2s; }
+-  .fake-node:nth-child(5) { top: 35%; left: 20%; animation-delay: 0.5s; }
+-  .fake-node:nth-child(6) { top: 60%; left: 65%; animation-delay: 1.5s; }
+-  .fake-node:nth-child(7) { top: 20%; left: 60%; animation-delay: 2.5s; }
+-
+-  @keyframes floatNode {
+-    0%, 100% { transform: translateY(0); opacity: 0.6; }
+-    50% { transform: translateY(-4px); opacity: 1; }
+-  }
+-
+-  /* Simulated edges */
+-  .fake-edge {
+-    position: absolute;
+-    height: 1px;
+-    background: linear-gradient(90deg, transparent, var(--border-bright), transparent);
+-    transform-origin: left center;
+-    animation: edgePulse 3s ease-in-out infinite;
+-  }
+-
+-  .fake-edge:nth-child(8) { top: 33%; left: 30%; width: 20%; transform: rotate(15deg); animation-delay: 0.2s; }
+-  .fake-edge:nth-child(9) { top: 48%; left: 45%; width: 15%; transform: rotate(-10deg); animation-delay: 0.7s; }
+-  .fake-edge:nth-child(10) { top: 38%; left: 50%; width: 18%; transform: rotate(20deg); animation-delay: 1.2s; }
+-
+-  @keyframes edgePulse {
+-    0%, 100% { opacity: 0.3; }
+-    50% { opacity: 0.8; }
++  .hero-screenshot img {
++    display: block;
+   }
+ 
+   /* ── Section layout ─────────────────────────────────── */
+@@ -398,7 +318,7 @@
+     font-size: 18px;
+     font-weight: 300;
+     color: var(--text-secondary);
+-    max-width: 640px;
++    max-width: 800px;
+     margin-bottom: 56px;
+   }
+ 
+@@ -438,17 +358,6 @@
+ 
+   .feature-card:hover::before { opacity: 1; }
+ 
+-  .feature-icon {
+-    width: 40px;
+-    height: 40px;
+-    border-radius: 10px;
+-    display: flex;
+-    align-items: center;
+-    justify-content: center;
+-    font-size: 18px;
+-    margin-bottom: 16px;
+-  }
+-
+   .feature-card h3 {
+     font-size: 17px;
+     font-weight: 600;
+@@ -469,103 +378,132 @@
+     margin-top: 10px;
+   }
+ 
+-  /* ── Icon backgrounds ───────────────────────────────── */
+-  .icon-blue { background: rgba(88, 166, 255, 0.12); color: var(--blue); }
+-  .icon-green { background: rgba(63, 185, 80, 0.12); color: var(--green); }
+-  .icon-orange { background: rgba(210, 153, 34, 0.12); color: var(--orange); }
+-  .icon-purple { background: rgba(188, 140, 255, 0.12); color: var(--purple); }
+-  .icon-red { background: rgba(248, 81, 73, 0.12); color: var(--red); }
+-  .icon-cyan { background: rgba(57, 210, 192, 0.12); color: var(--cyan); }
+-
+-  /* ── Screenshot section ─────────────────────────────── */
++  /* ── Screenshot grid (borderless) ────────────────────── */
+   .screenshot-grid {
+     display: grid;
+     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+-    gap: 16px;
++    gap: 24px;
+     margin-top: 48px;
+   }
+ 
+   .screenshot-item {
+     position: relative;
+-    border-radius: 10px;
+-    overflow: hidden;
+-    border: 1px solid var(--border);
+-    background: var(--bg-card);
++    cursor: pointer;
+   }
+ 
+-  .screenshot-item .placeholder-sm {
+-    aspect-ratio: 16 / 10;
+-    display: flex;
+-    align-items: center;
+-    justify-content: center;
+-    font-family: 'Space Mono', monospace;
+-    font-size: 12px;
+-    color: var(--text-muted);
+-    background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-primary) 100%);
++  .screenshot-item img {
++    display: block;
++    width: 100%;
++    border-radius: 8px;
++    transition: transform 0.2s, box-shadow 0.2s;
++  }
++
++  .screenshot-item:hover img {
++    transform: translateY(-3px);
++    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+   }
+ 
+   .screenshot-item .caption {
+-    padding: 12px 16px;
++    margin-top: 10px;
+     font-size: 13px;
+     font-weight: 500;
+-    color: var(--text-secondary);
+-    border-top: 1px solid var(--border);
++    color: var(--text-muted);
++    text-align: center;
+   }
+ 
+-  /* ── Video section ──────────────────────────────────── */
+-  .video-section {
+-    text-align: center;
++  /* ── Lightbox ──────────────────────────────────────── */
++  .lightbox {
++    display: none;
++    position: fixed;
++    inset: 0;
++    z-index: 1000;
++    background: rgba(1, 4, 9, 0.92);
++    backdrop-filter: blur(8px);
++    align-items: center;
++    justify-content: center;
++    cursor: zoom-out;
++    padding: 32px;
+   }
+ 
+-  .video-wrapper {
+-    max-width: 800px;
+-    margin: 0 auto;
+-    margin-top: 40px;
+-    border-radius: 12px;
+-    overflow: hidden;
+-    border: 1px solid var(--border);
+-    background: var(--bg-card);
++  .lightbox.active {
++    display: flex;
+   }
+ 
+-  .video-placeholder {
+-    aspect-ratio: 16 / 9;
++  .lightbox-content {
+     display: flex;
+     flex-direction: column;
+     align-items: center;
+-    justify-content: center;
+-    gap: 16px;
+-    background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-primary) 100%);
++    max-width: 90vw;
++    max-height: 90vh;
+   }
+ 
+-  .play-btn {
+-    width: 64px;
+-    height: 64px;
+-    border-radius: 50%;
+-    background: rgba(88, 166, 255, 0.15);
+-    border: 2px solid var(--blue);
++  .lightbox img {
++    max-width: 100%;
++    max-height: 80vh;
++    border-radius: 8px;
++    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
++    animation: lightboxIn 0.2s ease;
++    cursor: zoom-out;
++  }
++
++  .lightbox-content p {
++    margin-top: 16px;
++    font-size: 15px;
++    color: var(--text-secondary);
++    text-align: center;
++    max-width: 640px;
++    line-height: 1.6;
++    animation: lightboxIn 0.3s ease 0.1s both;
++  }
++
++  @keyframes lightboxIn {
++    from { opacity: 0; transform: scale(0.95); }
++    to { opacity: 1; transform: scale(1); }
++  }
++
++  /* ── Mobile showcase ────────────────────────────────── */
++  .mobile-showcase {
+     display: flex;
+-    align-items: center;
+     justify-content: center;
+-    cursor: pointer;
+-    transition: all 0.2s;
++    gap: 24px;
++    margin-top: 48px;
++    flex-wrap: wrap;
+   }
+ 
+-  .play-btn:hover {
+-    background: rgba(88, 166, 255, 0.25);
+-    transform: scale(1.05);
++  .mobile-frame {
++    width: 200px;
++    flex-shrink: 0;
++    text-align: center;
++    cursor: pointer;
+   }
+ 
+-  .play-btn svg {
+-    width: 24px;
+-    height: 24px;
+-    fill: var(--blue);
+-    margin-left: 3px;
++  .mobile-frame img {
++    width: 100%;
++    border-radius: 16px;
++    border: 1px solid var(--border);
++    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+   }
+ 
+-  .video-placeholder span {
++  .mobile-frame .caption {
++    margin-top: 12px;
+     font-size: 13px;
+-    color: var(--text-muted);
+-    font-family: 'Space Mono', monospace;
++    font-weight: 500;
++    color: var(--text-secondary);
++  }
++
++  /* ── Video section ──────────────────────────────────── */
++  .video-section {
++    text-align: center;
++  }
++
++  .video-wrapper {
++    max-width: 800px;
++    margin: 0 auto;
++    margin-top: 40px;
++    border-radius: 12px;
++    overflow: hidden;
++    border: 1px solid var(--border);
++    background: var(--bg-card);
+   }
+ 
+   /* ── How it works ───────────────────────────────────── */
+@@ -719,35 +657,36 @@
+   }
+ 
+   /* ── Responsive ─────────────────────────────────────── */
++  html, body {
++    overflow-x: hidden;
++    max-width: 100vw;
++  }
++
+   @media (max-width: 768px) {
+     nav { padding: 12px 16px; }
+     .nav-links { gap: 16px; }
+     .nav-links a:not(.nav-cta) { display: none; }
+-    section { padding: 64px 20px; }
+-    .features-grid { grid-template-columns: 1fr; }
+-    .screenshot-grid { grid-template-columns: 1fr; }
++    section { padding: 64px 16px; }
++    .features-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
++    .feature-card { padding: 16px; }
++    .feature-card h3 { font-size: 14px; }
++    .feature-card p { font-size: 12px; }
++    .feature-icon { width: 32px; height: 32px; font-size: 14px; margin-bottom: 10px; }
++    .screenshot-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+     .how-steps { grid-template-columns: 1fr; }
+-    .hero { padding: 100px 20px 60px; }
++    .hero { padding: 100px 16px 60px; }
+     .hero h1 { letter-spacing: -1px; }
+-  }
+-
+-  /* ── Tech stack pills ───────────────────────────────── */
+-  .tech-stack {
+-    display: flex;
+-    flex-wrap: wrap;
+-    gap: 8px;
+-    margin-top: 32px;
+-    justify-content: center;
+-  }
+-
+-  .tech-pill {
+-    font-family: 'Space Mono', monospace;
+-    font-size: 11px;
+-    color: var(--text-secondary);
+-    background: var(--bg-card);
+-    border: 1px solid var(--border);
+-    padding: 4px 12px;
+-    border-radius: 16px;
++    .hero-screenshot { margin-top: 40px; }
++    .install-cmd code { font-size: 12px; }
++    .glow-blue, .glow-green { display: none; }
++    .mobile-showcase { gap: 8px; flex-wrap: nowrap; }
++    .mobile-frame { width: calc(25% - 6px); min-width: 0; }
++    #easter-eggs .screenshot-grid {
++      grid-template-columns: 1fr;
++      max-width: 100%;
++      margin: 48px auto 0;
++    }
++    #easter-eggs .screenshot-item .caption { font-size: 11px; }
+   }
+ </style>
+ </head>
+@@ -760,6 +699,7 @@
+     <a href="#features">Features</a>
+     <a href="#how-it-works">How It Works</a>
+     <a href="#screenshots">Screenshots</a>
++    <a href="#mobile">Mobile</a>
+     <a href="https://github.com/Soarcer/synapse" target="_blank">GitHub</a>
+     <a href="https://www.npmjs.com/package/@synapse-ai/cli" target="_blank" class="nav-cta">npm install</a>
+   </div>
+@@ -771,14 +711,21 @@
+ 
+   <div class="hero-badge">
+     <span class="dot"></span>
+-    825 tests passing · MIT licensed
++    Works with Claude Code · MIT licensed
+   </div>
+ 
++  <a href="https://github.com/Soarcer/synapse" target="_blank" style="margin-bottom: 16px; animation: fadeUp 0.6s ease both;">
++    <img alt="GitHub stars" src="https://img.shields.io/github/stars/Soarcer/synapse?style=social">
++  </a>
++
+   <h1>See what your <span class="accent">AI agents</span> are actually doing</h1>
+ 
+   <p class="hero-sub">
+     Claude Code does a lot of things behind a blinking cursor. Synapse renders all of it as a live, interactive node graph. Because understanding is its own reward.
+   </p>
++  <p class="hero-sub" style="font-size: 14px; color: var(--text-muted); margin-bottom: 32px; animation: fadeUp 0.6s ease 0.25s both;">
++    For developers running Claude Code who want to see what's happening under the hood.
++  </p>
+ 
+   <div class="install-block">
+     <div class="install-cmd">
+@@ -787,79 +734,78 @@
+       <button class="copy-btn" onclick="copyInstall(this)">Copy</button>
+     </div>
+     <p class="install-hint">
+-      Then: <code>synapse start</code> · Requires Node.js 20+
++      Then: <code>synapse start</code> · Requires <a href="https://nodejs.org" target="_blank" style="color: var(--text-secondary);">Node.js 20+</a>
+     </p>
+   </div>
+ 
+   <div class="hero-screenshot">
+-    <div class="placeholder">
+-      <!-- Replace this div with: <img src="assets/hero-screenshot.png" alt="Synapse dashboard" style="width:100%; border-radius:12px;"> -->
+-      <span style="z-index:1">📸 hero screenshot goes here</span>
+-      <div class="fake-node" style="top:25%;left:35%"><span class="status" style="background:var(--green)"></span> agent:main</div>
+-      <div class="fake-node" style="top:40%;left:55%"><span class="status" style="background:var(--blue)"></span> Read</div>
+-      <div class="fake-node" style="top:55%;left:40%"><span class="status" style="background:var(--green)"></span> Edit</div>
+-      <div class="fake-node" style="top:35%;left:20%"><span class="status" style="background:var(--purple)"></span> task:subagent</div>
+-      <div class="fake-node" style="top:60%;left:65%"><span class="status" style="background:var(--orange)"></span> Bash</div>
+-      <div class="fake-node" style="top:20%;left:60%"><span class="status" style="background:var(--green)"></span> Grep</div>
+-      <div class="fake-edge"></div>
+-      <div class="fake-edge"></div>
+-      <div class="fake-edge"></div>
+-    </div>
++    <video autoplay loop muted playsinline style="width:100%; border-radius:12px; border: 1px solid var(--border);">
++      <source src="images/hero.webm" type="video/webm">
++      <img src="images/desktop_nodegraph_lens.png" alt="Synapse dashboard">
++    </video>
+   </div>
+ </header>
+ 
+ <!-- ════════════════════════════════════════════════════════ FEATURES -->
+ <section id="features">
+   <div class="section-label">What You Get</div>
+-  <h2>Not another dashboard. An X-ray machine.</h2>
++  <h2>Not another dashboard.<br>A living graph.</h2>
+   <p class="section-desc">
+     Agents spawning subagents calling tools spawning more agents — all rendered in real-time so you can see what's actually happening instead of guessing.
+   </p>
+ 
+   <div class="features-grid">
+     <div class="feature-card">
+-      <div class="feature-icon icon-blue">◉</div>
+       <h3>Live Node Graph</h3>
+       <p>Sessions, agents, subagents, and tool calls as connected nodes with animated edges. Color-coded by status. Auto-expanding as agents spawn. Custom layout algorithm that handles arbitrarily deep trees without overlapping.</p>
+-      <p class="aside">We replaced dagre. Long story.</p>
+     </div>
+ 
+     <div class="feature-card">
+-      <div class="feature-icon icon-cyan">◇</div>
+-      <h3>Five Analysis Lenses</h3>
+-      <p>Same data, five perspectives. Tree explorer, treemap, sankey flow, compaction forensics, cost waterfall. Click a node in any lens — it highlights in the graph. Click a node in the graph — it highlights in every lens.</p>
+-      <p class="aside">The sankey is the prettiest. The compaction lens is the most useful.</p>
++      <h3>Four Analysis Lenses</h3>
++      <p>Same data, four perspectives. Tree view, treemap, sankey flow, and compaction timeline. Click a node in any lens — it highlights in the graph. Click a node in the graph — it highlights in every lens.</p>
++      <p class="aside">The Sankey is all form, the Treemap is all function.</p>
+     </div>
+ 
+     <div class="feature-card">
+-      <div class="feature-icon icon-green">⊞</div>
+       <h3>Tool Call Grouping</h3>
+-      <p>47 tool calls don't produce 47 nodes. They're grouped into composites with three display modes: pill grid, timeline swimlanes, and density heatmap. Toggle with F.</p>
++      <p>47 tool calls don't produce 47 nodes. They're grouped into composites with three display modes: pill grid, timeline swimlanes, and density heatmap.</p>
+     </div>
+ 
+     <div class="feature-card">
+-      <div class="feature-icon icon-orange">$</div>
+-      <h3>Cost Tracking</h3>
+-      <p>Per-turn USD breakdown by input, output, and cache tokens. Cumulative waterfall so you know whether that "simple refactor" cost $0.03 or $3.00.</p>
++      <h3>Remote Approval</h3>
++      <p>Start a job, walk away, approve permissions from your phone. Claude Code's HTTP hooks hold the request open until you tap Approve or Deny. Yes, others do this too. Now you have options.</p>
++      <p class="aside">Requires --lan mode. Your home Wi-Fi, not the coffee shop.</p>
+     </div>
+ 
+     <div class="feature-card">
+-      <div class="feature-icon icon-purple">📱</div>
+-      <h3>Remote Approval</h3>
+-      <p>Start a job, walk away, approve permissions from your phone. Claude Code's HTTP hooks hold the request open until you tap Approve or Deny. Cards stack with countdown timers.</p>
+-      <p class="aside">Requires --lan mode. Your home Wi-Fi, not the coffee shop.</p>
++      <h3>Keyboard Navigation</h3>
++      <p>Arrow keys to walk the graph. Up/down the spine, left/right between siblings. Bracket keys for logical next/prev. Navigate a 200-node tree without touching the mouse.</p>
+     </div>
+ 
+     <div class="feature-card">
+-      <div class="feature-icon icon-red">⚡</div>
+-      <h3>Compaction Forensics</h3>
+-      <p>Ever had Claude forget something you told it 10 minutes ago? The sawtooth sparkline shows exactly when the context window hit its limit, and what caused it.</p>
++      <h3>Node Inspector</h3>
++      <p>Click any node to open a detail panel with full metadata — tool arguments, response payloads, token counts, timing, parent chain. Everything the graph summarizes, the inspector shows in full.</p>
+     </div>
+   </div>
+ </section>
+ 
+ <hr class="divider">
+ 
++<!-- ════════════════════════════════════════════════════════ VIDEO -->
++<section class="video-section">
++  <div class="section-label">Watch</div>
++  <h2>60-second demo</h2>
++  <p class="section-desc" style="margin-left:auto;margin-right:auto;">
++    From zero to full agent visibility in one minute. No narration needed — the graph speaks for itself.
++  </p>
++
++  <div class="video-wrapper">
++    <iframe width="100%" style="aspect-ratio:16/9;" src="https://www.youtube.com/embed/j4WqJHcVUc4?cc_load_policy=1" title="Synapse — 60-second demo" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
++  </div>
++</section>
++
++<hr class="divider">
++
+ <!-- ════════════════════════════════════════════════════════ HOW IT WORKS -->
+ <section id="how-it-works">
+   <div class="section-label">How It Works</div>
+@@ -883,7 +829,7 @@
+     </div>
+     <div class="how-step">
+       <h3>Observe</h3>
+-      <p>Watch the machine think. Click nodes, drill into tool calls, switch lenses. Understanding is its own reward.</p>
++      <p>Watch the machine think. Click nodes, drill into tool calls, switch lenses. Turns out, watching AI think is addictive.</p>
+     </div>
+   </div>
+ 
+@@ -905,54 +851,81 @@
+   <div class="section-label">See It</div>
+   <h2>Screenshots</h2>
+   <p class="section-desc">
+-    These are placeholders. The real screenshots are coming. But even the placeholders look nice because we care about that sort of thing.
++    Real screenshots from a live Claude Code session.
+   </p>
+ 
+   <div class="screenshot-grid">
+-    <div class="screenshot-item">
+-      <div class="placeholder-sm">📸 Live agent graph</div>
+-      <div class="caption">Agent tree expanding as Claude works</div>
++    <div class="screenshot-item" onclick="openLightbox(this.querySelector('img'))">
++      <img src="images/desktop_nodegraph_lens_selected.png" alt="Live agent graph with selected node" data-desc="The live agent graph with a node selected. Clicking any node cross-highlights it in the analysis lens below. Every session, agent, subagent, and tool call is a connected node — color-coded by status, auto-expanding as agents spawn.">
++      <div class="caption">Agent tree with lens cross-highlighting</div>
+     </div>
+-    <div class="screenshot-item">
+-      <div class="placeholder-sm">📸 Lens views (2×3 grid)</div>
+-      <div class="caption">Five analysis perspectives, bidirectionally linked</div>
++    <div class="screenshot-item" onclick="openLightbox(this.querySelector('img'))">
++      <img src="images/desktop_nodeinspector.png" alt="Node inspector panel" data-desc="The node inspector panel. Click any node to see its full metadata — tool arguments, response payloads, token counts, timing, and parent chain. Everything the graph summarizes at a glance, the inspector shows in full detail.">
++      <div class="caption">Node inspector — full metadata at a click</div>
+     </div>
+-    <div class="screenshot-item">
+-      <div class="placeholder-sm">📸 Tool grouping modes</div>
+-      <div class="caption">Pill grid · Timeline · Heatmap</div>
++    <div class="screenshot-item" onclick="openLightbox(this.querySelector('img'))">
++      <img src="images/dektop__tools_pillgrid.png" alt="Tool pill grid mode" data-desc="Tool grouping in pill grid mode. Instead of 47 tool calls producing 47 nodes, they're grouped into a single composite node. Each pill is color-coded by tool type — hover for details, click to expand.">
++      <div class="caption">Tool grouping — pill grid</div>
+     </div>
+-    <div class="screenshot-item">
+-      <div class="placeholder-sm">📸 Mobile remote approval</div>
+-      <div class="caption">Approve permissions from your phone</div>
++    <div class="screenshot-item" onclick="openLightbox(this.querySelector('img'))">
++      <img src="images/desktop_tools_timeline.png" alt="Tool timeline mode" data-desc="Tool grouping in timeline mode. Tool calls are laid out chronologically as swimlanes, showing exactly when each tool fired and how long it took. Great for spotting sequential bottlenecks and parallel execution patterns.">
++      <div class="caption">Tool grouping — timeline</div>
+     </div>
+-    <div class="screenshot-item">
+-      <div class="placeholder-sm">📸 Cost waterfall</div>
+-      <div class="caption">Per-turn USD breakdown with running total</div>
++    <div class="screenshot-item" onclick="openLightbox(this.querySelector('img'))">
++      <img src="images/desktop_tools_heatmap.png" alt="Tool frequency matrix mode" data-desc="Tool grouping in frequency matrix mode. A density visualization that shows which tools are called most frequently and where the hot spots are. The brighter the cell, the more activity — instantly reveals where the agent is spending its effort.">
++      <div class="caption">Tool grouping — frequency matrix</div>
+     </div>
+-    <div class="screenshot-item">
+-      <div class="placeholder-sm">📸 Compaction forensics</div>
+-      <div class="caption">The sawtooth pattern is your evidence</div>
++    <div class="screenshot-item" onclick="openLightbox(this.querySelector('img'))">
++      <img src="images/desktop_remote-options.png" alt="Remote approval options" data-desc="Remote approval with deny and message options. When Claude Code needs permission, the request appears as a card with countdown timer. You can approve, deny, or deny with a message explaining why — the agent receives your feedback and adjusts.">
++      <div class="caption">Remote approval with deny + message</div>
+     </div>
+   </div>
+ </section>
+ 
+ <hr class="divider">
+ 
+-<!-- ════════════════════════════════════════════════════════ VIDEO -->
+-<section class="video-section">
+-  <div class="section-label">Watch</div>
+-  <h2>60-second demo</h2>
+-  <p class="section-desc" style="margin-left:auto;margin-right:auto;">
+-    From zero to full agent visibility in one minute. No narration needed — the graph speaks for itself.
++<!-- ════════════════════════════════════════════════════════ MOBILE -->
++<section id="mobile">
++  <div class="section-label">On the Go</div>
++  <h2>Works on your phone.</h2>
++  <p class="section-desc">
++    The full dashboard, responsive down to mobile. Approve permissions from the couch, check agent progress from the kitchen, watch the graph grow from anywhere on your network.
+   </p>
+ 
+-  <div class="video-wrapper">
+-    <div class="video-placeholder">
+-      <!-- Replace with: <iframe src="https://www.youtube.com/embed/VIDEO_ID" ... -->
+-      <div class="play-btn">
+-        <svg viewBox="0 0 24 24"><polygon points="8,5 20,12 8,19"/></svg>
+-      </div>
+-      <span>video coming soon</span>
++  <div class="mobile-showcase">
++    <div class="mobile-frame" onclick="openLightbox(this.querySelector('img'))">
++      <img src="images/mobile_nodegraph.PNG" alt="Mobile node graph" data-desc="The full agent graph on mobile. The same interactive node tree you see on desktop, responsive down to phone screens. Pinch to zoom, tap nodes to inspect — fully functional on the go.">
++      <div class="caption">Live graph</div>
++    </div>
++    <div class="mobile-frame" onclick="openLightbox(this.querySelector('img'))">
++      <img src="images/mobile_approval.PNG" alt="Mobile approval cards" data-desc="Remote approval from your phone. Permission requests stack as cards with countdown timers. Tap to approve or deny from anywhere on your network — start a job at your desk, approve from the couch.">
++      <div class="caption">Remote approval</div>
++    </div>
++    <div class="mobile-frame" onclick="openLightbox(this.querySelector('img'))">
++      <img src="images/mobile_lens_sankey.PNG" alt="Mobile sankey lens" data-desc="The sankey flow lens on mobile. Traces the flow of data and control between agents, tools, and sessions. The width of each band represents token volume — wider means more data flowing through that path.">
++      <div class="caption">Sankey lens</div>
++    </div>
++    <div class="mobile-frame" onclick="openLightbox(this.querySelector('img'))">
++      <img src="images/mobile_lens_treemap.PNG" alt="Mobile treemap lens" data-desc="The treemap lens on mobile. Each rectangle is sized proportionally to token usage. Instantly see which agents and tools are consuming the most context — the biggest boxes are where the money goes.">
++      <div class="caption">Treemap lens</div>
++    </div>
++  </div>
++</section>
++
++<hr class="divider">
++
++<!-- ════════════════════════════════════════════════════════ ONE MORE THING -->
++<section id="easter-eggs">
++  <div class="section-label">One More Thing</div>
++  <h2>Not every feature needs a business case.</h2>
++  <p class="section-desc">
++    Data can be fun too. These visualization modes prove it.
++  </p>
++
++  <div class="screenshot-grid" style="max-width: 800px; margin: 48px auto 0;">
++    <div class="screenshot-item" onclick="openLightbox(this.querySelector('img'))">
++      <img src="images/desktop_tools_arcade.png" alt="Arcade visualization modes" data-desc="Game of Life, Snake, and Breakout running inside tool call nodes. Self-playing visualizations that turn tool execution sequences into something you actually want to watch. Completely pointless, absolutely delightful.">
++      <div class="caption">Game of Life · Snake · Breakout</div>
+     </div>
+   </div>
+ </section>
+@@ -960,7 +933,7 @@
+ <!-- ════════════════════════════════════════════════════════ CTA -->
+ <div class="cta-section">
+   <div class="glow-blue"></div>
+-  <h2>You should probably see what your agents are doing.</h2>
++  <h2>Your agents are doing a lot. You should see it. Live.</h2>
+   <p>One install. One command. All the visibility.</p>
+   <div class="cta-install">
+     <div class="install-cmd" style="display:inline-flex;">
+@@ -969,18 +942,6 @@
+       <button class="copy-btn" onclick="copyInstall(this)">Copy</button>
+     </div>
+   </div>
+-
+-  <div class="tech-stack">
+-    <span class="tech-pill">React 19</span>
+-    <span class="tech-pill">React Flow v12</span>
+-    <span class="tech-pill">TypeScript</span>
+-    <span class="tech-pill">Express 5</span>
+-    <span class="tech-pill">sql.js</span>
+-    <span class="tech-pill">Zustand 5</span>
+-    <span class="tech-pill">Tailwind 4</span>
+-    <span class="tech-pill">825 tests</span>
+-    <span class="tech-pill">MIT</span>
+-  </div>
+ </div>
+ 
+ <!-- ════════════════════════════════════════════════════════ FOOTER -->
+@@ -989,11 +950,21 @@
+     <a href="https://github.com/Soarcer/synapse">GitHub</a> ·
+     <a href="https://www.npmjs.com/package/@synapse-ai/cli">npm</a> ·
+     <a href="https://github.com/Soarcer/synapse#security-model">Security</a> ·
++    <a href="mailto:bernhard@usesynapse.dev">Contact</a> ·
+     MIT License
+   </p>
+-  <p class="footer-sub">Built with curiosity, caffeine, and a mass amount of Claude.</p>
++  <p class="footer-sub">Built with Claude.<br>The ideas were mine. The 38,000 lines of code were not.<br>Thanks to Anthropic for turning "what if" into "what is."</p>
++  <p class="footer-sub">Source code coming to GitHub soon — I didn't want to delay the release again.</p>
+ </footer>
+ 
++<!-- Lightbox -->
++<div class="lightbox" id="lightbox" onclick="closeLightbox()">
++  <div class="lightbox-content">
++    <img id="lightbox-img" src="" alt="">
++    <p id="lightbox-desc"></p>
++  </div>
++</div>
++
+ <script>
+ function copyInstall(btn) {
+   navigator.clipboard.writeText('npm install -g @synapse-ai/cli').then(() => {
+@@ -1005,6 +976,28 @@ function copyInstall(btn) {
+     }, 2000);
+   });
+ }
++
++function openLightbox(img) {
++  const lb = document.getElementById('lightbox');
++  const lbImg = document.getElementById('lightbox-img');
++  const lbDesc = document.getElementById('lightbox-desc');
++  lbImg.src = img.src;
++  lbImg.alt = img.alt;
++  lbDesc.textContent = img.dataset.desc || '';
++  lbDesc.style.display = img.dataset.desc ? 'block' : 'none';
++  lb.classList.add('active');
++  document.body.style.overflow = 'hidden';
++}
++
++function closeLightbox() {
++  const lb = document.getElementById('lightbox');
++  lb.classList.remove('active');
++  document.body.style.overflow = '';
++}
++
++document.addEventListener('keydown', (e) => {
++  if (e.key === 'Escape') closeLightbox();
++});
+ </script>
+ 
+ </body>

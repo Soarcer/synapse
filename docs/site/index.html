@@ -8,8 +8,9 @@
 <meta property="og:title" content="Synapse — Real-time Agent Observability">
 <meta property="og:description" content="See what your AI agents are actually doing. Interactive node graph, cost tracking, remote approval from your phone.">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://soarcer.github.io/synapse">
-<!-- <meta property="og:image" content="https://soarcer.github.io/synapse/assets/og-image.png"> -->
+<meta property="og:url" content="https://usesynapse.dev">
+<meta property="og:image" content="https://usesynapse.dev/images/og-image.png">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -44,17 +45,6 @@
     color: var(--text-primary);
     line-height: 1.7;
     overflow-x: hidden;
-  }
-
-  /* ── Grain overlay ──────────────────────────────────── */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    opacity: 0.03;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-    pointer-events: none;
-    z-index: 9999;
   }
 
   /* ── Glow effects ───────────────────────────────────── */
@@ -295,78 +285,8 @@
     position: relative;
   }
 
-  .hero-screenshot .placeholder {
-    width: 100%;
-    aspect-ratio: 16 / 9;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-muted);
-    font-size: 14px;
-    font-family: 'Space Mono', monospace;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .hero-screenshot .placeholder::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(135deg, rgba(88, 166, 255, 0.03) 0%, transparent 50%, rgba(63, 185, 80, 0.03) 100%);
-  }
-
-  /* Simulated graph nodes in placeholder */
-  .fake-node {
-    position: absolute;
-    background: var(--bg-primary);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px 14px;
-    font-size: 11px;
-    color: var(--text-secondary);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    animation: floatNode 6s ease-in-out infinite;
-  }
-
-  .fake-node .status {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-  }
-
-  .fake-node:nth-child(2) { top: 25%; left: 35%; animation-delay: 0s; }
-  .fake-node:nth-child(3) { top: 40%; left: 55%; animation-delay: 1s; }
-  .fake-node:nth-child(4) { top: 55%; left: 40%; animation-delay: 2s; }
-  .fake-node:nth-child(5) { top: 35%; left: 20%; animation-delay: 0.5s; }
-  .fake-node:nth-child(6) { top: 60%; left: 65%; animation-delay: 1.5s; }
-  .fake-node:nth-child(7) { top: 20%; left: 60%; animation-delay: 2.5s; }
-
-  @keyframes floatNode {
-    0%, 100% { transform: translateY(0); opacity: 0.6; }
-    50% { transform: translateY(-4px); opacity: 1; }
-  }
-
-  /* Simulated edges */
-  .fake-edge {
-    position: absolute;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--border-bright), transparent);
-    transform-origin: left center;
-    animation: edgePulse 3s ease-in-out infinite;
-  }
-
-  .fake-edge:nth-child(8) { top: 33%; left: 30%; width: 20%; transform: rotate(15deg); animation-delay: 0.2s; }
-  .fake-edge:nth-child(9) { top: 48%; left: 45%; width: 15%; transform: rotate(-10deg); animation-delay: 0.7s; }
-  .fake-edge:nth-child(10) { top: 38%; left: 50%; width: 18%; transform: rotate(20deg); animation-delay: 1.2s; }
-
-  @keyframes edgePulse {
-    0%, 100% { opacity: 0.3; }
-    50% { opacity: 0.8; }
+  .hero-screenshot img {
+    display: block;
   }
 
   /* ── Section layout ─────────────────────────────────── */
@@ -398,7 +318,7 @@
     font-size: 18px;
     font-weight: 300;
     color: var(--text-secondary);
-    max-width: 640px;
+    max-width: 800px;
     margin-bottom: 56px;
   }
 
@@ -438,17 +358,6 @@
 
   .feature-card:hover::before { opacity: 1; }
 
-  .feature-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-    margin-bottom: 16px;
-  }
-
   .feature-card h3 {
     font-size: 17px;
     font-weight: 600;
@@ -469,47 +378,117 @@
     margin-top: 10px;
   }
 
-  /* ── Icon backgrounds ───────────────────────────────── */
-  .icon-blue { background: rgba(88, 166, 255, 0.12); color: var(--blue); }
-  .icon-green { background: rgba(63, 185, 80, 0.12); color: var(--green); }
-  .icon-orange { background: rgba(210, 153, 34, 0.12); color: var(--orange); }
-  .icon-purple { background: rgba(188, 140, 255, 0.12); color: var(--purple); }
-  .icon-red { background: rgba(248, 81, 73, 0.12); color: var(--red); }
-  .icon-cyan { background: rgba(57, 210, 192, 0.12); color: var(--cyan); }
-
-  /* ── Screenshot section ─────────────────────────────── */
+  /* ── Screenshot grid (borderless) ────────────────────── */
   .screenshot-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: 16px;
+    gap: 24px;
     margin-top: 48px;
   }
 
   .screenshot-item {
     position: relative;
-    border-radius: 10px;
-    overflow: hidden;
-    border: 1px solid var(--border);
-    background: var(--bg-card);
+    cursor: pointer;
   }
 
-  .screenshot-item .placeholder-sm {
-    aspect-ratio: 16 / 10;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: 'Space Mono', monospace;
-    font-size: 12px;
-    color: var(--text-muted);
-    background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-primary) 100%);
+  .screenshot-item img {
+    display: block;
+    width: 100%;
+    border-radius: 8px;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .screenshot-item:hover img {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
   }
 
   .screenshot-item .caption {
-    padding: 12px 16px;
+    margin-top: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  /* ── Lightbox ──────────────────────────────────────── */
+  .lightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(1, 4, 9, 0.92);
+    backdrop-filter: blur(8px);
+    align-items: center;
+    justify-content: center;
+    cursor: zoom-out;
+    padding: 32px;
+  }
+
+  .lightbox.active {
+    display: flex;
+  }
+
+  .lightbox-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 90vw;
+    max-height: 90vh;
+  }
+
+  .lightbox img {
+    max-width: 100%;
+    max-height: 80vh;
+    border-radius: 8px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+    animation: lightboxIn 0.2s ease;
+    cursor: zoom-out;
+  }
+
+  .lightbox-content p {
+    margin-top: 16px;
+    font-size: 15px;
+    color: var(--text-secondary);
+    text-align: center;
+    max-width: 640px;
+    line-height: 1.6;
+    animation: lightboxIn 0.3s ease 0.1s both;
+  }
+
+  @keyframes lightboxIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  /* ── Mobile showcase ────────────────────────────────── */
+  .mobile-showcase {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    margin-top: 48px;
+    flex-wrap: wrap;
+  }
+
+  .mobile-frame {
+    width: 200px;
+    flex-shrink: 0;
+    text-align: center;
+    cursor: pointer;
+  }
+
+  .mobile-frame img {
+    width: 100%;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  }
+
+  .mobile-frame .caption {
+    margin-top: 12px;
     font-size: 13px;
     font-weight: 500;
     color: var(--text-secondary);
-    border-top: 1px solid var(--border);
   }
 
   /* ── Video section ──────────────────────────────────── */
@@ -525,47 +504,6 @@
     overflow: hidden;
     border: 1px solid var(--border);
     background: var(--bg-card);
-  }
-
-  .video-placeholder {
-    aspect-ratio: 16 / 9;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 16px;
-    background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-primary) 100%);
-  }
-
-  .play-btn {
-    width: 64px;
-    height: 64px;
-    border-radius: 50%;
-    background: rgba(88, 166, 255, 0.15);
-    border: 2px solid var(--blue);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .play-btn:hover {
-    background: rgba(88, 166, 255, 0.25);
-    transform: scale(1.05);
-  }
-
-  .play-btn svg {
-    width: 24px;
-    height: 24px;
-    fill: var(--blue);
-    margin-left: 3px;
-  }
-
-  .video-placeholder span {
-    font-size: 13px;
-    color: var(--text-muted);
-    font-family: 'Space Mono', monospace;
   }
 
   /* ── How it works ───────────────────────────────────── */
@@ -719,35 +657,36 @@
   }
 
   /* ── Responsive ─────────────────────────────────────── */
+  html, body {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
   @media (max-width: 768px) {
     nav { padding: 12px 16px; }
     .nav-links { gap: 16px; }
     .nav-links a:not(.nav-cta) { display: none; }
-    section { padding: 64px 20px; }
-    .features-grid { grid-template-columns: 1fr; }
-    .screenshot-grid { grid-template-columns: 1fr; }
+    section { padding: 64px 16px; }
+    .features-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .feature-card { padding: 16px; }
+    .feature-card h3 { font-size: 14px; }
+    .feature-card p { font-size: 12px; }
+    .feature-icon { width: 32px; height: 32px; font-size: 14px; margin-bottom: 10px; }
+    .screenshot-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
     .how-steps { grid-template-columns: 1fr; }
-    .hero { padding: 100px 20px 60px; }
+    .hero { padding: 100px 16px 60px; }
     .hero h1 { letter-spacing: -1px; }
-  }
-
-  /* ── Tech stack pills ───────────────────────────────── */
-  .tech-stack {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 32px;
-    justify-content: center;
-  }
-
-  .tech-pill {
-    font-family: 'Space Mono', monospace;
-    font-size: 11px;
-    color: var(--text-secondary);
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    padding: 4px 12px;
-    border-radius: 16px;
+    .hero-screenshot { margin-top: 40px; }
+    .install-cmd code { font-size: 12px; }
+    .glow-blue, .glow-green { display: none; }
+    .mobile-showcase { gap: 8px; flex-wrap: nowrap; }
+    .mobile-frame { width: calc(25% - 6px); min-width: 0; }
+    #easter-eggs .screenshot-grid {
+      grid-template-columns: 1fr;
+      max-width: 100%;
+      margin: 48px auto 0;
+    }
+    #easter-eggs .screenshot-item .caption { font-size: 11px; }
   }
 </style>
 </head>
@@ -760,6 +699,7 @@
     <a href="#features">Features</a>
     <a href="#how-it-works">How It Works</a>
     <a href="#screenshots">Screenshots</a>
+    <a href="#mobile">Mobile</a>
     <a href="https://github.com/Soarcer/synapse" target="_blank">GitHub</a>
     <a href="https://www.npmjs.com/package/@synapse-ai/cli" target="_blank" class="nav-cta">npm install</a>
   </div>
@@ -771,13 +711,20 @@
 
   <div class="hero-badge">
     <span class="dot"></span>
-    825 tests passing · MIT licensed
+    Works with Claude Code · MIT licensed
   </div>
+
+  <a href="https://github.com/Soarcer/synapse" target="_blank" style="margin-bottom: 16px; animation: fadeUp 0.6s ease both;">
+    <img alt="GitHub stars" src="https://img.shields.io/github/stars/Soarcer/synapse?style=social">
+  </a>
 
   <h1>See what your <span class="accent">AI agents</span> are actually doing</h1>
 
   <p class="hero-sub">
     Claude Code does a lot of things behind a blinking cursor. Synapse renders all of it as a live, interactive node graph. Because understanding is its own reward.
+  </p>
+  <p class="hero-sub" style="font-size: 14px; color: var(--text-muted); margin-bottom: 32px; animation: fadeUp 0.6s ease 0.25s both;">
+    For developers running Claude Code who want to see what's happening under the hood.
   </p>
 
   <div class="install-block">
@@ -787,74 +734,73 @@
       <button class="copy-btn" onclick="copyInstall(this)">Copy</button>
     </div>
     <p class="install-hint">
-      Then: <code>synapse start</code> · Requires Node.js 20+
+      Then: <code>synapse start</code> · Requires <a href="https://nodejs.org" target="_blank" style="color: var(--text-secondary);">Node.js 20+</a>
     </p>
   </div>
 
   <div class="hero-screenshot">
-    <div class="placeholder">
-      <!-- Replace this div with: <img src="assets/hero-screenshot.png" alt="Synapse dashboard" style="width:100%; border-radius:12px;"> -->
-      <span style="z-index:1">📸 hero screenshot goes here</span>
-      <div class="fake-node" style="top:25%;left:35%"><span class="status" style="background:var(--green)"></span> agent:main</div>
-      <div class="fake-node" style="top:40%;left:55%"><span class="status" style="background:var(--blue)"></span> Read</div>
-      <div class="fake-node" style="top:55%;left:40%"><span class="status" style="background:var(--green)"></span> Edit</div>
-      <div class="fake-node" style="top:35%;left:20%"><span class="status" style="background:var(--purple)"></span> task:subagent</div>
-      <div class="fake-node" style="top:60%;left:65%"><span class="status" style="background:var(--orange)"></span> Bash</div>
-      <div class="fake-node" style="top:20%;left:60%"><span class="status" style="background:var(--green)"></span> Grep</div>
-      <div class="fake-edge"></div>
-      <div class="fake-edge"></div>
-      <div class="fake-edge"></div>
-    </div>
+    <video autoplay loop muted playsinline style="width:100%; border-radius:12px; border: 1px solid var(--border);">
+      <source src="images/hero.webm" type="video/webm">
+      <img src="images/desktop_nodegraph_lens.png" alt="Synapse dashboard">
+    </video>
   </div>
 </header>
 
 <!-- ════════════════════════════════════════════════════════ FEATURES -->
 <section id="features">
   <div class="section-label">What You Get</div>
-  <h2>Not another dashboard. An X-ray machine.</h2>
+  <h2>Not another dashboard.<br>A living graph.</h2>
   <p class="section-desc">
     Agents spawning subagents calling tools spawning more agents — all rendered in real-time so you can see what's actually happening instead of guessing.
   </p>
 
   <div class="features-grid">
     <div class="feature-card">
-      <div class="feature-icon icon-blue">◉</div>
       <h3>Live Node Graph</h3>
       <p>Sessions, agents, subagents, and tool calls as connected nodes with animated edges. Color-coded by status. Auto-expanding as agents spawn. Custom layout algorithm that handles arbitrarily deep trees without overlapping.</p>
-      <p class="aside">We replaced dagre. Long story.</p>
     </div>
 
     <div class="feature-card">
-      <div class="feature-icon icon-cyan">◇</div>
-      <h3>Five Analysis Lenses</h3>
-      <p>Same data, five perspectives. Tree explorer, treemap, sankey flow, compaction forensics, cost waterfall. Click a node in any lens — it highlights in the graph. Click a node in the graph — it highlights in every lens.</p>
-      <p class="aside">The sankey is the prettiest. The compaction lens is the most useful.</p>
+      <h3>Four Analysis Lenses</h3>
+      <p>Same data, four perspectives. Tree view, treemap, sankey flow, and compaction timeline. Click a node in any lens — it highlights in the graph. Click a node in the graph — it highlights in every lens.</p>
+      <p class="aside">The Sankey is all form, the Treemap is all function.</p>
     </div>
 
     <div class="feature-card">
-      <div class="feature-icon icon-green">⊞</div>
       <h3>Tool Call Grouping</h3>
-      <p>47 tool calls don't produce 47 nodes. They're grouped into composites with three display modes: pill grid, timeline swimlanes, and density heatmap. Toggle with F.</p>
+      <p>47 tool calls don't produce 47 nodes. They're grouped into composites with three display modes: pill grid, timeline swimlanes, and density heatmap.</p>
     </div>
 
     <div class="feature-card">
-      <div class="feature-icon icon-orange">$</div>
-      <h3>Cost Tracking</h3>
-      <p>Per-turn USD breakdown by input, output, and cache tokens. Cumulative waterfall so you know whether that "simple refactor" cost $0.03 or $3.00.</p>
-    </div>
-
-    <div class="feature-card">
-      <div class="feature-icon icon-purple">📱</div>
       <h3>Remote Approval</h3>
-      <p>Start a job, walk away, approve permissions from your phone. Claude Code's HTTP hooks hold the request open until you tap Approve or Deny. Cards stack with countdown timers.</p>
+      <p>Start a job, walk away, approve permissions from your phone. Claude Code's HTTP hooks hold the request open until you tap Approve or Deny. Yes, others do this too. Now you have options.</p>
       <p class="aside">Requires --lan mode. Your home Wi-Fi, not the coffee shop.</p>
     </div>
 
     <div class="feature-card">
-      <div class="feature-icon icon-red">⚡</div>
-      <h3>Compaction Forensics</h3>
-      <p>Ever had Claude forget something you told it 10 minutes ago? The sawtooth sparkline shows exactly when the context window hit its limit, and what caused it.</p>
+      <h3>Keyboard Navigation</h3>
+      <p>Arrow keys to walk the graph. Up/down the spine, left/right between siblings. Bracket keys for logical next/prev. Navigate a 200-node tree without touching the mouse.</p>
     </div>
+
+    <div class="feature-card">
+      <h3>Node Inspector</h3>
+      <p>Click any node to open a detail panel with full metadata — tool arguments, response payloads, token counts, timing, parent chain. Everything the graph summarizes, the inspector shows in full.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- ════════════════════════════════════════════════════════ VIDEO -->
+<section class="video-section">
+  <div class="section-label">Watch</div>
+  <h2>60-second demo</h2>
+  <p class="section-desc" style="margin-left:auto;margin-right:auto;">
+    From zero to full agent visibility in one minute. No narration needed — the graph speaks for itself.
+  </p>
+
+  <div class="video-wrapper">
+    <iframe width="100%" style="aspect-ratio:16/9;" src="https://www.youtube.com/embed/j4WqJHcVUc4?cc_load_policy=1" title="Synapse — 60-second demo" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
   </div>
 </section>
 
@@ -883,7 +829,7 @@
     </div>
     <div class="how-step">
       <h3>Observe</h3>
-      <p>Watch the machine think. Click nodes, drill into tool calls, switch lenses. Understanding is its own reward.</p>
+      <p>Watch the machine think. Click nodes, drill into tool calls, switch lenses. Turns out, watching AI think is addictive.</p>
     </div>
   </div>
 
@@ -905,54 +851,81 @@
   <div class="section-label">See It</div>
   <h2>Screenshots</h2>
   <p class="section-desc">
-    These are placeholders. The real screenshots are coming. But even the placeholders look nice because we care about that sort of thing.
+    Real screenshots from a live Claude Code session.
   </p>
 
   <div class="screenshot-grid">
-    <div class="screenshot-item">
-      <div class="placeholder-sm">📸 Live agent graph</div>
-      <div class="caption">Agent tree expanding as Claude works</div>
+    <div class="screenshot-item" onclick="openLightbox(this.querySelector('img'))">
+      <img src="images/desktop_nodegraph_lens_selected.png" alt="Live agent graph with selected node" data-desc="The live agent graph with a node selected. Clicking any node cross-highlights it in the analysis lens below. Every session, agent, subagent, and tool call is a connected node — color-coded by status, auto-expanding as agents spawn.">
+      <div class="caption">Agent tree with lens cross-highlighting</div>
     </div>
-    <div class="screenshot-item">
-      <div class="placeholder-sm">📸 Lens views (2×3 grid)</div>
-      <div class="caption">Five analysis perspectives, bidirectionally linked</div>
+    <div class="screenshot-item" onclick="openLightbox(this.querySelector('img'))">
+      <img src="images/desktop_nodeinspector.png" alt="Node inspector panel" data-desc="The node inspector panel. Click any node to see its full metadata — tool arguments, response payloads, token counts, timing, and parent chain. Everything the graph summarizes at a glance, the inspector shows in full detail.">
+      <div class="caption">Node inspector — full metadata at a click</div>
     </div>
-    <div class="screenshot-item">
-      <div class="placeholder-sm">📸 Tool grouping modes</div>
-      <div class="caption">Pill grid · Timeline · Heatmap</div>
+    <div class="screenshot-item" onclick="openLightbox(this.querySelector('img'))">
+      <img src="images/dektop__tools_pillgrid.png" alt="Tool pill grid mode" data-desc="Tool grouping in pill grid mode. Instead of 47 tool calls producing 47 nodes, they're grouped into a single composite node. Each pill is color-coded by tool type — hover for details, click to expand.">
+      <div class="caption">Tool grouping — pill grid</div>
     </div>
-    <div class="screenshot-item">
-      <div class="placeholder-sm">📸 Mobile remote approval</div>
-      <div class="caption">Approve permissions from your phone</div>
+    <div class="screenshot-item" onclick="openLightbox(this.querySelector('img'))">
+      <img src="images/desktop_tools_timeline.png" alt="Tool timeline mode" data-desc="Tool grouping in timeline mode. Tool calls are laid out chronologically as swimlanes, showing exactly when each tool fired and how long it took. Great for spotting sequential bottlenecks and parallel execution patterns.">
+      <div class="caption">Tool grouping — timeline</div>
     </div>
-    <div class="screenshot-item">
-      <div class="placeholder-sm">📸 Cost waterfall</div>
-      <div class="caption">Per-turn USD breakdown with running total</div>
+    <div class="screenshot-item" onclick="openLightbox(this.querySelector('img'))">
+      <img src="images/desktop_tools_heatmap.png" alt="Tool frequency matrix mode" data-desc="Tool grouping in frequency matrix mode. A density visualization that shows which tools are called most frequently and where the hot spots are. The brighter the cell, the more activity — instantly reveals where the agent is spending its effort.">
+      <div class="caption">Tool grouping — frequency matrix</div>
     </div>
-    <div class="screenshot-item">
-      <div class="placeholder-sm">📸 Compaction forensics</div>
-      <div class="caption">The sawtooth pattern is your evidence</div>
+    <div class="screenshot-item" onclick="openLightbox(this.querySelector('img'))">
+      <img src="images/desktop_remote-options.png" alt="Remote approval options" data-desc="Remote approval with deny and message options. When Claude Code needs permission, the request appears as a card with countdown timer. You can approve, deny, or deny with a message explaining why — the agent receives your feedback and adjusts.">
+      <div class="caption">Remote approval with deny + message</div>
     </div>
   </div>
 </section>
 
 <hr class="divider">
 
-<!-- ════════════════════════════════════════════════════════ VIDEO -->
-<section class="video-section">
-  <div class="section-label">Watch</div>
-  <h2>60-second demo</h2>
-  <p class="section-desc" style="margin-left:auto;margin-right:auto;">
-    From zero to full agent visibility in one minute. No narration needed — the graph speaks for itself.
+<!-- ════════════════════════════════════════════════════════ MOBILE -->
+<section id="mobile">
+  <div class="section-label">On the Go</div>
+  <h2>Works on your phone.</h2>
+  <p class="section-desc">
+    The full dashboard, responsive down to mobile. Approve permissions from the couch, check agent progress from the kitchen, watch the graph grow from anywhere on your network.
   </p>
 
-  <div class="video-wrapper">
-    <div class="video-placeholder">
-      <!-- Replace with: <iframe src="https://www.youtube.com/embed/VIDEO_ID" ... -->
-      <div class="play-btn">
-        <svg viewBox="0 0 24 24"><polygon points="8,5 20,12 8,19"/></svg>
-      </div>
-      <span>video coming soon</span>
+  <div class="mobile-showcase">
+    <div class="mobile-frame" onclick="openLightbox(this.querySelector('img'))">
+      <img src="images/mobile_nodegraph.PNG" alt="Mobile node graph" data-desc="The full agent graph on mobile. The same interactive node tree you see on desktop, responsive down to phone screens. Pinch to zoom, tap nodes to inspect — fully functional on the go.">
+      <div class="caption">Live graph</div>
+    </div>
+    <div class="mobile-frame" onclick="openLightbox(this.querySelector('img'))">
+      <img src="images/mobile_approval.PNG" alt="Mobile approval cards" data-desc="Remote approval from your phone. Permission requests stack as cards with countdown timers. Tap to approve or deny from anywhere on your network — start a job at your desk, approve from the couch.">
+      <div class="caption">Remote approval</div>
+    </div>
+    <div class="mobile-frame" onclick="openLightbox(this.querySelector('img'))">
+      <img src="images/mobile_lens_sankey.PNG" alt="Mobile sankey lens" data-desc="The sankey flow lens on mobile. Traces the flow of data and control between agents, tools, and sessions. The width of each band represents token volume — wider means more data flowing through that path.">
+      <div class="caption">Sankey lens</div>
+    </div>
+    <div class="mobile-frame" onclick="openLightbox(this.querySelector('img'))">
+      <img src="images/mobile_lens_treemap.PNG" alt="Mobile treemap lens" data-desc="The treemap lens on mobile. Each rectangle is sized proportionally to token usage. Instantly see which agents and tools are consuming the most context — the biggest boxes are where the money goes.">
+      <div class="caption">Treemap lens</div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- ════════════════════════════════════════════════════════ ONE MORE THING -->
+<section id="easter-eggs">
+  <div class="section-label">One More Thing</div>
+  <h2>Not every feature needs a business case.</h2>
+  <p class="section-desc">
+    Data can be fun too. These visualization modes prove it.
+  </p>
+
+  <div class="screenshot-grid" style="max-width: 800px; margin: 48px auto 0;">
+    <div class="screenshot-item" onclick="openLightbox(this.querySelector('img'))">
+      <img src="images/desktop_tools_arcade.png" alt="Arcade visualization modes" data-desc="Game of Life, Snake, and Breakout running inside tool call nodes. Self-playing visualizations that turn tool execution sequences into something you actually want to watch. Completely pointless, absolutely delightful.">
+      <div class="caption">Game of Life · Snake · Breakout</div>
     </div>
   </div>
 </section>
@@ -960,7 +933,7 @@
 <!-- ════════════════════════════════════════════════════════ CTA -->
 <div class="cta-section">
   <div class="glow-blue"></div>
-  <h2>You should probably see what your agents are doing.</h2>
+  <h2>Your agents are doing a lot. You should see it. Live.</h2>
   <p>One install. One command. All the visibility.</p>
   <div class="cta-install">
     <div class="install-cmd" style="display:inline-flex;">
@@ -968,18 +941,6 @@
       <code>npm install -g @synapse-ai/cli</code>
       <button class="copy-btn" onclick="copyInstall(this)">Copy</button>
     </div>
-  </div>
-
-  <div class="tech-stack">
-    <span class="tech-pill">React 19</span>
-    <span class="tech-pill">React Flow v12</span>
-    <span class="tech-pill">TypeScript</span>
-    <span class="tech-pill">Express 5</span>
-    <span class="tech-pill">sql.js</span>
-    <span class="tech-pill">Zustand 5</span>
-    <span class="tech-pill">Tailwind 4</span>
-    <span class="tech-pill">825 tests</span>
-    <span class="tech-pill">MIT</span>
   </div>
 </div>
 
@@ -989,10 +950,20 @@
     <a href="https://github.com/Soarcer/synapse">GitHub</a> ·
     <a href="https://www.npmjs.com/package/@synapse-ai/cli">npm</a> ·
     <a href="https://github.com/Soarcer/synapse#security-model">Security</a> ·
+    <a href="mailto:bernhard@usesynapse.dev">Contact</a> ·
     MIT License
   </p>
-  <p class="footer-sub">Built with curiosity, caffeine, and a mass amount of Claude.</p>
+  <p class="footer-sub">Built with Claude.<br>The ideas were mine. The 38,000 lines of code were not.<br>Thanks to Anthropic for turning "what if" into "what is."</p>
+  <p class="footer-sub">Source code coming to GitHub soon — I didn't want to delay the release again.</p>
 </footer>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <div class="lightbox-content">
+    <img id="lightbox-img" src="" alt="">
+    <p id="lightbox-desc"></p>
+  </div>
+</div>
 
 <script>
 function copyInstall(btn) {
@@ -1005,6 +976,28 @@ function copyInstall(btn) {
     }, 2000);
   });
 }
+
+function openLightbox(img) {
+  const lb = document.getElementById('lightbox');
+  const lbImg = document.getElementById('lightbox-img');
+  const lbDesc = document.getElementById('lightbox-desc');
+  lbImg.src = img.src;
+  lbImg.alt = img.alt;
+  lbDesc.textContent = img.dataset.desc || '';
+  lbDesc.style.display = img.dataset.desc ? 'block' : 'none';
+  lb.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeLightbox() {
+  const lb = document.getElementById('lightbox');
+  lb.classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeLightbox();
+});
 </script>
 
 </body>
